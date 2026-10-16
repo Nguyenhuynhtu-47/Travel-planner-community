@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-TravelPlannerApplication<Travel_Planner>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "Travel_Planner.Travel_Planner.TravelPlannerApplication",
+            "projectName": "Travel_Planner",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
