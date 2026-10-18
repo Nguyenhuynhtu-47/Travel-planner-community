@@ -87,7 +87,8 @@ Tên thư mục thực tế trong repository là `frontend/web/`.
 ## 4. Hồ sơ và quyền riêng tư
 
 - Xem và cập nhật hồ sơ cá nhân.
-- Các trường có thể gồm tên hiển thị, ảnh đại diện, mô tả; cần xác nhận trường chính thức.
+- Các trường có thể chỉnh sửa trong phiên bản hiện tại: họ và tên, URL ảnh đại diện, số điện thoại, địa chỉ và giới thiệu.
+- Tên đăng nhập, email, vai trò, trạng thái tài khoản và ngày tham gia được hiển thị theo dữ liệu tài khoản; màn hình hồ sơ không cho chỉnh sửa các trường này.
 - Cấu hình hồ sơ hoặc lịch trình ở chế độ công khai/riêng tư theo phạm vi sản phẩm.
 - Chỉ hiển thị dữ liệu riêng tư cho chủ sở hữu và đối tượng được phép.
 - Có thể xem danh sách lịch trình đã tạo, đã lưu và đã tái sử dụng.
@@ -303,6 +304,7 @@ Có thể liên quan đến hoạt động tài khoản, tương tác cộng đ�
 11. Xử lý vi phạm.
 12. Soạn thông báo.
 13. Chọn người nhận, xem trước và xác nhận gửi.
+14. Hồ sơ cá nhân và chỉnh sửa thông tin tài khoản.
 
 Đây là danh sách dự kiến, không khẳng định tất cả màn hình đã được lập trình.
 

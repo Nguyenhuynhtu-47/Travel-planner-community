@@ -69,6 +69,39 @@ class ApiClient {
     }
   }
 
+  Future<dynamic> put(
+    String path, {
+    required Map<String, dynamic> body,
+    String? token,
+  }) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$path');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+
+    try {
+      final response = await _client.put(
+        uri,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+      return _handleResponse(response);
+    } on http.ClientException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        statusCode: 0,
+        message: 'Lỗi kết nối máy chủ: $e',
+      );
+    }
+  }
+
   dynamic _handleResponse(http.Response response) {
     dynamic responseData;
     try {

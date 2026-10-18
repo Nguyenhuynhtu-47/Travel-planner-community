@@ -316,7 +316,7 @@ class AuthControllerTest {
 
     @Test
     void security_otherEndpointsWithoutToken_shouldBeProtectedAndReturn401() throws Exception {
-        mockMvc.perform(get("/api/users/me"))
+        mockMvc.perform(get("/api/user/profile"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.message").value("Yêu cầu xác thực: Token không hợp lệ hoặc đã hết hạn"));
