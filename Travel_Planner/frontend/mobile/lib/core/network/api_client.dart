@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -5,6 +6,7 @@ import '../constants/api_constants.dart';
 import 'api_exception.dart';
 
 class ApiClient {
+  static const Duration _requestTimeout = Duration(seconds: 15);
   final http.Client _client;
 
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
@@ -26,9 +28,11 @@ class ApiClient {
         uri,
         headers: headers,
         body: jsonEncode(body),
-      );
+      ).timeout(_requestTimeout);
 
       return _handleResponse(response);
+    } on TimeoutException {
+      throw _timeoutException();
     } on SocketException {
       throw ApiException(
         statusCode: 0,
@@ -53,8 +57,12 @@ class ApiClient {
     };
 
     try {
-      final response = await _client.get(uri, headers: headers);
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(_requestTimeout);
       return _handleResponse(response);
+    } on TimeoutException {
+      throw _timeoutException();
     } on SocketException {
       throw ApiException(
         statusCode: 0,
@@ -67,6 +75,43 @@ class ApiClient {
       );
     }
   }
+
+  Future<dynamic> put(
+    String path, {
+    required Map<String, dynamic> body,
+    String? token,
+  }) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$path');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+    try {
+      final response = await _client
+          .put(uri, headers: headers, body: jsonEncode(body))
+          .timeout(_requestTimeout);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw _timeoutException();
+    } on SocketException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    }
+  }
+
+  ApiException _timeoutException() => ApiException(
+        statusCode: 0,
+        message:
+            'Máy chủ không phản hồi sau 15 giây. Hãy kiểm tra điện thoại và máy tính có cùng Wi-Fi, địa chỉ API và trạng thái backend.',
+      );
 
   dynamic _handleResponse(http.Response response) {
     dynamic responseData;

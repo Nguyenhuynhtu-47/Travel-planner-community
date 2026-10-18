@@ -137,10 +137,10 @@ Current inventory of API endpoints:
 | Module | Method | Endpoint | Auth Level | Purpose | Status |
 |---|---|---|---|---|---|
 | System | GET | `/api/health` | Public | Service health check | **Implemented** |
-| Auth | POST | `/api/auth/register` | Public | Register new account | Planned |
-| Auth | POST | `/api/auth/login` | Public | Log in and receive JWT token | Planned |
-| Profile | GET | `/api/users/me` | Authenticated | Fetch current user profile | Planned |
-| Profile | PUT | `/api/users/me` | Authenticated | Update user profile | Planned |
+| Auth | POST | `/api/auth/register` | Public | Register new account | Implemented |
+| Auth | POST | `/api/auth/login` | Public | Log in and receive JWT token | Implemented |
+| Profile | GET | `/api/user/profile` | Authenticated | Fetch current user profile | Implemented |
+| Profile | PUT | `/api/user/profile` | Authenticated | Update current user's full name, avatar URL, phone, address and bio | Implemented |
 | Itinerary | GET | `/api/itineraries` | Public | Search & list public itineraries | Planned |
 | Itinerary | POST | `/api/itineraries` | Authenticated | Create a new travel itinerary | Planned |
 | Itinerary | GET | `/api/itineraries/{id}` | Public/Auth | Get itinerary details | Planned |
@@ -155,4 +155,18 @@ Current inventory of API endpoints:
 | Admin | GET | `/api/admin/users` | Admin | List and manage users | Planned |
 | Admin | PUT | `/api/admin/moderation` | Admin | Moderate reported content/trips | Planned |
 
-Only `/api/health` is currently verified as implemented. All other endpoints are planned specifications.
+Profile request body for `PUT /api/user/profile` (authenticated):
+
+```json
+{
+  "fullName": "Nguyen Van A",
+  "avatar": "https://example.com/avatar.jpg",
+  "phone": "0900000000",
+  "address": "Da Nang",
+  "bio": "Travel enthusiast"
+}
+```
+
+`fullName` is required (maximum 100 characters). The other fields are optional; omitted or blank values are cleared. `avatar`, `phone` and `address` have maximum lengths of 500, 20 and 255 characters. The response uses the existing `UserResponse` fields and never includes the password. Both profile operations identify the account from the authenticated JWT; callers cannot select another user.
+
+The health, authentication and profile endpoints are implemented. The remaining endpoints are planned specifications.

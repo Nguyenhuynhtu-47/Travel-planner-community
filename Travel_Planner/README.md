@@ -57,7 +57,9 @@ Hướng dẫn khởi chạy từng thành phần
    ```
 
 > **Lưu ý về kết nối API trên Mobile**:
-> - **Máy ảo Android (Emulator)**: Ứng dụng tự động kết nối qua `http://10.0.2.2:8080` (địa chỉ máy host trong mạng ảo của Android Emulator).
-> - **Thiết bị thật**: Cần đổi Base URL trong `lib/core/constants/api_constants.dart` sang địa chỉ IP nội bộ của máy tính chạy server (ví dụ: `http://192.168.1.x:8080`).
+> - **Thiết bị thật**: Ứng dụng mặc định gọi máy tính phát triển tại `http://192.168.1.9:8080`. Điện thoại và máy tính cần cùng Wi-Fi; nếu IP máy tính thay đổi, chạy lại app với `flutter run --dart-define=API_BASE_URL=http://<IP-máy-tính>:8080`.
+> - **Máy ảo Android (Emulator)**: Chạy `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080` (`10.0.2.2` là địa chỉ máy host bên trong Android Emulator).
+> - Khi đóng gói APK, dùng cùng tham số `--dart-define=API_BASE_URL=http://<IP-máy-tính>:8080`. Cần cài lại app sau khi đổi địa chỉ API.
+> - Android được cấu hình cho phép HTTP để kết nối backend phát triển trong mạng nội bộ.
 
 ---

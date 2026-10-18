@@ -138,6 +138,12 @@ class AuthNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateCurrentUser(Map<String, dynamic> user) async {
+    _currentUser = user;
+    await _storage.saveUser(user);
+    notifyListeners();
+  }
+
   void clearErrors() {
     _errorMessage = null;
     _validationErrors = null;
