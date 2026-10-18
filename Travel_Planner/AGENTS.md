@@ -26,6 +26,7 @@ Before implementing a task, read the relevant documents:
 - docs/ai/06-feature-spec.md
 - docs/ai/07-testing-quality.md
 - docs/ai/08-agent-workflow.md
+- docs/ai/09-development-log.md
 
 For business requirements, also consult:
 - docs/Travel_Planner_Function_Specification.md
@@ -81,3 +82,41 @@ When finishing a task, report:
 3. API or database changes, if any.
 4. Tests and build checks actually performed.
 5. Remaining issues or assumptions.
+
+## 9. Development Log (Mandatory)
+
+Maintain a single development log at:
+
+`docs/ai/09-development-log.md`
+
+### Before Starting a Task
+- Read `docs/ai/09-development-log.md` if it exists.
+- Review the relevant source code, Git state, and related project documentation.
+- Use the log as historical context, not as proof that the current code is correct.
+- Verify the actual implementation before continuing previous work.
+
+### After Completing a Task
+Update `docs/ai/09-development-log.md` in the same task whenever implementation, testing, configuration, or documentation changes are made.
+
+Record:
+- Date and task summary.
+- Git branch and relevant commit information, when available.
+- Features completed, partially completed, or still pending.
+- Important files created or modified.
+- API, database, architecture, or UI changes, if applicable.
+- Tests and build commands actually executed and their results.
+- Bugs fixed, known issues, blockers, and technical decisions.
+- Recommended next steps.
+
+### Log Maintenance Rules
+- Append a new dated session entry instead of creating a new log file.
+- Update the current project status and next steps when they change.
+- Keep historical entries useful and concise.
+- Never invent completed work, test results, commits, or implementation details.
+- Distinguish verified facts from assumptions and unverified information.
+- Do not replace or duplicate the existing project specifications and coding rules.
+- Do not modify unrelated files solely to update the log.
+- If the task is interrupted or incomplete, record the actual progress and remaining work.
+
+### Completion Report
+The final task report must summarize the implementation and checks performed, and confirm whether `docs/ai/09-development-log.md` was updated. If the log could not be updated, explain why.
