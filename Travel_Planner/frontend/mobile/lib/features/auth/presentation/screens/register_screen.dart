@@ -7,6 +7,26 @@ import '../auth_notifier.dart';
 class RegisterScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
 
+  static String? validateUsername(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Vui lòng nhập tên đăng nhập';
+    }
+    if (value.trim().isEmpty) {
+      return 'Vui lòng nhập tên đăng nhập';
+    }
+    if (value.contains(' ')) {
+      return 'Tên đăng nhập không được chứa khoảng trắng';
+    }
+    if (value.length < 3 || value.length > 50) {
+      return 'Tên đăng nhập phải từ 3 đến 50 ký tự';
+    }
+    final regex = RegExp(r'^[a-zA-Z0-9_.]+$');
+    if (!regex.hasMatch(value)) {
+      return 'Tên đăng nhập chỉ được chứa chữ cái, số, dấu gạch dưới và dấu chấm';
+    }
+    return null;
+  }
+
   const RegisterScreen({super.key, required this.authNotifier});
 
   @override
@@ -109,15 +129,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         hint: 'Ví dụ: hoanganh_travel',
                         controller: _usernameController,
                         errorText: valErrors?['username'],
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Vui lòng nhập tên đăng nhập';
-                          }
-                          if (value.trim().length < 3) {
-                            return 'Tên đăng nhập tối thiểu 3 ký tự';
-                          }
-                          return null;
-                        },
+                        validator: RegisterScreen.validateUsername,
                       ),
                       const SizedBox(height: 16),
                       AppTextField(
