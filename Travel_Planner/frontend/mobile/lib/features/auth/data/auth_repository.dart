@@ -37,4 +37,12 @@ class AuthRepository {
     );
     return response as Map<String, dynamic>;
   }
+
+  Future<Map<String, dynamic>> getCurrentUser(String token) async {
+    final response = await _apiClient.get(
+      ApiConstants.meEndpoint,
+      token: token,
+    );
+    return response as Map<String, dynamic>;
+  }
 }
