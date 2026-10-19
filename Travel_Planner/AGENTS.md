@@ -119,4 +119,14 @@ Record:
 - If the task is interrupted or incomplete, record the actual progress and remaining work.
 
 ### Completion Report
-The final task report must summarize the implementation and checks performed, and confirm whether `docs/ai/09-development-log.md` was updated. If the log could not be updated, explain why.
+The final task report must summarize the implementation and checks performed, and confirm whether `docs/ai/09-development-log.md` was updated. If the log could not be updated, explain why.
+
+### Language Requirements (Mandatory)
+
+- Write all content in `docs/ai/09-development-log.md` in English, including headings, session entries, summaries, status updates, technical decisions, known issues, and next steps.
+- Use clear, concise, professional technical English.
+- Do not write Vietnamese sentences or paragraphs in the development log, even when the task instructions or conversation are in Vietnamese.
+- Keep code identifiers, file paths, API endpoints, commands, and technical names unchanged.
+- When documenting Vietnamese UI messages or user-facing text, preserve the original text only when necessary and briefly explain it in English.
+- Before completing a task, check all newly added or modified log content for Vietnamese text and rewrite it in English.
+- When updating existing entries, preserve historical accuracy. Translate existing Vietnamese prose into English only when needed for consistency; do not change technical facts, test results, or historical meaning.
