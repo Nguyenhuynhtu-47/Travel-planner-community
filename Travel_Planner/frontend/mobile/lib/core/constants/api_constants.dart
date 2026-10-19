@@ -13,14 +13,16 @@ class ApiConstants {
       return 'http://localhost:8080';
     }
     if (defaultTargetPlatform == TargetPlatform.android) {
-      // The current development computer's LAN address, for a physical phone.
-      return 'http://192.168.1.9:8080';
+      // Android emulator uses 10.0.2.2 to access host machine's localhost.
+      // For physical device on LAN, pass --dart-define=API_BASE_URL=http://<YOUR_LAN_IP>:8080
+      return 'http://10.0.2.2:8080';
     }
     return 'http://localhost:8080';
   }
 
   static const String registerEndpoint = '/api/auth/register';
   static const String loginEndpoint = '/api/auth/login';
+  static const String meEndpoint = '/api/auth/me';
   static const String currentProfileEndpoint = '/api/user/profile';
   static const String healthEndpoint = '/api/health';
 }

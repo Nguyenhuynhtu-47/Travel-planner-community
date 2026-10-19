@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/network/api_client.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
@@ -11,31 +12,46 @@ void main() {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final AuthNotifier? authNotifier;
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  const MyApp({super.key, this.authNotifier, this.navigatorKey});
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
+  late final GlobalKey<NavigatorState> _navigatorKey;
   late final AuthNotifier _authNotifier;
 
   @override
   void initState() {
     super.initState();
-    _authNotifier = AuthNotifier();
+    _navigatorKey = widget.navigatorKey ?? GlobalKey<NavigatorState>();
+    _authNotifier = widget.authNotifier ?? AuthNotifier();
+
+    ApiClient.globalOnUnauthorized = () {
+      _authNotifier.handleSessionExpired();
+      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    };
+
     _authNotifier.checkAuthStatus();
   }
 
   @override
   void dispose() {
-    _authNotifier.dispose();
+    ApiClient.globalOnUnauthorized = null;
+    if (widget.authNotifier == null) {
+      _authNotifier.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Travel Planner Web Portal',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,

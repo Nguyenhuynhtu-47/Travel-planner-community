@@ -34,11 +34,41 @@ class AuthNotifier extends ChangeNotifier {
 
     if (savedToken != null && savedToken.isNotEmpty) {
       if (!AuthStorage.isTokenExpired(savedToken)) {
-        _token = savedToken;
-        _currentUser = await _storage.getUser();
-        _status = AuthStatus.authenticated;
-        notifyListeners();
-        return;
+        final cachedUser = await _storage.getUser();
+
+        try {
+          final verifiedUser = await _repository.getCurrentUser(savedToken);
+          _token = savedToken;
+          _currentUser = verifiedUser;
+          await _storage.saveUser(verifiedUser);
+          _status = AuthStatus.authenticated;
+          notifyListeners();
+          return;
+        } on ApiException catch (e) {
+          if (e.statusCode == 401 || e.statusCode == 403) {
+            await _storage.clear();
+            _token = null;
+            _currentUser = null;
+            _status = AuthStatus.unauthenticated;
+            notifyListeners();
+            return;
+          }
+
+          // Network error or server 500: do not assume token is invalid.
+          // Maintain session with locally cached state if available.
+          _token = savedToken;
+          _currentUser = cachedUser;
+          _status = AuthStatus.authenticated;
+          notifyListeners();
+          return;
+        } catch (_) {
+          // Other unexpected errors: retain existing valid session
+          _token = savedToken;
+          _currentUser = cachedUser;
+          _status = AuthStatus.authenticated;
+          notifyListeners();
+          return;
+        }
       }
     }
 
@@ -127,6 +157,20 @@ class AuthNotifier extends ChangeNotifier {
       _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
       notifyListeners();
       return false;
+    }
+  }
+
+  bool _isHandlingSessionExpired = false;
+
+  Future<void> handleSessionExpired() async {
+    if (_status == AuthStatus.unauthenticated || _isHandlingSessionExpired) {
+      return;
+    }
+    _isHandlingSessionExpired = true;
+    try {
+      await logout();
+    } finally {
+      _isHandlingSessionExpired = false;
     }
   }
 

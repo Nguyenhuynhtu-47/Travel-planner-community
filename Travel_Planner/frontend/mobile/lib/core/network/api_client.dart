@@ -8,8 +8,20 @@ import 'api_exception.dart';
 class ApiClient {
   static const Duration _requestTimeout = Duration(seconds: 15);
   final http.Client _client;
+  final void Function()? onUnauthorized;
 
-  ApiClient({http.Client? client}) : _client = client ?? http.Client();
+  static void Function()? globalOnUnauthorized;
+  static DateTime? _lastUnauthorizedNotification;
+  static const Duration _unauthorizedThrottle = Duration(seconds: 2);
+
+  static void resetThrottle() {
+    _lastUnauthorizedNotification = null;
+  }
+
+  ApiClient({
+    http.Client? client,
+    this.onUnauthorized,
+  }) : _client = client ?? http.Client();
 
   Future<dynamic> post(
     String path, {
@@ -127,6 +139,10 @@ class ApiClient {
       return responseData;
     }
 
+    if (response.statusCode == 401) {
+      _notifyUnauthorized();
+    }
+
     String message = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
     Map<String, String>? validationErrors;
 
@@ -146,5 +162,20 @@ class ApiClient {
       message: message,
       validationErrors: validationErrors,
     );
+  }
+
+  void _notifyUnauthorized() {
+    final now = DateTime.now();
+    if (_lastUnauthorizedNotification != null &&
+        now.difference(_lastUnauthorizedNotification!) < _unauthorizedThrottle) {
+      return;
+    }
+    _lastUnauthorizedNotification = now;
+
+    if (onUnauthorized != null) {
+      onUnauthorized!();
+    } else if (globalOnUnauthorized != null) {
+      globalOnUnauthorized!();
+    }
   }
 }

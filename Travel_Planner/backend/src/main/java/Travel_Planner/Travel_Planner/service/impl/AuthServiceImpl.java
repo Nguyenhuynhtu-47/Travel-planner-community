@@ -96,6 +96,23 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUser(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin tài khoản"));
+
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new ForbiddenException("Tài khoản của bạn đã bị khóa do vi phạm chính sách");
+        }
+
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new ForbiddenException("Tài khoản của bạn đang bị vô hiệu hóa");
+        }
+
+        return mapToUserResponse(user);
+    }
+
     private UserResponse mapToUserResponse(User user) {
         return UserResponse.builder()
                 .userId(user.getUserId())
