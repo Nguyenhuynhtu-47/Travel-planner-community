@@ -18,9 +18,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+
 import static org.hamcrest.Matchers.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -321,4 +328,200 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.message").value("Yêu cầu xác thực: Token không hợp lệ hoặc đã hết hạn"));
     }
+
+    @Test
+    void security_adminEndpoint_withoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(get("/api/admin/users"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Yêu cầu xác thực: Token không hợp lệ hoặc đã hết hạn"));
+    }
+
+    @Test
+    void security_adminEndpoint_withUserRole_shouldReturn403Forbidden() throws Exception {
+        User normalUser = User.builder()
+                .username("reguser")
+                .email("reguser@example.com")
+                .password(passwordEncoder.encode("Password123"))
+                .fullName("Regular User")
+                .role(Role.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.save(normalUser);
+        String token = jwtTokenProvider.generateToken(normalUser);
+
+        mockMvc.perform(get("/api/admin/users")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("Bạn không có quyền truy cập tài nguyên này"));
+    }
+
+    @Test
+    void security_adminEndpoint_withAdminRole_shouldPassSecurity() throws Exception {
+        User adminUser = User.builder()
+                .username("sysadmin")
+                .email("admin@example.com")
+                .password(passwordEncoder.encode("AdminPass123"))
+                .fullName("System Admin")
+                .role(Role.ADMIN)
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.save(adminUser);
+        String token = jwtTokenProvider.generateToken(adminUser);
+
+        // Access is allowed through security filter chain; since no admin controller is implemented yet,
+        // it returns 404 (Not Found), confirming it was NOT rejected by 401 or 403.
+        mockMvc.perform(get("/api/admin/users")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getCurrentUser_withValidToken_shouldReturn200AndUserResponseAndNoPassword() throws Exception {
+        User user = User.builder()
+                .username("meuser")
+                .email("me@example.com")
+                .password(passwordEncoder.encode("Password123"))
+                .fullName("Current User")
+                .role(Role.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.save(user);
+        String token = jwtTokenProvider.generateToken(user);
+
+        mockMvc.perform(get("/api/auth/me")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("meuser"))
+                .andExpect(jsonPath("$.email").value("me@example.com"))
+                .andExpect(jsonPath("$.fullName").value("Current User"))
+                .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void getCurrentUser_withoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Yêu cầu xác thực: Token không hợp lệ hoặc đã hết hạn"));
+    }
+
+    @Test
+    void getCurrentUser_withExpiredToken_shouldReturn401() throws Exception {
+        SecretKey key = Keys.hmacShaKeyFor("404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970".getBytes(StandardCharsets.UTF_8));
+        String expiredToken = Jwts.builder()
+                .subject("expireduser")
+                .issuedAt(new Date(System.currentTimeMillis() - 200000))
+                .expiration(new Date(System.currentTimeMillis() - 100000))
+                .signWith(key)
+                .compact();
+
+        mockMvc.perform(get("/api/auth/me")
+                .header("Authorization", "Bearer " + expiredToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Yêu cầu xác thực: Token không hợp lệ hoặc đã hết hạn"));
+    }
+
+    @Test
+    void getCurrentUser_withTamperedToken_shouldReturn401() throws Exception {
+        User user = User.builder()
+                .username("tamperuser")
+                .email("tamper@example.com")
+                .password(passwordEncoder.encode("Password123"))
+                .fullName("Tamper User")
+                .role(Role.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.save(user);
+        String validToken = jwtTokenProvider.generateToken(user);
+        String tamperedToken = validToken + "invalid-signature";
+
+        mockMvc.perform(get("/api/auth/me")
+                .header("Authorization", "Bearer " + tamperedToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Yêu cầu xác thực: Token không hợp lệ hoặc đã hết hạn"));
+    }
+
+    @Test
+    void getCurrentUser_whenUserBannedAfterTokenIssued_shouldReturn401() throws Exception {
+        User user = User.builder()
+                .username("bannedlater")
+                .email("bannedlater@example.com")
+                .password(passwordEncoder.encode("Password123"))
+                .fullName("Banned Later")
+                .role(Role.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.save(user);
+        String token = jwtTokenProvider.generateToken(user);
+
+        // Ban user after token has been issued
+        user.setStatus(UserStatus.BANNED);
+        userRepository.save(user);
+
+        mockMvc.perform(get("/api/auth/me")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Yêu cầu xác thực: Token không hợp lệ hoặc đã hết hạn"));
+    }
+
+    @Test
+    void register_whenUsernameContainsSpaces_shouldReturn400() throws Exception {
+        RegisterRequest request = RegisterRequest.builder()
+                .username("user name with space")
+                .email("userspace@example.com")
+                .password("Password123")
+                .fullName("User Space")
+                .build();
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.validationErrors.username").exists());
+    }
+
+    @Test
+    void register_whenUsernameContainsSpecialCharacters_shouldReturn400() throws Exception {
+        RegisterRequest request = RegisterRequest.builder()
+                .username("user@invalid#name!")
+                .email("userinvalid@example.com")
+                .password("Password123")
+                .fullName("User Invalid")
+                .build();
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.validationErrors.username").exists());
+    }
+
+    @Test
+    void cors_whenAllowedOrigin_shouldReturnCorsHeaders() throws Exception {
+        mockMvc.perform(options("/api/health")
+                .header("Origin", "http://localhost:8081")
+                .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:8081"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+    }
+
+    @Test
+    void cors_whenUntrustedOrigin_shouldNotAllowCorsHeaders() throws Exception {
+        mockMvc.perform(options("/api/health")
+                .header("Origin", "http://malicious-untrusted-site.com")
+                .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+    }
 }
+

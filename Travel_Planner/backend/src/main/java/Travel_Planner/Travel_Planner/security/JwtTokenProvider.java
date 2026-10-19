@@ -13,17 +13,52 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
+import org.springframework.core.env.Environment;
+
 @Component
 public class JwtTokenProvider {
+
+    public static final String DEFAULT_DEV_SECRET = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
 
     private final SecretKey key;
     private final long expirationMs;
 
     public JwtTokenProvider(
-            @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}") String secret,
-            @Value("${jwt.expiration:86400000}") long expirationMs) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+            @Value("${jwt.secret:" + DEFAULT_DEV_SECRET + "}") String secret,
+            @Value("${jwt.expiration:86400000}") long expirationMs,
+            Environment environment) {
+        validateJwtSecretForEnvironment(secret, environment);
+
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException("JWT secret must be at least 256 bits (32 bytes) long for HMAC-SHA256.");
+        }
+
+        this.key = Keys.hmacShaKeyFor(keyBytes);
         this.expirationMs = expirationMs;
+    }
+
+    private void validateJwtSecretForEnvironment(String secret, Environment environment) {
+        boolean isProduction = false;
+        if (environment != null) {
+            String[] activeProfiles = environment.getActiveProfiles();
+            for (String profile : activeProfiles) {
+                if ("prod".equalsIgnoreCase(profile) || "production".equalsIgnoreCase(profile)) {
+                    isProduction = true;
+                    break;
+                }
+            }
+        }
+
+        if (isProduction) {
+            if (secret == null || secret.isBlank() || DEFAULT_DEV_SECRET.equals(secret)) {
+                throw new IllegalStateException(
+                    "FATAL SECURITY CONFIGURATION ERROR: In production profile ('prod'/'production'), " +
+                    "the JWT secret cannot use the default hardcoded development secret. " +
+                    "Please set the 'JWT_SECRET' environment variable with a strong, random key."
+                );
+            }
+        }
     }
 
     public String generateToken(User user) {
