@@ -681,3 +681,49 @@ Conducted a Phase 2 final consistency review across Login, Registration, and Pro
 - Visual rendering of web card shadows, font anti-aliasing, and mobile keyboard animations require physical device or browser observation.
 - Full end-to-end integration requires running Spring Boot and MySQL services.
 
+---
+
+## 18. Session Entry: Backend Spring Boot Version Review and Migration to Verified Stable Release (2026-10-23)
+
+### 18.1. Context and Objective
+Evaluated the backend Spring Boot parent version in `Travel_Planner/backend/pom.xml` (`4.1.2-SNAPSHOT`) to determine whether it should be replaced with an officially announced, stable GA release. Migrated to the appropriate verified stable release while maintaining zero regressions across database schemas, API contracts, security rules, and test suites.
+
+### 18.2. Technical Assessment, Verification of Official Release Status, and Candidate Evaluation
+1. **Current Version Status:**
+   - Previous configuration: `org.springframework.boot:spring-boot-starter-parent:4.1.2-SNAPSHOT`.
+   - The project depended on unstable development snapshots from `https://repo.spring.io/snapshot`, posing serious reliability risks for academic defense, automated CI/CD, and repeatable deployments.
+2. **Evaluation of Candidate Versions and Official Release Evidence:**
+   - **Spring Boot 3.x (e.g., 3.4.13 / 3.5.16):** Spring Boot 3.x reached end of open-source support (EOL) on June 30, 2026. Furthermore, the codebase was already utilizing modular Spring Boot 4 starters (`spring-boot-starter-webmvc`, `spring-boot-starter-restclient`, `spring-boot-starter-webmvc-test`, `spring-boot-starter-data-jpa-test`, `springdoc-openapi-starter-webmvc-ui:3.1.0`). Downgrading to 3.x would require a disruptive overhaul of `pom.xml`, regression risks in dependency management, and adoption of an unsupported EOL framework branch.
+   - **Audit of Spring Boot 4.1.2 vs 4.1.1:**
+     - A preliminary check noted the presence of `4.1.2` in repository indexing metadata. However, an in-depth audit of the official Spring Blog (`spring.io/blog`) and official Spring documentation revealed that **`4.1.1`** is the officially announced, documented, and supported GA release (announced August 20, 2026, comprising 98 bug fixes and ecosystem updates).
+     - In contrast, `4.1.2` lacked an official release announcement on `spring.io/blog`, with ongoing development actively tracked as `4.1.2-SNAPSHOT`.
+3. **Migration Decision:**
+   - Migrate to the officially announced and verified stable GA release: **Spring Boot 4.1.1**.
+   - Eliminate the `<repositories>` and `<pluginRepositories>` declarations for `spring-snapshots`.
+   - Rely strictly on verified GA dependencies from Maven Central.
+
+### 18.3. Implementation Details
+- **`Travel_Planner/backend/pom.xml`**:
+  - Updated `<parent><version>` from `4.1.2-SNAPSHOT` to `4.1.1`.
+  - Removed obsolete `spring-snapshots` repository and plugin repository configurations.
+  - Kept Java 22 baseline (`<java.version>22</java.version>`), Lombok 1.18.x, JJWT 0.12.6, Springdoc 3.1.0, and MySQL Connector/J intact.
+
+### 18.4. Modified Files
+- `Travel_Planner/backend/pom.xml`
+- `Travel_Planner/docs/ai/09-development-log.md`
+
+### 18.5. Verification and Test Results
+- `.\mvnw.cmd clean verify`: Executed full clean, compilation, test suite, and repackaging on Spring Boot `4.1.1`:
+  - **Exit Code:** 0 (BUILD SUCCESS).
+  - **Database Connection:** Verified live connection to MySQL 8.0.37 via HikariDataSource (`jdbc:mysql://localhost:3306/travel_planner`) with Hibernate ORM 7.4.5.Final executing DDL checks and live transactions.
+  - **Test Suite Results:** 32/32 tests passed, 0 failures, 0 errors, 0 skipped:
+    - `AuthControllerTest`: 25/25 passed (Time elapsed: 11.89s).
+    - `HealthControllerTest`: 1/1 passed (Time elapsed: 0.026s).
+    - `JwtTokenProviderTest`: 5/5 passed (Time elapsed: 0.016s).
+    - `TravelPlannerApplicationTests`: 1/1 passed (Time elapsed: 0.018s).
+  - **Packaging:** Created and repackaged executable archive `target/Travel_Planner-0.0.1-SNAPSHOT.jar`.
+- `.\mvnw.cmd dependency:tree`: Confirmed that all Spring Framework (`7.0.9`), Spring Security (`7.1.1`), and Spring Boot (`4.1.1`) dependencies resolve cleanly without any `-SNAPSHOT` references.
+- `git diff --check`: Exit code 0 (clean).
+
+### 18.6. Remaining Issues and Environmental Limitations
+- Live application deployment requires setting environment variables (`JWT_SECRET`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) in production environments as defined in `application-prod.properties`.
