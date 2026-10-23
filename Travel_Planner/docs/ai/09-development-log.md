@@ -587,4 +587,97 @@ Conducted a final review of all WCAG documentation changes to ensure complete ma
 - `git status --short`: Exactly 8 documentation files modified under `Travel_Planner/docs/ai/`, alongside untracked `DESIGN.md`.
 - Source Code Integrity: Zero `.dart`, `.java`, `.xml`, `.properties`, or `.yaml` files modified.
 
+---
+
+## 16. Session Entry: Authentication and Profile UI Design System Alignment (Phase 1) (2026-10-23)
+
+### 16.1. Context and Objective
+Executed Phase 1 implementation to refactor and align all existing authentication (Login, Register) and user profile (View, Edit) screens, along with their shared UI components and theme definitions, across both Flutter Mobile (`frontend/mobile`) and Flutter Web (`frontend/web`). The implementation aligns existing code with the canonical design tokens in `DESIGN.md` and `docs/ai/04-ui-design-system.md` while preserving all existing business logic, validation algorithms, state management, and API integration contracts.
+
+### 16.2. Concrete UI Inconsistencies Identified and Resolved
+1. **Design Tokens & Theme Definitions:**
+   - *Previous state:* Legacy Teal (`#0D9488`), Orange (`#F97316`), Slate backgrounds (`#F8FAFC`), Slate borders (`#E2E8F0`), and Red 500 (`#EF4444`) were configured in `app_colors.dart`.
+   - *Aligned state:* Replaced with canonical Rausch (`#FF385C`), active press state `primaryActive` (`#E00B41`), disabled button fill `primaryDisabled` (`#FFD1DA`), canvas pure white (`#FFFFFF`), hairline borders (`#DDDDDD`), ink text (`#222222`), muted text (`#6A6A6A`), and inline error text (`#C13515`).
+   - *Theme styling:* Updated `app_theme.dart` on both mobile and web to support `WidgetStateProperty` button background transitions (`#FF385C` default, `#E00B41` pressed, `#FFD1DA` disabled), 8px corner radii (`rounded.sm`), 48px height, 2px solid ink focused input borders, and 2px error borders.
+
+2. **Shared UI Components:**
+   - *`AppPrimaryButton`:* Enforced 48px standard CTA height, 8px radius, 16px/w500 label styling, and smooth disabled state during `isLoading` to prevent duplicate submissions while retaining `#FF385C` background with an embedded 18x18dp white progress indicator.
+   - *`AppTextField`:* Updated stacked label to 14px w500 `#6A6A6A` (`caption`), input text to 16px `#222222` (`body-md`), added accessible password visibility toggle with tooltips ("Hiện mật khẩu" / "Ẩn mật khẩu") and 48x48dp hit targets, integrated `textInputAction` and `onFieldSubmitted` callback support.
+
+3. **Authentication Screens (Login & Register):**
+   - *Mobile Login & Register:* Replaced legacy icons with 56px `#FF385C` brand iconography, applied responsive `maxWidth: 480` container constraints to prevent wide stretching on tablets and landscape orientations, ensured smooth keyboard avoidance with `SingleChildScrollView`, integrated sequential keyboard actions (`next` / `done`), and aligned inline error messaging. Preserved the static `validateUsername` validation method required by testing contracts.
+   - *Web Login & Register:* Standardized both screens into clean 480px centered cards with 14px corner radii (`rounded.md`), 1px `#DDDDDD` hairline borders, and subtle elevation shadow (`Color(0x0A000000)`, blur 10, offset (0, 4)), eliminating visual discrepancy between login and register.
+
+4. **Profile UI (View & Edit):**
+   - *Visual Hierarchy & Grouping:* Transformed raw unstyled detail lists into structured semantic sections ("Thông tin cá nhân", "Thông tin tài khoản") enclosed in rounded cards with `#DDDDDD` borders and `#EBEBEB` dividing hairlines.
+   - *Avatar Display:* Enhanced avatar rendering with `ClipOval` and `errorBuilder` fallback support to prevent broken image UI on invalid image URLs, paired with clean neutral fallback avatars (`AppColors.surfaceStrong` with `#6A6A6A` person icon).
+   - *Text Overflow & Badges:* Added `softWrap: true` and responsive layouts to handle long names, email addresses, and bios gracefully without horizontal clipping. Added styled pill badges for user role and account status.
+   - *Edit Mode:* Provided clean form fields, a 48px primary "Lưu thay đổi" button with loading feedback, and a clear secondary "Hủy" button for safe cancellation. Aligned success and error feedback SnackBar colors (`#10B981` for success, `#C13515` for errors).
+
+### 16.3. Modified Files
+- `frontend/mobile/lib/core/theme/app_colors.dart`
+- `frontend/mobile/lib/core/theme/app_theme.dart`
+- `frontend/mobile/lib/shared/widgets/app_primary_button.dart`
+- `frontend/mobile/lib/shared/widgets/app_text_field.dart`
+- `frontend/mobile/lib/features/auth/presentation/screens/login_screen.dart`
+- `frontend/mobile/lib/features/auth/presentation/screens/register_screen.dart`
+- `frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart`
+- `frontend/web/lib/core/theme/app_colors.dart`
+- `frontend/web/lib/core/theme/app_theme.dart`
+- `frontend/web/lib/shared/widgets/app_primary_button.dart`
+- `frontend/web/lib/shared/widgets/app_text_field.dart`
+- `frontend/web/lib/features/auth/presentation/screens/login_screen.dart`
+- `frontend/web/lib/features/auth/presentation/screens/register_screen.dart`
+- `frontend/web/lib/features/profile/presentation/screens/profile_screen.dart`
+
+### 16.4. Verification Results
+- `git diff --check`: Exit code 0 (clean, no trailing whitespace, no merge conflict markers).
+- `dart format`: Executed and verified across all 14 modified Dart files.
+- `flutter analyze` (`frontend/mobile`): Exit code 0, 0 issues found.
+- `flutter analyze` (`frontend/web`): Exit code 0, 0 issues found.
+- `flutter test` (`frontend/mobile`): 15/15 tests passed (covering session expiry, 401 handling, username validation, widget rendering).
+- `flutter test` (`frontend/web`): 15/15 tests passed (covering web session expiry, 401 handling, username validation, web widget rendering).
+- `flutter build web --no-pub`: Succeeded, bundle compiled cleanly into `build/web`.
+
+### 16.5. Limitations and Next Steps
+- Android APK / iOS builds require native SDK / Xcode toolchains not available in this environment.
+- Backend API runtime testing requires active Spring Boot service and MySQL instance.
+
+---
+
+## 17. Session Entry: Authentication & Profile UI Consistency Review (Phase 2) (2026-10-23)
+
+### 17.1. Context and Objective
+Conducted a Phase 2 final consistency review across Login, Registration, and Profile screens in `frontend/mobile` and `frontend/web`. The review verified cross-screen harmony, platform adaptation, WCAG contrast compliance, form keyboard interactions, and regression immunity against existing tests and backend contracts.
+
+### 17.2. Concrete Inconsistencies Identified and Resolved
+1. **Premature Form Submission on Web Login:**
+   - *Issue:* In `frontend/web/lib/features/auth/presentation/screens/login_screen.dart`, the `usernameOrEmail` text field had `onFieldSubmitted: (_) => _submit()` despite having `textInputAction: TextInputAction.next`. Pressing Enter while entering username or email triggered premature form submission and validation errors instead of navigating focus to the password field.
+   - *Fix:* Removed `onFieldSubmitted` from the username field so pressing Enter/Next advances focus as expected; Enter on the password field triggers form submission.
+2. **Account Status Semantic Color Discrepancy:**
+   - *Issue:* In both `frontend/mobile` and `frontend/web` `profile_screen.dart`, the status badge unconditionally applied emerald green styling (`Color(0xFFECFDF5)`, `Color(0xFF047857)`) regardless of whether the account was `ACTIVE`, `INACTIVE`, or `BANNED`. A banned account was rendered with a green positive badge.
+   - *Fix:* Introduced a type-safe `_statusBadge(dynamic rawStatus, String statusText)` helper mapping `ACTIVE` to emerald (`#ECFDF5` / `#047857`), `BANNED` to semantic red (`#FEF2F2` / `#C13515`), and `INACTIVE` to amber (`#FFFBEB` / `#B45309`), all exceeding WCAG 2.1 AA 4.5:1 contrast requirements.
+3. **Multi-Line Biography Field Support:**
+   - *Issue:* In `app_text_field.dart`, `TextFormField` was constrained to single-line input. When editing long travel biographies in `profile_screen.dart`, text clipped horizontally inside a single-line box.
+   - *Fix:* Extended `AppTextField` with `maxLines` (default 1) and optional `minLines`. In both mobile and web `profile_screen.dart`, configured `_bioController` with `maxLines: 3`, `minLines: 2`, and `textInputAction: TextInputAction.newline`.
+
+### 17.3. Files Changed
+- `frontend/mobile/lib/shared/widgets/app_text_field.dart`
+- `frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart`
+- `frontend/web/lib/shared/widgets/app_text_field.dart`
+- `frontend/web/lib/features/auth/presentation/screens/login_screen.dart`
+- `frontend/web/lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/ai/09-development-log.md`
+
+### 17.4. Verification Results
+- `git diff --check`: Exit code 0 (clean, no whitespace or conflict issues).
+- `dart format`: 0 changed across all modified files (100% compliant).
+- `flutter analyze` (`frontend/mobile`): Exit code 0, 0 issues found.
+- `flutter analyze` (`frontend/web`): Exit code 0, 0 issues found.
+- `flutter test` (`frontend/mobile`): 15/15 tests passed.
+- `flutter test` (`frontend/web`): 15/15 tests passed.
+
+### 17.5. Remaining Issues and Limitations
+- Visual rendering of web card shadows, font anti-aliasing, and mobile keyboard animations require physical device or browser observation.
+- Full end-to-end integration requires running Spring Boot and MySQL services.
 
