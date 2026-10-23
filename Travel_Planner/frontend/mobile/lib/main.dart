@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+
 import 'core/network/api_client.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
-import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/explore/presentation/screens/explore_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
 
 void main() {
@@ -66,11 +67,7 @@ class _MyAppState extends State<MyApp> {
             );
           }
 
-          if (_authNotifier.isAuthenticated) {
-            return PlaceholderHomeScreen(authNotifier: _authNotifier);
-          }
-
-          return LoginScreen(authNotifier: _authNotifier);
+          return ExploreScreen(authNotifier: _authNotifier);
         },
       ),
     );
@@ -124,10 +121,7 @@ class PlaceholderHomeScreen extends StatelessWidget {
                   const SizedBox(width: 6),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 128),
-                    child: Text(
-                      fullName,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    child: Text(fullName, overflow: TextOverflow.ellipsis),
                   ),
                   const Icon(Icons.arrow_drop_down),
                 ],
@@ -163,7 +157,10 @@ class PlaceholderHomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withAlpha(25),
                   borderRadius: BorderRadius.circular(16),
@@ -180,10 +177,7 @@ class PlaceholderHomeScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Text(
                 'Bạn đã đăng nhập thành công. Các tính năng khám phá lịch trình sẽ tiếp tục được phát triển.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
