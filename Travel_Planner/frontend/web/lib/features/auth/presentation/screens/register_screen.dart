@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -58,7 +59,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Mật khẩu xác nhận không khớp'),
+          content: Text(
+            'Mật khẩu xác nhận không khớp',
+            style: TextStyle(color: Colors.white),
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -79,7 +83,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error),
+            content: Text(error, style: const TextStyle(color: Colors.white)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -95,20 +99,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final valErrors = widget.authNotifier.validationErrors;
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Đăng ký tài khoản'),
-          ),
+          backgroundColor: AppColors.background,
+          appBar: AppBar(title: const Text('Đăng ký tài khoản')),
           body: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 540),
+                constraints: const BoxConstraints(maxWidth: 480),
                 child: Container(
                   padding: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.border),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0A000000),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Form(
                     key: _formKey,
@@ -120,8 +130,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           'Tạo tài khoản mới',
                           style: TextStyle(
                             fontSize: 22,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
+                            letterSpacing: -0.3,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -129,7 +140,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           'Điền thông tin để đăng ký tài khoản Travel Planner',
                           style: TextStyle(
                             fontSize: 14,
+                            fontWeight: FontWeight.w400,
                             color: AppColors.textSecondary,
+                            height: 1.4,
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -137,6 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           label: 'Tên đăng nhập',
                           hint: 'Ví dụ: hoanganh_travel',
                           controller: _usernameController,
+                          textInputAction: TextInputAction.next,
                           errorText: valErrors?['username'],
                           validator: RegisterScreen.validateUsername,
                         ),
@@ -145,6 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           label: 'Họ và tên',
                           hint: 'Ví dụ: Nguyễn Hoàng Anh',
                           controller: _fullNameController,
+                          textInputAction: TextInputAction.next,
                           errorText: valErrors?['fullName'],
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -159,6 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           hint: 'Ví dụ: hoanganh@example.com',
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
                           errorText: valErrors?['email'],
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -176,6 +192,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           hint: 'Tối thiểu 6 ký tự',
                           controller: _passwordController,
                           isPassword: true,
+                          textInputAction: TextInputAction.next,
                           errorText: valErrors?['password'],
                           validator: (value) {
                             if (value == null || value.isEmpty) {
@@ -193,6 +210,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           hint: 'Nhập lại mật khẩu',
                           controller: _confirmPasswordController,
                           isPassword: true,
+                          textInputAction: TextInputAction.done,
                           onFieldSubmitted: (_) => _submit(),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
@@ -226,12 +244,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   widget.authNotifier.clearErrors();
                                   Navigator.pop(context);
                                 },
-                                child: const Text(
-                                  'Đăng nhập ngay',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 4),
+                                  child: Text(
+                                    'Đăng nhập ngay',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ),
                               ),

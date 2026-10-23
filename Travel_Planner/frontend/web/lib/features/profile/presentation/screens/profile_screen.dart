@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
@@ -125,7 +126,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _saving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã cập nhật hồ sơ')),
+        const SnackBar(
+          content: Text(
+            'Đã cập nhật hồ sơ',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: AppColors.success,
+        ),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -138,14 +145,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text(e.message, style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.error,
+        ),
       );
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không thể lưu hồ sơ. Vui lòng thử lại.'),
+          content: Text(
+            'Không thể lưu hồ sơ. Vui lòng thử lại.',
+            style: TextStyle(color: Colors.white),
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -176,6 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Hồ sơ cá nhân'),
         actions: [
@@ -191,10 +205,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: CircularProgressIndicator(color: AppColors.primary),
             )
           : _error != null
-              ? _errorView()
-              : _editing
-                  ? _editor()
-                  : _profileView(),
+          ? _errorView()
+          : _editing
+          ? _editor()
+          : _profileView(),
     );
   }
 
@@ -205,10 +219,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, textAlign: TextAlign.center),
+            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
-            OutlinedButton(onPressed: _loadProfile, child: const Text('Thử lại')),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 15,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton(
+              onPressed: _loadProfile,
+              child: const Text('Thử lại'),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _defaultAvatar() {
+    return Container(
+      width: 96,
+      height: 96,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceStrong,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.person, size: 52, color: AppColors.textSecondary),
+    );
+  }
+
+  Widget _statusBadge(dynamic rawStatus, String statusText) {
+    final statusStr = rawStatus?.toString();
+    final (bgColor, borderColor, textColor) = switch (statusStr) {
+      'ACTIVE' => (
+        const Color(0xFFECFDF5),
+        const Color(0xFFA7F3D0),
+        const Color(0xFF047857),
+      ),
+      'BANNED' => (
+        const Color(0xFFFEF2F2),
+        const Color(0xFFFECACA),
+        AppColors.error,
+      ),
+      'INACTIVE' => (
+        const Color(0xFFFFFBEB),
+        const Color(0xFFFDE68A),
+        const Color(0xFFB45309),
+      ),
+      _ => (AppColors.surfaceSoft, AppColors.border, AppColors.textSecondary),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        statusText,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: textColor,
         ),
       ),
     );
@@ -217,63 +294,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _profileView() {
     final profile = _profile!;
     final avatar = profile['avatar']?.toString() ?? '';
+    final role = _value(profile['role']);
+    final status = _value(profile['status']);
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           children: [
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: AppColors.border),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x0A000000),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: CircleAvatar(
-                        radius: 48,
-                        backgroundColor: AppColors.primaryLight.withAlpha(45),
-                        backgroundImage: avatar.startsWith('http')
-                            ? NetworkImage(avatar)
-                            : null,
-                        child: avatar.startsWith('http')
-                            ? null
-                            : const Icon(
-                                Icons.person,
-                                size: 52,
-                                color: AppColors.primaryDark,
-                              ),
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: ClipOval(
+                      child: avatar.startsWith('http')
+                          ? Image.network(
+                              avatar,
+                              width: 96,
+                              height: 96,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _defaultAvatar(),
+                            )
+                          : _defaultAvatar(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      _value(profile['fullName']),
+                      textAlign: TextAlign.center,
+                      softWrap: true,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.4,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Text(
-                        _value(profile['fullName']),
-                        style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Center(
+                    child: Text(
+                      '@${profile['username'] ?? ''}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
                       ),
                     ),
-                    const SizedBox(height: 28),
-                    _detail('Tên đăng nhập', profile['username']),
-                    _detail('Email', profile['email']),
-                    _detail('Số điện thoại', profile['phone']),
-                    _detail('Địa chỉ', profile['address']),
-                    _detail('Giới thiệu', profile['bio']),
-                    _detail('Vai trò', profile['role']),
-                    _detail('Trạng thái tài khoản', profile['status']),
-                    _detail('Ngày tham gia', _formatDate(profile['createdAt'])),
-                    const SizedBox(height: 12),
-                    AppPrimaryButton(
-                      text: 'Chỉnh sửa hồ sơ',
-                      onPressed: () => setState(() => _editing = true),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceSoft,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Text(
+                            role,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        _statusBadge(profile['status'], status),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 32),
+                  _sectionHeader('Thông tin cá nhân'),
+                  const SizedBox(height: 12),
+                  _infoCard([
+                    _detailRow('Họ và tên', profile['fullName']),
+                    _detailRow('Số điện thoại', profile['phone']),
+                    _detailRow('Địa chỉ', profile['address']),
+                    _detailRow('Giới thiệu', profile['bio']),
+                  ]),
+                  const SizedBox(height: 24),
+                  _sectionHeader('Thông tin tài khoản'),
+                  const SizedBox(height: 12),
+                  _infoCard([
+                    _detailRow('Tên đăng nhập', profile['username']),
+                    _detailRow('Email', profile['email']),
+                    _detailRow('Vai trò', profile['role']),
+                    _detailRow('Trạng thái tài khoản', profile['status']),
+                    _detailRow(
+                      'Ngày tham gia',
+                      _formatDate(profile['createdAt']),
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
+                  AppPrimaryButton(
+                    text: 'Chỉnh sửa hồ sơ',
+                    onPressed: () => setState(() => _editing = true),
+                  ),
+                ],
               ),
             ),
           ],
@@ -282,20 +423,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _detail(String label, dynamic value) {
+  Widget _sectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary,
+      ),
+    );
+  }
+
+  Widget _infoCard(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoft,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, dynamic rawValue) {
+    final value = _value(rawValue);
+    final isUnset = value == 'Chưa cập nhật';
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            _value(value),
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+            value,
+            softWrap: true,
+            style: TextStyle(
+              color: isUnset ? AppColors.mutedSoft : AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w400,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -309,65 +489,108 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             children: [
-              const Text(
-                'Chỉnh sửa hồ sơ',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0A000000),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              AppTextField(
-                label: 'Họ và tên',
-                controller: _fullNameController,
-                errorText: _validationErrors?['fullName'],
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Vui lòng nhập họ và tên'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Ảnh đại diện (URL)',
-                controller: _avatarController,
-                keyboardType: TextInputType.url,
-                errorText: _validationErrors?['avatar'],
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Số điện thoại',
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                errorText: _validationErrors?['phone'],
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Địa chỉ',
-                controller: _addressController,
-                errorText: _validationErrors?['address'],
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Giới thiệu',
-                controller: _bioController,
-                errorText: _validationErrors?['bio'],
-              ),
-              const SizedBox(height: 24),
-              AppPrimaryButton(
-                text: 'Lưu thay đổi',
-                isLoading: _saving,
-                onPressed: _saveProfile,
-              ),
-              TextButton(
-                onPressed: _saving
-                    ? null
-                    : () {
-                        _fillFields(_profile!);
-                        setState(() => _editing = false);
-                      },
-                child: const Text('Hủy'),
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Chỉnh sửa hồ sơ',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Cập nhật thông tin cá nhân và liên hệ của bạn',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    AppTextField(
+                      label: 'Họ và tên',
+                      hint: 'Nhập họ và tên đầy đủ',
+                      controller: _fullNameController,
+                      textInputAction: TextInputAction.next,
+                      errorText: _validationErrors?['fullName'],
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Vui lòng nhập họ và tên'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      label: 'Ảnh đại diện (URL)',
+                      hint: 'https://example.com/avatar.jpg',
+                      controller: _avatarController,
+                      keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.next,
+                      errorText: _validationErrors?['avatar'],
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      label: 'Số điện thoại',
+                      hint: 'Ví dụ: 0912345678',
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      errorText: _validationErrors?['phone'],
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      label: 'Địa chỉ',
+                      hint: 'Ví dụ: TP. Hồ Chí Minh, Việt Nam',
+                      controller: _addressController,
+                      textInputAction: TextInputAction.next,
+                      errorText: _validationErrors?['address'],
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      label: 'Giới thiệu',
+                      hint: 'Chia sẻ ngắn về sở thích du lịch của bạn...',
+                      controller: _bioController,
+                      maxLines: 3,
+                      minLines: 2,
+                      textInputAction: TextInputAction.newline,
+                      errorText: _validationErrors?['bio'],
+                    ),
+                    const SizedBox(height: 28),
+                    AppPrimaryButton(
+                      text: 'Lưu thay đổi',
+                      isLoading: _saving,
+                      onPressed: _saveProfile,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: _saving
+                          ? null
+                          : () {
+                              _fillFields(_profile!);
+                              setState(() => _editing = false);
+                            },
+                      child: const Text('Hủy'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -40,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error),
+            content: Text(error, style: const TextStyle(color: Colors.white)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -56,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final valErrors = widget.authNotifier.validationErrors;
 
         return Scaffold(
+          backgroundColor: AppColors.background,
           body: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
@@ -65,13 +67,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.border),
-                    boxShadow: [
+                    boxShadow: const [
                       BoxShadow(
-                        color: Colors.black.withAlpha(10),
+                        color: Color(0x0A000000),
                         blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),
@@ -81,10 +83,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.travel_explore,
-                          size: 56,
-                          color: AppColors.primary,
+                        const Center(
+                          child: Icon(
+                            Icons.travel_explore,
+                            size: 56,
+                            color: AppColors.primary,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         const Text(
@@ -92,8 +96,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
+                            letterSpacing: -0.4,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -102,7 +107,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
+                            fontWeight: FontWeight.w400,
                             color: AppColors.textSecondary,
+                            height: 1.4,
                           ),
                         ),
                         const SizedBox(height: 28),
@@ -110,8 +117,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: 'Tên đăng nhập hoặc Email',
                           hint: 'Nhập tên đăng nhập hoặc email',
                           controller: _usernameOrEmailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
                           errorText: valErrors?['usernameOrEmail'],
-                          onFieldSubmitted: (_) => _submit(),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Vui lòng nhập tên đăng nhập hoặc email';
@@ -125,6 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           hint: 'Nhập mật khẩu',
                           controller: _passwordController,
                           isPassword: true,
+                          textInputAction: TextInputAction.done,
                           errorText: valErrors?['password'],
                           onFieldSubmitted: (_) => _submit(),
                           validator: (value) {
@@ -166,12 +175,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   );
                                 },
-                                child: const Text(
-                                  'Đăng ký ngay',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 4),
+                                  child: Text(
+                                    'Đăng ký ngay',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ),
                               ),
