@@ -37,6 +37,12 @@ Avoid unclear abbreviations.
 - Separate network communication from UI widgets into repositories or data sources.
 - Handle asynchronous states and errors explicitly (Loading, Empty, Error, Success).
 - Dispose controllers, stream subscriptions, and change notifiers when widgets unmount.
+- **Theme & Design Token Reuse:**
+  - Consume design tokens through `Theme.of(context)` or centralized constants in `lib/core/theme/` (derived from canonical `docs/ai/04-ui-design-system.md` and `DESIGN.md`).
+  - Never hardcode raw color hex values, arbitrary pixel margins, or ad-hoc box decorations in screen widgets.
+  - Reuse shared components in `lib/shared/widgets/` (`AppEmptyState`, `AppErrorState`, `AppLoadingIndicator`, shared buttons, search bars, and card shells) instead of creating duplicate styling blocks.
+  - Follow the established responsive layout conventions for Mobile (< 744px) and Web (744px–1128px, > 1128px).
+  - Do not introduce new UI styling libraries, CSS/utility frameworks, or design dependencies into `pubspec.yaml` without explicit justification and approval.
 - State management:
   - Temporarily use Flutter's built-in mechanisms: `StatefulWidget`, `ChangeNotifier`, and `ValueNotifier`.
   - `StatefulWidget` is prioritized for local UI state (e.g., text controllers, tab switching, local visibility toggles).

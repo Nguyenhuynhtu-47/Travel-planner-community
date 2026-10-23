@@ -15,11 +15,14 @@ Execute verification commands within `Travel_Planner/frontend/mobile` or `Travel
 - Static analysis command: `flutter analyze`
 - Unit and widget test command: `flutter test`
 - Formatting verification: `dart format --output=none --set-exit-if-changed .`
-- Manual UI checklist:
-  - Loading, empty, error, and success states.
-  - Form validation messages and touch target sizes.
-  - Responsive layout behavior across window resizing.
-  - API integration and authentication token persistence.
+- Manual & Automated UI Verification Checklist:
+  - **Theme and Design Token Consistency:** Confirm screens consume theme tokens from `Theme.of(context)` / `lib/core/theme/` (derived from canonical `docs/ai/04-ui-design-system.md` and `DESIGN.md`). Reject hardcoded hex colors, arbitrary margins, and ad-hoc decorations.
+  - **Reusable Component Consistency:** Verify reuse of shared components from `lib/shared/widgets/` (`AppEmptyState`, `AppErrorState`, `AppLoadingIndicator`, shared buttons, search bars, and card shells).
+  - **Text Readability & Accessibility:** Verify normal text (< 24px regular, < 18.66px bold, including standard 14px/16px button labels) targets minimum 4.5:1 contrast against its background (WCAG SC 1.4.3), and large text targets minimum 3.0:1. Non-text visual information necessary to identify UI components and states must target minimum 3.0:1 (WCAG SC 1.4.11). Note that white text (`#FFFFFF`) on resting Rausch `#FF385C` produces **3.52:1** (meeting 3.0:1 for large text and non-text UI components, but failing 4.5:1 for normal text); verify that buttons requiring strict 4.5:1 compliance at rest utilize the documented accessible proposal (`primary-accessible` `#D90740` at **5.18:1** vs `#FFFFFF`, or dark `ink` text `#222222` on `#FF385C` at **4.52:1**), while `#E00B41` (`primary-active` at **4.89:1** vs `#FFFFFF`) is reserved strictly for the `button-primary-active` press state. Passing contrast ratios is a design/testing target and does not guarantee overall WCAG compliance on its own. Form inputs must have visible labels and field error text. Touch targets must meet the minimum 48x48dp standard.
+  - **Responsive Layout & Overflow Handling:** Test layouts across breakpoints (< 744px Mobile, 744px–1128px Tablet, > 1128px Desktop). Verify no render overflow bars (yellow/black tape) occur when resizing or rotating.
+  - **State Handling:** Validate proper visual representation for Loading (skeletons and spinners), Empty (`AppEmptyState` with action), Error (`AppErrorState` with retry), and Disabled states.
+  - **Navigation & Interaction Behavior:** Ensure smooth route transitions, persistent bottom navigation on mobile, persistent side rails on web, and sticky bottom/rail action bars.
+  - **Cross-Platform Visual Consistency:** Confirm visual alignment between Mobile and Web while honoring platform ergonomic distinctions.
 
 ## 3. Spring Boot
 Execute verification commands from `Travel_Planner/backend/`:

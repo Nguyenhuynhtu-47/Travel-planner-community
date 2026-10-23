@@ -72,7 +72,7 @@ unless the approved requirements specify them.
 
 ## 7. Implementation Requirements
 A complete feature may require:
-- Flutter UI.
+- Flutter UI (aligned with `docs/ai/04-ui-design-system.md` and `DESIGN.md`).
 - Frontend state and validation.
 - API client and data models.
 - Spring Boot controller and service.
@@ -80,10 +80,14 @@ A complete feature may require:
 - Authorization and error handling.
 - Tests and documentation.
 
-Implement only the layers required by the feature.
+Implement only the layers required by the feature. Visual styling must consume the canonical UI design system tokens without altering or dropping specified business rules, endpoints, or data models.
 
 ## 8. Acceptance Criteria
-Before coding, define observable acceptance criteria.
+Before coding, define observable acceptance criteria:
+- Visual presentation adheres to canonical design tokens (colors, typography, spacing, 48x48dp touch targets, responsive layouts).
+- Feature behavior conforms to the functional specification (`docs/Travel_Planner_Function_Specification.md`).
+- Loading, empty (`AppEmptyState`), error (`AppErrorState`), and disabled states are handled.
+- Server-side permissions and ownership checks are fully verified.
 
 A feature is not complete merely because its screen renders.
 Verify its business behavior, API integration, permissions
