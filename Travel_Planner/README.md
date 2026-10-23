@@ -19,7 +19,17 @@ Hướng dẫn khởi chạy từng thành phần
 
 - Backend sẽ khởi chạy tại: **`http://localhost:8080`**
 - Kiểm tra trạng thái dịch vụ (Health Check): `http://localhost:8080/api/health`
+
+### Dữ liệu mẫu khởi tạo (Seed Data)
+- Mặc định ở môi trường phát triển (Local), backend tự động khởi tạo dữ liệu mẫu thực tế và đồng nhất (10 tài khoản thử nghiệm, 20 địa điểm, 18 lịch trình, 47 ngày, 111 hoạt động, cùng các tương tác bình luận, đánh giá, yêu thích, lưu, theo dõi, chia sẻ, tải ngoại tuyến).
+- Cơ chế khởi tạo hoàn toàn **idempotent** (chạy nhiều lần không trùng lặp và bảo toàn dữ liệu hiện có).
+- Xem danh sách tài khoản thử nghiệm và mật khẩu tại: [docs/ai/test-accounts.md](docs/ai/test-accounts.md).
+- Để tắt tự động nạp seed data:
+  ```powershell
+  .\mvnw.cmd spring-boot:run -Dspring-boot.run.arguments="--app.seed.enabled=false"
+  ```
 ---
+
 
 ### 2. Khởi chạy Frontend Web (Flutter Web)
 
@@ -57,9 +67,16 @@ Hướng dẫn khởi chạy từng thành phần
    ```
 
 > **Lưu ý về kết nối API trên Mobile**:
-> - **Thiết bị thật**: Ứng dụng mặc định gọi máy tính phát triển tại `http://192.168.1.9:8080`. Điện thoại và máy tính cần cùng Wi-Fi; nếu IP máy tính thay đổi, chạy lại app với `flutter run --dart-define=API_BASE_URL=http://<IP-máy-tính>:8080`.
-> - **Máy ảo Android (Emulator)**: Chạy `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080` (`10.0.2.2` là địa chỉ máy host bên trong Android Emulator).
-> - Khi đóng gói APK, dùng cùng tham số `--dart-define=API_BASE_URL=http://<IP-máy-tính>:8080`. Cần cài lại app sau khi đổi địa chỉ API.
-> - Android được cấu hình cho phép HTTP để kết nối backend phát triển trong mạng nội bộ.
+> - **Thiết bị thật**:  Chạy lần lượt các lệnh:
 
+```powershell
+adb devices
+```
+```powershell
+adb reverse tcp:8080 tcp:8080
+```
+
+```powershell
+flutter run -d RFCW8105T0H --dart-define=API_BASE_URL=http://localhost:8080
+```
 ---

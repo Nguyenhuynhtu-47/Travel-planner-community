@@ -727,3 +727,348 @@ Evaluated the backend Spring Boot parent version in `Travel_Planner/backend/pom.
 
 ### 18.6. Remaining Issues and Environmental Limitations
 - Live application deployment requires setting environment variables (`JWT_SECRET`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) in production environments as defined in `application-prod.properties`.
+
+---
+
+## 19. Session Entry: Explore Feature — Phase 1: Backend API & Data Foundation (2026-10-23)
+
+### 19.1. Context and Objective
+Implemented Phase 1 of the Explore (Discover & Search Itineraries) feature focusing strictly on the backend REST API, data access layer, dynamic search specification, sorting/pagination, security access rules, and automated integration test coverage in compliance with `docs/Travel_Planner_Function_Specification.md` and `docs/ai/03-api-contract.md`.
+
+### 19.2. Architecture, Data Model, and Security Decisions
+1. **Public Discovery Endpoint (`GET /api/itineraries`):**
+   - Configured `SecurityConfig` to grant public read access (`permitAll()`) for `HttpMethod.GET` requests to `/api/itineraries` and `/api/itineraries/**`.
+   - All state-mutating requests (`POST`, `PUT`, `DELETE`) remain strictly authenticated (`authenticated()`), and `/api/admin/**` remains restricted to role `ADMIN`.
+   - Both guests (unauthenticated) and authenticated users can access the endpoint.
+2. **Mandatory Public Eligibility Enforcement:**
+   - Implemented dynamic filtering via Spring Data JPA `JpaSpecificationExecutor` and Criteria API in `ItinerarySpecification`.
+   - Enforced hard eligibility predicates: `visibility = Visibility.PUBLIC`, `status = ItineraryStatus.ACTIVE`, and `user.status = UserStatus.ACTIVE`. Private, draft, hidden, deleted, and banned-user itineraries are strictly excluded.
+3. **Keyword Search and Multi-Criteria Filtering:**
+   - Case-insensitive search on `title`, `location`, `theme`, and `description` with `LIKE %keyword%` matching. Whitespace-only or empty keywords are treated as non-filtering.
+   - Independent and combinable filters: `location`, `theme`, `minBudget`, `maxBudget`, `minDays`, `maxDays` combined using logical `AND`.
+   - Validation: Reject negative budgets (`< 0`), negative/zero days (`< 1`), and inverted bounds (`minBudget > maxBudget`, `minDays > maxDays`) with standard HTTP 400 `BadRequestException`.
+4. **Whitelist Sorting and Pagination Boundaries:**
+   - Zero-indexed pagination conforming to `03-api-contract.md` (`page`, `size`, `sort`). Normalized `page < 0` to `0`, `size <= 0` to `10`, and capped `size > 50` to `50`.
+   - Whitelist-based sort parser for fields: `createdAt`, `budget`, `totalDays`, `viewCount`, `favoriteCount`, `ratingCount`. Unsafe or unrecognized fields safely fallback to default `createdAt,desc`.
+5. **N+1 Prevention and Aggregate Ratings:**
+   - Utilized `@EntityGraph(attributePaths = {"user"})` on `ItineraryRepository.findAll(Specification, Pageable)` to fetch creator user profiles in a single query with SQL pagination.
+   - Batched rating averages using `RatingRepository.findAverageRatingsByItineraryIds(List<Integer>)` executing `AVG(r.score)` grouped by itinerary ID for items on the current page, avoiding persistent schema column redundancy and per-row N+1 queries.
+   - Added nullable `coverImage` column (`cover_image VARCHAR(500)`) on `Itinerary` to support UI photo card presentation while maintaining backward compatibility.
+
+### 19.3. Modified and Created Files
+- **Entity & DTOs:**
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Itinerary.java` (added `coverImage`)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/CreatorSummaryResponse.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/ItinerarySummaryResponse.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/PageResponse.java` (created)
+- **Repository & Specification:**
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/RatingRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/ItineraryRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/specification/ItinerarySpecification.java` (created)
+- **Service & Controller:**
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/ItineraryService.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/ItineraryServiceImpl.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/controller/ItineraryController.java` (created)
+- **Security & Tests:**
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/security/SecurityConfig.java` (updated matchers for GET `/api/itineraries/**`)
+  - `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ItineraryControllerTest.java` (created 15 integration tests)
+  - `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/AuthControllerTest.java` (added cascade fixture teardown)
+  - `Travel_Planner/docs/ai/09-development-log.md` (updated)
+
+### 19.4. Verification and Test Results
+- `.\mvnw.cmd test -Dtest=ItineraryControllerTest`:
+  - **Results:** 15/15 tests passed, 0 failures, 0 errors. Verified guest access, authenticated access, private/hidden/deleted exclusion, banned user exclusion, keyword search, individual and combined filters, input validation, sorting directions and fallbacks, pagination clamping, DTO privacy, rating calculation, and mutating operation security.
+- `.\mvnw.cmd test`:
+  - **Results:** 47/47 tests passed (0 failures, 0 errors, 0 skipped):
+    - `AuthControllerTest`: 25/25 passed
+    - `ItineraryControllerTest`: 15/15 passed
+    - `JwtTokenProviderTest`: 5/5 passed
+    - `HealthControllerTest`: 1/1 passed
+    - `TravelPlannerApplicationTests`: 1/1 passed
+- `git diff --check`: Exit code 0 (clean, no trailing whitespace or conflict markers).
+
+### 19.5. Remaining Limitations and Next Steps
+- Flutter Mobile Explore UI implementation (Phase 2): Create `ApiClient` query parameter support, `ItineraryCard`, `SearchBarPill`, `AppEmptyState`, `AppErrorState`, and `ExploreScreen`.
+- Database Seed Data: Create an optional dev seed runner or SQL fixture for local multi-city itinerary demonstrations.
+
+---
+
+## 20. Session Entry: Explore Feature — Phase 1 Verification and Hardening Before Phase 2 (2026-10-23)
+
+### 20.1. Context and Objective
+Conducted a comprehensive, pre-Phase 2 verification of the Explore backend implementation against `docs/Travel_Planner_Function_Specification.md`, `docs/ai/03-api-contract.md`, and security guidelines. Hardened edge cases, ensured stable pagination, verified SQL LIKE wildcard escaping and Vietnamese search behavior, and expanded integration tests to guarantee 100% backend readiness before Flutter UI implementation.
+
+### 20.2. Identified Gaps and Hardened Implementations
+1. **`minRating` Filter Specification & Subquery Execution:**
+   - *Issue:* While the specification allowed filtering itineraries by rating quality, `minRating` was missing from the endpoint parameters.
+   - *Fix:* Added `minRating` query parameter to `ItineraryController` and `ItineraryService` with strict range validation (`1.0 <= minRating <= 5.0`). Implemented dynamic rating filtering in `ItinerarySpecification` using a JPA Criteria subquery calculating `COALESCE(subquery(AVG(r.score)), 0.0) >= minRating` against the `ratings` table, avoiding persistent denormalized columns.
+2. **SQL LIKE Wildcard Escaping:**
+   - *Issue:* Raw keyword search strings containing SQL wildcards (`%`, `_`, or `\`) acted as operators instead of literal text, potentially matching unintended records.
+   - *Fix:* Added `escapeLike()` helper in `ItinerarySpecification` escaping `\`, `%`, and `_` with backslash escaping (`cb.like(..., pattern, '\\')`).
+3. **Stable Pagination Tie-Breaker:**
+   - *Issue:* When sorting by non-unique fields (e.g., `budget`, `totalDays`, `createdAt`), MySQL/Hibernate pagination can produce unstable order across pages when values are identical.
+   - *Fix:* Appended a deterministic secondary sort on `itineraryId` (`.and(Sort.by(direction, "itineraryId"))`) across all sort specifications in `ItineraryServiceImpl`. Supported `rating` as a valid sort alias.
+4. **API Contract Alignment (`PageResponse`):**
+   - *Issue:* `03-api-contract.md` specifies pagination response field names as `pageNumber` and `pageSize`, whereas some client implementations expect standard `page` and `size`.
+   - *Fix:* Maintained canonical field names `pageNumber` and `pageSize` in `PageResponse` while adding `@JsonAlias({"page", "pageNumber"})` and `@JsonAlias({"size", "pageSize"})` for flexible bidirectional deserialization.
+5. **SecurityConfig Scoping for Future Endpoints:**
+   - *Issue:* Permitting `HttpMethod.GET` on `/api/itineraries/**` risked accidentally exposing future private sub-endpoints (e.g., `/api/itineraries/my-drafts`).
+   - *Fix:* Narrowed the public GET matcher strictly to exact `/api/itineraries`. Future sub-endpoints fall through to `.anyRequest().authenticated()`.
+6. **Vietnamese Collation & Search Verification:**
+   - Verified that diacritic searches (e.g., `Đà Lạt`, `bánh tráng`) work accurately under MySQL collation with case-insensitivity (`đà lạt` matching `Đà Lạt`).
+7. **Nullable `coverImage` Consistency:**
+   - Verified that `coverImage` is uniformly handled as nullable across `Itinerary` entity, `ItinerarySummaryResponse` DTO, and repository operations.
+
+### 20.3. Modified and Created Files
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/controller/ItineraryController.java` (added `minRating` parameter)
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/ItineraryService.java` (added `minRating` parameter)
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/ItineraryServiceImpl.java` (added `minRating` range validation, stable pagination tie-breaker, `rating` sort alias)
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/specification/ItinerarySpecification.java` (added `minRating` subquery filter and `escapeLike` wildcard handling)
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/PageResponse.java` (added `@JsonAlias` for `page` and `size`)
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/security/SecurityConfig.java` (narrowed public GET matcher to `/api/itineraries`)
+- `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ItineraryControllerTest.java` (expanded test suite from 15 to 21 tests)
+- `Travel_Planner/docs/ai/09-development-log.md` (appended Session 20 log)
+
+### 20.4. Verification and Test Results
+- `.\mvnw.cmd test -Dtest=ItineraryControllerTest`:
+  - **Results:** 21/21 tests passed (0 failures, 0 errors). Tested guest access, invalid Bearer token guest fallback, private/hidden exclusion, banned user exclusion, keyword search, LIKE wildcard escaping (`%`), Vietnamese accent search, individual & combined filters, `minRating` filter & validation, sort options, stable multi-page pagination, subpath security restriction, and mutating method protection.
+- `.\mvnw.cmd test`:
+  - **Results:** 53/53 tests passed (BUILD SUCCESS, 0 failures, 0 errors, 0 skipped):
+    - `AuthControllerTest`: 25/25 passed
+    - `ItineraryControllerTest`: 21/21 passed
+    - `JwtTokenProviderTest`: 5/5 passed
+    - `HealthControllerTest`: 1/1 passed
+    - `TravelPlannerApplicationTests`: 1/1 passed
+- `git diff --check`: Exit code 0 (clean, no trailing whitespace or formatting conflicts).
+
+### 20.5. Conclusion & Readiness Decision
+- **Status:** READY FOR PHASE 2 (Flutter Mobile Explore UI Implementation).
+- All API contracts, query stability, edge-case escaping, and security rules are verified and locked with automated tests.
+
+---
+
+## 21. Session Entry: Explore Feature — Phase 2: Flutter Mobile Implementation (2026-10-23)
+
+### 21.1. Context and Objective
+Implemented Phase 2 of the Explore (Discover & Search Itineraries) feature on Flutter Mobile (`frontend/mobile`) based on the approved specifications in `docs/Travel_Planner_Function_Specification.md`, `DESIGN.md`, `docs/ai/04-ui-design-system.md`, and `docs/ai/05-ux-guidelines.md`. Enabled public discovery for both guest and authenticated users, server-side keyword search, multi-criteria filtering, sorting, infinite scrolling, resilient fallback states, and full test suite verification.
+
+### 21.2. Architecture, Data Model, and UI Decisions
+1. **API Client & Networking:**
+   - Extended `ApiClient.get()` to support optional `Map<String, dynamic>? queryParameters` with automatic sanitization and URL parameter encoding without altering existing method signatures.
+   - Added `itinerariesEndpoint = '/api/itineraries'` constant to `ApiConstants`.
+2. **DTO & Domain Models:**
+   - Created `PageResult<T>` matching the backend's `PageResponse` JSON structure, supporting both `page`/`pageNumber` and `size`/`pageSize` aliases and resilient handling of malformed records.
+   - Created `CreatorSummary` matching `CreatorSummaryResponse` (`userId`, `username`, `fullName`, `avatar`) with fallback `displayName`.
+   - Created `ItinerarySummary` strictly matching `ItinerarySummaryResponse` (`itineraryId`, `title`, `description`, `location`, `coverImage`, `totalDays`, `budget`, `theme`, `viewCount`, `favoriteCount`, `ratingCount`, `averageRating`, `createdAt`, `creator`). Safely handles nullable `coverImage`, description, theme, and creator.
+3. **Repository & State Management:**
+   - Created `ExploreRepository` wrapping `GET /api/itineraries` with support for all verified backend parameters (`keyword`, `location`, `theme`, `minBudget`, `maxBudget`, `minDays`, `maxDays`, `minRating`, `page`, `size`, `sort`).
+   - Implemented `ExploreNotifier` (extending `ChangeNotifier`) managing `ExploreStatus` (`initial`, `loading`, `success`, `error`), infinite scroll pagination (`loadMore`), active filter state (`ExploreFilter`), instant theme switching, search reset, and concurrency guards (`_isFetching`, `_isLoadingMore`).
+4. **Reusable UI Components:**
+   - Implemented `AppEmptyState` with centered 72dp soft circle container, 36dp icon, title, description, and customizable action button ("Đặt lại bộ lọc") per `05-ux-guidelines.md`.
+   - Implemented `AppErrorState` with Rausch-tinted icon container, user-friendly error message, and primary CTA "Thử lại" retry button.
+   - Implemented `ItineraryCard` with 14px rounded corners, 16:10 aspect ratio photo header, sensible fallback placeholder for null/invalid images, "Yêu thích" top-left badge for high-rated trips, favorite heart button, solid Ink `#222222` star rating, Vietnamese dong budget formatting, and author avatar/name.
+   - Implemented `SearchBarPill` adhering to `DESIGN.md` with circular Rausch search orb, search text input with clear button, and filter tune button with active filter counter badge.
+   - Implemented `FilterBottomSheet` modal sheet supporting sort choices, destination text & chips, theme chips, days range, budget range, minimum rating chips, and reset/apply actions.
+5. **Guest Access & Navigation Routing:**
+   - Configured `main.dart` to route directly to `ExploreScreen(authNotifier: _authNotifier)` once initial auth check completes, allowing guests to explore public itineraries without being forced to login.
+   - In guest mode, `ExploreScreen` displays a dedicated "Đăng nhập" button in the AppBar leading to `LoginScreen`.
+   - In authenticated mode, `ExploreScreen` displays the user's avatar and name with a dropdown menu ("Hồ sơ" -> `ProfileScreen`, "Đăng xuất" -> `logout()`).
+   - Updated `LoginScreen` to automatically pop back to `ExploreScreen` upon successful authentication and include a back button when pushed as a route.
+   - Added polite feedback notices for card tap and favorite tap indicating that detailed itinerary view and favorite persistence will arrive in upcoming phases.
+
+### 21.3. Modified and Created Files
+- **Core Network & Constants:**
+  - `Travel_Planner/frontend/mobile/lib/core/constants/api_constants.dart` (added `itinerariesEndpoint`)
+  - `Travel_Planner/frontend/mobile/lib/core/network/api_client.dart` (extended `get()` with `queryParameters`)
+- **Explore Data Layer:**
+  - `Travel_Planner/frontend/mobile/lib/features/explore/data/models/page_result.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/features/explore/data/models/creator_summary.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/features/explore/data/models/itinerary_summary.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/features/explore/data/explore_repository.dart` (created)
+- **Explore State & UI:**
+  - `Travel_Planner/frontend/mobile/lib/features/explore/presentation/explore_notifier.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/features/explore/presentation/widgets/itinerary_card.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/features/explore/presentation/widgets/search_bar_pill.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/features/explore/presentation/widgets/filter_bottom_sheet.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart` (created)
+- **Shared Widgets:**
+  - `Travel_Planner/frontend/mobile/lib/shared/widgets/app_empty_state.dart` (created)
+  - `Travel_Planner/frontend/mobile/lib/shared/widgets/app_error_state.dart` (created)
+- **Navigation & Auth:**
+  - `Travel_Planner/frontend/mobile/lib/main.dart` (routed home to `ExploreScreen`)
+  - `Travel_Planner/frontend/mobile/lib/features/auth/presentation/screens/login_screen.dart` (added pop-on-success and back button support)
+- **Automated Tests:**
+  - `Travel_Planner/frontend/mobile/test/explore_test.dart` (created 13 automated unit & widget tests)
+- **Documentation:**
+  - `Travel_Planner/docs/ai/09-development-log.md` (appended Session 21 entry)
+
+### 21.4. Verification and Test Results
+- `flutter analyze`:
+  - **Result:** No issues found! (ran in 2.2s, 0 errors, 0 warnings).
+- `flutter test`:
+  - **Result:** **28/28 tests passed** (0 failures, 0 errors, 0 skipped):
+    - `auth_401_test.dart`: 9 tests passed
+    - `username_validation_test.dart`: 5 tests passed
+    - `widget_test.dart`: 1 test passed
+    - `explore_test.dart`: 13 tests passed (query parameter encoding, model deserialization, repository query construction, notifier state transitions, empty/error handling, pagination reset, load-more appending, guest mode rendering, empty state rendering, error state retry).
+- `flutter build bundle`:
+  - **Result:** Exit code 0 (clean compilation of Dart code and Flutter asset bundle).
+- `git diff --check`:
+  - **Result:** Exit code 0 (clean, no trailing whitespace or conflict markers).
+
+### 21.5. Remaining Limitations and Next Steps
+- Itinerary Details Screen (Phase 3): Implement itinerary detail screen (`features/itinerary`) displaying the day-by-day activity timeline, photos, author bio card, and sticky action rail.
+- Itinerary Favorite / Bookmark: Implement saving favorite itineraries when the backend favorites API is available.
+- Flutter Web Explore (Phase 4): Implement responsive multi-column card grid for web desktop.
+
+---
+
+## 22. Session Entry: Explore Feature — Phase 2 Final Targeted Verification & Race-Condition Hardening (2026-10-23)
+
+### 22.1. Context and Objective
+Executed a final targeted verification of the completed Flutter Mobile Explore implementation before advancing to Phase 3. Focused on verifying guest navigation boundaries, token session restoration, API contract alignment, query sorting metrics, async race condition resilience, error/empty UI states, and mobile debug build compilation.
+
+### 22.2. Confirmed Findings and Hardened Items
+1. **Async Race-Condition Protection in `ExploreNotifier`:**
+   - *Defect Identified:* Rapid search submissions could previously allow an earlier, slower HTTP response to overwrite the results of a later, faster search. Additionally, `_isFetching` could cause rapid subsequent searches to be ignored.
+   - *Fix Implemented:* Introduced monotonic request sequence ID (`_requestId`) in `ExploreNotifier`. Each new search increments `_requestId`. Incoming responses verify `currentRequestId == _requestId` before committing state, silently discarding stale responses. Also added check during `loadMore()` to discard appended items if a search/filter reset occurred while `loadMore` was in flight.
+   - *Automated Test:* Added automated unit test in `explore_test.dart` ("older request cannot overwrite results from newer search") simulating slow (100ms) followed by fast (10ms) responses, proving only the newer result is retained.
+2. **API Contract & Sort Metric Alignment:**
+   - Verified that `PageResult.fromJson` safely parses both `pageNumber`/`pageSize` and `page`/`size` variants.
+   - Verified that all 6 exposed sort options in `FilterBottomSheet` (`createdAt,desc`, `rating,desc`, `budget,asc`, `budget,desc`, `totalDays,asc`, `viewCount,desc`) strictly map to the verified backend whitelist in `ItineraryServiceImpl.java`.
+   - Confirmed `rating,desc` correctly maps to the backend alias sorting by `ratingCount` with deterministic `itineraryId` tie-breaker.
+3. **UI Robustness & Defensive Fallbacks:**
+   - Confirmed `ItineraryCard` handles `null`, empty, or network-failed `coverImage` using a graceful `_buildImagePlaceholder()`.
+   - Confirmed favorite button never fabricates success: guests are prompted to log in, and authenticated users receive an informational notice that bookmarking will arrive in a future phase.
+   - Verified the "Yêu thích" badge follows a clear, defensible criterion: `averageRating >= 4.5 && ratingCount >= 2`.
+4. **Guest & Auth Navigation Flow:**
+   - Verified guest access directly to `ExploreScreen` without credentials.
+   - Verified login success automatically pops back to `ExploreScreen` and re-renders with authenticated user avatar/name.
+   - Verified logout returns the screen to Guest state with the "Đăng nhập" button.
+   - Verified `LoginScreen` back button navigates back without disrupting navigation state.
+
+### 22.3. Modified Files
+- `Travel_Planner/frontend/mobile/lib/features/explore/presentation/explore_notifier.dart` (implemented `_requestId` request sequencing and race condition guard)
+- `Travel_Planner/frontend/mobile/test/explore_test.dart` (added race-condition test; total 14 tests in file)
+- `Travel_Planner/docs/ai/09-development-log.md` (appended Session 22 entry)
+
+### 22.4. Actual Verification and Build Results
+- `flutter analyze`:
+  - **Result:** No issues found! (ran in 2.5s, 0 errors, 0 warnings).
+- `flutter test`:
+  - **Result:** **29/29 tests passed** (0 failures, 0 errors, 0 skipped):
+    - `auth_401_test.dart`: 9 tests passed
+    - `username_validation_test.dart`: 5 tests passed
+    - `widget_test.dart`: 1 test passed
+    - `explore_test.dart`: 14 tests passed (including race-condition test)
+- `flutter build apk --debug`:
+  - **Result:** **BUILD SUCCESS** (`√ Built build\app\outputs\flutter-apk\app-debug.apk` in 91.6s).
+- `git diff --check`: Exit code 0 (clean, no trailing whitespace or formatting conflicts).
+- *Manual Device Testing Note:* No manual physical device or emulator execution was performed in this terminal session; verification was conducted via automated widget/unit tests and full Gradle APK compilation.
+
+### 22.5. Conclusion & Readiness Decision
+- **Status:** READY FOR PHASE 3 (Flutter Mobile Itinerary Detail Screen Implementation).
+- All items verified, race conditions resolved, and mobile build verified.
+
+---
+
+## 23. Session Entry: Realistic Seed Data Generation & Database Integrity Verification (2026-10-23)
+
+### 23.1. Context and Objective
+Implemented an idempotent, non-destructive development seed data generator (`DataSeeder`) to populate realistic and internally consistent sample data for the Travel Planner platform. The dataset covers all 12 existing database entities (`users`, `destinations`, `itineraries`, `itinerary_days`, `activities`, `comments`, `ratings`, `favorites`, `saved_itineraries`, `follows`, `itinerary_shares`, `offline_downloads`), enabling manual testing, frontend integration testing (Explore feed, search/filter, sorting, privacy, personalizing derived itineraries, and social interactions), and test account authentication.
+
+### 23.2. Architecture, Domain Model, and Safety Implementation
+1. **Idempotency and Non-Destructive Design:**
+   - Designed `DataSeeder` to check existing unique keys (`username`/`email` for users, `name` for destinations, `title` + `userId` for itineraries, `(dayId, displayOrder)` for activities, `(userId, itineraryId)` for ratings/favorites/saves, `(followerId, followingId)` for follows, and `shareToken` for shares) before inserting.
+   - Pre-existing developer accounts (e.g., `minhdanh`) and custom records are strictly preserved without deletion or truncation.
+   - Re-running the seeder preserves exact row counts with zero duplicate records.
+2. **Security & Production Safeguards:**
+   - All test account passwords are encrypted using BCrypt (`PasswordEncoder`) using the local development password `Password123!`. Plaintext passwords are never stored in the database.
+   - Controlled via `app.seed.enabled=${APP_SEED_ENABLED:true}` in `application.properties`.
+   - Explicitly disabled in `application-prod.properties` (`app.seed.enabled=false`) to ensure production safety.
+   - Isolated in unit/integration tests via `src/test/resources/application.properties` pointing to `travel_planner_test` with `app.seed.enabled=false` by default, with defensive teardown to avoid cross-test foreign key conflicts.
+3. **Domain Entities & Realistic Vietnamese Data:**
+   - **Users (10 seeded):** 1 ADMIN (`admin_master`), 7 ACTIVE USERs (`traveler_viet`, `wanderer_linh`, `foodie_khoa`, `nature_an`, `hiker_duy`, `island_mai`, `backpacker_tuan`), 1 INACTIVE USER (`inactive_user`), and 1 BANNED USER (`banned_spammer`).
+   - **Destinations (20 seeded):** Realistic landmarks in Hà Nội, Sa Pa, Hạ Long, Ninh Bình, Huế, Hội An, Đà Nẵng, Đà Lạt, Sài Gòn, Phú Quốc, and Cần Thơ with real GPS coordinates (19 `ACTIVE`, 1 `HIDDEN`).
+   - **Itineraries (18 seeded):** Range from 1 to 5 days, budgets from 1.2M to 12.0M VND, varied themes (`Ẩm thực`, `Văn hóa`, `Khám phá`, `Nghỉ dưỡng`, `Sinh thái`, `Phiêu lưu`, `Biển đảo`).
+     - Includes 13 `PUBLIC` & `ACTIVE` itineraries for Explore feed testing.
+     - Includes 2 `PRIVATE` itineraries to verify privacy enforcement.
+     - Includes 1 derived itinerary (`sa_pa_derived` personalized from `sa_pa_trekking` via `original_itinerary_id`).
+     - Includes 1 `HIDDEN`, 1 `DELETED`, and 1 `BANNED` creator itinerary to verify exclusion rules.
+   - **Itinerary Days (47) & Activities (111):** Sequential days with 2–4 detailed activities per day, valid start/end times, realistic costs (VND), display orders, and mandatory destination foreign keys.
+   - **Social Interactions:** 14 comments (active, hidden, deleted), 24 ratings (1–5 stars; high-rated trips with average >= 4.5 and ratingCount >= 2 triggering the mobile "Yêu thích" badge), 14 favorites, 9 saved itineraries, 11 follows (no self-following), 5 itinerary shares (active and expired), and 7 offline downloads.
+4. **Spring Data JPA Repositories:**
+   - Created missing standard repository interfaces: `DestinationRepository`, `CommentRepository`, `FavoriteRepository`, `SavedItineraryRepository`, `FollowRepository`, `ItineraryShareRepository`, and `OfflineDownloadRepository`.
+   - Added derived query methods to `ItineraryRepository`, `ItineraryDayRepository`, `ActivityRepository`, and `RatingRepository`.
+
+### 23.3. Modified and Created Files
+- **Backend Seeder & Domain:**
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/seeder/DataSeeder.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/seeder/SeedResult.java` (created)
+- **Spring Data JPA Repositories:**
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/DestinationRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/CommentRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/FavoriteRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/SavedItineraryRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/FollowRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/ItineraryShareRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/OfflineDownloadRepository.java` (created)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/ItineraryRepository.java` (added lookup helpers)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/ItineraryDayRepository.java` (added lookup helpers)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/ActivityRepository.java` (added lookup helpers)
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/RatingRepository.java` (added lookup helpers)
+- **Configuration & Test Resources:**
+  - `Travel_Planner/backend/src/main/resources/application.properties` (added `app.seed.enabled` property)
+  - `Travel_Planner/backend/src/main/resources/application-prod.properties` (disabled seeder in prod)
+  - `Travel_Planner/backend/src/test/resources/application.properties` (test isolation for `travel_planner_test`)
+- **Automated Tests:**
+  - `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/DataSeederTest.java` (created 3 automated tests: thresholds, foreign key integrity, and idempotency)
+- **Documentation:**
+  - `Travel_Planner/README.md` (added seed data execution instructions and configuration)
+  - `Travel_Planner/docs/ai/test-accounts.md` (created dedicated test accounts reference)
+  - `Travel_Planner/docs/ai/09-development-log.md` (appended Session 23 entry)
+
+### 23.4. Actual Verification and Build Results
+- `.\mvnw.cmd test -Dtest=DataSeederTest`:
+  - **Result:** **3/3 tests passed** (0 failures, 0 errors, BUILD SUCCESS). Verified table row counts, foreign key integrity, unique constraints, zero self-follows, BCrypt password verification, and repeated run idempotency.
+- `.\mvnw.cmd test`:
+  - **Result:** **56/56 tests passed** (0 failures, 0 errors, BUILD SUCCESS):
+    - `AuthControllerTest`: 25/25 passed
+    - `DataSeederTest`: 3/3 passed
+    - `HealthControllerTest`: 1/1 passed
+    - `ItineraryControllerTest`: 21/21 passed
+    - `JwtTokenProviderTest`: 5/5 passed
+    - `TravelPlannerApplicationTests`: 1/1 passed
+- **Live Local Database Execution (`travel_planner` MySQL):**
+  - Ran `.\mvnw.cmd spring-boot:run` against local MySQL (`jdbc:mysql://localhost:3306/travel_planner`).
+  - Verified exact table row counts in MySQL:
+    - `users`: 11 (10 seeded + 1 preserved pre-existing `minhdanh`)
+    - `destinations`: 20
+    - `itineraries`: 18
+    - `itinerary_days`: 47
+    - `activities`: 111
+    - `comments`: 14
+    - `ratings`: 24
+    - `favorites`: 14
+    - `saved_itineraries`: 9
+    - `follows`: 11
+    - `itinerary_shares`: 5
+    - `offline_downloads`: 7
+  - Verified idempotency by executing a second run: row counts remained strictly identical (zero duplicate records).
+- **Live API Endpoint Verification:**
+  - `POST /api/auth/login` with `traveler_viet`: 200 OK, returned JWT Bearer token and full profile.
+  - `POST /api/auth/login` with `admin_master`: 200 OK, authenticated with `ADMIN` role.
+  - `POST /api/auth/login` with `banned_spammer`: 403 Forbidden (properly blocked).
+  - `POST /api/auth/login` with `inactive_user`: 403 Forbidden (properly blocked).
+  - `GET /api/user/profile` with `traveler_viet` token: 200 OK.
+  - `GET /api/itineraries`: 200 OK, returned exactly 13 public active itineraries across 2 pages (10 on page 0, 3 on page 1).
+  - `GET /api/itineraries?keyword=Fansipan`: 200 OK, returned both base and derived Fansipan itineraries.
+  - `GET /api/itineraries?location=Đà Lạt`: 200 OK, returned 2 public itineraries, strictly excluded private honeymoon itinerary.
+- **Frontend Verification:**
+  - `flutter test` (`frontend/mobile`): **29/29 tests passed** (0 failures, 0 errors).
+  - `flutter test` (`frontend/web`): **15/15 tests passed** (0 failures, 0 errors).
+- `git diff --check`: Exit code 0 (clean, no conflict markers or trailing whitespace).
+
+### 23.5. Conclusion & Operational Status
+- **Status:** COMPLETED AND VERIFIED.
+- All seed data is live in local MySQL database `travel_planner`. Pre-existing data was preserved, test credentials documented, and zero regressions detected across backend and frontend test suites.
