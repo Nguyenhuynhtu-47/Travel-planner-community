@@ -19,7 +19,7 @@ public class Itinerary {
     }
 
     public Itinerary(Integer itineraryId, User user, Itinerary originalItinerary, String title,
-                     String description, String location, Integer totalDays, BigDecimal budget,
+                     String description, String location, String coverImage, Integer totalDays, BigDecimal budget,
                      String theme, Visibility visibility, ItineraryStatus status, Integer viewCount,
                      Integer favoriteCount, Integer ratingCount, Integer commentCount, Integer reuseCount,
                      LocalDateTime createdAt, LocalDateTime updatedAt) {
@@ -29,6 +29,7 @@ public class Itinerary {
         this.title = title;
         this.description = description;
         this.location = location;
+        this.coverImage = coverImage;
         this.totalDays = totalDays;
         this.budget = budget;
         this.theme = theme;
@@ -64,6 +65,9 @@ public class Itinerary {
 
     @Column(name = "location", nullable = false, length = 150)
     private String location;
+
+    @Column(name = "cover_image", length = 500)
+    private String coverImage;
 
     @Column(name = "total_days", nullable = false)
     private Integer totalDays;
