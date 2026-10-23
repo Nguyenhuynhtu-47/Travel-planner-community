@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/theme/app_colors.dart';
 
 class AppTextField extends StatefulWidget {
@@ -9,6 +10,10 @@ class AppTextField extends StatefulWidget {
   final bool isPassword;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onFieldSubmitted;
+  final TextInputAction? textInputAction;
+  final int maxLines;
+  final int? minLines;
   final String? Function(String?)? validator;
 
   const AppTextField({
@@ -20,6 +25,10 @@ class AppTextField extends StatefulWidget {
     this.isPassword = false,
     this.errorText,
     this.onChanged,
+    this.onFieldSubmitted,
+    this.textInputAction,
+    this.maxLines = 1,
+    this.minLines,
     this.validator,
   });
 
@@ -46,26 +55,38 @@ class _AppTextFieldState extends State<AppTextField> {
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: AppColors.textPrimary,
+            color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextFormField(
           controller: widget.controller,
           keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
           obscureText: widget.isPassword ? _obscureText : false,
+          maxLines: widget.isPassword ? 1 : widget.maxLines,
+          minLines: widget.isPassword ? 1 : widget.minLines,
           onChanged: widget.onChanged,
+          onFieldSubmitted: widget.onFieldSubmitted,
           validator: widget.validator,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: AppColors.textPrimary,
+          ),
           decoration: InputDecoration(
             hintText: widget.hint,
             errorText: widget.errorText,
             suffixIcon: widget.isPassword
                 ? IconButton(
                     icon: Icon(
-                      _obscureText ? Icons.visibility_off : Icons.visibility,
+                      _obscureText
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
                       color: AppColors.textSecondary,
                       size: 20,
                     ),
+                    tooltip: _obscureText ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
                     onPressed: () {
                       setState(() {
                         _obscureText = !_obscureText;
