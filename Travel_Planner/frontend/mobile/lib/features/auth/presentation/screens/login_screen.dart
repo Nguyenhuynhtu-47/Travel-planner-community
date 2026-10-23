@@ -36,7 +36,11 @@ class _LoginScreenState extends State<LoginScreen> {
       _passwordController.text,
     );
 
-    if (!success && mounted) {
+    if (success && mounted) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+    } else if (!success && mounted) {
       final error = widget.authNotifier.errorMessage;
       if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -58,6 +62,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
         return Scaffold(
           backgroundColor: AppColors.background,
+          appBar: Navigator.canPop(context)
+              ? AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: AppColors.textPrimary,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                )
+              : null,
           body: SafeArea(
             child: Center(
               child: SingleChildScrollView(

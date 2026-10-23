@@ -4,13 +4,13 @@ import 'package:mobile/features/auth/presentation/auth_notifier.dart';
 import 'package:mobile/features/auth/presentation/screens/login_screen.dart';
 
 void main() {
-  testWidgets('LoginScreen renders logo, fields and action buttons', (WidgetTester tester) async {
+  testWidgets('LoginScreen renders logo, fields and action buttons', (
+    WidgetTester tester,
+  ) async {
     final notifier = AuthNotifier();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: LoginScreen(authNotifier: notifier),
-      ),
+      MaterialApp(home: LoginScreen(authNotifier: notifier)),
     );
 
     await tester.pump();

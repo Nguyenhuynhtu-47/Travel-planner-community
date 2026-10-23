@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -32,49 +33,14 @@ void main() {
       ApiClient.resetThrottle();
     });
 
-    test('ApiClient triggers onUnauthorized callback when receiving 401', () async {
-      int unauthorizedCount = 0;
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({'status': 401, 'message': 'Token expired'}),
-          401,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-
-      final client = ApiClient(
-        client: mockClient,
-        onUnauthorized: () {
-          unauthorizedCount++;
-        },
-      );
-
-      try {
-        await client.get('/api/test');
-        fail('Should throw ApiException');
-      } on ApiException catch (e) {
-        expect(e.statusCode, equals(401));
-      }
-
-      expect(unauthorizedCount, equals(1));
-    });
-
-    test('ApiClient does NOT trigger onUnauthorized on 200, 400, 403, 500', () async {
-      int unauthorizedCount = 0;
-
-      final testCases = [
-        {'status': 200, 'body': {'data': 'ok'}},
-        {'status': 400, 'body': {'message': 'Bad Request'}},
-        {'status': 403, 'body': {'message': 'Forbidden'}},
-        {'status': 500, 'body': {'message': 'Server Error'}},
-      ];
-
-      for (final tc in testCases) {
-        ApiClient.resetThrottle();
+    test(
+      'ApiClient triggers onUnauthorized callback when receiving 401',
+      () async {
+        int unauthorizedCount = 0;
         final mockClient = MockClient((request) async {
           return http.Response(
-            jsonEncode(tc['body']),
-            tc['status'] as int,
+            jsonEncode({'status': 401, 'message': 'Token expired'}),
+            401,
             headers: {'content-type': 'application/json'},
           );
         });
@@ -86,102 +52,171 @@ void main() {
           },
         );
 
-        if ((tc['status'] as int) >= 200 && (tc['status'] as int) < 300) {
+        try {
           await client.get('/api/test');
-        } else {
+          fail('Should throw ApiException');
+        } on ApiException catch (e) {
+          expect(e.statusCode, equals(401));
+        }
+
+        expect(unauthorizedCount, equals(1));
+      },
+    );
+
+    test(
+      'ApiClient does NOT trigger onUnauthorized on 200, 400, 403, 500',
+      () async {
+        int unauthorizedCount = 0;
+
+        final testCases = [
+          {
+            'status': 200,
+            'body': {'data': 'ok'},
+          },
+          {
+            'status': 400,
+            'body': {'message': 'Bad Request'},
+          },
+          {
+            'status': 403,
+            'body': {'message': 'Forbidden'},
+          },
+          {
+            'status': 500,
+            'body': {'message': 'Server Error'},
+          },
+        ];
+
+        for (final tc in testCases) {
+          ApiClient.resetThrottle();
+          final mockClient = MockClient((request) async {
+            return http.Response(
+              jsonEncode(tc['body']),
+              tc['status'] as int,
+              headers: {'content-type': 'application/json'},
+            );
+          });
+
+          final client = ApiClient(
+            client: mockClient,
+            onUnauthorized: () {
+              unauthorizedCount++;
+            },
+          );
+
+          if ((tc['status'] as int) >= 200 && (tc['status'] as int) < 300) {
+            await client.get('/api/test');
+          } else {
+            try {
+              await client.get('/api/test');
+            } catch (_) {}
+          }
+        }
+
+        expect(unauthorizedCount, equals(0));
+      },
+    );
+
+    test(
+      'ApiClient throttles repeated 401 notifications within throttle duration',
+      () async {
+        int unauthorizedCount = 0;
+        final mockClient = MockClient((request) async {
+          return http.Response(
+            jsonEncode({'status': 401, 'message': 'Token expired'}),
+            401,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final client = ApiClient(
+          client: mockClient,
+          onUnauthorized: () {
+            unauthorizedCount++;
+          },
+        );
+
+        // Make 3 requests rapidly
+        for (int i = 0; i < 3; i++) {
           try {
             await client.get('/api/test');
           } catch (_) {}
         }
-      }
 
-      expect(unauthorizedCount, equals(0));
-    });
+        // Should be called only once due to throttle
+        expect(unauthorizedCount, equals(1));
+      },
+    );
 
-    test('ApiClient throttles repeated 401 notifications within throttle duration', () async {
-      int unauthorizedCount = 0;
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({'status': 401, 'message': 'Token expired'}),
-          401,
-          headers: {'content-type': 'application/json'},
-        );
-      });
+    test(
+      'ApiClient triggers globalOnUnauthorized when instance callback is null',
+      () async {
+        int globalCount = 0;
+        ApiClient.globalOnUnauthorized = () {
+          globalCount++;
+        };
 
-      final client = ApiClient(
-        client: mockClient,
-        onUnauthorized: () {
-          unauthorizedCount++;
-        },
-      );
+        final mockClient = MockClient((request) async {
+          return http.Response(
+            jsonEncode({'message': 'Unauthorized'}),
+            401,
+            headers: {'content-type': 'application/json'},
+          );
+        });
 
-      // Make 3 requests rapidly
-      for (int i = 0; i < 3; i++) {
+        final client = ApiClient(client: mockClient);
+
         try {
-          await client.get('/api/test');
+          await client.post('/api/test', body: {});
         } catch (_) {}
-      }
 
-      // Should be called only once due to throttle
-      expect(unauthorizedCount, equals(1));
-    });
-
-    test('ApiClient triggers globalOnUnauthorized when instance callback is null', () async {
-      int globalCount = 0;
-      ApiClient.globalOnUnauthorized = () {
-        globalCount++;
-      };
-
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({'message': 'Unauthorized'}),
-          401,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-
-      final client = ApiClient(client: mockClient);
-
-      try {
-        await client.post('/api/test', body: {});
-      } catch (_) {}
-
-      expect(globalCount, equals(1));
-    });
+        expect(globalCount, equals(1));
+      },
+    );
   });
 
   group('AuthNotifier Session Expiry and Verification Tests', () {
-    test('handleSessionExpired clears credentials and marks unauthenticated', () async {
-      FlutterSecureStorage.setMockInitialValues({
-        'auth_token': 'sample_token',
-        'auth_user': jsonEncode({'username': 'testuser', 'role': 'USER'}),
-      });
+    test(
+      'handleSessionExpired clears credentials and marks unauthenticated',
+      () async {
+        FlutterSecureStorage.setMockInitialValues({
+          'auth_token': 'sample_token',
+          'auth_user': jsonEncode({'username': 'testuser', 'role': 'USER'}),
+        });
 
-      final storage = AuthStorage();
-      final notifier = AuthNotifier(storage: storage);
+        final storage = AuthStorage();
+        final notifier = AuthNotifier(storage: storage);
 
-      // Verify initial storage has token
-      expect(await storage.getToken(), equals('sample_token'));
+        // Verify initial storage has token
+        expect(await storage.getToken(), equals('sample_token'));
 
-      // Call handleSessionExpired
-      await notifier.handleSessionExpired();
+        // Call handleSessionExpired
+        await notifier.handleSessionExpired();
 
-      // Verify token and user are cleared
-      expect(notifier.token, isNull);
-      expect(notifier.currentUser, isNull);
-      expect(notifier.status, equals(AuthStatus.unauthenticated));
-      expect(notifier.isAuthenticated, isFalse);
-      expect(await storage.getToken(), isNull);
-    });
+        // Verify token and user are cleared
+        expect(notifier.token, isNull);
+        expect(notifier.currentUser, isNull);
+        expect(notifier.status, equals(AuthStatus.unauthenticated));
+        expect(notifier.isAuthenticated, isFalse);
+        expect(await storage.getToken(), isNull);
+      },
+    );
 
     test('checkAuthStatus with valid token and /api/auth/me 200 updates profile and stays authenticated', () async {
       final validToken = _createMockJwt(
-        expSeconds: DateTime.now().add(const Duration(hours: 2)).millisecondsSinceEpoch ~/ 1000,
+        expSeconds:
+            DateTime.now()
+                .add(const Duration(hours: 2))
+                .millisecondsSinceEpoch ~/
+            1000,
       );
 
       FlutterSecureStorage.setMockInitialValues({
         'auth_token': validToken,
-        'auth_user': jsonEncode({'username': 'olduser', 'fullName': 'Old Name'}),
+        'auth_user': jsonEncode({
+          'username': 'olduser',
+          'fullName': 'Old Name',
+        }),
       });
 
       final mockClient = MockClient((request) async {
@@ -202,7 +237,9 @@ void main() {
       });
 
       final storage = AuthStorage();
-      final repository = AuthRepository(apiClient: ApiClient(client: mockClient));
+      final repository = AuthRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final notifier = AuthNotifier(repository: repository, storage: storage);
 
       await notifier.checkAuthStatus();
@@ -216,7 +253,11 @@ void main() {
 
     test('checkAuthStatus with valid token and /api/auth/me 401 clears storage and marks unauthenticated', () async {
       final validToken = _createMockJwt(
-        expSeconds: DateTime.now().add(const Duration(hours: 2)).millisecondsSinceEpoch ~/ 1000,
+        expSeconds:
+            DateTime.now()
+                .add(const Duration(hours: 2))
+                .millisecondsSinceEpoch ~/
+            1000,
       );
 
       FlutterSecureStorage.setMockInitialValues({
@@ -233,7 +274,9 @@ void main() {
       });
 
       final storage = AuthStorage();
-      final repository = AuthRepository(apiClient: ApiClient(client: mockClient));
+      final repository = AuthRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final notifier = AuthNotifier(repository: repository, storage: storage);
 
       await notifier.checkAuthStatus();
@@ -247,12 +290,19 @@ void main() {
 
     test('checkAuthStatus with valid token and server 500 preserves cached session', () async {
       final validToken = _createMockJwt(
-        expSeconds: DateTime.now().add(const Duration(hours: 2)).millisecondsSinceEpoch ~/ 1000,
+        expSeconds:
+            DateTime.now()
+                .add(const Duration(hours: 2))
+                .millisecondsSinceEpoch ~/
+            1000,
       );
 
       FlutterSecureStorage.setMockInitialValues({
         'auth_token': validToken,
-        'auth_user': jsonEncode({'username': 'testuser', 'fullName': 'Cached Name'}),
+        'auth_user': jsonEncode({
+          'username': 'testuser',
+          'fullName': 'Cached Name',
+        }),
       });
 
       final mockClient = MockClient((request) async {
@@ -264,7 +314,9 @@ void main() {
       });
 
       final storage = AuthStorage();
-      final repository = AuthRepository(apiClient: ApiClient(client: mockClient));
+      final repository = AuthRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final notifier = AuthNotifier(repository: repository, storage: storage);
 
       await notifier.checkAuthStatus();
@@ -291,7 +343,9 @@ void main() {
       });
 
       final storage = AuthStorage();
-      final repository = AuthRepository(apiClient: ApiClient(client: mockClient));
+      final repository = AuthRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final notifier = AuthNotifier(repository: repository, storage: storage);
 
       await notifier.checkAuthStatus();
