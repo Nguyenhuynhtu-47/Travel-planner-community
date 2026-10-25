@@ -24,7 +24,8 @@ class ActivityDetail {
   });
 
   factory ActivityDetail.fromJson(Map<String, dynamic> json) {
-    final rawCost = json['estimatedCost'];
+    // ActivityResponse exposes this field as `cost` in the backend API.
+    final rawCost = json['cost'] ?? json['estimatedCost'];
     return ActivityDetail(
       activityId: json['activityId'] is num
           ? (json['activityId'] as num).toInt()

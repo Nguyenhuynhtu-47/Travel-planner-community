@@ -5,7 +5,9 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
+import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../explore_notifier.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import '../widgets/itinerary_card.dart';
@@ -14,11 +16,14 @@ import '../widgets/search_bar_pill.dart';
 class ExploreScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ExploreNotifier? exploreNotifier;
+  final ItineraryDetailNotifier Function(int itineraryId, String? token)?
+  itineraryDetailNotifierFactory;
 
   const ExploreScreen({
     super.key,
     required this.authNotifier,
     this.exploreNotifier,
+    this.itineraryDetailNotifierFactory,
   });
 
   @override
@@ -520,12 +525,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
             itinerary: itinerary,
             onFavoriteTap: _handleFavoriteTap,
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Chi tiết lịch trình "${itinerary.title}" đang được phát triển.',
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ItineraryDetailScreen(
+                    itineraryId: itinerary.itineraryId,
+                    token: widget.authNotifier.token,
+                    notifier: widget.itineraryDetailNotifierFactory?.call(
+                      itinerary.itineraryId,
+                      widget.authNotifier.token,
+                    ),
                   ),
-                  duration: const Duration(seconds: 2),
                 ),
               );
             },

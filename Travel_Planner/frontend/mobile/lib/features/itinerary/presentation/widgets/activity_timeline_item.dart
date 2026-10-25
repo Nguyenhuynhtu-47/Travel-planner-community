@@ -170,12 +170,26 @@ class ActivityTimelineItem extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.place,
-                            size: 16,
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(width: 6),
+                          if (activity.destination!.imageUrl != null &&
+                              activity.destination!.imageUrl!
+                                  .trim()
+                                  .isNotEmpty) ...[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.network(
+                                activity.destination!.imageUrl!.trim(),
+                                width: 56,
+                                height: 56,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    _destinationPlaceholder(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                          ] else ...[
+                            _destinationPlaceholder(),
+                            const SizedBox(width: 8),
+                          ],
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,6 +217,21 @@ class ActivityTimelineItem extends StatelessWidget {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
+                                if (activity.destination!.description != null &&
+                                    activity.destination!.description!
+                                        .trim()
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    activity.destination!.description!.trim(),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textBody,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -218,4 +247,15 @@ class ActivityTimelineItem extends StatelessWidget {
       ),
     );
   }
+
+  Widget _destinationPlaceholder() => Container(
+    width: 40,
+    height: 40,
+    decoration: BoxDecoration(
+      color: AppColors.primaryLight,
+      borderRadius: BorderRadius.circular(6),
+    ),
+    alignment: Alignment.center,
+    child: const Icon(Icons.place, size: 18, color: AppColors.primary),
+  );
 }
