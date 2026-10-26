@@ -1072,3 +1072,28 @@ Implemented an idempotent, non-destructive development seed data generator (`Dat
 ### 23.5. Conclusion & Operational Status
 - **Status:** COMPLETED AND VERIFIED.
 - All seed data is live in local MySQL database `travel_planner`. Pre-existing data was preserved, test credentials documented, and zero regressions detected across backend and frontend test suites.
+
+## Session 24 — Mobile Itinerary Detail Screen
+
+### 24.1. Summary
+- Connected Explore itinerary cards to the itinerary detail screen using the selected card's `itineraryId` and the existing `GET /api/itineraries/{id}` endpoint.
+- Added the mobile detail screen under the existing `features/itinerary/presentation/screens/` structure. It displays the itinerary cover, title, location, duration, rating, creator, description, budget, ordered days, activities, destination details, and available destination images.
+- Reused the existing detail notifier, repository, API client, day/activity widgets, design tokens, and shared loading/error/empty-state widgets. No backend, API contract, database, or dependency changes were required.
+- Corrected mobile activity cost mapping to accept the backend response field `cost`. Added parsing and display support for itinerary-day dates and destination descriptions.
+
+### 24.2. Files Changed
+- `frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`
+- `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart` (created)
+- `frontend/mobile/lib/features/itinerary/data/models/activity_detail.dart`
+- `frontend/mobile/lib/features/itinerary/data/models/itinerary_day_detail.dart`
+- `frontend/mobile/lib/features/itinerary/data/models/destination_summary.dart`
+- `frontend/mobile/lib/features/itinerary/presentation/widgets/itinerary_day_card.dart`
+- `frontend/mobile/lib/features/itinerary/presentation/widgets/activity_timeline_item.dart`
+- `frontend/mobile/test/itinerary_detail_test.dart` (created)
+- `docs/ai/09-development-log.md`
+
+### 24.3. Verification
+- `dart format` on changed Dart files: completed.
+- `flutter test` in `frontend/mobile`: all 32 tests passed, including card navigation with the selected ID, detail response rendering, backend cost mapping, and retry after an API failure.
+- `flutter analyze` in `frontend/mobile`: no issues found.
+- Physical-device rendering and live database/API connectivity were not exercised in this session.

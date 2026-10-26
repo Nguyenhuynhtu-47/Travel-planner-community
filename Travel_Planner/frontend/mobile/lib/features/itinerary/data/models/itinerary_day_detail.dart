@@ -5,6 +5,7 @@ class ItineraryDayDetail {
   final int dayNumber;
   final String? title;
   final String? description;
+  final DateTime? date;
   final List<ActivityDetail> activities;
 
   const ItineraryDayDetail({
@@ -12,6 +13,7 @@ class ItineraryDayDetail {
     required this.dayNumber,
     this.title,
     this.description,
+    this.date,
     required this.activities,
   });
 
@@ -28,10 +30,14 @@ class ItineraryDayDetail {
 
     return ItineraryDayDetail(
       dayId: json['dayId'] is num ? (json['dayId'] as num).toInt() : 0,
-      dayNumber:
-          json['dayNumber'] is num ? (json['dayNumber'] as num).toInt() : 1,
+      dayNumber: json['dayNumber'] is num
+          ? (json['dayNumber'] as num).toInt()
+          : 1,
       title: json['title']?.toString(),
       description: json['description']?.toString(),
+      date: json['date'] == null
+          ? null
+          : DateTime.tryParse(json['date'].toString()),
       activities: activitiesList,
     );
   }

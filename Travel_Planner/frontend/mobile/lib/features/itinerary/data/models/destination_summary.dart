@@ -2,6 +2,7 @@ class DestinationSummary {
   final int destinationId;
   final String name;
   final String? address;
+  final String? description;
   final String? category;
   final double? latitude;
   final double? longitude;
@@ -11,6 +12,7 @@ class DestinationSummary {
     required this.destinationId,
     required this.name,
     this.address,
+    this.description,
     this.category,
     this.latitude,
     this.longitude,
@@ -24,6 +26,7 @@ class DestinationSummary {
           : 0,
       name: json['name']?.toString() ?? '',
       address: json['address']?.toString(),
+      description: json['description']?.toString(),
       category: json['category']?.toString(),
       latitude: json['latitude'] is num
           ? (json['latitude'] as num).toDouble()

@@ -72,6 +72,16 @@ class ItineraryDayCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (day.date != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '${day.date!.day.toString().padLeft(2, '0')}/${day.date!.month.toString().padLeft(2, '0')}/${day.date!.year}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
