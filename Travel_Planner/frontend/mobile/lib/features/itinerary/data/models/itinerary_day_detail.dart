@@ -43,8 +43,15 @@ class ItineraryDayDetail {
   }
 
   String get displayTitle {
-    if (title != null && title!.trim().isNotEmpty) {
-      return 'Ngày $dayNumber: ${title!.trim()}';
+    final trimmed = title?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      if (trimmed.toLowerCase() == 'ngày $dayNumber'.toLowerCase()) {
+        return trimmed;
+      }
+      if (trimmed.toLowerCase().startsWith('ngày $dayNumber:')) {
+        return trimmed;
+      }
+      return 'Ngày $dayNumber: $trimmed';
     }
     return 'Ngày $dayNumber';
   }

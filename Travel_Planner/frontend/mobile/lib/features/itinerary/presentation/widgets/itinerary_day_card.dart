@@ -6,8 +6,15 @@ import 'activity_timeline_item.dart';
 
 class ItineraryDayCard extends StatelessWidget {
   final ItineraryDayDetail day;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
-  const ItineraryDayCard({super.key, required this.day});
+  const ItineraryDayCard({
+    super.key,
+    required this.day,
+    this.onEdit,
+    this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -57,11 +64,13 @@ class ItineraryDayCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (day.title != null && day.title!.trim().isNotEmpty) ...[
-                  const SizedBox(width: 10),
-                  Expanded(
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Text(
-                      day.title!.trim(),
+                      (day.title != null && day.title!.trim().isNotEmpty)
+                          ? day.title!.trim()
+                          : '',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -71,9 +80,8 @@ class ItineraryDayCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ],
+                ),
                 if (day.date != null) ...[
-                  const SizedBox(width: 8),
                   Text(
                     '${day.date!.day.toString().padLeft(2, '0')}/${day.date!.month.toString().padLeft(2, '0')}/${day.date!.year}',
                     style: const TextStyle(
@@ -81,7 +89,59 @@ class ItineraryDayCard extends StatelessWidget {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  const SizedBox(width: 4),
                 ],
+                if (onEdit != null || onDelete != null)
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: PopupMenuButton<String>(
+                      icon: const Icon(
+                        Icons.more_horiz,
+                        size: 20,
+                        color: AppColors.textSecondary,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onSelected: (value) {
+                        if (value == 'edit' && onEdit != null) {
+                          onEdit!();
+                        } else if (value == 'delete' && onDelete != null) {
+                          onDelete!();
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (onEdit != null)
+                          const PopupMenuItem<String>(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined, size: 18),
+                                SizedBox(width: 8),
+                                Text('Sửa ngày'),
+                              ],
+                            ),
+                          ),
+                        if (onDelete != null)
+                          const PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                  color: AppColors.error,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Xóa ngày',
+                                  style: TextStyle(color: AppColors.error),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
