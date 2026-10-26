@@ -6,7 +6,7 @@ class ItineraryRepository {
   final ApiClient _apiClient;
 
   ItineraryRepository({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient();
 
   Future<ItineraryDetail> getItineraryDetail(
     int itineraryId, {
