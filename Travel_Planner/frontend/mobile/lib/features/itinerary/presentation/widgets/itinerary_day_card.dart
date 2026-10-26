@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/activity_detail.dart';
 import '../../data/models/itinerary_day_detail.dart';
 import 'activity_timeline_item.dart';
 
@@ -8,12 +9,20 @@ class ItineraryDayCard extends StatelessWidget {
   final ItineraryDayDetail day;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onAddActivity;
+  final void Function(ActivityDetail activity)? onEditActivity;
+  final void Function(ActivityDetail activity)? onDeleteActivity;
+  final VoidCallback? onReorderActivities;
 
   const ItineraryDayCard({
     super.key,
     required this.day,
     this.onEdit,
     this.onDelete,
+    this.onAddActivity,
+    this.onEditActivity,
+    this.onDeleteActivity,
+    this.onReorderActivities,
   });
 
   @override
@@ -91,7 +100,10 @@ class ItineraryDayCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                 ],
-                if (onEdit != null || onDelete != null)
+                if (onEdit != null ||
+                    onDelete != null ||
+                    onAddActivity != null ||
+                    (day.activities.length > 1 && onReorderActivities != null))
                   SizedBox(
                     width: 28,
                     height: 28,
@@ -103,13 +115,41 @@ class ItineraryDayCard extends StatelessWidget {
                       ),
                       padding: EdgeInsets.zero,
                       onSelected: (value) {
-                        if (value == 'edit' && onEdit != null) {
+                        if (value == 'add_activity' && onAddActivity != null) {
+                          onAddActivity!();
+                        } else if (value == 'reorder' &&
+                            onReorderActivities != null) {
+                          onReorderActivities!();
+                        } else if (value == 'edit' && onEdit != null) {
                           onEdit!();
                         } else if (value == 'delete' && onDelete != null) {
                           onDelete!();
                         }
                       },
                       itemBuilder: (context) => [
+                        if (onAddActivity != null)
+                          const PopupMenuItem<String>(
+                            value: 'add_activity',
+                            child: Row(
+                              children: [
+                                Icon(Icons.add_task_rounded, size: 18),
+                                SizedBox(width: 8),
+                                Text('Thêm hoạt động'),
+                              ],
+                            ),
+                          ),
+                        if (day.activities.length > 1 &&
+                            onReorderActivities != null)
+                          const PopupMenuItem<String>(
+                            value: 'reorder',
+                            child: Row(
+                              children: [
+                                Icon(Icons.swap_vert_rounded, size: 18),
+                                SizedBox(width: 8),
+                                Text('Sắp xếp hoạt động'),
+                              ],
+                            ),
+                          ),
                         if (onEdit != null)
                           const PopupMenuItem<String>(
                             value: 'edit',
@@ -169,29 +209,126 @@ class ItineraryDayCard extends StatelessWidget {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: const Center(
-                      child: Text(
-                        'Chưa có hoạt động nào được lên kế hoạch cho ngày này.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.muted,
-                          fontStyle: FontStyle.italic,
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Chưa có hoạt động nào được lên kế hoạch cho ngày này.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.muted,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                      ),
+                        if (onAddActivity != null) ...[
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              side: const BorderSide(color: AppColors.hairline),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.add_rounded,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                            label: const Text(
+                              'Thêm hoạt động đầu tiên',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            onPressed: onAddActivity,
+                          ),
+                        ],
+                      ],
                     ),
                   )
-                else
+                else ...[
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: day.activities.length,
                     itemBuilder: (context, index) {
+                      final act = day.activities[index];
                       return ActivityTimelineItem(
-                        activity: day.activities[index],
+                        activity: act,
                         isLast: index == day.activities.length - 1,
+                        onEdit: onEditActivity != null
+                            ? () => onEditActivity!(act)
+                            : null,
+                        onDelete: onDeleteActivity != null
+                            ? () => onDeleteActivity!(act)
+                            : null,
                       );
                     },
                   ),
+                  if (onAddActivity != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          label: const Text(
+                            'Thêm hoạt động',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          onPressed: onAddActivity,
+                        ),
+                        if (day.activities.length > 1 &&
+                            onReorderActivities != null) ...[
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            icon: const Icon(
+                              Icons.swap_vert_rounded,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                            label: const Text(
+                              'Sắp xếp',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            onPressed: onReorderActivities,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ],
               ],
             ),
           ),

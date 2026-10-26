@@ -6,13 +6,17 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
+import '../../data/models/activity_detail.dart';
 import '../../data/models/itinerary_day_detail.dart';
 import '../../data/models/itinerary_detail.dart';
 import '../itinerary_detail_notifier.dart';
+import '../widgets/activity_form_dialog.dart';
 import '../widgets/day_form_dialog.dart';
+import '../widgets/delete_activity_dialog.dart';
 import '../widgets/delete_day_dialog.dart';
 import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/itinerary_day_card.dart';
+import '../widgets/reorder_activities_dialog.dart';
 import 'edit_itinerary_screen.dart';
 
 class ItineraryDetailScreen extends StatefulWidget {
@@ -224,6 +228,137 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     }
   }
 
+  Future<void> _handleAddActivity(
+    ItineraryDetail itinerary,
+    ItineraryDayDetail day,
+  ) async {
+    if (widget.authNotifier == null) return;
+
+    final result = await showActivityFormDialog(
+      context,
+      itineraryId: itinerary.itineraryId,
+      dayId: day.dayId,
+      dayNumber: day.dayNumber,
+      dayTitle: day.title,
+      authNotifier: widget.authNotifier!,
+      repository: _crudRepository,
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã thêm hoạt động mới thành công.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _notifier.loadDetail(token: _effectiveToken);
+    }
+  }
+
+  Future<void> _handleEditActivity(
+    ItineraryDetail itinerary,
+    ItineraryDayDetail day,
+    ActivityDetail activity,
+  ) async {
+    if (widget.authNotifier == null) return;
+
+    final result = await showActivityFormDialog(
+      context,
+      itineraryId: itinerary.itineraryId,
+      dayId: day.dayId,
+      dayNumber: day.dayNumber,
+      dayTitle: day.title,
+      initialActivity: activity,
+      authNotifier: widget.authNotifier!,
+      repository: _crudRepository,
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã cập nhật hoạt động thành công.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _notifier.loadDetail(token: _effectiveToken);
+    }
+  }
+
+  Future<void> _handleDeleteActivity(
+    ItineraryDetail itinerary,
+    ItineraryDayDetail day,
+    ActivityDetail activity,
+  ) async {
+    if (widget.authNotifier == null) return;
+
+    final confirmed = await showDeleteActivityConfirmationDialog(
+      context,
+      activityName: activity.name,
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _crudRepository.deleteActivity(
+        itinerary.itineraryId,
+        day.dayId,
+        activity.activityId,
+        token: _effectiveToken,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã xóa hoạt động "${activity.name}" thành công.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+
+      _notifier.loadDetail(token: _effectiveToken);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể xóa hoạt động. Vui lòng thử lại.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleReorderActivities(
+    ItineraryDetail itinerary,
+    ItineraryDayDetail day,
+  ) async {
+    if (widget.authNotifier == null) return;
+
+    final result = await showReorderActivitiesDialog(
+      context,
+      itineraryId: itinerary.itineraryId,
+      dayId: day.dayId,
+      dayNumber: day.dayNumber,
+      activities: day.activities,
+      authNotifier: widget.authNotifier!,
+      repository: _crudRepository,
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã cập nhật thứ tự hoạt động.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _notifier.loadDetail(token: _effectiveToken);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -383,6 +518,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   day: day,
                   onEdit: isOwner ? () => _handleEditDay(itinerary, day) : null,
                   onDelete: isOwner ? () => _handleDeleteDay(itinerary, day) : null,
+                  onAddActivity: isOwner ? () => _handleAddActivity(itinerary, day) : null,
+                  onEditActivity: isOwner ? (act) => _handleEditActivity(itinerary, day, act) : null,
+                  onDeleteActivity: isOwner ? (act) => _handleDeleteActivity(itinerary, day, act) : null,
+                  onReorderActivities: isOwner ? () => _handleReorderActivities(itinerary, day) : null,
                 );
               },
             ),
