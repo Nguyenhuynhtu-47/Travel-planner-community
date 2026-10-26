@@ -1453,6 +1453,47 @@ Implemented an idempotent, non-destructive development seed data generator (`Dat
 - Map integration, geocoding, and polyline visualization — deferred to Phase 3.
 - Flutter Web Activity Management — deferred to Flutter Web CRUD phase.
 
+## Session 31 — Animation Guidelines & AI Workflow Integration
+
+### 31.1. Summary
+- Integrated comprehensive Flutter-compatible animation guidelines and decision processes into the project's documentation based on upstream principles from the Animate UI specification (`https://animate-ui.com/docs/skills`).
+- Created canonical guideline document `docs/ai/10-animation-guidelines.md`:
+  - Established core animation principles: frequency-of-use gating, purpose-driven motion, subtle motion as default, origin and direction anchoring, and physics/easing curves over linear timing.
+  - Formulated a 5-step decision framework: (1) Code Inspection, (2) Frequency & Utility Gate, (3) Motion Level Selection, (4) Implementation Technique, (5) Verification & Accessibility.
+  - Defined explicit motion levels: Level 0 None (direct state swap), Level 1 Subtle (100–200ms, default), Level 2 Moderate (200–300ms), and Level 3 Expressive (300–450ms, strictly capped at 500ms for rare celebratory milestones).
+  - Explicitly empowered agents to choose zero animation (Level 0) when motion adds wait time or decreases user productivity (e.g., text editing, administrative data table sorting/pagination).
+  - Detailed Flutter implementation options distinguishing implicit animations (`AnimatedContainer`, `AnimatedOpacity`, `AnimatedScale`, `AnimatedCrossFade`, `AnimatedSwitcher`) and explicit animations (`AnimationController`, `CurvedAnimation`, `TweenSequence`, `SingleTickerProviderStateMixin`) with mandatory `dispose()` calls.
+  - Mapped Travel Planner features directly to motion specifications: explore card hover float (Web), favorite heart scale bounce (Mobile/Web), search pill segment hover and orb press, mobile search expansion modal, day card accordion expansion, activity drag-and-drop reordering (`ReorderableListView`), form dialog entry, and loading spinner cross-fades.
+  - Prohibited direct application of React-specific components, npm CLI packages (`@animate-ui/cli`, `npx skills add imskyleen/animate-ui`), or web JS dependencies in Flutter applications.
+  - Codified accessibility requirements: honoring `MediaQuery.of(context).disableAnimations` / `prefers-reduced-motion`, vestibular safety limits (offsets <= 24dp, no unbounded animations on resolved content), and touch target preservation (>= 48x48dp).
+  - Provided performance budgets (60fps/120fps, animating transform and opacity rather than layout dimensions, const constructor optimization, Flutter Web lightweight ticker discipline) and automated widget test rules (`tester.pump(duration)` instead of unbounded `pumpAndSettle()` for infinite tickers).
+- Updated `AGENTS.md`:
+  - Added mandatory reference to `docs/ai/10-animation-guidelines.md` in Section 2 and Section 5 scoped specifically to relevant Flutter UI tasks.
+  - Explicitly exempted backend-only tasks (Spring Boot REST API, database schema, services) from animation analysis.
+- Updated `docs/ai/08-agent-workflow.md`:
+  - Integrated animation analysis into Phase 1 (Understand), Phase 2 (Plan), Phase 4 (Implement), Phase 5 (Verify), Phase 6 (Review), and Phase 8 (Report).
+- Updated `docs/ai/00-project-context.md`:
+  - Added `docs/ai/10-animation-guidelines.md` to Section 10 (Sources of Truth).
+- Documentation-only task: Confirmed zero application source code, UI widgets, or dependencies were altered or added.
+
+### 31.2. Files Changed & Created
+- `docs/ai/10-animation-guidelines.md` (created)
+- `AGENTS.md` (updated)
+- `docs/ai/08-agent-workflow.md` (updated)
+- `docs/ai/00-project-context.md` (updated)
+- `docs/ai/09-development-log.md` (appended Session 31)
+
+### 31.3. Verification & Checks
+- Verified all referenced file paths exist in the repository.
+- Verified Markdown syntax, heading levels, and internal relative links.
+- Verified Git diff to confirm strictly documentation files were touched: no Flutter code in `frontend/mobile/` or `frontend/web/`, no Spring Boot code in `backend/`, and no `pubspec.yaml` or `pom.xml` dependency alterations.
+- Confirmed animation analysis requirement is strictly scoped to Flutter UI changes, and backend tasks remain exempt.
+
+### 31.4. Known Limitations & Next Steps
+- Application UI animations have NOT been implemented or modified in this task.
+- Future Flutter UI tasks (e.g., favorite heart micro-interaction, card hover float, or search expansion) will follow the newly codified guidelines in `docs/ai/10-animation-guidelines.md`.
+
+
 
 
 

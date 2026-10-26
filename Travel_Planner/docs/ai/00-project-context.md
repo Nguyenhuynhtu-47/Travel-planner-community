@@ -123,3 +123,4 @@ the product or data model.
 - Feature specifications: `docs/ai/06-feature-spec.md`
 - Testing & quality assurance: `docs/ai/07-testing-quality.md`
 - AI Agent workflow: `docs/ai/08-agent-workflow.md`
+- Animation guidelines: `docs/ai/10-animation-guidelines.md`

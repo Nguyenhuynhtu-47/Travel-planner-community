@@ -27,11 +27,13 @@ Before implementing a task, read the relevant documents:
 - docs/ai/07-testing-quality.md
 - docs/ai/08-agent-workflow.md
 - docs/ai/09-development-log.md
+- docs/ai/10-animation-guidelines.md
 
 For business requirements, also consult:
 - docs/Travel_Planner_Function_Specification.md
 
 Read UI and UX documents for all interface changes.
+Read docs/ai/10-animation-guidelines.md for relevant Flutter UI animation decisions (backend-only tasks are exempt).
 Read API and architecture documents for frontend-backend changes.
 
 ## 3. Existing Project Rules
@@ -55,6 +57,7 @@ Read API and architecture documents for frontend-backend changes.
 ## 5. UI/UX Requirements
 - Follow docs/ai/04-ui-design-system.md.
 - Follow docs/ai/05-ux-guidelines.md.
+- Follow docs/ai/10-animation-guidelines.md for relevant Flutter UI tasks (inspect code first, default to subtle motion, use Flutter-native primitives, allow zero-motion decisions; backend-only tasks are exempt).
 - Prefer clean, practical and content-focused interfaces.
 - Avoid excessive cards, shadows, icons and decorative elements.
 - Do not introduce arbitrary colors or inconsistent spacing.
