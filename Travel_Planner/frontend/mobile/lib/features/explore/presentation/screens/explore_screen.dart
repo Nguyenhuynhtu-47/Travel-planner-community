@@ -494,21 +494,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
+    final disableMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final duration = disableMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
+
+    Widget content;
     if (_exploreNotifier.isLoading) {
-      return const Center(
+      content = const Center(
+        key: ValueKey('explore_loading'),
         child: CircularProgressIndicator(color: AppColors.primary),
       );
-    }
-
-    if (_exploreNotifier.isError) {
-      return AppErrorState(
+    } else if (_exploreNotifier.isError) {
+      content = AppErrorState(
+        key: const ValueKey('explore_error'),
         message: _exploreNotifier.errorMessage ?? 'Đã có lỗi xảy ra',
         onRetry: () => _exploreNotifier.retry(token: widget.authNotifier.token),
       );
-    }
-
-    if (_exploreNotifier.isEmptyResults) {
-      return AppEmptyState(
+    } else if (_exploreNotifier.isEmptyResults) {
+      content = AppEmptyState(
+        key: const ValueKey('explore_empty'),
         title: 'Không tìm thấy lịch trình',
         message: 'Thử thay đổi từ khóa hoặc đặt lại bộ lọc để khám phá các chuyến đi khác.',
         actionText: 'Đặt lại bộ lọc',
@@ -517,66 +523,79 @@ class _ExploreScreenState extends State<ExploreScreen> {
           _exploreNotifier.resetAllFilters(token: widget.authNotifier.token);
         },
       );
-    }
-
-    final itineraries = _exploreNotifier.itineraries;
-
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () => _exploreNotifier.fetchItineraries(
-        resetPage: true,
-        token: widget.authNotifier.token,
-      ),
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        itemCount:
-            itineraries.length + (_exploreNotifier.isLoadingMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == itineraries.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          final itinerary = itineraries[index];
-          return ItineraryCard(
-            itinerary: itinerary,
-            onFavoriteTap: _handleFavoriteTap,
-            onTap: () async {
-              final result = await Navigator.of(context).push<dynamic>(
-                MaterialPageRoute<dynamic>(
-                  builder: (_) => ItineraryDetailScreen(
-                    itineraryId: itinerary.itineraryId,
-                    token: widget.authNotifier.token,
-                    authNotifier: widget.authNotifier,
-                    notifier: widget.itineraryDetailNotifierFactory?.call(
-                      itinerary.itineraryId,
-                      widget.authNotifier.token,
+    } else {
+      final itineraries = _exploreNotifier.itineraries;
+      content = RefreshIndicator(
+        key: const ValueKey('explore_list'),
+        color: AppColors.primary,
+        onRefresh: () => _exploreNotifier.fetchItineraries(
+          resetPage: true,
+          token: widget.authNotifier.token,
+        ),
+        child: ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          itemCount:
+              itineraries.length + (_exploreNotifier.isLoadingMore ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == itineraries.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
                     ),
                   ),
                 ),
               );
-              if (result == true && mounted) {
-                _exploreNotifier.fetchItineraries(
-                  resetPage: true,
-                  token: widget.authNotifier.token,
+            }
+
+            final itinerary = itineraries[index];
+            return ItineraryCard(
+              itinerary: itinerary,
+              onFavoriteTap: _handleFavoriteTap,
+              onTap: () async {
+                final result = await Navigator.of(context).push<dynamic>(
+                  MaterialPageRoute<dynamic>(
+                    builder: (_) => ItineraryDetailScreen(
+                      itineraryId: itinerary.itineraryId,
+                      token: widget.authNotifier.token,
+                      authNotifier: widget.authNotifier,
+                      notifier: widget.itineraryDetailNotifierFactory?.call(
+                        itinerary.itineraryId,
+                        widget.authNotifier.token,
+                      ),
+                    ),
+                  ),
                 );
-              }
-            },
-          );
-        },
-      ),
+                if (result == true && mounted) {
+                  _exploreNotifier.fetchItineraries(
+                    resetPage: true,
+                    token: widget.authNotifier.token,
+                  );
+                }
+              },
+            );
+          },
+        ),
+      );
+    }
+
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeOutCubic,
+      layoutBuilder: (currentChild, previousChildren) {
+        return Stack(
+          fit: StackFit.expand,
+          children: <Widget>[...previousChildren, ?currentChild],
+        );
+      },
+      child: content,
     );
   }
 }

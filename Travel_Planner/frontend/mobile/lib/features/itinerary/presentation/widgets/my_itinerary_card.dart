@@ -63,6 +63,22 @@ class MyItineraryCard extends StatelessWidget {
                       ? Image.network(
                           itinerary.coverImage!.trim(),
                           fit: BoxFit.cover,
+                          frameBuilder:
+                              (context, child, frame, wasSynchronouslyLoaded) {
+                                if (wasSynchronouslyLoaded) return child;
+                                final disableMotion =
+                                    MediaQuery.maybeOf(context)
+                                        ?.disableAnimations ??
+                                    false;
+                                return AnimatedOpacity(
+                                  opacity: frame == null ? 0 : 1,
+                                  duration: disableMotion
+                                      ? Duration.zero
+                                      : const Duration(milliseconds: 200),
+                                  curve: Curves.easeOutCubic,
+                                  child: child,
+                                );
+                              },
                           errorBuilder: (context, error, stackTrace) =>
                               _buildImagePlaceholder(),
                           loadingBuilder: (context, child, loadingProgress) {
@@ -242,8 +258,9 @@ class MyItineraryCard extends StatelessWidget {
                                       SizedBox(width: 8),
                                       Text(
                                         'Xóa lịch trình',
-                                        style:
-                                            TextStyle(color: AppColors.error),
+                                        style: TextStyle(
+                                          color: AppColors.error,
+                                        ),
                                       ),
                                     ],
                                   ),

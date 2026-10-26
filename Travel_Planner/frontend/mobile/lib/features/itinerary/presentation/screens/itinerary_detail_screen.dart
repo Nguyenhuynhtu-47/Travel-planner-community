@@ -365,8 +365,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       listenable: _notifier,
       builder: (context, _) {
         final itinerary = _notifier.itineraryDetail;
-        final currentUsername =
-            widget.authNotifier?.currentUser?['username']?.toString();
+        final currentUsername = widget.authNotifier?.currentUser?['username']
+            ?.toString();
         final isOwner =
             currentUsername != null &&
             itinerary?.creator != null &&
@@ -420,30 +420,51 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
   }
 
   Widget _buildBody(ItineraryDetail? itinerary, bool isOwner) {
+    final disableMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final duration = disableMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
+
+    Widget content;
     if (_notifier.isLoading && itinerary == null) {
-      return const Center(
+      content = const Center(
+        key: ValueKey('detail_loading'),
         child: CircularProgressIndicator(color: AppColors.primary),
       );
-    }
-
-    final errorMessage = _notifier.errorMessage;
-    if (errorMessage != null && itinerary == null) {
-      return AppErrorState(
+    } else if (_notifier.errorMessage != null && itinerary == null) {
+      content = AppErrorState(
+        key: const ValueKey('detail_error'),
         title: 'Không thể tải lịch trình',
-        message: errorMessage,
+        message: _notifier.errorMessage!,
         onRetry: () => _notifier.retry(token: _effectiveToken),
       );
-    }
-
-    if (itinerary == null) {
-      return const AppEmptyState(
+    } else if (itinerary == null) {
+      content = const AppEmptyState(
+        key: ValueKey('detail_empty'),
         title: 'Không tìm thấy lịch trình',
         message: 'Lịch trình không tồn tại hoặc đã bị xóa.',
         icon: Icons.luggage_outlined,
       );
+    } else {
+      content = KeyedSubtree(
+        key: ValueKey('detail_content_${itinerary.itineraryId}'),
+        child: _buildContent(itinerary, isOwner),
+      );
     }
 
-    return _buildContent(itinerary, isOwner);
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeOutCubic,
+      layoutBuilder: (currentChild, previousChildren) {
+        return Stack(
+          fit: StackFit.expand,
+          children: <Widget>[...previousChildren, ?currentChild],
+        );
+      },
+      child: content,
+    );
   }
 
   Widget _buildContent(ItineraryDetail itinerary, bool isOwner) {
@@ -517,11 +538,21 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 return ItineraryDayCard(
                   day: day,
                   onEdit: isOwner ? () => _handleEditDay(itinerary, day) : null,
-                  onDelete: isOwner ? () => _handleDeleteDay(itinerary, day) : null,
-                  onAddActivity: isOwner ? () => _handleAddActivity(itinerary, day) : null,
-                  onEditActivity: isOwner ? (act) => _handleEditActivity(itinerary, day, act) : null,
-                  onDeleteActivity: isOwner ? (act) => _handleDeleteActivity(itinerary, day, act) : null,
-                  onReorderActivities: isOwner ? () => _handleReorderActivities(itinerary, day) : null,
+                  onDelete: isOwner
+                      ? () => _handleDeleteDay(itinerary, day)
+                      : null,
+                  onAddActivity: isOwner
+                      ? () => _handleAddActivity(itinerary, day)
+                      : null,
+                  onEditActivity: isOwner
+                      ? (act) => _handleEditActivity(itinerary, day, act)
+                      : null,
+                  onDeleteActivity: isOwner
+                      ? (act) => _handleDeleteActivity(itinerary, day, act)
+                      : null,
+                  onReorderActivities: isOwner
+                      ? () => _handleReorderActivities(itinerary, day)
+                      : null,
                 );
               },
             ),

@@ -79,12 +79,22 @@ class _AppTextFieldState extends State<AppTextField> {
             errorText: widget.errorText,
             suffixIcon: widget.isPassword
                 ? IconButton(
-                    icon: Icon(
-                      _obscureText
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: AppColors.textSecondary,
-                      size: 20,
+                    icon: AnimatedSwitcher(
+                      duration:
+                          MediaQuery.maybeOf(context)?.disableAnimations ??
+                              false
+                          ? Duration.zero
+                          : const Duration(milliseconds: 150),
+                      transitionBuilder: (child, animation) =>
+                          FadeTransition(opacity: animation, child: child),
+                      child: Icon(
+                        _obscureText
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        key: ValueKey(_obscureText),
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
                     ),
                     tooltip: _obscureText ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
                     onPressed: () {

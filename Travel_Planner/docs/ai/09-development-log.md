@@ -1493,6 +1493,70 @@ Implemented an idempotent, non-destructive development seed data generator (`Dat
 - Application UI animations have NOT been implemented or modified in this task.
 - Future Flutter UI tasks (e.g., favorite heart micro-interaction, card hover float, or search expansion) will follow the newly codified guidelines in `docs/ai/10-animation-guidelines.md`.
 
+## Session 32 — Existing UI Animation Enhancements
+
+### 32.1. Summary
+- Audited and improved animations across existing UI features in `frontend/mobile` and `frontend/web` in strict compliance with `docs/ai/10-animation-guidelines.md`.
+- Implemented subtle, physics-based Flutter-native animations across shared widgets and core screens without adding any third-party dependencies or altering application functionality.
+- Supported accessibility and reduced-motion user preferences using `MediaQuery.maybeOf(context)?.disableAnimations` (defaulting to zero-duration / immediate state swap when reduced-motion is requested).
+- Maintained strict scope boundaries: zero modifications to backend code, API contracts, domain entities, routing outcomes, validation rules, or dependency manifests (`pubspec.yaml`, `pom.xml`).
+- Created a focused automated regression test suite in `frontend/mobile/test/animation_enhancements_test.dart` verifying cross-fades, reduced-motion bypass, password toggles, icon scaling, and micro-interactions.
+
+### 32.2. Feature Areas Audited & Decisions
+1. **Shared Components:**
+   - `AppPrimaryButton` (`IMPROVE`): Replaced instant text/spinner layout pop with an `AnimatedSwitcher` (150ms `Curves.easeOutCubic`) preserving layout dimensions and button disabled state. Implemented in both mobile and web.
+   - `AppTextField` (`IMPROVE`): Added `AnimatedSwitcher` with `FadeTransition` (150ms) to password visibility toggle icon (`Icons.visibility_outlined` vs `Icons.visibility_off_outlined`) in both mobile and web.
+   - `AppEmptyState` (`IMPROVE`): Added a gentle scale-in `TweenAnimationBuilder` (200ms `Curves.easeOutCubic`, 0.88 to 1.0) on the empty illustration icon.
+   - Form Validation Errors (`SKIP`): Left validation text error appearance instant (Level 0) to avoid jarring vertical layout jitter during rapid typing.
+2. **Explore Feature:**
+   - `SearchBarPill` (`ADD`): Added `AnimatedSwitcher` fade/scale transition to the clear query button and active filter count badge (`150ms`).
+   - `ItineraryCard` (`IMPROVE`): Added smooth network image fade-in via `Image.network` `frameBuilder` (200ms `AnimatedOpacity`), and created `_FavoriteHeartButton` stateful micro-interaction with `AnimatedScale` (scale down to 0.88 on tap down, springing back on tap up/cancel, 120ms).
+   - `ExploreScreen` (`IMPROVE`): Wrapped body content switching (loading spinner, error state, empty state, and populated itinerary list) in an `AnimatedSwitcher` (180ms `Curves.easeOutCubic`) using `StackFit.expand` layout builder to preserve tight constraints for scrollable children.
+3. **Itinerary Management:**
+   - `MyItineraryCard` (`IMPROVE`): Added network image smooth fade-in via `frameBuilder` (200ms `AnimatedOpacity`).
+   - `ItineraryDetailScreen` (`IMPROVE`): Wrapped screen body transitions (loading, error, detail content) in `AnimatedSwitcher` (180ms `Curves.easeOutCubic`, `StackFit.expand`).
+   - `ItineraryDayCard` (`KEEP`): Already uses standard card elevation and expandable lists; kept without excess animation to prevent scroll stuttering.
+   - `ReorderActivitiesDialog` (`KEEP`): Already utilizes Flutter's native `ReorderableListView` providing fluid drag-and-drop elevation and reorder motion out of the box.
+4. **Profile Feature:**
+   - `ProfileScreen` (`ADD`): Added `AnimatedSwitcher` (200ms `Curves.easeOutCubic`) between profile display view and profile editor mode across both mobile and web.
+5. **Dialogs & Administrative Web Screens:**
+   - Confirmation Dialogs (`KEEP`): Standard Material 3 `AlertDialog` scale-and-fade behavior is already consistent and appropriate.
+   - Filter Bottom Sheet (`KEEP`): Flutter's `showModalBottomSheet` slide-in curve already conforms to mobile standards.
+   - Web Moderation & Data Tables (`SKIP`): Kept at Level 0 (no animation) to prioritize administrative productivity and fast data scanning.
+
+### 32.3. Files Modified & Created
+- `Travel_Planner/frontend/mobile/lib/shared/widgets/app_primary_button.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/shared/widgets/app_text_field.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/shared/widgets/app_empty_state.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/features/explore/presentation/widgets/search_bar_pill.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/features/explore/presentation/widgets/itinerary_card.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/my_itinerary_card.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart` (modified)
+- `Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart` (modified)
+- `Travel_Planner/frontend/web/lib/shared/widgets/app_primary_button.dart` (modified)
+- `Travel_Planner/frontend/web/lib/shared/widgets/app_text_field.dart` (modified)
+- `Travel_Planner/frontend/web/lib/features/profile/presentation/screens/profile_screen.dart` (modified)
+- `Travel_Planner/frontend/mobile/test/animation_enhancements_test.dart` (created)
+- `Travel_Planner/docs/ai/09-development-log.md` (updated)
+
+### 32.4. Verification & Checks
+- **Dart Format:** `dart format` verified clean across all 13 modified Dart files.
+- **Flutter Mobile Static Analysis (`flutter analyze` in `frontend/mobile`):**
+  - Result: 0 issues found.
+- **Flutter Web Static Analysis (`flutter analyze` in `frontend/web`):**
+  - Result: 0 issues found.
+- **Flutter Web Test Suite (`flutter test` in `frontend/web`):**
+  - Result: 15 / 15 tests passed (0 failures, 0 errors).
+- **Flutter Mobile Test Suite (`flutter test` in `frontend/mobile`):**
+  - Result: 110 / 110 tests passed (0 failures, 0 errors across all 14 test suites, including 6 new animation regression tests).
+- **Scope Integrity:** Confirmed 0 changes to backend code, APIs, data models, or dependency manifests (`pubspec.yaml`, `pom.xml`).
+
+### 32.5. Known Limitations & Deferred Work
+- Route transitions: Retained platform-adaptive page transitions (`MaterialPageRoute`) rather than custom routing transitions to preserve standard OS navigation expectations.
+- Real hardware observation: Verification was conducted via the automated Flutter widget testing harness and simulated animation tickers; physical on-device observation remains dependent on device availability.
+
+
 
 
 

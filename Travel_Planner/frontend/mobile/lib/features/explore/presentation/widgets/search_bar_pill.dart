@@ -87,15 +87,29 @@ class SearchBarPill extends StatelessWidget {
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, _) {
-              if (value.text.isEmpty) return const SizedBox.shrink();
-              return IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18),
-                color: AppColors.muted,
-                splashRadius: 18,
-                onPressed: () {
-                  controller.clear();
-                  if (onClear != null) onClear!();
-                },
+              final disableMotion =
+                  MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+              final hasText = value.text.isNotEmpty;
+              return AnimatedSwitcher(
+                duration: disableMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 150),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child),
+                ),
+                child: hasText
+                    ? IconButton(
+                        key: const ValueKey('clear_btn'),
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        color: AppColors.muted,
+                        splashRadius: 18,
+                        onPressed: () {
+                          controller.clear();
+                          if (onClear != null) onClear!();
+                        },
+                      )
+                    : const SizedBox.shrink(key: ValueKey('empty_clear')),
               );
             },
           ),
@@ -122,31 +136,41 @@ class SearchBarPill extends StatelessWidget {
                 tooltip: 'Bộ lọc',
                 onPressed: onFilterTap,
               ),
-              if (activeFilterCount > 0)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '$activeFilterCount',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: AnimatedSwitcher(
+                  duration:
+                      MediaQuery.maybeOf(context)?.disableAnimations ?? false
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
+                  child: activeFilterCount > 0
+                      ? Container(
+                          key: ValueKey(activeFilterCount),
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            '$activeFilterCount',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('no_badge')),
                 ),
+              ),
             ],
           ),
         ],

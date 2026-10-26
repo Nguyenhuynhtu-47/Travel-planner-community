@@ -20,6 +20,9 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disableMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
@@ -27,14 +30,23 @@ class AppEmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceSoft,
-                shape: BoxShape.circle,
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: disableMotion ? 1.0 : 0.85, end: 1.0),
+              duration: disableMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              builder: (context, scale, child) =>
+                  Transform.scale(scale: scale, child: child),
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: AppColors.surfaceSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 36, color: AppColors.muted),
               ),
-              child: Icon(icon, size: 36, color: AppColors.muted),
             ),
             const SizedBox(height: 20),
             Text(

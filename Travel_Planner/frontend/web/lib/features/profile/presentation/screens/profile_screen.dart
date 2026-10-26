@@ -202,13 +202,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: _loading
           ? const Center(
+              key: ValueKey('profile_loading'),
               child: CircularProgressIndicator(color: AppColors.primary),
             )
           : _error != null
-          ? _errorView()
-          : _editing
-          ? _editor()
-          : _profileView(),
+          ? KeyedSubtree(
+              key: const ValueKey('profile_error'),
+              child: _errorView(),
+            )
+          : AnimatedSwitcher(
+              duration: MediaQuery.maybeOf(context)?.disableAnimations ?? false
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: _editing
+                  ? KeyedSubtree(
+                      key: const ValueKey('profile_editor'),
+                      child: _editor(),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('profile_view'),
+                      child: _profileView(),
+                    ),
+            ),
     );
   }
 
