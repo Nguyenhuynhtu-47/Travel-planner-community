@@ -132,6 +132,41 @@ class ApiClient {
     }
   }
 
+  Future<dynamic> delete(
+    String path, {
+    Map<String, dynamic>? body,
+    String? token,
+  }) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$path');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+    try {
+      final response = await _client
+          .delete(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(_requestTimeout);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw _timeoutException();
+    } on SocketException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    }
+  }
+
   ApiException _timeoutException() => ApiException(
     statusCode: 0,
     message: 'Máy chủ không phản hồi sau 15 giây. Hãy kiểm tra điện thoại và máy tính có cùng Wi-Fi, địa chỉ API và trạng thái backend.',

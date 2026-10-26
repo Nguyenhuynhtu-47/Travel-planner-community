@@ -8,6 +8,7 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
+import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
 import '../explore_notifier.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import '../widgets/itinerary_card.dart';
@@ -157,7 +158,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 PopupMenuButton<String>(
                   tooltip: 'Tài khoản',
                   onSelected: (value) {
-                    if (value == 'profile') {
+                    if (value == 'my_itineraries') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => MyItinerariesScreen(
+                            authNotifier: widget.authNotifier,
+                          ),
+                        ),
+                      );
+                    } else if (value == 'profile') {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) =>
@@ -182,6 +191,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
                               ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'my_itineraries',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.map_outlined,
+                            size: 20,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Lịch trình của tôi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ],
@@ -524,12 +553,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
           return ItineraryCard(
             itinerary: itinerary,
             onFavoriteTap: _handleFavoriteTap,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
+            onTap: () async {
+              final result = await Navigator.of(context).push<dynamic>(
+                MaterialPageRoute<dynamic>(
                   builder: (_) => ItineraryDetailScreen(
                     itineraryId: itinerary.itineraryId,
                     token: widget.authNotifier.token,
+                    authNotifier: widget.authNotifier,
                     notifier: widget.itineraryDetailNotifierFactory?.call(
                       itinerary.itineraryId,
                       widget.authNotifier.token,
@@ -537,6 +567,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                 ),
               );
+              if (result == true && mounted) {
+                _exploreNotifier.fetchItineraries(
+                  resetPage: true,
+                  token: widget.authNotifier.token,
+                );
+              }
             },
           );
         },
