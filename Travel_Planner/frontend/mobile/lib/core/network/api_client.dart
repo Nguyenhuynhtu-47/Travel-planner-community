@@ -103,7 +103,7 @@ class ApiClient {
 
   Future<dynamic> put(
     String path, {
-    required Map<String, dynamic> body,
+    required dynamic body,
     String? token,
   }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}$path');
