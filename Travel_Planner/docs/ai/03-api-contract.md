@@ -137,15 +137,24 @@ Current inventory of API endpoints:
 | Module | Method | Endpoint | Auth Level | Purpose | Status |
 |---|---|---|---|---|---|
 | System | GET | `/api/health` | Public | Service health check | **Implemented** |
-| Auth | POST | `/api/auth/register` | Public | Register new account | Implemented |
-| Auth | POST | `/api/auth/login` | Public | Log in and receive JWT token | Implemented |
-| Profile | GET | `/api/user/profile` | Authenticated | Fetch current user profile | Implemented |
-| Profile | PUT | `/api/user/profile` | Authenticated | Update current user's full name, avatar URL, phone, address and bio | Implemented |
-| Itinerary | GET | `/api/itineraries` | Public | Search & list public itineraries | Planned |
-| Itinerary | POST | `/api/itineraries` | Authenticated | Create a new travel itinerary | Planned |
-| Itinerary | GET | `/api/itineraries/{id}` | Public/Auth | Get itinerary details | Planned |
-| Itinerary | PUT | `/api/itineraries/{id}` | Owner | Update owned itinerary | Planned |
-| Itinerary | DELETE| `/api/itineraries/{id}` | Owner/Admin | Soft delete or delete itinerary | Planned |
+| Auth | POST | `/api/auth/register` | Public | Register new account | **Implemented** |
+| Auth | POST | `/api/auth/login` | Public | Log in and receive JWT token | **Implemented** |
+| Auth | GET | `/api/auth/me` | Authenticated | Validate token and fetch current account | **Implemented** |
+| Profile | GET | `/api/user/profile` | Authenticated | Fetch current user profile | **Implemented** |
+| Profile | PUT | `/api/user/profile` | Authenticated | Update user full name, avatar, phone, address, bio | **Implemented** |
+| User Itinerary | GET | `/api/user/itineraries` | Authenticated | List current user's itineraries with pagination/filter | **Implemented** |
+| Itinerary | GET | `/api/itineraries` | Public | Explore public active itineraries with filters & pagination | **Implemented** |
+| Itinerary | GET | `/api/itineraries/{id}` | Public/Owner | Get itinerary details (public or owned private) | **Implemented** |
+| Itinerary | POST | `/api/itineraries` | Authenticated | Create a new travel itinerary with initial days | **Implemented** |
+| Itinerary | PUT | `/api/itineraries/{id}` | Owner | Update owned itinerary basic info | **Implemented** |
+| Itinerary | DELETE| `/api/itineraries/{id}` | Owner | Soft delete owned itinerary (`status = DELETED`) | **Implemented** |
+| Itinerary Day | POST | `/api/itineraries/{id}/days` | Owner | Append a new day to owned itinerary | **Implemented** |
+| Itinerary Day | PUT | `/api/itineraries/{id}/days/{dayId}` | Owner | Update day title and date | **Implemented** |
+| Itinerary Day | DELETE| `/api/itineraries/{id}/days/{dayId}` | Owner | Delete day, cascaded activities & renumber remaining | **Implemented** |
+| Activity | POST | `/api/itineraries/{id}/days/{dayId}/activities` | Owner | Create activity in day (destination nullable) | **Implemented** |
+| Activity | PUT | `/api/itineraries/{id}/days/{dayId}/activities/{activityId}` | Owner | Update activity details | **Implemented** |
+| Activity | DELETE| `/api/itineraries/{id}/days/{dayId}/activities/{activityId}` | Owner | Delete activity & renumber display order | **Implemented** |
+| Activity | PUT | `/api/itineraries/{id}/days/{dayId}/activities/reorder` | Owner | Two-pass batch reorder activities | **Implemented** |
 | Reuse | POST | `/api/itineraries/{id}/reuse` | Authenticated | Clone itinerary as personal copy | Planned |
 | Reviews | GET | `/api/itineraries/{id}/ratings` | Public | List ratings and feedback | Planned |
 | Reviews | POST | `/api/itineraries/{id}/ratings` | Authenticated | Submit itinerary rating | Planned |
@@ -155,18 +164,111 @@ Current inventory of API endpoints:
 | Admin | GET | `/api/admin/users` | Admin | List and manage users | Planned |
 | Admin | PUT | `/api/admin/moderation` | Admin | Moderate reported content/trips | Planned |
 
-Profile request body for `PUT /api/user/profile` (authenticated):
+---
 
-```json
-{
-  "fullName": "Nguyen Van A",
-  "avatar": "https://example.com/avatar.jpg",
-  "phone": "0900000000",
-  "address": "Da Nang",
-  "bio": "Travel enthusiast"
-}
-```
+## 10. Itinerary CRUD Specification (Phase 1)
 
-`fullName` is required (maximum 100 characters). The other fields are optional; omitted or blank values are cleared. `avatar`, `phone` and `address` have maximum lengths of 500, 20 and 255 characters. The response uses the existing `UserResponse` fields and never includes the password. Both profile operations identify the account from the authenticated JWT; callers cannot select another user.
+### 10.1. List Authenticated User's Itineraries
+- **Path:** `GET /api/user/itineraries`
+- **Auth:** Bearer JWT required.
+- **Query Parameters:**
+  - `status` (optional): `ACTIVE`, `DRAFT`, `DELETED` (default excludes `DELETED`).
+  - `visibility` (optional): `PUBLIC`, `PRIVATE`.
+  - `page` (default 0), `size` (default 10, max 50), `sort` (e.g. `createdAt,desc`).
+- **Response:** `200 OK` with `PageResponse<ItinerarySummaryResponse>`.
+- **Integrity:** Owner username is resolved directly from JWT principal. Private itineraries of other users are never returned.
 
-The health, authentication and profile endpoints are implemented. The remaining endpoints are planned specifications.
+### 10.2. Create Itinerary
+- **Path:** `POST /api/itineraries`
+- **Auth:** Bearer JWT required.
+- **Request Body (`CreateItineraryRequest`):**
+  ```json
+  {
+    "title": "Chuyen di Da Lat 3N2D",
+    "description": "Lich trinh nghi duong va kham pha",
+    "location": "Da Lat",
+    "coverImage": "https://example.com/dalat.jpg",
+    "totalDays": 3,
+    "budget": 3500000.00,
+    "theme": "Nghi duong",
+    "visibility": "PUBLIC",
+    "status": "ACTIVE"
+  }
+  ```
+- **Validation:**
+  - `title`: required, max 100 characters.
+  - `location`: required, max 100 characters.
+  - `totalDays`: required, between 1 and 30.
+  - `budget`: optional, must be >= 0.
+  - `visibility`: required (`PUBLIC` or `PRIVATE`).
+  - `status`: optional (`ACTIVE` or `DRAFT`, defaults to `ACTIVE`).
+- **Response:** `201 Created` with `ItineraryDetailResponse`.
+- **Side Effect:** Automatically creates initial empty `ItineraryDay` records for `dayNumber = 1..totalDays`.
+
+### 10.3. Update Itinerary
+- **Path:** `PUT /api/itineraries/{id}`
+- **Auth:** Bearer JWT required (Owner only). Returns `403 Forbidden` if modified by a different user.
+- **Request Body (`UpdateItineraryRequest`):**
+  ```json
+  {
+    "title": "Chuyen di Da Lat cap nhat",
+    "description": "Mo ta moi",
+    "location": "Da Lat, Lam Dong",
+    "coverImage": "https://example.com/dalat-new.jpg",
+    "budget": 4000000.00,
+    "theme": "Kham pha",
+    "visibility": "PRIVATE",
+    "status": "ACTIVE"
+  }
+  ```
+- **Validation:** Same bounds as create. `totalDays` cannot be modified here; day management endpoints must be used instead.
+- **Response:** `200 OK` with `ItineraryDetailResponse`.
+
+### 10.4. Soft Delete Itinerary
+- **Path:** `DELETE /api/itineraries/{id}`
+- **Auth:** Bearer JWT required (Owner only).
+- **Behavior:** Sets `status = DELETED`. Preserves database rows so existing ratings, comments, and favorites maintain foreign key integrity. Immediately hides the itinerary from public explore.
+- **Response:** `200 OK` with `{"message": "Đã xóa lịch trình thành công"}`.
+
+### 10.5. Day Management
+- **Add Day:** `POST /api/itineraries/{id}/days`
+  - Body (`CreateDayRequest`): `{"title": "Ngay 4: Mua sam", "date": "2026-11-04"}`.
+  - Automatically appends at `dayNumber = totalDays + 1` and increments `itinerary.totalDays`.
+  - Response: `201 Created` with `ItineraryDayResponse`.
+- **Update Day:** `PUT /api/itineraries/{id}/days/{dayId}`
+  - Body (`UpdateDayRequest`): `{"title": "Tieu de ngay moi", "date": "2026-11-04"}`.
+  - Verifies day belongs to itinerary.
+  - Response: `200 OK` with `ItineraryDayResponse`.
+- **Delete Day:** `DELETE /api/itineraries/{id}/days/{dayId}`
+  - Deletes all activities under the day first, then deletes the day.
+  - Decrements `totalDays`. Blocks deletion if `totalDays <= 1` (an itinerary must retain at least one day).
+  - Renumbers remaining days contiguously (`dayNumber = 1..totalDays`) to prevent unique key collisions.
+  - Response: `200 OK` with `{"message": "Đã xóa ngày thành công"}`.
+
+### 10.6. Activity Management & Safe Reordering
+- **Add Activity:** `POST /api/itineraries/{id}/days/{dayId}/activities`
+  - Body (`CreateActivityRequest`):
+    ```json
+    {
+      "name": "Tham quan quang truong",
+      "description": "Check-in chup anh",
+      "startTime": "09:00:00",
+      "endTime": "10:30:00",
+      "cost": 0,
+      "destinationId": 1
+    }
+    ```
+  - `destinationId` is optional (nullable) for activities without specific POIs (rest, free time).
+  - Automatically assigned `displayOrder = maxOrder + 1`.
+  - Response: `201 Created` with `ActivityResponse`.
+- **Update Activity:** `PUT /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
+  - Body (`UpdateActivityRequest`): updates name, description, start/end time, cost, destinationId.
+  - Response: `200 OK` with `ActivityResponse`.
+- **Delete Activity:** `DELETE /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
+  - Deletes activity and renumbers subsequent activities contiguously.
+  - Response: `200 OK` with `{"message": "Đã xóa hoạt động thành công"}`.
+- **Two-Pass Safe Reorder:** `PUT /api/itineraries/{id}/days/{dayId}/activities/reorder`
+  - Body: List of `ReorderActivityItem`: `[{"activityId": 2, "displayOrder": 1}, {"activityId": 1, "displayOrder": 2}]`.
+  - Validates that all IDs belong to `dayId`, no duplicates, and order values form a contiguous 1..N permutation.
+  - Uses two-phase persistence (sets orders to `-i` with `flush()`, then assigns target orders) to avoid MySQL unique key violation on `uk_activity_day_order (day_id, display_order)`.
+  - Response: `200 OK` with `List<ActivityResponse>` ordered by `displayOrder`.

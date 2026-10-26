@@ -45,7 +45,7 @@ public class Activity {
     private ItineraryDay itineraryDay;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "destination_id", nullable = false)
+    @JoinColumn(name = "destination_id", nullable = true)
     private Destination destination;
 
     @Column(name = "name", nullable = false, length = 150)
