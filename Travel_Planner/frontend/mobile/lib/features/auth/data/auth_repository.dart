@@ -4,7 +4,8 @@ import '../../../core/network/api_client.dart';
 class AuthRepository {
   final ApiClient _apiClient;
 
-  AuthRepository({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+  AuthRepository({ApiClient? apiClient})
+    : _apiClient = apiClient ?? ApiClient();
 
   Future<Map<String, dynamic>> register({
     required String username,
@@ -30,10 +31,7 @@ class AuthRepository {
   }) async {
     final response = await _apiClient.post(
       ApiConstants.loginEndpoint,
-      body: {
-        'usernameOrEmail': usernameOrEmail,
-        'password': password,
-      },
+      body: {'usernameOrEmail': usernameOrEmail, 'password': password},
     );
     return response as Map<String, dynamic>;
   }

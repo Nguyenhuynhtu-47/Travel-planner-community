@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/network/api_exception.dart';
 import '../data/auth_repository.dart';
 import '../data/auth_storage.dart';
@@ -15,11 +16,9 @@ class AuthNotifier extends ChangeNotifier {
   Map<String, dynamic>? _currentUser;
   String? _token;
 
-  AuthNotifier({
-    AuthRepository? repository,
-    AuthStorage? storage,
-  })  : _repository = repository ?? AuthRepository(),
-        _storage = storage ?? AuthStorage();
+  AuthNotifier({AuthRepository? repository, AuthStorage? storage})
+    : _repository = repository ?? AuthRepository(),
+      _storage = storage ?? AuthStorage();
 
   AuthStatus get status => _status;
   bool get isLoading => _status == AuthStatus.loading;

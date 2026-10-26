@@ -5,6 +5,8 @@ import Travel_Planner.Travel_Planner.dto.request.RegisterRequest;
 import Travel_Planner.Travel_Planner.model.User;
 import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
+import Travel_Planner.Travel_Planner.repository.ItineraryRepository;
+import Travel_Planner.Travel_Planner.repository.RatingRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +43,12 @@ class AuthControllerTest {
     private UserRepository userRepository;
 
     @Autowired
+    private ItineraryRepository itineraryRepository;
+
+    @Autowired
+    private RatingRepository ratingRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -56,6 +64,8 @@ class AuthControllerTest {
         this.mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
                 .build();
+        ratingRepository.deleteAll();
+        itineraryRepository.deleteAll();
         userRepository.deleteAll();
     }
 
