@@ -13,7 +13,9 @@ class CreatorSummary {
 
   factory CreatorSummary.fromJson(Map<String, dynamic> json) {
     return CreatorSummary(
-      userId: json['userId'] is num ? (json['userId'] as num).toInt() : 0,
+      userId: json['userId'] is num
+          ? (json['userId'] as num).toInt()
+          : (int.tryParse(json['userId']?.toString() ?? '') ?? 0),
       username: json['username']?.toString() ?? 'anonymous',
       fullName: json['fullName']?.toString(),
       avatar: json['avatar']?.toString(),

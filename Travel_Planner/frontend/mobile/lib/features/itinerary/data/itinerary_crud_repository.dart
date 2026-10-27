@@ -17,6 +17,8 @@ import 'models/update_itinerary_request.dart';
 class ItineraryCrudRepository {
   final ApiClient _apiClient;
 
+  ApiClient get apiClient => _apiClient;
+
   ItineraryCrudRepository({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
@@ -105,10 +107,7 @@ class ItineraryCrudRepository {
   }
 
   /// Soft-deletes an itinerary owned by the authenticated user.
-  Future<void> deleteItinerary(
-    int itineraryId, {
-    String? token,
-  }) async {
+  Future<void> deleteItinerary(int itineraryId, {String? token}) async {
     await _apiClient.delete(
       '${ApiConstants.itinerariesEndpoint}/$itineraryId',
       token: token,
@@ -161,11 +160,7 @@ class ItineraryCrudRepository {
   }
 
   /// Deletes a day from an itinerary.
-  Future<void> deleteDay(
-    int itineraryId,
-    int dayId, {
-    String? token,
-  }) async {
+  Future<void> deleteDay(int itineraryId, int dayId, {String? token}) async {
     await _apiClient.delete(
       '${ApiConstants.itinerariesEndpoint}/$itineraryId/days/$dayId',
       token: token,

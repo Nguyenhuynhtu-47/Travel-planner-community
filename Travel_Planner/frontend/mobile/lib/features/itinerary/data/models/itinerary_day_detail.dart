@@ -22,17 +22,21 @@ class ItineraryDayDetail {
     final activitiesList = <ActivityDetail>[];
     if (rawActivities is List) {
       for (final item in rawActivities) {
-        if (item is Map<String, dynamic>) {
-          activitiesList.add(ActivityDetail.fromJson(item));
+        if (item is Map) {
+          activitiesList.add(
+            ActivityDetail.fromJson(Map<String, dynamic>.from(item)),
+          );
         }
       }
     }
 
     return ItineraryDayDetail(
-      dayId: json['dayId'] is num ? (json['dayId'] as num).toInt() : 0,
+      dayId: json['dayId'] is num
+          ? (json['dayId'] as num).toInt()
+          : (int.tryParse(json['dayId']?.toString() ?? '') ?? 0),
       dayNumber: json['dayNumber'] is num
           ? (json['dayNumber'] as num).toInt()
-          : 1,
+          : (int.tryParse(json['dayNumber']?.toString() ?? '') ?? 1),
       title: json['title']?.toString(),
       description: json['description']?.toString(),
       date: json['date'] == null

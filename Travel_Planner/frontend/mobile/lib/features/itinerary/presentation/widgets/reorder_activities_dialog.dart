@@ -48,7 +48,8 @@ class _ReorderActivitiesDialog extends StatefulWidget {
   });
 
   @override
-  State<_ReorderActivitiesDialog> createState() => _ReorderActivitiesDialogState();
+  State<_ReorderActivitiesDialog> createState() =>
+      _ReorderActivitiesDialogState();
 }
 
 class _ReorderActivitiesDialogState extends State<_ReorderActivitiesDialog> {
@@ -247,8 +248,13 @@ class _ReorderActivitiesDialogState extends State<_ReorderActivitiesDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
-                    child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+                    onPressed: _isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    child: const Text(
+                      'Hủy',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
@@ -256,15 +262,23 @@ class _ReorderActivitiesDialogState extends State<_ReorderActivitiesDialog> {
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     onPressed: _isSaving ? null : _saveOrder,
                     child: _isSaving
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text(
                             'Lưu thứ tự',
