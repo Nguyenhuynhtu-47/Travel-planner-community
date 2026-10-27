@@ -276,7 +276,12 @@ void main() {
       expect(find.text('Chuyến đi ngắm hoa'), findsOneWidget);
       expect(find.text('https://example.com/hagiang.jpg'), findsOneWidget);
       expect(find.text('Khám phá'), findsWidgets);
-      expect(find.text('Thời gian: 4 ngày. Lịch trình theo ngày và các hoạt động được quản lý riêng.'), findsOneWidget);
+      expect(
+        find.text(
+          'Thời gian: 4 ngày. Lịch trình theo ngày và các hoạt động được quản lý riêng.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shows validation errors when clearing required fields', (
@@ -297,7 +302,10 @@ void main() {
       );
 
       // Clear title
-      await tester.enterText(find.widgetWithText(TextFormField, 'Tiêu đề cũ'), '');
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Tiêu đề cũ'),
+        '',
+      );
       // Clear location
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Địa điểm cũ'),
@@ -348,8 +356,8 @@ void main() {
             body: Builder(
               builder: (context) => ElevatedButton(
                 onPressed: () async {
-                  returnedResult =
-                      await Navigator.of(context).push<ItineraryDetail>(
+                  returnedResult = await Navigator.of(context)
+                      .push<ItineraryDetail>(
                         MaterialPageRoute(
                           builder: (_) => EditItineraryScreen(
                             itineraryId: 10,
@@ -456,7 +464,10 @@ void main() {
 
       expect(find.text('Xác nhận xóa lịch trình'), findsOneWidget);
       expect(find.textContaining('Đà Lạt 3N2Đ'), findsOneWidget);
-      expect(find.textContaining('gỡ bỏ khỏi danh sách lịch trình hoạt động'), findsOneWidget);
+      expect(
+        find.textContaining('gỡ bỏ khỏi danh sách lịch trình hoạt động'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text('Hủy'));
       await tester.pumpAndSettle();
@@ -465,7 +476,9 @@ void main() {
       expect(find.text('Xác nhận xóa lịch trình'), findsNothing);
     });
 
-    testWidgets('confirms deletion when tapping Xóa lịch trình', (tester) async {
+    testWidgets('confirms deletion when tapping Xóa lịch trình', (
+      tester,
+    ) async {
       bool? dialogResult;
 
       await tester.pumpWidget(
@@ -581,75 +594,77 @@ void main() {
       expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
 
-    testWidgets('deletes itinerary from detail screen and pops true on success', (
-      tester,
-    ) async {
-      final ownerAuth = MockAuthNotifier(
-        mockToken: 'owner-jwt',
-        mockUser: {'username': 'john_traveler'},
-      );
+    testWidgets(
+      'deletes itinerary from detail screen and pops true on success',
+      (tester) async {
+        final ownerAuth = MockAuthNotifier(
+          mockToken: 'owner-jwt',
+          mockUser: {'username': 'john_traveler'},
+        );
 
-      final notifier = FakeItineraryDetailNotifier(
-        itineraryId: 77,
-        presetDetail: sampleDetail,
-      );
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 77,
+          presetDetail: sampleDetail,
+        );
 
-      bool deleteEndpointCalled = false;
-      final mockClient = MockClient((request) async {
-        if (request.method == 'DELETE' && request.url.path.contains('/api/itineraries/77')) {
-          deleteEndpointCalled = true;
-          return http.Response(
-            jsonEncode({'message': 'Đã xóa thành công'}),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('Not Found', 404);
-      });
+        bool deleteEndpointCalled = false;
+        final mockClient = MockClient((request) async {
+          if (request.method == 'DELETE' &&
+              request.url.path.contains('/api/itineraries/77')) {
+            deleteEndpointCalled = true;
+            return http.Response(
+              jsonEncode({'message': 'Đã xóa thành công'}),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('Not Found', 404);
+        });
 
-      final repo = ItineraryCrudRepository(
-        apiClient: ApiClient(client: mockClient),
-      );
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
 
-      dynamic returnedResult;
+        dynamic returnedResult;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => ElevatedButton(
-              onPressed: () async {
-                returnedResult = await Navigator.of(context).push<dynamic>(
-                  MaterialPageRoute(
-                    builder: (_) => ItineraryDetailScreen(
-                      itineraryId: 77,
-                      authNotifier: ownerAuth,
-                      notifier: notifier,
-                      crudRepository: repo,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () async {
+                  returnedResult = await Navigator.of(context).push<dynamic>(
+                    MaterialPageRoute(
+                      builder: (_) => ItineraryDetailScreen(
+                        itineraryId: 77,
+                        authNotifier: ownerAuth,
+                        notifier: notifier,
+                        crudRepository: repo,
+                      ),
                     ),
-                  ),
-                );
-              },
-              child: const Text('Xem chi tiết'),
+                  );
+                },
+                child: const Text('Xem chi tiết'),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Xem chi tiết'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Xem chi tiết'));
+        await tester.pumpAndSettle();
 
-      // Tap Delete icon
-      await tester.tap(find.byIcon(Icons.delete_outline));
-      await tester.pumpAndSettle();
+        // Tap Delete icon
+        await tester.tap(find.byIcon(Icons.delete_outline));
+        await tester.pumpAndSettle();
 
-      // Confirm in dialog
-      await tester.tap(find.widgetWithText(FilledButton, 'Xóa lịch trình'));
-      await tester.pumpAndSettle();
+        // Confirm in dialog
+        await tester.tap(find.widgetWithText(FilledButton, 'Xóa lịch trình'));
+        await tester.pumpAndSettle();
 
-      expect(deleteEndpointCalled, isTrue);
-      expect(returnedResult, equals(true));
-      expect(find.text('Xem chi tiết'), findsOneWidget);
-    });
+        expect(deleteEndpointCalled, isTrue);
+        expect(returnedResult, equals(true));
+        expect(find.text('Xem chi tiết'), findsOneWidget);
+      },
+    );
   });
 
   group('MyItinerariesScreen Edit and Delete Integration Tests', () {

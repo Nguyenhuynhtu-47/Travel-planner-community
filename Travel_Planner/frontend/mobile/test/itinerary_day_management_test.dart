@@ -80,10 +80,7 @@ void main() {
     });
 
     test('CreateDayRequest omits null or blank fields', () {
-      const request = CreateDayRequest(
-        title: '   ',
-        date: null,
-      );
+      const request = CreateDayRequest(title: '   ', date: null);
 
       final json = request.toJson();
 
@@ -91,76 +88,79 @@ void main() {
       expect(json.containsKey('date'), isFalse);
     });
 
-    test('UpdateDayRequest serializes title and date and handles null values', () {
-      final request = UpdateDayRequest(
-        title: 'Nghỉ dưỡng Sunset Sanato',
-        date: DateTime(2026, 10, 28),
-      );
+    test(
+      'UpdateDayRequest serializes title and date and handles null values',
+      () {
+        final request = UpdateDayRequest(
+          title: 'Nghỉ dưỡng Sunset Sanato',
+          date: DateTime(2026, 10, 28),
+        );
 
-      final json = request.toJson();
+        final json = request.toJson();
 
-      expect(json['title'], equals('Nghỉ dưỡng Sunset Sanato'));
-      expect(json['date'], equals('2026-10-28'));
+        expect(json['title'], equals('Nghỉ dưỡng Sunset Sanato'));
+        expect(json['date'], equals('2026-10-28'));
 
-      const clearRequest = UpdateDayRequest(
-        title: null,
-        date: null,
-      );
+        const clearRequest = UpdateDayRequest(title: null, date: null);
 
-      final clearJson = clearRequest.toJson();
-      expect(clearJson['title'], isNull);
-      expect(clearJson['date'], isNull);
-    });
+        final clearJson = clearRequest.toJson();
+        expect(clearJson['title'], isNull);
+        expect(clearJson['date'], isNull);
+      },
+    );
   });
 
   group('ItineraryCrudRepository Day CRUD Network Tests', () {
-    test('addDay sends POST to /api/itineraries/{id}/days with Bearer token', () async {
-      String? requestedMethod;
-      String? requestedUrl;
-      String? authHeader;
-      Map<String, dynamic>? sentBody;
+    test(
+      'addDay sends POST to /api/itineraries/{id}/days with Bearer token',
+      () async {
+        String? requestedMethod;
+        String? requestedUrl;
+        String? authHeader;
+        Map<String, dynamic>? sentBody;
 
-      final mockClient = MockClient((request) async {
-        requestedMethod = request.method;
-        requestedUrl = request.url.toString();
-        authHeader = request.headers['authorization'];
-        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        final mockClient = MockClient((request) async {
+          requestedMethod = request.method;
+          requestedUrl = request.url.toString();
+          authHeader = request.headers['authorization'];
+          sentBody = jsonDecode(request.body) as Map<String, dynamic>;
 
-        return http.Response(
-          jsonEncode({
-            'dayId': 101,
-            'dayNumber': 3,
-            'title': 'Ngày 3: Khám phá chợ đêm',
-            'date': '2026-10-29',
-            'activities': [],
-          }),
-          201,
-          headers: {'content-type': 'application/json'},
+          return http.Response(
+            jsonEncode({
+              'dayId': 101,
+              'dayNumber': 3,
+              'title': 'Ngày 3: Khám phá chợ đêm',
+              'date': '2026-10-29',
+              'activities': [],
+            }),
+            201,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
         );
-      });
 
-      final repo = ItineraryCrudRepository(
-        apiClient: ApiClient(client: mockClient),
-      );
+        final day = await repo.addDay(
+          42,
+          CreateDayRequest(
+            title: 'Ngày 3: Khám phá chợ đêm',
+            date: DateTime(2026, 10, 29),
+          ),
+          token: 'auth-jwt-token',
+        );
 
-      final day = await repo.addDay(
-        42,
-        CreateDayRequest(
-          title: 'Ngày 3: Khám phá chợ đêm',
-          date: DateTime(2026, 10, 29),
-        ),
-        token: 'auth-jwt-token',
-      );
-
-      expect(requestedMethod, equals('POST'));
-      expect(requestedUrl, contains('/api/itineraries/42/days'));
-      expect(authHeader, equals('Bearer auth-jwt-token'));
-      expect(sentBody?['title'], equals('Ngày 3: Khám phá chợ đêm'));
-      expect(sentBody?['date'], equals('2026-10-29'));
-      expect(day.dayId, equals(101));
-      expect(day.dayNumber, equals(3));
-      expect(day.title, equals('Ngày 3: Khám phá chợ đêm'));
-    });
+        expect(requestedMethod, equals('POST'));
+        expect(requestedUrl, contains('/api/itineraries/42/days'));
+        expect(authHeader, equals('Bearer auth-jwt-token'));
+        expect(sentBody?['title'], equals('Ngày 3: Khám phá chợ đêm'));
+        expect(sentBody?['date'], equals('2026-10-29'));
+        expect(day.dayId, equals(101));
+        expect(day.dayNumber, equals(3));
+        expect(day.title, equals('Ngày 3: Khám phá chợ đêm'));
+      },
+    );
 
     test('updateDay sends PUT to /api/itineraries/{id}/days/{dayId}', () async {
       String? requestedMethod;
@@ -208,62 +208,74 @@ void main() {
       expect(day.title, equals('Tiêu đề ngày mới'));
     });
 
-    test('deleteDay sends DELETE to /api/itineraries/{id}/days/{dayId}', () async {
-      String? requestedMethod;
-      String? requestedUrl;
-      String? authHeader;
+    test(
+      'deleteDay sends DELETE to /api/itineraries/{id}/days/{dayId}',
+      () async {
+        String? requestedMethod;
+        String? requestedUrl;
+        String? authHeader;
 
-      final mockClient = MockClient((request) async {
-        requestedMethod = request.method;
-        requestedUrl = request.url.toString();
-        authHeader = request.headers['authorization'];
+        final mockClient = MockClient((request) async {
+          requestedMethod = request.method;
+          requestedUrl = request.url.toString();
+          authHeader = request.headers['authorization'];
 
-        return http.Response(
-          jsonEncode({'message': 'Đã xóa ngày thành công'}),
-          200,
-          headers: {'content-type': 'application/json'},
+          return http.Response(
+            jsonEncode({'message': 'Đã xóa ngày thành công'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
         );
-      });
 
-      final repo = ItineraryCrudRepository(
-        apiClient: ApiClient(client: mockClient),
-      );
+        await repo.deleteDay(42, 101, token: 'auth-jwt-token');
 
-      await repo.deleteDay(42, 101, token: 'auth-jwt-token');
+        expect(requestedMethod, equals('DELETE'));
+        expect(requestedUrl, contains('/api/itineraries/42/days/101'));
+        expect(authHeader, equals('Bearer auth-jwt-token'));
+      },
+    );
 
-      expect(requestedMethod, equals('DELETE'));
-      expect(requestedUrl, contains('/api/itineraries/42/days/101'));
-      expect(authHeader, equals('Bearer auth-jwt-token'));
-    });
+    test(
+      'deleteDay propagates ApiException when deleting the last remaining day',
+      () async {
+        final mockClient = MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'message': 'Lịch trình phải có ít nhất 1 ngày. Không thể xóa ngày cuối cùng',
+            }),
+            400,
+            headers: {'content-type': 'application/json'},
+          );
+        });
 
-    test('deleteDay propagates ApiException when deleting the last remaining day', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'message': 'Lịch trình phải có ít nhất 1 ngày. Không thể xóa ngày cuối cùng',
-          }),
-          400,
-          headers: {'content-type': 'application/json'},
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
         );
-      });
 
-      final repo = ItineraryCrudRepository(
-        apiClient: ApiClient(client: mockClient),
-      );
-
-      expect(
-        () => repo.deleteDay(42, 101, token: 'auth-jwt-token'),
-        throwsA(
-          isA<ApiException>()
-              .having((e) => e.statusCode, 'statusCode', 400)
-              .having((e) => e.message, 'message', contains('ít nhất 1 ngày')),
-        ),
-      );
-    });
+        expect(
+          () => repo.deleteDay(42, 101, token: 'auth-jwt-token'),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.statusCode, 'statusCode', 400)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('ít nhất 1 ngày'),
+                ),
+          ),
+        );
+      },
+    );
   });
 
   group('DayFormDialog Add and Edit Widget Tests', () {
-    testWidgets('renders DayFormDialog for adding a day with next day number', (tester) async {
+    testWidgets('renders DayFormDialog for adding a day with next day number', (
+      tester,
+    ) async {
       final authNotifier = MockAuthNotifier(mockToken: 'valid-token');
 
       await tester.pumpWidget(
@@ -352,7 +364,9 @@ void main() {
       expect(dialogResult, isTrue);
     });
 
-    testWidgets('renders DayFormDialog for editing prefilled values', (tester) async {
+    testWidgets('renders DayFormDialog for editing prefilled values', (
+      tester,
+    ) async {
       final authNotifier = MockAuthNotifier(mockToken: 'valid-token');
 
       const existingDay = ItineraryDayDetail(
@@ -390,42 +404,57 @@ void main() {
   });
 
   group('Delete Day Confirmation Dialog Tests', () {
-    testWidgets('shows confirmation dialog without activity warning when activities empty', (tester) async {
-      bool? result;
+    testWidgets(
+      'shows confirmation dialog without activity warning when activities empty',
+      (tester) async {
+        bool? result;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => ElevatedButton(
-              onPressed: () async {
-                result = await showDeleteDayConfirmationDialog(
-                  context,
-                  dayNumber: 2,
-                  dayTitle: 'Đi bộ đường dài',
-                  hasActivities: false,
-                );
-              },
-              child: const Text('Xóa ngày'),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () async {
+                  result = await showDeleteDayConfirmationDialog(
+                    context,
+                    dayNumber: 2,
+                    dayTitle: 'Đi bộ đường dài',
+                    hasActivities: false,
+                  );
+                },
+                child: const Text('Xóa ngày'),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Xóa ngày'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Xóa ngày'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Xác nhận xóa Ngày 2'), findsOneWidget);
-      expect(find.textContaining('Đi bộ đường dài'), findsOneWidget);
-      expect(find.textContaining('Các ngày tiếp theo sẽ được tự động đánh số lại.'), findsOneWidget);
-      expect(find.textContaining('Tất cả các hoạt động thuộc ngày này cũng sẽ bị xóa'), findsNothing);
+        expect(find.text('Xác nhận xóa Ngày 2'), findsOneWidget);
+        expect(find.textContaining('Đi bộ đường dài'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Các ngày tiếp theo sẽ được tự động đánh số lại.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Tất cả các hoạt động thuộc ngày này cũng sẽ bị xóa',
+          ),
+          findsNothing,
+        );
 
-      await tester.tap(find.text('Hủy'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Hủy'));
+        await tester.pumpAndSettle();
 
-      expect(result, isFalse);
-    });
+        expect(result, isFalse);
+      },
+    );
 
-    testWidgets('shows activity deletion warning when day has activities', (tester) async {
+    testWidgets('shows activity deletion warning when day has activities', (
+      tester,
+    ) async {
       bool? result;
 
       await tester.pumpWidget(
@@ -449,7 +478,12 @@ void main() {
       await tester.tap(find.text('Xóa ngày'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Tất cả các hoạt động thuộc ngày này cũng sẽ bị xóa'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Tất cả các hoạt động thuộc ngày này cũng sẽ bị xóa',
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.widgetWithText(FilledButton, 'Xóa ngày'));
       await tester.pumpAndSettle();
@@ -499,142 +533,157 @@ void main() {
       ],
     );
 
-    testWidgets('shows Add Day buttons and Day Card popup menu when viewer is owner', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'shows Add Day buttons and Day Card popup menu when viewer is owner',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final ownerAuth = MockAuthNotifier(
-        token: 'owner-token',
-        user: {'username': 'viet_traveler'},
-      );
+        final ownerAuth = MockAuthNotifier(
+          token: 'owner-token',
+          user: {'username': 'viet_traveler'},
+        );
 
-      final notifier = FakeItineraryDetailNotifier(
-        itineraryId: 88,
-        presetDetail: sampleItinerary,
-      );
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 88,
+          presetDetail: sampleItinerary,
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryDetailScreen(
-            itineraryId: 88,
-            authNotifier: ownerAuth,
-            notifier: notifier,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 88,
+              authNotifier: ownerAuth,
+              notifier: notifier,
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // Owner sees "Thêm ngày" in section header
-      expect(find.widgetWithText(OutlinedButton, 'Thêm ngày'), findsOneWidget);
+        // Owner sees "Thêm ngày" in section header
+        expect(
+          find.widgetWithText(OutlinedButton, 'Thêm ngày'),
+          findsOneWidget,
+        );
 
-      // Owner sees "Thêm Ngày 3" at the bottom of the list
-      final bottomAddBtn = find.text('Thêm Ngày 3');
-      await tester.ensureVisible(bottomAddBtn);
-      expect(bottomAddBtn, findsOneWidget);
+        // Owner sees "Thêm Ngày 3" at the bottom of the list
+        final bottomAddBtn = find.text('Thêm Ngày 3');
+        await tester.ensureVisible(bottomAddBtn);
+        expect(bottomAddBtn, findsOneWidget);
 
-      // Day cards have more_horiz action button
-      expect(find.byIcon(Icons.more_horiz), findsWidgets);
-    });
+        // Day cards have more_horiz action button
+        expect(find.byIcon(Icons.more_horiz), findsWidgets);
+      },
+    );
 
-    testWidgets('hides Add Day buttons and Day Card popup menu when viewer is NOT owner', (tester) async {
-      final guestAuth = MockAuthNotifier(
-        token: 'guest-token',
-        user: {'username': 'stranger'},
-      );
+    testWidgets(
+      'hides Add Day buttons and Day Card popup menu when viewer is NOT owner',
+      (tester) async {
+        final guestAuth = MockAuthNotifier(
+          token: 'guest-token',
+          user: {'username': 'stranger'},
+        );
 
-      final notifier = FakeItineraryDetailNotifier(
-        itineraryId: 88,
-        presetDetail: sampleItinerary,
-      );
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 88,
+          presetDetail: sampleItinerary,
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryDetailScreen(
-            itineraryId: 88,
-            authNotifier: guestAuth,
-            notifier: notifier,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 88,
+              authNotifier: guestAuth,
+              notifier: notifier,
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(OutlinedButton, 'Thêm ngày'), findsNothing);
-      expect(find.text('Thêm Ngày 3'), findsNothing);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
-    });
+        expect(find.widgetWithText(OutlinedButton, 'Thêm ngày'), findsNothing);
+        expect(find.text('Thêm Ngày 3'), findsNothing);
+        expect(find.byIcon(Icons.more_horiz), findsNothing);
+      },
+    );
 
-    testWidgets('deleting day in ItineraryDetailScreen calls DELETE and reloads detail', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'deleting day in ItineraryDetailScreen calls DELETE and reloads detail',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final ownerAuth = MockAuthNotifier(
-        token: 'owner-token',
-        user: {'username': 'viet_traveler'},
-      );
+        final ownerAuth = MockAuthNotifier(
+          token: 'owner-token',
+          user: {'username': 'viet_traveler'},
+        );
 
-      final notifier = FakeItineraryDetailNotifier(
-        itineraryId: 88,
-        presetDetail: sampleItinerary,
-      );
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 88,
+          presetDetail: sampleItinerary,
+        );
 
-      bool deleteDayCalled = false;
-      final mockClient = MockClient((request) async {
-        if (request.method == 'DELETE' && request.url.path.contains('/api/itineraries/88/days/11')) {
-          deleteDayCalled = true;
-          return http.Response(
-            jsonEncode({'message': 'Đã xóa ngày thành công'}),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('Not Found', 404);
-      });
+        bool deleteDayCalled = false;
+        final mockClient = MockClient((request) async {
+          if (request.method == 'DELETE' &&
+              request.url.path.contains('/api/itineraries/88/days/11')) {
+            deleteDayCalled = true;
+            return http.Response(
+              jsonEncode({'message': 'Đã xóa ngày thành công'}),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('Not Found', 404);
+        });
 
-      final repo = ItineraryCrudRepository(
-        apiClient: ApiClient(client: mockClient),
-      );
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryDetailScreen(
-            itineraryId: 88,
-            authNotifier: ownerAuth,
-            notifier: notifier,
-            crudRepository: repo,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 88,
+              authNotifier: ownerAuth,
+              notifier: notifier,
+              crudRepository: repo,
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // Find more_horiz on Day 2
-      final moreButtons = find.byIcon(Icons.more_horiz);
-      expect(moreButtons, findsWidgets);
+        // Find more_horiz on Day 2
+        final moreButtons = find.byIcon(Icons.more_horiz);
+        expect(moreButtons, findsWidgets);
 
-      await tester.tap(moreButtons.last);
-      await tester.pumpAndSettle();
+        await tester.tap(moreButtons.last);
+        await tester.pumpAndSettle();
 
-      expect(find.text('Xóa ngày'), findsOneWidget);
+        expect(find.text('Xóa ngày'), findsOneWidget);
 
-      await tester.tap(find.text('Xóa ngày'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Xóa ngày'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Xác nhận xóa Ngày 2'), findsOneWidget);
+        expect(find.text('Xác nhận xóa Ngày 2'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Xóa ngày'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Xóa ngày'));
+        await tester.pumpAndSettle();
 
-      expect(deleteDayCalled, isTrue);
-      expect(find.text('Đã xóa Ngày 2 thành công.'), findsOneWidget);
-    });
+        expect(deleteDayCalled, isTrue);
+        expect(find.text('Đã xóa Ngày 2 thành công.'), findsOneWidget);
+      },
+    );
 
-    testWidgets('prevents deleting day when itinerary only has 1 day', (tester) async {
+    testWidgets('prevents deleting day when itinerary only has 1 day', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -696,62 +745,67 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Lịch trình phải có ít nhất 1 ngày. Không thể xóa ngày cuối cùng.'),
+        find.text(
+          'Lịch trình phải có ít nhất 1 ngày. Không thể xóa ngày cuối cùng.',
+        ),
         findsOneWidget,
       );
       expect(find.text('Xác nhận xóa Ngày 1'), findsNothing);
     });
 
-    testWidgets('displays empty state with Add First Day action when days list is empty', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'displays empty state with Add First Day action when days list is empty',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final emptyDaysItinerary = ItineraryDetail(
-        itineraryId: 90,
-        title: 'Lịch trình chưa có ngày',
-        location: 'Huế',
-        totalDays: 0,
-        budget: 2000000,
-        viewCount: 0,
-        favoriteCount: 0,
-        ratingCount: 0,
-        averageRating: 0.0,
-        visibility: 'PUBLIC',
-        status: 'ACTIVE',
-        creator: const CreatorSummary(
-          userId: 1,
-          username: 'viet_traveler',
-          fullName: 'Việt Traveler',
-        ),
-        days: const [],
-      );
-
-      final ownerAuth = MockAuthNotifier(
-        token: 'owner-token',
-        user: {'username': 'viet_traveler'},
-      );
-
-      final notifier = FakeItineraryDetailNotifier(
-        itineraryId: 90,
-        presetDetail: emptyDaysItinerary,
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryDetailScreen(
-            itineraryId: 90,
-            authNotifier: ownerAuth,
-            notifier: notifier,
+        final emptyDaysItinerary = ItineraryDetail(
+          itineraryId: 90,
+          title: 'Lịch trình chưa có ngày',
+          location: 'Huế',
+          totalDays: 0,
+          budget: 2000000,
+          viewCount: 0,
+          favoriteCount: 0,
+          ratingCount: 0,
+          averageRating: 0.0,
+          visibility: 'PUBLIC',
+          status: 'ACTIVE',
+          creator: const CreatorSummary(
+            userId: 1,
+            username: 'viet_traveler',
+            fullName: 'Việt Traveler',
           ),
-        ),
-      );
+          days: const [],
+        );
 
-      await tester.pumpAndSettle();
+        final ownerAuth = MockAuthNotifier(
+          token: 'owner-token',
+          user: {'username': 'viet_traveler'},
+        );
 
-      expect(find.text('Chưa có lịch trình theo ngày'), findsOneWidget);
-      expect(find.text('Thêm ngày đầu tiên'), findsOneWidget);
-    });
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 90,
+          presetDetail: emptyDaysItinerary,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 90,
+              authNotifier: ownerAuth,
+              notifier: notifier,
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        expect(find.text('Chưa có lịch trình theo ngày'), findsOneWidget);
+        expect(find.text('Thêm ngày đầu tiên'), findsOneWidget);
+      },
+    );
   });
 }

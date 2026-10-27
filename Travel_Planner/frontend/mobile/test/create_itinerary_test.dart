@@ -14,6 +14,19 @@ import 'package:mobile/features/itinerary/presentation/screens/create_itinerary_
 import 'package:mobile/features/itinerary/presentation/screens/itinerary_detail_screen.dart';
 import 'package:mobile/features/itinerary/presentation/screens/my_itineraries_screen.dart';
 
+class MockAuthNotifier extends AuthNotifier {
+  @override
+  final Map<String, dynamic>? currentUser;
+
+  @override
+  final String? token;
+
+  MockAuthNotifier({this.currentUser, this.token});
+
+  @override
+  bool get isAuthenticated => token != null;
+}
+
 void main() {
   group('CreateItineraryRequest Serialization Tests', () {
     test('serializes required and optional fields correctly', () {
@@ -252,37 +265,111 @@ void main() {
       expect(find.text('Không được âm'), findsOneWidget);
     });
 
+    testWidgets(
+      'Private and Public visibility options have identical widths and heights',
+      (tester) async {
+        // Test on standard mobile screen
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final authNotifier = AuthNotifier();
+
+        await tester.pumpWidget(
+          MaterialApp(home: CreateItineraryScreen(authNotifier: authNotifier)),
+        );
+
+        final privateFinder = find.widgetWithText(InkWell, 'Riêng tư');
+        final publicFinder = find.widgetWithText(InkWell, 'Công khai');
+
+        expect(privateFinder, findsOneWidget);
+        expect(publicFinder, findsOneWidget);
+
+        final privateSize = tester.getSize(privateFinder);
+        final publicSize = tester.getSize(publicFinder);
+
+        expect(privateSize.width, equals(publicSize.width));
+        expect(privateSize.height, equals(publicSize.height));
+
+        // Test on smaller mobile screen (360 width)
+        tester.view.physicalSize = const Size(360, 640);
+        await tester.pumpAndSettle();
+
+        final privateSizeSmall = tester.getSize(privateFinder);
+        final publicSizeSmall = tester.getSize(publicFinder);
+
+        expect(privateSizeSmall.width, equals(publicSizeSmall.width));
+        expect(privateSizeSmall.height, equals(publicSizeSmall.height));
+
+        // Tapping Public selects it
+        await tester.ensureVisible(publicFinder);
+        await tester.tap(publicFinder);
+        await tester.pumpAndSettle();
+
+        // Tapping Private selects it
+        await tester.ensureVisible(privateFinder);
+        await tester.tap(privateFinder);
+        await tester.pumpAndSettle();
+      },
+    );
+
     testWidgets('submits form successfully and navigates to detail screen', (
       tester,
     ) async {
-      int requestCount = 0;
-      final mockClient = MockClient((request) async {
-        requestCount++;
-        final detailData = {
-          'itineraryId': 888,
-          'title': 'Chuyến đi Vũng Tàu',
-          'location': 'Vũng Tàu',
-          'totalDays': 2,
-          'budget': 2000000.0,
-          'visibility': 'PUBLIC',
-          'status': 'ACTIVE',
-          'days': [
-            {'dayId': 201, 'dayNumber': 1, 'title': 'Ngày 1', 'activities': []},
-            {'dayId': 202, 'dayNumber': 2, 'title': 'Ngày 2', 'activities': []},
-          ],
-        };
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      int createRequestCount = 0;
+      int getDetailRequestCount = 0;
+      final detailData = {
+        'itineraryId': 888,
+        'title': 'Chuyến đi Vũng Tàu',
+        'location': 'Vũng Tàu',
+        'totalDays': 2,
+        'budget': 2000000.0,
+        'visibility': 'PUBLIC',
+        'status': 'ACTIVE',
+        'creator': {
+          'userId': 1,
+          'username': 'traveler_vn',
+          'fullName': 'Traveler VN',
+        },
+        'days': [
+          {'dayId': 201, 'dayNumber': 1, 'title': 'Ngày 1', 'activities': []},
+          {'dayId': 202, 'dayNumber': 2, 'title': 'Ngày 2', 'activities': []},
+        ],
+      };
 
-        return http.Response(
-          jsonEncode(detailData),
-          201,
-          headers: {'content-type': 'application/json'},
-        );
+      final mockClient = MockClient((request) async {
+        if (request.method == 'POST' &&
+            request.url.path == '/api/itineraries') {
+          createRequestCount++;
+          return http.Response(
+            jsonEncode(detailData),
+            201,
+            headers: {'content-type': 'application/json'},
+          );
+        } else if (request.method == 'GET' &&
+            request.url.path == '/api/itineraries/888') {
+          getDetailRequestCount++;
+          return http.Response(
+            jsonEncode(detailData),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
       });
 
       final repo = ItineraryCrudRepository(
         apiClient: ApiClient(client: mockClient),
       );
-      final authNotifier = AuthNotifier();
+      final authNotifier = MockAuthNotifier(
+        currentUser: {'username': 'traveler_vn'},
+        token: 'sample_jwt_token',
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -313,10 +400,19 @@ void main() {
       await tester.tap(find.text('Tạo lịch trình'));
       await tester.pumpAndSettle();
 
-      expect(requestCount, equals(1));
+      expect(createRequestCount, equals(1));
+      expect(getDetailRequestCount, greaterThanOrEqualTo(1));
       // Navigates to detail screen
       expect(find.byType(ItineraryDetailScreen), findsOneWidget);
       expect(find.text('Chi tiết lịch trình'), findsOneWidget);
+      // Valid detail data is shown immediately without false "not found"
+      expect(find.text('Chuyến đi Vũng Tàu'), findsOneWidget);
+      expect(find.text('Không tìm thấy lịch trình'), findsNothing);
+      // Days and day-management are accessible
+      expect(find.text('Ngày 1'), findsWidgets);
+      expect(find.text('Ngày 2'), findsWidgets);
+      expect(find.text('Thêm hoạt động đầu tiên'), findsWidgets);
+      expect(find.text('Thêm ngày'), findsOneWidget);
     });
 
     testWidgets('handles API error on creation failure', (tester) async {

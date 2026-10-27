@@ -68,70 +68,74 @@ class FakeItineraryDetailNotifier extends ItineraryDetailNotifier {
 }
 
 void main() {
-  group('CreateActivityRequest & UpdateActivityRequest Serialization Tests', () {
-    test('CreateActivityRequest serializes all fields and formats times', () {
-      final request = CreateActivityRequest(
-        name: 'Ăn sáng bánh mì chảo',
-        description: 'Quán Cô Năm',
-        destinationId: 5,
-        startTime: '07:30',
-        endTime: '08:30:00',
-        cost: 45000.0,
+  group(
+    'CreateActivityRequest & UpdateActivityRequest Serialization Tests',
+    () {
+      test('CreateActivityRequest serializes all fields and formats times', () {
+        final request = CreateActivityRequest(
+          name: 'Ăn sáng bánh mì chảo',
+          description: 'Quán Cô Năm',
+          destinationId: 5,
+          startTime: '07:30',
+          endTime: '08:30:00',
+          cost: 45000.0,
+        );
+
+        final json = request.toJson();
+
+        expect(json['name'], equals('Ăn sáng bánh mì chảo'));
+        expect(json['description'], equals('Quán Cô Năm'));
+        expect(json['destinationId'], equals(5));
+        expect(json['startTime'], equals('07:30:00'));
+        expect(json['endTime'], equals('08:30:00'));
+        expect(json['cost'], equals(45000.0));
+      });
+
+      test('CreateActivityRequest omits null or blank optional fields', () {
+        final request = CreateActivityRequest(name: 'Dạo quanh bờ hồ');
+
+        final json = request.toJson();
+
+        expect(json['name'], equals('Dạo quanh bờ hồ'));
+        expect(json.containsKey('description'), isFalse);
+        expect(json.containsKey('destinationId'), isFalse);
+        expect(json.containsKey('startTime'), isFalse);
+        expect(json.containsKey('endTime'), isFalse);
+        expect(json.containsKey('cost'), isFalse);
+      });
+
+      test(
+        'UpdateActivityRequest preserves null values for cleared fields',
+        () {
+          final request = UpdateActivityRequest(
+            name: 'Tên hoạt động cập nhật',
+            description: '',
+            destinationId: null,
+            startTime: null,
+            endTime: null,
+            cost: 0.0,
+          );
+
+          final json = request.toJson();
+
+          expect(json['name'], equals('Tên hoạt động cập nhật'));
+          expect(json['description'], isNull);
+          expect(json['destinationId'], isNull);
+          expect(json['startTime'], isNull);
+          expect(json['endTime'], isNull);
+          expect(json['cost'], equals(0.0));
+        },
       );
 
-      final json = request.toJson();
+      test('ReorderActivityItem serializes activityId and displayOrder', () {
+        const item = ReorderActivityItem(activityId: 12, displayOrder: 2);
+        final json = item.toJson();
 
-      expect(json['name'], equals('Ăn sáng bánh mì chảo'));
-      expect(json['description'], equals('Quán Cô Năm'));
-      expect(json['destinationId'], equals(5));
-      expect(json['startTime'], equals('07:30:00'));
-      expect(json['endTime'], equals('08:30:00'));
-      expect(json['cost'], equals(45000.0));
-    });
-
-    test('CreateActivityRequest omits null or blank optional fields', () {
-      final request = CreateActivityRequest(
-        name: 'Dạo quanh bờ hồ',
-      );
-
-      final json = request.toJson();
-
-      expect(json['name'], equals('Dạo quanh bờ hồ'));
-      expect(json.containsKey('description'), isFalse);
-      expect(json.containsKey('destinationId'), isFalse);
-      expect(json.containsKey('startTime'), isFalse);
-      expect(json.containsKey('endTime'), isFalse);
-      expect(json.containsKey('cost'), isFalse);
-    });
-
-    test('UpdateActivityRequest preserves null values for cleared fields', () {
-      final request = UpdateActivityRequest(
-        name: 'Tên hoạt động cập nhật',
-        description: '',
-        destinationId: null,
-        startTime: null,
-        endTime: null,
-        cost: 0.0,
-      );
-
-      final json = request.toJson();
-
-      expect(json['name'], equals('Tên hoạt động cập nhật'));
-      expect(json['description'], isNull);
-      expect(json['destinationId'], isNull);
-      expect(json['startTime'], isNull);
-      expect(json['endTime'], isNull);
-      expect(json['cost'], equals(0.0));
-    });
-
-    test('ReorderActivityItem serializes activityId and displayOrder', () {
-      const item = ReorderActivityItem(activityId: 12, displayOrder: 2);
-      final json = item.toJson();
-
-      expect(json['activityId'], equals(12));
-      expect(json['displayOrder'], equals(2));
-    });
-  });
+        expect(json['activityId'], equals(12));
+        expect(json['displayOrder'], equals(2));
+      });
+    },
+  );
 
   group('ItineraryCrudRepository Activity CRUD Network Tests', () {
     test('addActivity sends POST to /api/itineraries/{id}/days/{dayId}/activities with Bearer token', () async {
@@ -175,8 +179,14 @@ void main() {
       );
 
       expect(capturedRequest.method, equals('POST'));
-      expect(capturedRequest.url.path, equals('/api/itineraries/10/days/20/activities'));
-      expect(capturedRequest.headers['Authorization'], equals('Bearer test_token'));
+      expect(
+        capturedRequest.url.path,
+        equals('/api/itineraries/10/days/20/activities'),
+      );
+      expect(
+        capturedRequest.headers['Authorization'],
+        equals('Bearer test_token'),
+      );
       expect(result.activityId, equals(101));
       expect(result.name, equals('Cà phê sáng'));
       expect(result.displayOrder, equals(1));
@@ -224,7 +234,10 @@ void main() {
       );
 
       expect(capturedRequest.method, equals('PUT'));
-      expect(capturedRequest.url.path, equals('/api/itineraries/10/days/20/activities/101'));
+      expect(
+        capturedRequest.url.path,
+        equals('/api/itineraries/10/days/20/activities/101'),
+      );
       expect(result.name, equals('Cà phê ngắm hoàng hôn'));
       expect(result.startTime, equals('16:30'));
     });
@@ -251,7 +264,10 @@ void main() {
       await repository.deleteActivity(10, 20, 101, token: 'test_token');
 
       expect(capturedRequest.method, equals('DELETE'));
-      expect(capturedRequest.url.path, equals('/api/itineraries/10/days/20/activities/101'));
+      expect(
+        capturedRequest.url.path,
+        equals('/api/itineraries/10/days/20/activities/101'),
+      );
     });
 
     test('reorderActivities sends PUT to /api/itineraries/{id}/days/{dayId}/activities/reorder with list', () async {
@@ -259,7 +275,8 @@ void main() {
       final mockClient = MockClient((request) async {
         capturedRequest = request;
         if (request.method == 'PUT' &&
-            request.url.path == '/api/itineraries/10/days/20/activities/reorder') {
+            request.url.path ==
+                '/api/itineraries/10/days/20/activities/reorder') {
           return http.Response(
             jsonEncode([
               {
@@ -284,18 +301,16 @@ void main() {
         apiClient: ApiClient(client: mockClient),
       );
 
-      final result = await repository.reorderActivities(
-        10,
-        20,
-        const [
-          ReorderActivityItem(activityId: 102, displayOrder: 1),
-          ReorderActivityItem(activityId: 101, displayOrder: 2),
-        ],
-        token: 'test_token',
-      );
+      final result = await repository.reorderActivities(10, 20, const [
+        ReorderActivityItem(activityId: 102, displayOrder: 1),
+        ReorderActivityItem(activityId: 101, displayOrder: 2),
+      ], token: 'test_token');
 
       expect(capturedRequest.method, equals('PUT'));
-      expect(capturedRequest.url.path, equals('/api/itineraries/10/days/20/activities/reorder'));
+      expect(
+        capturedRequest.url.path,
+        equals('/api/itineraries/10/days/20/activities/reorder'),
+      );
       expect(result.length, equals(2));
       expect(result.first.activityId, equals(102));
       expect(result.first.displayOrder, equals(1));
@@ -315,25 +330,30 @@ void main() {
       );
 
       expect(
-        () => repository.reorderActivities(
-          10,
-          20,
-          const [ReorderActivityItem(activityId: 101, displayOrder: 1)],
-          token: 'test_token',
+        () => repository.reorderActivities(10, 20, const [
+          ReorderActivityItem(activityId: 101, displayOrder: 1),
+        ], token: 'test_token'),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.message,
+            'message',
+            contains('Số lượng hoạt động sắp xếp không khớp'),
+          ),
         ),
-        throwsA(isA<ApiException>().having(
-          (e) => e.message,
-          'message',
-          contains('Số lượng hoạt động sắp xếp không khớp'),
-        )),
       );
     });
   });
 
   group('ActivityFormDialog Widget Tests', () {
-    testWidgets('renders ActivityFormDialog for adding an activity', (tester) async {
-      final mockClient = MockClient((request) async => http.Response('{}', 200));
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
+    testWidgets('renders ActivityFormDialog for adding an activity', (
+      tester,
+    ) async {
+      final mockClient = MockClient(
+        (request) async => http.Response('{}', 200),
+      );
+      final repository = ItineraryCrudRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final authNotifier = MockAuthNotifier(
         user: {'username': 'test_user'},
         token: 'token123',
@@ -369,9 +389,15 @@ void main() {
       expect(find.text('Thêm hoạt động'), findsOneWidget);
     });
 
-    testWidgets('validates required name field before submitting', (tester) async {
-      final mockClient = MockClient((request) async => http.Response('{}', 200));
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
+    testWidgets('validates required name field before submitting', (
+      tester,
+    ) async {
+      final mockClient = MockClient(
+        (request) async => http.Response('{}', 200),
+      );
+      final repository = ItineraryCrudRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final authNotifier = MockAuthNotifier(
         user: {'username': 'test_user'},
         token: 'token123',
@@ -405,7 +431,9 @@ void main() {
       expect(find.text('Vui lòng nhập tên hoạt động'), findsOneWidget);
     });
 
-    testWidgets('submits add activity successfully and pops true', (tester) async {
+    testWidgets('submits add activity successfully and pops true', (
+      tester,
+    ) async {
       bool apiCalled = false;
       final mockClient = MockClient((request) async {
         if (request.method == 'POST' &&
@@ -424,7 +452,9 @@ void main() {
         return http.Response('Not Found', 404);
       });
 
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
+      final repository = ItineraryCrudRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final authNotifier = MockAuthNotifier(
         user: {'username': 'test_user'},
         token: 'token123',
@@ -454,7 +484,10 @@ void main() {
       await tester.tap(find.text('Open Dialog'));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextFormField).first, 'Check-in Fansipan');
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'Check-in Fansipan',
+      );
       await tester.pump();
 
       await tester.tap(find.text('Thêm hoạt động'));
@@ -465,9 +498,15 @@ void main() {
       expect(find.byType(Dialog), findsNothing);
     });
 
-    testWidgets('renders ActivityFormDialog for editing prefilled values', (tester) async {
-      final mockClient = MockClient((request) async => http.Response('{}', 200));
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
+    testWidgets('renders ActivityFormDialog for editing prefilled values', (
+      tester,
+    ) async {
+      final mockClient = MockClient(
+        (request) async => http.Response('{}', 200),
+      );
+      final repository = ItineraryCrudRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final authNotifier = MockAuthNotifier(
         user: {'username': 'test_user'},
         token: 'token123',
@@ -514,7 +553,9 @@ void main() {
   });
 
   group('DeleteActivityConfirmationDialog Tests', () {
-    testWidgets('shows confirmation dialog and cancels when tapping Hủy', (tester) async {
+    testWidgets('shows confirmation dialog and cancels when tapping Hủy', (
+      tester,
+    ) async {
       bool? result;
       await tester.pumpWidget(
         MaterialApp(
@@ -575,11 +616,14 @@ void main() {
   });
 
   group('ReorderActivitiesDialog Tests', () {
-    testWidgets('renders list of activities and saves reordered list', (tester) async {
+    testWidgets('renders list of activities and saves reordered list', (
+      tester,
+    ) async {
       bool reorderApiCalled = false;
       final mockClient = MockClient((request) async {
         if (request.method == 'PUT' &&
-            request.url.path == '/api/itineraries/10/days/20/activities/reorder') {
+            request.url.path ==
+                '/api/itineraries/10/days/20/activities/reorder') {
           reorderApiCalled = true;
           return http.Response(
             jsonEncode([
@@ -593,7 +637,9 @@ void main() {
         return http.Response('Not Found', 404);
       });
 
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
+      final repository = ItineraryCrudRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final authNotifier = MockAuthNotifier(
         user: {'username': 'test_user'},
         token: 'token123',
@@ -697,92 +743,108 @@ void main() {
       ],
     );
 
-    testWidgets('shows Add Activity, Reorder, and Activity popup menus when viewer is owner', (tester) async {
-      tester.view.physicalSize = const Size(800, 1600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'shows Add Activity, Reorder, and Activity popup menus when viewer is owner',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final mockClient = MockClient((request) async => http.Response('{}', 200));
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
-      final authNotifier = MockAuthNotifier(
-        user: {'username': 'traveler_viet'},
-        token: 'token_viet',
-      );
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'traveler_viet'},
+          token: 'token_viet',
+        );
 
-      final notifier = FakeItineraryDetailNotifier(
-        itineraryId: 10,
-        presetDetail: testDetailWithOwner,
-      );
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          presetDetail: testDetailWithOwner,
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryDetailScreen(
-            itineraryId: 10,
-            notifier: notifier,
-            authNotifier: authNotifier,
-            crudRepository: repository,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repository,
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // Owner should see:
-      // In Day 1 (which has 2 activities): "Thêm hoạt động" button and "Sắp xếp" button
-      expect(find.text('Thêm hoạt động'), findsWidgets);
-      expect(find.text('Sắp xếp'), findsOneWidget);
+        // Owner should see:
+        // In Day 1 (which has 2 activities): "Thêm hoạt động" button and "Sắp xếp" button
+        expect(find.text('Thêm hoạt động'), findsWidgets);
+        expect(find.text('Sắp xếp'), findsOneWidget);
 
-      // In Day 2 (which has 0 activities): "Thêm hoạt động đầu tiên" button
-      expect(find.text('Thêm hoạt động đầu tiên'), findsOneWidget);
+        // In Day 2 (which has 0 activities): "Thêm hoạt động đầu tiên" button
+        expect(find.text('Thêm hoạt động đầu tiên'), findsOneWidget);
 
-      // Activities should render
-      expect(find.text('Uống cà phê Tùng'), findsOneWidget);
-      expect(find.text('Dạo Quảng trường Lâm Viên'), findsOneWidget);
-    });
+        // Activities should render
+        expect(find.text('Uống cà phê Tùng'), findsOneWidget);
+        expect(find.text('Dạo Quảng trường Lâm Viên'), findsOneWidget);
+      },
+    );
 
-    testWidgets('hides Add Activity, Reorder, and Activity popup menus when viewer is NOT owner', (tester) async {
-      tester.view.physicalSize = const Size(800, 1600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'hides Add Activity, Reorder, and Activity popup menus when viewer is NOT owner',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final mockClient = MockClient((request) async => http.Response('{}', 200));
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
-      final authNotifier = MockAuthNotifier(
-        user: {'username': 'other_user'},
-        token: 'token_other',
-      );
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'other_user'},
+          token: 'token_other',
+        );
 
-      final notifier = FakeItineraryDetailNotifier(
-        itineraryId: 10,
-        presetDetail: testDetailWithOwner,
-      );
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          presetDetail: testDetailWithOwner,
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryDetailScreen(
-            itineraryId: 10,
-            notifier: notifier,
-            authNotifier: authNotifier,
-            crudRepository: repository,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repository,
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // Non-owner should NOT see any Activity CRUD or reorder buttons
-      expect(find.text('Thêm hoạt động'), findsNothing);
-      expect(find.text('Sắp xếp'), findsNothing);
-      expect(find.text('Thêm hoạt động đầu tiên'), findsNothing);
+        // Non-owner should NOT see any Activity CRUD or reorder buttons
+        expect(find.text('Thêm hoạt động'), findsNothing);
+        expect(find.text('Sắp xếp'), findsNothing);
+        expect(find.text('Thêm hoạt động đầu tiên'), findsNothing);
 
-      // But should still view the activities
-      expect(find.text('Uống cà phê Tùng'), findsOneWidget);
-      expect(find.text('Dạo Quảng trường Lâm Viên'), findsOneWidget);
-    });
+        // But should still view the activities
+        expect(find.text('Uống cà phê Tùng'), findsOneWidget);
+        expect(find.text('Dạo Quảng trường Lâm Viên'), findsOneWidget);
+      },
+    );
 
-    testWidgets('deleting an activity calls delete API and reloads detail', (tester) async {
+    testWidgets('deleting an activity calls delete API and reloads detail', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -802,7 +864,9 @@ void main() {
         return http.Response('Not Found', 404);
       });
 
-      final repository = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
+      final repository = ItineraryCrudRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
       final authNotifier = MockAuthNotifier(
         user: {'username': 'traveler_viet'},
         token: 'token_viet',
@@ -839,12 +903,18 @@ void main() {
 
       // Confirmation dialog opens
       expect(find.text('Xóa hoạt động'), findsWidgets);
-      final confirmDeleteBtn = find.widgetWithText(ElevatedButton, 'Xóa hoạt động');
+      final confirmDeleteBtn = find.widgetWithText(
+        ElevatedButton,
+        'Xóa hoạt động',
+      );
       await tester.tap(confirmDeleteBtn);
       await tester.pumpAndSettle();
 
       expect(deleteApiCalled, isTrue);
-      expect(find.textContaining('Đã xóa hoạt động "Uống cà phê Tùng"'), findsOneWidget);
+      expect(
+        find.textContaining('Đã xóa hoạt động "Uống cà phê Tùng"'),
+        findsOneWidget,
+      );
     });
   });
 }
