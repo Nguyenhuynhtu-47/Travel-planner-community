@@ -26,23 +26,24 @@ class ActivityDetail {
   factory ActivityDetail.fromJson(Map<String, dynamic> json) {
     // ActivityResponse exposes this field as `cost` in the backend API.
     final rawCost = json['cost'] ?? json['estimatedCost'];
+    final rawDest = json['destination'];
     return ActivityDetail(
       activityId: json['activityId'] is num
           ? (json['activityId'] as num).toInt()
-          : 0,
+          : (int.tryParse(json['activityId']?.toString() ?? '') ?? 0),
       name: json['name']?.toString() ?? '',
       description: json['description']?.toString(),
       activityType: json['activityType']?.toString(),
       startTime: _formatTime(json['startTime']),
       endTime: _formatTime(json['endTime']),
-      estimatedCost: rawCost is num ? rawCost.toDouble() : null,
+      estimatedCost: rawCost is num
+          ? rawCost.toDouble()
+          : num.tryParse(rawCost?.toString() ?? '')?.toDouble(),
       displayOrder: json['displayOrder'] is num
           ? (json['displayOrder'] as num).toInt()
-          : 0,
-      destination: json['destination'] is Map<String, dynamic>
-          ? DestinationSummary.fromJson(
-              json['destination'] as Map<String, dynamic>,
-            )
+          : (int.tryParse(json['displayOrder']?.toString() ?? '') ?? 0),
+      destination: rawDest is Map
+          ? DestinationSummary.fromJson(Map<String, dynamic>.from(rawDest))
           : null,
     );
   }

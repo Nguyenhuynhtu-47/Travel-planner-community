@@ -8,6 +8,7 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
+import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
 import '../explore_notifier.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import '../widgets/itinerary_card.dart';
@@ -157,7 +158,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 PopupMenuButton<String>(
                   tooltip: 'Tài khoản',
                   onSelected: (value) {
-                    if (value == 'profile') {
+                    if (value == 'my_itineraries') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => MyItinerariesScreen(
+                            authNotifier: widget.authNotifier,
+                          ),
+                        ),
+                      );
+                    } else if (value == 'profile') {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) =>
@@ -182,6 +191,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
                               ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'my_itineraries',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.map_outlined,
+                            size: 20,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Lịch trình của tôi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ],
@@ -465,21 +494,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
+    final disableMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final duration = disableMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
+
+    Widget content;
     if (_exploreNotifier.isLoading) {
-      return const Center(
+      content = const Center(
+        key: ValueKey('explore_loading'),
         child: CircularProgressIndicator(color: AppColors.primary),
       );
-    }
-
-    if (_exploreNotifier.isError) {
-      return AppErrorState(
+    } else if (_exploreNotifier.isError) {
+      content = AppErrorState(
+        key: const ValueKey('explore_error'),
         message: _exploreNotifier.errorMessage ?? 'Đã có lỗi xảy ra',
         onRetry: () => _exploreNotifier.retry(token: widget.authNotifier.token),
       );
-    }
-
-    if (_exploreNotifier.isEmptyResults) {
-      return AppEmptyState(
+    } else if (_exploreNotifier.isEmptyResults) {
+      content = AppEmptyState(
+        key: const ValueKey('explore_empty'),
         title: 'Không tìm thấy lịch trình',
         message: 'Thử thay đổi từ khóa hoặc đặt lại bộ lọc để khám phá các chuyến đi khác.',
         actionText: 'Đặt lại bộ lọc',
@@ -488,59 +523,73 @@ class _ExploreScreenState extends State<ExploreScreen> {
           _exploreNotifier.resetAllFilters(token: widget.authNotifier.token);
         },
       );
-    }
-
-    final itineraries = _exploreNotifier.itineraries;
-
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () => _exploreNotifier.fetchItineraries(
-        resetPage: true,
-        token: widget.authNotifier.token,
-      ),
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        itemCount:
-            itineraries.length + (_exploreNotifier.isLoadingMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == itineraries.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          final itinerary = itineraries[index];
-          return ItineraryCard(
-            itinerary: itinerary,
-            onFavoriteTap: _handleFavoriteTap,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ItineraryDetailScreen(
-                    itineraryId: itinerary.itineraryId,
-                    token: widget.authNotifier.token,
-                    notifier: widget.itineraryDetailNotifierFactory?.call(
-                      itinerary.itineraryId,
-                      widget.authNotifier.token,
+    } else {
+      final itineraries = _exploreNotifier.itineraries;
+      content = RefreshIndicator(
+        key: const ValueKey('explore_list'),
+        color: AppColors.primary,
+        onRefresh: () => _exploreNotifier.fetchItineraries(
+          resetPage: true,
+          token: widget.authNotifier.token,
+        ),
+        child: ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          itemCount:
+              itineraries.length + (_exploreNotifier.isLoadingMore ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == itineraries.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
                     ),
                   ),
                 ),
               );
-            },
-          );
-        },
-      ),
+            }
+
+            final itinerary = itineraries[index];
+            return ItineraryCard(
+              itinerary: itinerary,
+              onFavoriteTap: _handleFavoriteTap,
+              onTap: () async {
+                final result = await Navigator.of(context).push<dynamic>(
+                  MaterialPageRoute<dynamic>(
+                    builder: (_) => ItineraryDetailScreen(
+                      itineraryId: itinerary.itineraryId,
+                      token: widget.authNotifier.token,
+                      authNotifier: widget.authNotifier,
+                      notifier: widget.itineraryDetailNotifierFactory?.call(
+                        itinerary.itineraryId,
+                        widget.authNotifier.token,
+                      ),
+                    ),
+                  ),
+                );
+                if (result == true && mounted) {
+                  _exploreNotifier.fetchItineraries(
+                    resetPage: true,
+                    token: widget.authNotifier.token,
+                  );
+                }
+              },
+            );
+          },
+        ),
+      );
+    }
+
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeOutCubic,
+      child: content,
     );
   }
 }

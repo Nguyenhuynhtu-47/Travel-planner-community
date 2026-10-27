@@ -5,6 +5,7 @@ import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
 import 'features/explore/presentation/screens/explore_screen.dart';
+import 'features/itinerary/presentation/screens/my_itineraries_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
 
 void main() {
@@ -92,7 +93,14 @@ class PlaceholderHomeScreen extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: 'Tài khoản',
             onSelected: (value) {
-              if (value == 'profile') {
+              if (value == 'my_itineraries') {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        MyItinerariesScreen(authNotifier: authNotifier),
+                  ),
+                );
+              } else if (value == 'profile') {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => ProfileScreen(authNotifier: authNotifier),
@@ -108,6 +116,16 @@ class PlaceholderHomeScreen extends StatelessWidget {
                     Icon(Icons.person_outline),
                     SizedBox(width: 8),
                     Text('Hồ sơ'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'my_itineraries',
+                child: Row(
+                  children: [
+                    Icon(Icons.map_outlined),
+                    SizedBox(width: 8),
+                    Text('Lịch trình của tôi'),
                   ],
                 ),
               ),

@@ -11,21 +11,31 @@ class ItineraryDetailNotifier extends ChangeNotifier {
 
   ItinerarySummary? initialSummary;
   ItineraryDetail? itineraryDetail;
-  bool isLoading = false;
+  bool isLoading;
   String? errorMessage;
+  int? errorStatusCode;
 
   ItineraryDetailNotifier({
     required this.itineraryId,
     this.initialSummary,
+    ItineraryDetail? initialDetail,
     ItineraryRepository? repository,
-  }) : _repository = repository ?? ItineraryRepository();
+  }) : itineraryDetail = initialDetail,
+       isLoading = initialDetail == null,
+       _repository = repository ?? ItineraryRepository();
 
   bool get isSuccess => itineraryDetail != null;
   bool get isError => errorMessage != null && itineraryDetail == null;
+  bool get isNotFound => errorStatusCode == 404;
+  bool get isUnauthorized => errorStatusCode == 401 || errorStatusCode == 403;
+  bool get isNetworkError => errorStatusCode == 0;
 
   Future<void> loadDetail({String? token}) async {
     isLoading = true;
-    errorMessage = null;
+    if (itineraryDetail == null) {
+      errorMessage = null;
+      errorStatusCode = null;
+    }
     notifyListeners();
 
     try {
@@ -35,10 +45,18 @@ class ItineraryDetailNotifier extends ChangeNotifier {
       );
       itineraryDetail = detail;
       errorMessage = null;
+      errorStatusCode = null;
     } on ApiException catch (e) {
-      errorMessage = e.message;
+      if (itineraryDetail == null) {
+        errorMessage = e.message;
+        errorStatusCode = e.statusCode;
+      }
     } catch (_) {
-      errorMessage = 'Không thể tải chi tiết lịch trình. Vui lòng thử lại sau.';
+      if (itineraryDetail == null) {
+        errorMessage =
+            'Không thể tải chi tiết lịch trình. Vui lòng thử lại sau.';
+        errorStatusCode = null;
+      }
     } finally {
       isLoading = false;
       notifyListeners();

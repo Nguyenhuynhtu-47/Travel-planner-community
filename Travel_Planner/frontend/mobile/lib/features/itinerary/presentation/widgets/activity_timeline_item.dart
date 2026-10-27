@@ -6,11 +6,15 @@ import '../../data/models/activity_detail.dart';
 class ActivityTimelineItem extends StatelessWidget {
   final ActivityDetail activity;
   final bool isLast;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const ActivityTimelineItem({
     super.key,
     required this.activity,
     this.isLast = false,
+    this.onEdit,
+    this.onDelete,
   });
 
   String _formatCost(double cost) {
@@ -71,66 +75,128 @@ class ActivityTimelineItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Time & cost badge row
-                  Row(
-                    children: [
-                      if (timeFormatted != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceSoft,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.hairline),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                timeFormatted,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                  // Time & cost badge row & actions
+                  if (timeFormatted != null ||
+                      (activity.estimatedCost != null &&
+                          activity.estimatedCost! > 0) ||
+                      onEdit != null ||
+                      onDelete != null)
+                    Row(
+                      children: [
+                        if (timeFormatted != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceSoft,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.hairline),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  size: 12,
+                                  color: AppColors.textSecondary,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (activity.estimatedCost != null &&
-                          activity.estimatedCost! > 0) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFBBF7D0)),
-                          ),
-                          child: Text(
-                            _formatCost(activity.estimatedCost!),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.success,
+                                const SizedBox(width: 4),
+                                Text(
+                                  timeFormatted,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (activity.estimatedCost != null &&
+                            activity.estimatedCost! > 0) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0FDF4),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFFBBF7D0),
+                              ),
+                            ),
+                            child: Text(
+                              _formatCost(activity.estimatedCost!),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        if (onEdit != null || onDelete != null)
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: PopupMenuButton<String>(
+                              icon: const Icon(
+                                Icons.more_horiz,
+                                size: 18,
+                                color: AppColors.textSecondary,
+                              ),
+                              padding: EdgeInsets.zero,
+                              onSelected: (value) {
+                                if (value == 'edit' && onEdit != null) {
+                                  onEdit!();
+                                } else if (value == 'delete' &&
+                                    onDelete != null) {
+                                  onDelete!();
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                if (onEdit != null)
+                                  const PopupMenuItem<String>(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit_outlined, size: 16),
+                                        SizedBox(width: 8),
+                                        Text('Sửa hoạt động'),
+                                      ],
+                                    ),
+                                  ),
+                                if (onDelete != null)
+                                  const PopupMenuItem<String>(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete_outline,
+                                          size: 16,
+                                          color: AppColors.error,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Xóa hoạt động',
+                                          style: TextStyle(
+                                            color: AppColors.error,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                       ],
-                    ],
-                  ),
+                    ),
 
                   const SizedBox(height: 6),
 

@@ -103,7 +103,7 @@ class ApiClient {
 
   Future<dynamic> put(
     String path, {
-    required Map<String, dynamic> body,
+    required dynamic body,
     String? token,
   }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}$path');
@@ -115,6 +115,41 @@ class ApiClient {
     try {
       final response = await _client
           .put(uri, headers: headers, body: jsonEncode(body))
+          .timeout(_requestTimeout);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw _timeoutException();
+    } on SocketException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    }
+  }
+
+  Future<dynamic> delete(
+    String path, {
+    Map<String, dynamic>? body,
+    String? token,
+  }) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$path');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+    try {
+      final response = await _client
+          .delete(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
           .timeout(_requestTimeout);
       return _handleResponse(response);
     } on TimeoutException {

@@ -9,6 +9,8 @@ class ItinerarySummary {
   final int totalDays;
   final double budget;
   final String? theme;
+  final String? visibility;
+  final String? status;
   final int viewCount;
   final int favoriteCount;
   final int ratingCount;
@@ -25,6 +27,8 @@ class ItinerarySummary {
     required this.totalDays,
     required this.budget,
     this.theme,
+    this.visibility,
+    this.status,
     required this.viewCount,
     required this.favoriteCount,
     required this.ratingCount,
@@ -55,6 +59,8 @@ class ItinerarySummary {
           : 1,
       budget: rawBudget is num ? rawBudget.toDouble() : 0.0,
       theme: json['theme']?.toString(),
+      visibility: json['visibility']?.toString(),
+      status: json['status']?.toString(),
       viewCount: json['viewCount'] is num
           ? (json['viewCount'] as num).toInt()
           : 0,

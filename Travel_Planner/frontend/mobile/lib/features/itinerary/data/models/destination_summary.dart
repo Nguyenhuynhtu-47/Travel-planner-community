@@ -23,17 +23,17 @@ class DestinationSummary {
     return DestinationSummary(
       destinationId: json['destinationId'] is num
           ? (json['destinationId'] as num).toInt()
-          : 0,
+          : (int.tryParse(json['destinationId']?.toString() ?? '') ?? 0),
       name: json['name']?.toString() ?? '',
       address: json['address']?.toString(),
       description: json['description']?.toString(),
       category: json['category']?.toString(),
       latitude: json['latitude'] is num
           ? (json['latitude'] as num).toDouble()
-          : null,
+          : num.tryParse(json['latitude']?.toString() ?? '')?.toDouble(),
       longitude: json['longitude'] is num
           ? (json['longitude'] as num).toDouble()
-          : null,
+          : num.tryParse(json['longitude']?.toString() ?? '')?.toDouble(),
       imageUrl: json['imageUrl']?.toString(),
     );
   }

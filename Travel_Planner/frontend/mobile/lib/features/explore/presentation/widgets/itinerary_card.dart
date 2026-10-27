@@ -62,6 +62,22 @@ class ItineraryCard extends StatelessWidget {
                       ? Image.network(
                           itinerary.coverImage!.trim(),
                           fit: BoxFit.cover,
+                          frameBuilder:
+                              (context, child, frame, wasSynchronouslyLoaded) {
+                                if (wasSynchronouslyLoaded) return child;
+                                final disableMotion =
+                                    MediaQuery.maybeOf(context)
+                                        ?.disableAnimations ??
+                                    false;
+                                return AnimatedOpacity(
+                                  opacity: frame == null ? 0 : 1,
+                                  duration: disableMotion
+                                      ? Duration.zero
+                                      : const Duration(milliseconds: 200),
+                                  curve: Curves.easeOutCubic,
+                                  child: child,
+                                );
+                              },
                           errorBuilder: (context, error, stackTrace) =>
                               _buildImagePlaceholder(),
                           loadingBuilder: (context, child, loadingProgress) {
@@ -131,26 +147,7 @@ class ItineraryCard extends StatelessWidget {
                 Positioned(
                   top: 8,
                   right: 8,
-                  child: Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      onTap: onFavoriteTap,
-                      customBorder: const CircleBorder(),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withAlpha(50),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.favorite_border_rounded,
-                          size: 20,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: _FavoriteHeartButton(onTap: onFavoriteTap),
                 ),
               ],
             ),
@@ -338,6 +335,62 @@ class ItineraryCard extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: AppColors.muted),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoriteHeartButton extends StatefulWidget {
+  final VoidCallback? onTap;
+
+  const _FavoriteHeartButton({this.onTap});
+
+  @override
+  State<_FavoriteHeartButton> createState() => _FavoriteHeartButtonState();
+}
+
+class _FavoriteHeartButtonState extends State<_FavoriteHeartButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final disableMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: widget.onTap,
+        onTapDown: (_) {
+          if (!disableMotion) setState(() => _pressed = true);
+        },
+        onTapUp: (_) {
+          if (!disableMotion) setState(() => _pressed = false);
+        },
+        onTapCancel: () {
+          if (!disableMotion) setState(() => _pressed = false);
+        },
+        customBorder: const CircleBorder(),
+        child: AnimatedScale(
+          scale: _pressed ? 0.88 : 1.0,
+          duration: disableMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(50),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.favorite_border_rounded,
+              size: 20,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );

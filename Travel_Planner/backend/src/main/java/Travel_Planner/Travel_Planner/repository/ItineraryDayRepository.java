@@ -12,6 +12,12 @@ public interface ItineraryDayRepository extends JpaRepository<ItineraryDay, Inte
 
     java.util.Optional<ItineraryDay> findByItinerary_ItineraryIdAndDayNumber(Integer itineraryId, Integer dayNumber);
 
+    java.util.Optional<ItineraryDay> findByDayIdAndItinerary_ItineraryId(Integer dayId, Integer itineraryId);
+
     boolean existsByItinerary_ItineraryIdAndDayNumber(Integer itineraryId, Integer dayNumber);
+
+    long countByItinerary_ItineraryId(Integer itineraryId);
+
+    void deleteByItinerary_ItineraryId(Integer itineraryId);
 }
 
