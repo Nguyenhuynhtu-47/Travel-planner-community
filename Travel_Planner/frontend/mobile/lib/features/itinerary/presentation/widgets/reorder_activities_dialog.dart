@@ -16,10 +16,11 @@ Future<bool?> showReorderActivitiesDialog(
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
 }) {
-  return showDialog<bool>(
+  return showModalBottomSheet<bool>(
     context: context,
-    barrierDismissible: false,
-    builder: (ctx) => _ReorderActivitiesDialog(
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => _ReorderActivitiesBottomSheet(
       itineraryId: itineraryId,
       dayId: dayId,
       dayNumber: dayNumber,
@@ -30,7 +31,7 @@ Future<bool?> showReorderActivitiesDialog(
   );
 }
 
-class _ReorderActivitiesDialog extends StatefulWidget {
+class _ReorderActivitiesBottomSheet extends StatefulWidget {
   final int itineraryId;
   final int dayId;
   final int dayNumber;
@@ -38,7 +39,7 @@ class _ReorderActivitiesDialog extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository repository;
 
-  const _ReorderActivitiesDialog({
+  const _ReorderActivitiesBottomSheet({
     required this.itineraryId,
     required this.dayId,
     required this.dayNumber,
@@ -48,11 +49,12 @@ class _ReorderActivitiesDialog extends StatefulWidget {
   });
 
   @override
-  State<_ReorderActivitiesDialog> createState() =>
-      _ReorderActivitiesDialogState();
+  State<_ReorderActivitiesBottomSheet> createState() =>
+      _ReorderActivitiesBottomSheetState();
 }
 
-class _ReorderActivitiesDialogState extends State<_ReorderActivitiesDialog> {
+class _ReorderActivitiesBottomSheetState
+    extends State<_ReorderActivitiesBottomSheet> {
   late List<ActivityDetail> _items;
   bool _isSaving = false;
 
@@ -126,20 +128,45 @@ class _ReorderActivitiesDialogState extends State<_ReorderActivitiesDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: AppColors.surface,
-      surfaceTintColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
+    final mediaQuery = MediaQuery.of(context);
+    final maxHeight = mediaQuery.size.height * 0.75;
+
+    return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1E000000),
+            blurRadius: 16,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle pill
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.hairline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
+              child: Row(
                 children: [
                   Container(
                     width: 36,
@@ -177,74 +204,84 @@ class _ReorderActivitiesDialogState extends State<_ReorderActivitiesDialog> {
                       ],
                     ),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.muted),
+                    onPressed: _isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
+            ),
+            const Divider(height: 1, color: AppColors.hairline),
 
-              // Reorderable list
-              Flexible(
-                child: ReorderableListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _items.length,
-                  // ignore: deprecated_member_use
-                  onReorder: _isSaving ? (oldIndex, newIndex) {} : _onReorder,
-                  itemBuilder: (context, index) {
-                    final activity = _items[index];
-                    return Container(
-                      key: ValueKey(activity.activityId),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceSoft,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.hairline),
-                      ),
-                      child: ListTile(
-                        dense: true,
-                        leading: CircleAvatar(
-                          radius: 12,
-                          backgroundColor: AppColors.primary,
-                          child: Text(
-                            '${index + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          activity.name,
+            // Reorderable list
+            Flexible(
+              child: ReorderableListView.builder(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                shrinkWrap: true,
+                itemCount: _items.length,
+                // ignore: deprecated_member_use
+                onReorder: _isSaving ? (oldIndex, newIndex) {} : _onReorder,
+                itemBuilder: (context, index) {
+                  final activity = _items[index];
+                  return Container(
+                    key: ValueKey(activity.activityId),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceSoft,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.hairline),
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 12,
+                        backgroundColor: AppColors.primary,
+                        child: Text(
+                          '${index + 1}',
                           style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: activity.timeRangeFormatted != null
-                            ? Text(
-                                activity.timeRangeFormatted!,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
-                                ),
-                              )
-                            : null,
-                        trailing: const Icon(
-                          Icons.drag_handle_rounded,
-                          color: AppColors.muted,
                         ),
                       ),
-                    );
-                  },
-                ),
+                      title: Text(
+                        activity.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: activity.timeRangeFormatted != null
+                          ? Text(
+                              activity.timeRangeFormatted!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            )
+                          : null,
+                      trailing: const Icon(
+                        Icons.drag_handle_rounded,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                  );
+                },
               ),
+            ),
 
-              const SizedBox(height: 16),
+            const Divider(height: 1, color: AppColors.hairline),
 
-              // Actions
-              Row(
+            // Actions
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
@@ -287,8 +324,8 @@ class _ReorderActivitiesDialogState extends State<_ReorderActivitiesDialog> {
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -247,6 +247,8 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
                                 MaterialPageRoute<dynamic>(
                                   builder: (_) => ItineraryDetailScreen(
                                     itineraryId: item.itineraryId,
+                                    initialSummary: item,
+                                    isOwner: true,
                                     token: widget.authNotifier.token,
                                     authNotifier: widget.authNotifier,
                                     crudRepository: _repository,

@@ -563,6 +563,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   MaterialPageRoute<dynamic>(
                     builder: (_) => ItineraryDetailScreen(
                       itineraryId: itinerary.itineraryId,
+                      initialSummary: itinerary,
                       token: widget.authNotifier.token,
                       authNotifier: widget.authNotifier,
                       notifier: widget.itineraryDetailNotifierFactory?.call(
