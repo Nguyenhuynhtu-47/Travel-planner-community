@@ -1556,6 +1556,252 @@ Implemented an idempotent, non-destructive development seed data generator (`Dat
 - Route transitions: Retained platform-adaptive page transitions (`MaterialPageRoute`) rather than custom routing transitions to preserve standard OS navigation expectations.
 - Real hardware observation: Verification was conducted via the automated Flutter widget testing harness and simulated animation tickers; physical on-device observation remains dependent on device availability.
 
+---
+
+## 33. Session Entry: Fix Itinerary Visibility UI Dimensions and Newly Created Itinerary Detail Flow (2026-10-27)
+
+### 33.1. Context and Objective
+Resolved two defects in the Travel Planner mobile application (`frontend/mobile`):
+1. **Bug 1 — Inconsistent visibility option sizes:** On the itinerary creation screen (`CreateItineraryScreen`) and edit screen (`EditItineraryScreen`), the "Private" (`Riêng tư`) and "Public" (`Công khai`) option cards rendered with unequal heights due to varying text lengths and line wraps across standard mobile viewports (e.g., 360–390dp).
+2. **Bug 2 — Newly created itinerary detail initialization and day/activity management:** Following successful itinerary creation, opening the detail screen displayed empty or unhelpful content, occasionally showing a premature "not found" state before data resolution, and owner day/activity management actions were inaccessible. Investigated and fixed the complete workflow: `Create Itinerary → API Response → Navigation → Detail Initialization → Load Days → Manage Activities`.
+
+### 33.2. Confirmed Root Causes
+1. **Bug 1 Root Cause:**
+   - In `CreateItineraryScreen` and `EditItineraryScreen`, visibility options were placed in a horizontal `Row` without cross-axis stretching constraints, and each option's inner `Container` wrapped intrinsic text content.
+   - The Vietnamese subtitle for the Public option ("Mọi người đều xem được", 24 chars) wrapped into two lines on narrower screens, while the Private option subtitle ("Chỉ bạn xem được", 17 chars) fit on a single line, causing noticeable height asymmetry between the two cards.
+2. **Bug 2 Root Cause:**
+   - **Response Discard:** `CreateItineraryScreen._submit()` received the complete `ItineraryDetail` response object (`created`) from `POST /api/itineraries`, but discarded it upon navigating, passing only `itineraryId: created.itineraryId` to `ItineraryDetailScreen`.
+   - **Premature Not-Found State:** `ItineraryDetailNotifier` initialized with `itineraryDetail = null` and `isLoading = false`. Before `loadDetail()` executed in the post-frame callback, `ItineraryDetailScreen._buildBody()` fell into the fallback `else if (itinerary == null)`, briefly flashing the "Không tìm thấy lịch trình" (Not Found) empty state.
+   - **Disconnected Repositories & API Client:** `ItineraryDetailNotifier` created an independent `ItineraryRepository` with a default `ApiClient`, separating it from the `ApiClient` (and mock handlers) passed to `ItineraryCrudRepository`.
+   - **Sliver Layout Constraint Failure on Empty Days:** When an itinerary had no days, `SliverFillRemaining(hasScrollBody: false)` inside `CustomScrollView` (following a large multi-line header) threw a `RenderBox was not laid out` layout constraint exception in scrollable contexts.
+   - **Owner Permission Verification:** Day and activity management controls require `authNotifier.currentUser` to match the itinerary creator username (`currentUsername == creator.username`). Without passing `initialDetail` and authenticated user context, the screen could not immediately determine ownership.
+
+### 33.3. Implemented Fixes
+1. **Visibility Option Consistency (`CreateItineraryScreen` & `EditItineraryScreen`):**
+   - Wrapped the visibility options `Row` in an `IntrinsicHeight` widget with `crossAxisAlignment: CrossAxisAlignment.stretch`.
+   - Set inner card containers to `height: double.infinity` with `Row(crossAxisAlignment: CrossAxisAlignment.center)` and `Column(mainAxisAlignment: MainAxisAlignment.center)` to ensure identical widths and heights regardless of subtitle line wrapping.
+   - Constrained subtitles with `maxLines: 2, overflow: TextOverflow.ellipsis` to guarantee stable typography across all mobile screen densities.
+2. **Detail Screen Initialization & State Differentiation (`ItineraryDetailNotifier` & `ItineraryDetailScreen`):**
+   - Added `initialDetail` parameter to `ItineraryDetailNotifier` constructor, pre-populating `itineraryDetail = initialDetail` and setting `isLoading = initialDetail == null`.
+   - Passed `initialDetail: created` from `CreateItineraryScreen._submit()` into `ItineraryDetailScreen`, enabling immediate render of the newly created itinerary without empty-state flashing.
+   - Exposed `ApiClient get apiClient => _apiClient;` on `ItineraryCrudRepository` and wired it into `ItineraryDetailNotifier`'s `ItineraryRepository`, unifying network client configurations and test mocks.
+   - Differentiated states in `_buildBody`: populated content (`itinerary != null`), loading indicator (`isLoading`), unauthorized (`isUnauthorized` / 401/403 with lock icon), not found (`isNotFound` / 404 with luggage icon), network error (`isNetworkError` / 0 with retry), and general server error with retry.
+   - Replaced `SliverFillRemaining(hasScrollBody: false)` for empty days with a `SliverToBoxAdapter` containing padded `AppEmptyState`, eliminating layout constraint exceptions while displaying clear "Thêm ngày đầu tiên" and "Thêm ngày" call-to-actions.
+   - Wrapped the detail view `CustomScrollView` in a `RefreshIndicator` with `AlwaysScrollableScrollPhysics` so owners can pull to refresh and re-fetch the latest state from the backend.
+   - Retained full access to day and activity management: owner can add days, add activities per day, edit/delete days, and edit/delete/reorder activities with persistent backend updates.
+
+### 33.4. Files Modified & Created
+- `frontend/mobile/lib/features/itinerary/presentation/screens/create_itinerary_screen.dart` (symmetric visibility cards, pass `initialDetail` on navigation)
+- `frontend/mobile/lib/features/itinerary/presentation/screens/edit_itinerary_screen.dart` (symmetric visibility cards)
+- `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart` (support `initialDetail`, state differentiation, layout safety, RefreshIndicator)
+- `frontend/mobile/lib/features/itinerary/presentation/itinerary_detail_notifier.dart` (accept `initialDetail`, track `errorStatusCode` & status getters)
+- `frontend/mobile/lib/features/itinerary/data/itinerary_crud_repository.dart` (expose `apiClient` getter)
+- `frontend/mobile/test/create_itinerary_test.dart` (added visibility card dimension tests, end-to-end creation to detail navigation and day-management tests)
+- `docs/ai/09-development-log.md` (appended Session 33 entry)
+
+### 33.5. Verification & Test Results
+- **Automated Tests:**
+  - `flutter test test/create_itinerary_test.dart`: 11 / 11 tests passed (0 failures, 0 errors).
+    - Verified `Riêng tư` and `Công khai` have identical widths and heights across 390x844 and 360x640 mobile viewports.
+    - Verified navigation from creation form to detail screen immediately displays detail title, days, and owner "Thêm hoạt động đầu tiên" / "Thêm ngày" actions with 0 false "not found" states.
+  - Full mobile test suite `flutter test`: 111 / 111 tests passed across all 11 test suites (0 failures, 0 errors).
+  - Web test suite `flutter test` (`frontend/web`): 15 / 15 tests passed (0 failures, 0 errors).
+- **Static Analysis & Formatting:**
+  - `flutter analyze` in `frontend/mobile`: 0 issues found (clean).
+  - `flutter analyze` in `frontend/web`: 0 issues found (clean).
+  - `dart format`: all modified files formatted cleanly according to project conventions.
+- **Scope Integrity:** Backend code unchanged; existing REST endpoints reused; no external dependencies added.
+
+### 33.6. Manual Verification & Remaining Checks
+- ADB device `RFCW8105T0H` was detected as attached with `adb reverse tcp:8080 tcp:8080` active.
+- Manual device checklist to perform when running live app against running backend:
+  1. Log in as test user.
+  2. Open "Tạo lịch trình mới" and visually verify "Riêng tư" and "Công khai" cards have identical dimensions.
+  3. Create an itinerary; confirm immediate navigation into detail view showing itinerary overview and day/activity management controls without a temporary "Không tìm thấy" error.
+  4. Tap "Thêm ngày" / "Thêm hoạt động", verify item creation and persistence upon pull-to-refresh or reopening from "Lịch trình của tôi".
+  5. Log in as a different user and confirm edit/delete/day-management controls are hidden for non-owners.
+
+---
+
+## 34. Session Entry: Investigation and Resolution of Blank Itinerary Detail Screen on Android (2026-10-27)
+
+### 34.1. Observed Runtime Problem
+- On the physical Android device (`RFCW8105T0H`), opening "Chi tiết lịch trình" (Itinerary Detail Screen) rendered:
+  - App bar with back button.
+  - Screen title "Chi tiết lịch trình".
+  - Edit and Delete action buttons (if owner).
+  - A completely blank white content area below the app bar.
+- No itinerary information, overview hero, day sections, activity cards, loading indicator, empty state, or error message was displayed.
+
+### 34.2. Verified Root Cause Analysis
+1. **Broken Custom Layout in AnimatedSwitcher:**
+   - In `itinerary_detail_screen.dart`, `_buildBody()` previously wrapped the state-conditional widget hierarchy in an `AnimatedSwitcher` using an overridden `layoutBuilder`:
+     ```dart
+     layoutBuilder: (currentChild, previousChildren) {
+       return Stack(
+         fit: StackFit.expand,
+         children: <Widget>[...previousChildren, ?currentChild],
+       );
+     }
+     ```
+   - In Flutter's `AnimatedSwitcherState.build()`, the SDK generates incoming animated children by prepending `_currentChild?.transition` at index 0, followed by entries in `_previousChildren`.
+   - By appending `?currentChild` at the end of the stack, `currentChild` was introduced twice into the layout tree under `Stack(fit: StackFit.expand)`.
+2. **Opacity-Zero Lock and Stalled Transition:**
+   - `AnimatedSwitcher` automatically wraps incoming children in a `FadeTransition` starting at `opacity: 0.0`.
+   - On physical Android hardware, if system animations are reduced or if rapid state transitions occur (e.g. from `detail_loading` to `detail_content`), the `FadeTransition` either stalled or rendered unpainted behind duplicate stack children.
+   - Because the scaffold background color is pure white (`AppColors.background` = `0xFFFFFFFF`), an unpainted or zero-opacity child caused the entire body area below the app bar to appear completely blank white.
+3. **Why Unit/Widget Tests Did Not Catch It:**
+   - Flutter's standard `find.text(...)` searches widget and element trees regardless of render layer opacity (`RenderAnimatedOpacity.opacity == 0.0`) or visual obstruction by sibling widgets in a `Stack`.
+   - The elements existed in the tree, so widget tests passed while physical devices displayed a solid white screen.
+
+### 34.3. Implemented Fixes
+1. **Removed `AnimatedSwitcher` from `_buildBody` in `itinerary_detail_screen.dart`:**
+   - Switched to direct, deterministic conditional rendering:
+     - `itinerary != null` -> immediately returns `_buildContent(itinerary, isOwner)` wrapped in `RefreshIndicator` and `CustomScrollView`.
+     - `isLoading` -> `Center(child: CircularProgressIndicator(color: AppColors.primary))`.
+     - `isUnauthorized` -> `AppEmptyState(icon: Icons.lock_outline, ...)`.
+     - `isNotFound` -> `AppEmptyState(icon: Icons.luggage_outlined, ...)`.
+     - `isNetworkError` -> `AppErrorState(icon/title/retry)`.
+     - `errorMessage != null` -> `AppErrorState(title/retry)`.
+     - Fallback -> `Center(child: CircularProgressIndicator(...))`.
+   - Eliminates duplicate children in expanding stack, removes zero-opacity fade traps, and guarantees immediate, visible rendering across all Android device display densities and animation settings.
+2. **Deterministic Async Testing in `itinerary_detail_test.dart`:**
+   - Replaced immediate mock client response with `Completer<http.Response>()` to deterministically verify that the loading indicator is displayed while the network request is in flight.
+   - Added test verifying that itineraries with 0 days render the empty state ("Chưa có lịch trình theo ngày") and the "Thêm ngày đầu tiên" action button.
+   - Added test verifying that non-owners viewing an itinerary do not see owner actions (Edit, Delete, Add Day).
+   - Verified that `CustomScrollView` render object size has non-zero width and height.
+
+### 34.4. Files Modified
+- `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`
+- `frontend/mobile/test/itinerary_detail_test.dart`
+- `docs/ai/09-development-log.md`
+
+### 34.5. Verification & Test Results
+- **Automated Tests:**
+  - `flutter test test/itinerary_detail_test.dart`: 7 / 7 passed (100%).
+  - Full mobile test suite `flutter test`: 115 / 115 tests passed across all 14 test suites (0 failures, 0 errors).
+- **Static Analysis & Formatting:**
+  - `flutter analyze` in `frontend/mobile`: 0 issues found (clean, no warnings).
+- **Physical Device Status:**
+  - Checked `adb devices`: no physical devices currently attached in the active environment.
+  - Provided exact reproduction/verification steps and ADB reverse configuration for physical device validation once connected.
+
+---
+
+## 35. Session Entry: Critical End-to-End Investigation & Resolution: Newly Created Itinerary Detail Display (2026-10-27)
+
+### 35.1. Persistent Symptom
+- Existing sample itineraries (seeded in DB) correctly displayed their detail screens when opened from the Explore screen.
+- When creating a brand-new itinerary with minimum required fields (title, location, totalDays, budget; without description, theme, cover image, or activities):
+  - On physical Android devices, opening the detail screen failed to render a complete, customized overview.
+  - Optional metadata (visibility badge, theme) was completely omitted from the metadata row.
+  - When description was omitted or null, no placeholder or text was rendered, causing the hero overview to look truncated or empty.
+  - Residual custom `layoutBuilder` inside `AnimatedSwitcher` in `explore_screen.dart` used `Stack(fit: StackFit.expand)` with duplicate children, triggering `RenderBox was not laid out` layout exceptions during navigation and tab switches.
+
+### 35.2. Mandatory Comparative Trace: Flow A (Sample) vs. Flow B (Newly Created)
+
+| Step / Attribute | Flow A: Sample Itinerary | Flow B: Newly Created Itinerary | Divergence Point |
+| :--- | :--- | :--- | :--- |
+| **Navigation Entry Point** | `ExploreScreen` `onTap` | `CreateItineraryScreen._submit()` | Divergence in caller context & route args |
+| **Route Arguments** | `itineraryId`, `token`, `authNotifier`, `notifier` factory | `itineraryId`, `initialDetail: created`, `token`, `authNotifier`, `crudRepository` | Flow B supplies `initialDetail`; Flow A starts with `initialDetail == null` |
+| **API Endpoint & Method** | `GET /api/itineraries/{id}` | `POST /api/itineraries` followed by `GET /api/itineraries/{id}` | Creation uses POST; detail uses GET |
+| **HTTP Status & Payload** | HTTP 200 with full populated fields | HTTP 201 Created returning `ItineraryDetailResponse` | Both return valid DTOs |
+| **Visibility** | `PUBLIC` (unrestricted access) | `PRIVATE` (default; strict owner authorization required) | **First critical divergence:** `GET /api/itineraries/{id}` requires valid Bearer token matching creator for private itineraries |
+| **Cover Image & Description** | Valid Unsplash URL + rich description | `coverImage: null`, `description: null`, `theme: null` | **Second critical divergence:** Flow A renders image & description text; Flow B had no placeholder for null description |
+| **Days & Activities** | Multi-day schedule with pre-populated activities | 1..N days created with `activities: []` (0 activities per day) | **Third critical divergence:** Flow B days have 0 activities; must display empty activity call-to-action |
+| **Ownership Check** | User is not owner (viewer mode) | User is owner (`currentUser['username'] == creator.username`) | Flow B must render owner controls (Edit, Delete, Add Day, Add Activity) |
+| **Layout & Switching** | Loaded into `CustomScrollView` | Transitioned from `CreateItineraryScreen` | Flow B triggered layout exceptions if `explore_screen.dart` or switcher had stack duplication |
+
+### 35.3. Actual Root Causes Identified
+1. **Missing Description Placeholder:** `ItineraryDetailScreen._buildOverview` checked `if (itinerary.description != null && itinerary.description!.trim().isNotEmpty)`. When a user created an itinerary without a description, this block rendered nothing at all, violating Section 6 ("Description or an appropriate empty placeholder").
+2. **Missing Visibility & Theme Metadata:** Basic metadata row displayed only location, totalDays, and rating. It omitted the visibility indicator ("Riêng tư" / "Công khai") and theme tag, violating Section 6 requirements.
+3. **Owner Username Comparison Fragility:** `isOwner` checked `currentUsername == itinerary!.creator!.username` using exact case-sensitive matching without whitespace trimming. In environments where usernames vary in casing (e.g. `Traveler` vs `traveler`), owner controls were falsely hidden.
+4. **Residual `AnimatedSwitcher` Layout Exception in `explore_screen.dart`:** `explore_screen.dart` still had the custom `layoutBuilder: (currentChild, previousChildren) => Stack(fit: StackFit.expand, children: [...previousChildren, ?currentChild])`. This duplicated `currentChild` in an expanding stack, throwing `RenderBox was not laid out` during navigation between Explore and Itinerary screens on Android devices.
+
+### 35.4. Files Changed & Why
+- `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`:
+  - Added visibility metadata item (`Riêng tư` with `Icons.lock_outline` or `Công khai` with `Icons.public`) and optional `theme` badge to the overview metadata row.
+  - Added an italicized placeholder text (`Chưa có mô tả cho lịch trình này.`) in `AppColors.textSecondary` when `itinerary.description` is null or whitespace.
+  - Made `isOwner` username comparison trimmed and case-insensitive (`currentUsername.toLowerCase() == creator.username.toLowerCase()`).
+- `frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`:
+  - Removed the broken custom `layoutBuilder` with duplicate `?currentChild` and `StackFit.expand`, reverting to standard `AnimatedSwitcher` behavior and eliminating `RenderBox was not laid out` exceptions.
+- `frontend/mobile/test/itinerary_detail_test.dart`:
+  - Added regression test: `newly created private itinerary with null description and 0 days renders title, visibility badge, description placeholder, and owner empty state`.
+  - Added regression test: `public sample itinerary with theme displays public visibility and theme tag`.
+- `docs/ai/09-development-log.md`:
+  - Recorded comparative analysis, divergence points, root causes, test results, and device status.
+
+### 35.5. Commands & Test Results
+- **Spring Boot Backend Test Suite (`backend/`):**
+  - Command: `.\mvnw.cmd test`
+  - Result: **67 / 67 tests passed (BUILD SUCCESS)**.
+- **Targeted Mobile Tests (`frontend/mobile/`):**
+  - Command: `flutter test test/itinerary_detail_test.dart test/create_itinerary_test.dart`
+  - Result: **20 / 20 tests passed (100%)**.
+- **Full Mobile Test Suite (`frontend/mobile/`):**
+  - Command: `flutter test`
+  - Result: **117 / 117 tests passed (100% across all 14 test suites)**.
+- **Static Analysis (`frontend/mobile/`):**
+  - Command: `flutter analyze`
+  - Result: **No issues found! (0 errors, 0 warnings)**.
+
+### 35.6. Physical Device Verification Status
+- ADB query `adb devices` was executed: device list is currently empty (physical device disconnected).
+- Physical-device verification remains **pending** until the Android device is re-attached and authorized via ADB.
+- Verification procedure once device is connected:
+  1. Confirm device via `adb devices`.
+  2. Set up port reverse: `adb reverse tcp:8080 tcp:8080`.
+  3. Launch app: `flutter run -d <device_id>`.
+  4. Log in, tap "Tạo lịch trình", fill only mandatory fields (title, location, totalDays, budget), leave description and cover image blank, tap "Tạo lịch trình".
+  5. Verify detail screen opens immediately showing title, location, duration, "Riêng tư" badge, description placeholder, budget, and days section with "Thêm hoạt động đầu tiên" / "Thêm ngày đầu tiên".
+
+---
+
+## 36. Session Entry: Resolution of Blank / Incomplete Detail Screen for Newly Created Itineraries (2026-10-27)
+
+### 36.1. Problem Statement
+- Opening newly created itineraries (e.g. test itinerary `282` with title `"neww"`, location `"đà lạt"`, 3 total days, budget `3,000,000 VND`, theme `"Văn hóa"`, visibility `"PUBLIC"`, creator `userId: 577`, 3 days with `activities: []`, and legitimate nullables: `description`, `coverImage`, `creator.avatar`, and day `date`) resulted in a blank or incomplete detail screen while sample seeded itineraries displayed.
+
+### 36.2. Verified Root Causes
+1. **Brittle Type Assumptions in JSON Deserialization:**
+   - In `ItineraryDetail.fromJson`, `ItineraryDayDetail.fromJson`, and `ActivityDetail.fromJson`, nested list iteration and map checks performed `item is Map<String, dynamic>` and `rawBudget is num`.
+   - When parsed from runtime HTTP client responses or wrapped maps, collections and nested objects often evaluate to generic `Map` (`_InternalLinkedHashMap<dynamic, dynamic>`), causing `days` or `creator` to be silently skipped or dropped into empty lists / null values.
+   - String-represented numeric values (e.g. Jackson's default serialization of `BigDecimal` or numeric strings) failed `is num` checks, defaulting budgets or IDs to 0.
+2. **Fragile Ownership Identification:**
+   - In `ItineraryDetailScreen`, `isOwner` matched solely on case-insensitive `username`. When the creator summary only returned numeric `userId` or partial credentials, `isOwner` evaluated to `false`, omitting owner management buttons and controls.
+3. **Day Header Redundancy & Empty Activity State Rendering:**
+   - In `ItineraryDayCard`, `day.title` default value from backend (`"Ngày " + i`) duplicated the badge label `"Ngày 1"`, and missing title checks needed clean omission to prevent empty/duplicate labels.
+   - Guarded day card rendering so an empty `activities: []` list displays the designated empty message and the "Thêm hoạt động đầu tiên" action without collapsing the day card or the `CustomScrollView` content area.
+
+### 36.3. Implementation Details
+1. **Model Resiliency (`itinerary_detail.dart`, `itinerary_day_detail.dart`, `activity_detail.dart`, `destination_summary.dart`, `creator_summary.dart`):**
+   - Updated nested deserialization to check `item is Map` and transform via `Map<String, dynamic>.from(item as Map)`.
+   - Added `int.tryParse` and `num.tryParse` fallbacks for all numeric fields (`itineraryId`, `totalDays`, `budget`, `viewCount`, `favoriteCount`, `ratingCount`, `averageRating`, `dayId`, `dayNumber`, `activityId`, `estimatedCost`, `userId`).
+2. **Dual-Criteria Ownership Matching (`itinerary_detail_screen.dart`):**
+   - Updated `isOwner` to verify either matching `userId` (`currentUserId == creatorUserId`) or case-insensitive matching `username`.
+   - Added fallback for creator display label when username is anonymous (`Tạo bởi Người dùng #<userId>`).
+   - Guarded app bar edit/delete actions with `isOwner && itinerary != null` for type promotion safety.
+3. **Day Title Normalization (`itinerary_day_card.dart`):**
+   - Omitted title display in `Expanded` when `day.title` is null, whitespace, or identical to `'Ngày ${day.dayNumber}'`, showing custom titles only when explicitly provided.
+4. **Comprehensive Integration & Regression Tests (`itinerary_detail_test.dart`):**
+   - Added regression test `newly created itinerary with 3 days, empty activities, and nullable fields renders detail completely without blanking or crashing` with itinerary 282 structure.
+   - Added test `ItineraryDetail.fromJson handles generic Map, string numbers, and nullables`.
+
+### 36.4. Verification & Test Results
+- **Targeted Mobile Tests:**
+  - Command: `flutter test test/itinerary_detail_test.dart`
+  - Result: **11 / 11 tests passed (100%)**.
+- **Full Mobile Test Suite:**
+  - Command: `flutter test`
+  - Result: **119 / 119 tests passed (100% across all test suites)**.
+- **Static Analysis:**
+  - Command: `flutter analyze`
+  - Result: **No issues found! (0 errors, 0 warnings)**.
+- **Code Formatting:**
+  - Command: `dart format`
+  - Result: All modified files formatted cleanly according to style guidelines.
+
+
 
 
 
