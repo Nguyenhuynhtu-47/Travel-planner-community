@@ -126,7 +126,9 @@ class ActivityTimelineItem extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: const Color(0xFFF0FDF4),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFBBF7D0)),
+                              border: Border.all(
+                                color: const Color(0xFFBBF7D0),
+                              ),
                             ),
                             child: Text(
                               _formatCost(activity.estimatedCost!),
@@ -153,7 +155,8 @@ class ActivityTimelineItem extends StatelessWidget {
                               onSelected: (value) {
                                 if (value == 'edit' && onEdit != null) {
                                   onEdit!();
-                                } else if (value == 'delete' && onDelete != null) {
+                                } else if (value == 'delete' &&
+                                    onDelete != null) {
                                   onDelete!();
                                 }
                               },
@@ -182,7 +185,9 @@ class ActivityTimelineItem extends StatelessWidget {
                                         SizedBox(width: 8),
                                         Text(
                                           'Xóa hoạt động',
-                                          style: TextStyle(color: AppColors.error),
+                                          style: TextStyle(
+                                            color: AppColors.error,
+                                          ),
                                         ),
                                       ],
                                     ),

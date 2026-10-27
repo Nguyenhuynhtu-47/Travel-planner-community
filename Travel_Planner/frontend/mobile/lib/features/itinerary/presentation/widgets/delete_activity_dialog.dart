@@ -56,7 +56,8 @@ Future<bool?> showDeleteActivityConfirmationDialog(
               ),
             ),
             const TextSpan(
-              text: ' không?\n\n'
+              text:
+                  ' không?\n\n'
                   'Hành động này không thể hoàn tác. Các hoạt động tiếp theo trong ngày sẽ tự động được đánh số lại thứ tự.',
             ),
           ],

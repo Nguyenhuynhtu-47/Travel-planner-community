@@ -408,29 +408,32 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
               ),
               const SizedBox(height: 8),
 
-              Row(
-                children: [
-                  // Private option
-                  Expanded(
-                    child: _buildVisibilityOption(
-                      title: 'Riêng tư',
-                      subtitle: 'Chỉ bạn xem được',
-                      icon: Icons.lock_outline,
-                      value: 'PRIVATE',
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Private option
+                    Expanded(
+                      child: _buildVisibilityOption(
+                        title: 'Riêng tư',
+                        subtitle: 'Chỉ bạn xem được',
+                        icon: Icons.lock_outline,
+                        value: 'PRIVATE',
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 12),
 
-                  // Public option
-                  Expanded(
-                    child: _buildVisibilityOption(
-                      title: 'Công khai',
-                      subtitle: 'Mọi người đều xem được',
-                      icon: Icons.public,
-                      value: 'PUBLIC',
+                    // Public option
+                    Expanded(
+                      child: _buildVisibilityOption(
+                        title: 'Công khai',
+                        subtitle: 'Mọi người đều xem được',
+                        icon: Icons.public,
+                        value: 'PUBLIC',
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 28),
 
@@ -459,6 +462,7 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
       onTap: () => setState(() => _visibility = value),
       borderRadius: BorderRadius.circular(12),
       child: Container(
+        height: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
@@ -471,6 +475,7 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
           ),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               icon,
@@ -480,6 +485,7 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -499,6 +505,8 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

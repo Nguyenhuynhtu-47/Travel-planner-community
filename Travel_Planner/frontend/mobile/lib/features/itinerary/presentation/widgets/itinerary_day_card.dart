@@ -77,7 +77,10 @@ class ItineraryDayCard extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Text(
-                      (day.title != null && day.title!.trim().isNotEmpty)
+                      (day.title != null &&
+                              day.title!.trim().isNotEmpty &&
+                              day.title!.trim().toLowerCase() !=
+                                  'ngày ${day.dayNumber}'.toLowerCase())
                           ? day.title!.trim()
                           : '',
                       style: const TextStyle(

@@ -86,7 +86,9 @@ class _DayFormDialogState extends State<DayFormDialog> {
       initialDate: initialDate,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      helpText: widget.isEditing ? 'Chọn ngày diễn ra' : 'Chọn ngày cho lịch trình',
+      helpText: widget.isEditing
+          ? 'Chọn ngày diễn ra'
+          : 'Chọn ngày cho lịch trình',
     );
 
     if (picked != null) {

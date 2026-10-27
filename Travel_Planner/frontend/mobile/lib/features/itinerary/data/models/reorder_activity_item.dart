@@ -8,9 +8,6 @@ class ReorderActivityItem {
   });
 
   Map<String, dynamic> toJson() {
-    return {
-      'activityId': activityId,
-      'displayOrder': displayOrder,
-    };
+    return {'activityId': activityId, 'displayOrder': displayOrder};
   }
 }

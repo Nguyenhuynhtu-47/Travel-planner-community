@@ -242,17 +242,17 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
                       return MyItineraryCard(
                         itinerary: item,
                         onTap: () async {
-                          final result =
-                              await Navigator.of(context).push<dynamic>(
-                            MaterialPageRoute<dynamic>(
-                              builder: (_) => ItineraryDetailScreen(
-                                itineraryId: item.itineraryId,
-                                token: widget.authNotifier.token,
-                                authNotifier: widget.authNotifier,
-                                crudRepository: _repository,
-                              ),
-                            ),
-                          );
+                          final result = await Navigator.of(context)
+                              .push<dynamic>(
+                                MaterialPageRoute<dynamic>(
+                                  builder: (_) => ItineraryDetailScreen(
+                                    itineraryId: item.itineraryId,
+                                    token: widget.authNotifier.token,
+                                    authNotifier: widget.authNotifier,
+                                    crudRepository: _repository,
+                                  ),
+                                ),
+                              );
                           if (result == true && mounted) {
                             _notifier.refresh(token: widget.authNotifier.token);
                           }

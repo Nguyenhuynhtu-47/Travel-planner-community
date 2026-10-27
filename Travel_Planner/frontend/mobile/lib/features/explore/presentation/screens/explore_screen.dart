@@ -589,12 +589,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
       duration: duration,
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeOutCubic,
-      layoutBuilder: (currentChild, previousChildren) {
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[...previousChildren, ?currentChild],
-        );
-      },
       child: content,
     );
   }

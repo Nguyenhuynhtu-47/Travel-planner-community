@@ -79,7 +79,8 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
       text: widget.initialActivity?.description ?? '',
     );
     _costController = TextEditingController(
-      text: widget.initialActivity?.estimatedCost != null &&
+      text:
+          widget.initialActivity?.estimatedCost != null &&
               widget.initialActivity!.estimatedCost! > 0
           ? widget.initialActivity!.estimatedCost!.toInt().toString()
           : '',
@@ -137,9 +138,14 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
   Future<void> _pickEndTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: _endTime ?? (_startTime != null
-          ? TimeOfDay(hour: (_startTime!.hour + 1) % 24, minute: _startTime!.minute)
-          : const TimeOfDay(hour: 9, minute: 30)),
+      initialTime:
+          _endTime ??
+          (_startTime != null
+              ? TimeOfDay(
+                  hour: (_startTime!.hour + 1) % 24,
+                  minute: _startTime!.minute,
+                )
+              : const TimeOfDay(hour: 9, minute: 30)),
     );
     if (picked != null) {
       setState(() {
@@ -184,7 +190,9 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
     final name = _nameController.text.trim();
     final description = _descriptionController.text.trim();
     final rawCost = double.tryParse(_costController.text.trim());
-    final startTimeStr = _startTime != null ? _formatTimeOfDay(_startTime!) : null;
+    final startTimeStr = _startTime != null
+        ? _formatTimeOfDay(_startTime!)
+        : null;
     final endTimeStr = _endTime != null ? _formatTimeOfDay(_endTime!) : null;
 
     try {
@@ -267,7 +275,9 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
-                        _isEditing ? Icons.edit_outlined : Icons.add_task_rounded,
+                        _isEditing
+                            ? Icons.edit_outlined
+                            : Icons.add_task_rounded,
                         color: AppColors.primary,
                         size: 20,
                       ),
@@ -278,7 +288,9 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _isEditing ? 'Chỉnh sửa hoạt động' : 'Thêm hoạt động mới',
+                            _isEditing
+                                ? 'Chỉnh sửa hoạt động'
+                                : 'Thêm hoạt động mới',
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
@@ -286,7 +298,8 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                             ),
                           ),
                           Text(
-                            widget.dayTitle != null && widget.dayTitle!.isNotEmpty
+                            widget.dayTitle != null &&
+                                    widget.dayTitle!.isNotEmpty
                                 ? 'Ngày ${widget.dayNumber} • ${widget.dayTitle}'
                                 : 'Ngày ${widget.dayNumber}',
                             style: const TextStyle(
@@ -311,7 +324,10 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                   decoration: InputDecoration(
                     labelText: 'Tên hoạt động *',
                     hintText: 'VD: Ăn sáng bánh mì chảo, Check-in Fansipan...',
-                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.muted,
+                    ),
                     filled: true,
                     fillColor: AppColors.surfaceSoft,
                     border: OutlineInputBorder(
@@ -324,9 +340,15 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
@@ -357,7 +379,10 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                         onTap: _isLoading ? null : _pickStartTime,
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceSoft,
                             borderRadius: BorderRadius.circular(10),
@@ -365,15 +390,25 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.access_time, size: 16, color: AppColors.primary),
+                              const Icon(
+                                Icons.access_time,
+                                size: 16,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  _startTime != null ? _formatTimeOfDay(_startTime!) : 'Bắt đầu',
+                                  _startTime != null
+                                      ? _formatTimeOfDay(_startTime!)
+                                      : 'Bắt đầu',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: _startTime != null ? FontWeight.w600 : FontWeight.w400,
-                                    color: _startTime != null ? AppColors.textPrimary : AppColors.muted,
+                                    fontWeight: _startTime != null
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    color: _startTime != null
+                                        ? AppColors.textPrimary
+                                        : AppColors.muted,
                                   ),
                                 ),
                               ),
@@ -383,7 +418,11 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                                     _startTime = null;
                                     _validateTimeRange();
                                   }),
-                                  child: const Icon(Icons.close, size: 16, color: AppColors.muted),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: AppColors.muted,
+                                  ),
                                 ),
                             ],
                           ),
@@ -396,7 +435,10 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                         onTap: _isLoading ? null : _pickEndTime,
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceSoft,
                             borderRadius: BorderRadius.circular(10),
@@ -404,15 +446,25 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.access_time_filled, size: 16, color: AppColors.primary),
+                              const Icon(
+                                Icons.access_time_filled,
+                                size: 16,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  _endTime != null ? _formatTimeOfDay(_endTime!) : 'Kết thúc',
+                                  _endTime != null
+                                      ? _formatTimeOfDay(_endTime!)
+                                      : 'Kết thúc',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: _endTime != null ? FontWeight.w600 : FontWeight.w400,
-                                    color: _endTime != null ? AppColors.textPrimary : AppColors.muted,
+                                    fontWeight: _endTime != null
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    color: _endTime != null
+                                        ? AppColors.textPrimary
+                                        : AppColors.muted,
                                   ),
                                 ),
                               ),
@@ -422,7 +474,11 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                                     _endTime = null;
                                     _validateTimeRange();
                                   }),
-                                  child: const Icon(Icons.close, size: 16, color: AppColors.muted),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: AppColors.muted,
+                                  ),
                                 ),
                             ],
                           ),
@@ -435,7 +491,10 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                   const SizedBox(height: 6),
                   Text(
                     _timeErrorMessage!,
-                    style: const TextStyle(fontSize: 12, color: AppColors.error),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 14),
@@ -448,7 +507,10 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                   decoration: InputDecoration(
                     labelText: 'Chi phí ước tính (VNĐ)',
                     hintText: '0 (để trống nếu miễn phí)',
-                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.muted,
+                    ),
                     filled: true,
                     fillColor: AppColors.surfaceSoft,
                     border: OutlineInputBorder(
@@ -461,9 +523,15 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) return null;
@@ -485,7 +553,10 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                   decoration: InputDecoration(
                     labelText: 'Mô tả / Ghi chú (tùy chọn)',
                     hintText: 'Địa chỉ, lưu ý trang phục, món ăn ngon...',
-                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.muted,
+                    ),
                     filled: true,
                     fillColor: AppColors.surfaceSoft,
                     border: OutlineInputBorder(
@@ -498,9 +569,15 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -510,8 +587,13 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
-                      child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+                      onPressed: _isLoading
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: const Text(
+                        'Hủy',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
@@ -519,19 +601,29 @@ class _ActivityFormDialogState extends State<_ActivityFormDialog> {
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       onPressed: _isLoading ? null : _submit,
                       child: _isLoading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : Text(
                               _isEditing ? 'Lưu thay đổi' : 'Thêm hoạt động',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                     ),
                   ],
