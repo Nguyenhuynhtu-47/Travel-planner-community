@@ -23,6 +23,8 @@ public class ItinerarySummaryResponse {
     private Integer totalDays;
     private BigDecimal budget;
     private String theme;
+    private String visibility;
+    private String status;
     private Integer viewCount;
     private Integer favoriteCount;
     private Integer ratingCount;

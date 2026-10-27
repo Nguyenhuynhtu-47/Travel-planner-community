@@ -16,4 +16,6 @@ public interface DestinationRepository extends JpaRepository<Destination, Intege
     boolean existsByName(String name);
 
     List<Destination> findByStatus(DestinationStatus status);
+
+    List<Destination> findByNameContainingIgnoreCaseAndStatus(String keyword, DestinationStatus status);
 }

@@ -188,6 +188,8 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .totalDays(item.getTotalDays())
                 .budget(item.getBudget())
                 .theme(item.getTheme())
+                .visibility(item.getVisibility() != null ? item.getVisibility().name() : "PUBLIC")
+                .status(item.getStatus() != null ? item.getStatus().name() : "ACTIVE")
                 .viewCount(item.getViewCount())
                 .favoriteCount(item.getFavoriteCount())
                 .ratingCount(item.getRatingCount())
@@ -207,15 +209,18 @@ public class ItineraryServiceImpl implements ItineraryService {
         Itinerary itinerary = itineraryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa"));
 
-        if (itinerary.getStatus() != ItineraryStatus.ACTIVE || itinerary.getUser().getStatus() != UserStatus.ACTIVE) {
+        if (itinerary.getStatus() == ItineraryStatus.DELETED || itinerary.getUser().getStatus() != UserStatus.ACTIVE) {
             throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
         }
 
-        if (itinerary.getVisibility() != Visibility.PUBLIC) {
-            boolean isOwner = currentUsername != null && currentUsername.equals(itinerary.getUser().getUsername());
-            if (!isOwner) {
-                throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
-            }
+        boolean isOwner = currentUsername != null && currentUsername.equals(itinerary.getUser().getUsername());
+
+        if (itinerary.getStatus() != ItineraryStatus.ACTIVE && !isOwner) {
+            throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
+        }
+
+        if (itinerary.getVisibility() != Visibility.PUBLIC && !isOwner) {
+            throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
         }
 
         Map<Integer, Double> ratingMap = fetchAverageRatings(List.of(itinerary.getItineraryId()));
@@ -264,6 +269,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .budget(itinerary.getBudget())
                 .theme(itinerary.getTheme())
                 .visibility(itinerary.getVisibility().name())
+                .status(itinerary.getStatus() != null ? itinerary.getStatus().name() : "ACTIVE")
                 .viewCount(itinerary.getViewCount())
                 .favoriteCount(itinerary.getFavoriteCount())
                 .ratingCount(itinerary.getRatingCount())
