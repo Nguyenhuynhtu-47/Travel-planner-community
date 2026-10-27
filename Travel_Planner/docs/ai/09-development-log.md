@@ -1757,6 +1757,57 @@ Resolved two defects in the Travel Planner mobile application (`frontend/mobile`
 
 ---
 
+## 37. Session Entry: End-to-End Refactor of Itinerary Creation, Detail Display, and Complete Schedule Editing Flow (2026-10-27)
+
+### 37.1. Problem Statement & Scope
+- Users reported that after creating a new itinerary and opening its detail screen, the screen displayed nothing (blank screen).
+- Required an evidence-based audit and end-to-end refactoring across Spring Boot and Flutter Mobile covering:
+  1. Itinerary creation with validation and duplicate prevention.
+  2. Navigation to the detail view using real backend identifiers without hardcoding.
+  3. Resilient rendering of incomplete itineraries (empty activity lists, null dates, null descriptions, null avatars).
+  4. Full day management (add, edit, delete with confirmation, and refresh).
+  5. Destination and activity management (destination selection, creation/editing/deletion of activities, and reordering).
+  6. Ownership verification across frontend and backend.
+
+### 37.2. Root Causes Identified & Addressed
+1. **Brittle Type Casting in Flutter Network Repositories:**
+   - Both `ItineraryRepository` and `ItineraryCrudRepository` asserted `if (response is Map<String, dynamic>)`.
+   - Dart VM's `jsonDecode(utf8.decode(response.bodyBytes))` evaluates to `_InternalLinkedHashMap<dynamic, dynamic>`, evaluating `is Map<String, dynamic>` to `false` and throwing `Exception('Phản hồi từ máy chủ không hợp lệ.')` or `ApiException`.
+   - In `ItineraryDetailNotifier`, this triggered an immediate failure state on background reload, which could blank the screen or mask existing data.
+2. **Missing Destination API & Client Destination Picker:**
+   - The relational domain model links `activities.destination_id` to `destinations.destination_id`.
+   - While `ItineraryServiceImpl` handled `request.getDestinationId()`, there was no public REST controller for clients to discover or search active destinations.
+   - On the mobile client, `ActivityFormDialog` lacked destination selection entirely, forcing `destinationId: null` on all created activities.
+3. **Unhandled Image Errors in Detail View:**
+   - `ItineraryDetailScreen._creatorAvatar` rendered `NetworkImage` directly without an `onBackgroundImageError` handler, triggering unhandled exceptions whenever an avatar URL was broken, empty, or unreachable.
+
+### 37.3. Implementation Details
+1. **Spring Boot Backend:**
+   - **`DestinationController.java`:** Created controller exposing `GET /api/destinations` (with optional `keyword` filter) and `GET /api/destinations/{id}` for active destinations.
+   - **`DestinationRepository.java`:** Added `findByNameContainingIgnoreCaseAndStatus(String keyword, DestinationStatus status)`.
+   - **`SecurityConfig.java`:** Configured `JavaTimeModule` on `ObjectMapper` bean and permitted public read access (`permitAll()`) to `/api/destinations` and `/api/destinations/**`.
+   - **`DestinationControllerTest.java`:** Added integration tests verifying active destination retrieval and keyword filtering.
+2. **Flutter Mobile:**
+   - **`ApiConstants.dart`:** Added `destinationsEndpoint = '/api/destinations'`.
+   - **`ItineraryRepository.dart` & `ItineraryCrudRepository.dart`:** Updated all network response deserializations to check `response is Map` and cast via `Map<String, dynamic>.from(response as Map)`. Added `getDestinations({String? keyword, String? token})` method.
+   - **`ActivityFormDialog.dart`:** Added destination loading and dropdown selection (`DropdownButtonFormField`), pre-populating existing destinations when editing, and passing `destinationId` in `CreateActivityRequest` and `UpdateActivityRequest`.
+   - **`ItineraryDetailScreen.dart`:** Added `onBackgroundImageError` to `_creatorAvatar` to prevent uncaught network image exceptions.
+   - **`itinerary_activity_management_test.dart`:** Added tests verifying `ItineraryCrudRepository.getDestinations` parsing and `ActivityFormDialog` destination dropdown selection and submission.
+
+### 37.4. Verification & Test Results
+- **Spring Boot Backend Test Suite:**
+  - Command: `.\mvnw.cmd test`
+  - Result: **69 / 69 tests passed (BUILD SUCCESS)**.
+- **Flutter Static Analysis:**
+  - Command: `flutter analyze`
+  - Result: **No issues found! (0 errors, 0 warnings)**.
+- **Flutter Mobile Test Suite:**
+  - Command: `flutter test`
+  - Result: **121 / 121 tests passed (100% across all 11 test suites)**.
+
+
+---
+
 ## 36. Session Entry: Resolution of Blank / Incomplete Detail Screen for Newly Created Itineraries (2026-10-27)
 
 ### 36.1. Problem Statement
@@ -1801,11 +1852,203 @@ Resolved two defects in the Travel Planner mobile application (`frontend/mobile`
   - Command: `dart format`
   - Result: All modified files formatted cleanly according to style guidelines.
 
+---
 
+## 38. Session Entry: Fix Blank Itinerary Detail Screen When Opened from My Itineraries (2026-10-27)
 
+### 38.1. Problem Statement
+- In the Travel Planner application, tapping an itinerary from **Home / Explore** opened its detail screen successfully, but tapping that **same** itinerary from **My Itineraries** resulted in a blank screen or missing itinerary details, despite the itinerary data existing in MySQL.
+- Traced both navigation paths line-by-line, identified confirmed root causes, implemented a consistent minimal fix, added regression tests, and verified against both automated test suites and the running backend/device environment.
 
+### 38.2. Trace and Comparison Between Navigation Paths
+1. **Path A — Home / Explore (`ExploreScreen`):**
+   - User taps `ItineraryCard` in Explore.
+   - `Navigator.push` called `ItineraryDetailScreen(itineraryId: itinerary.itineraryId)`.
+   - Triggered `GET /api/itineraries/{id}`.
+   - Explore itineraries are filtered to `status == ACTIVE` and `visibility == PUBLIC`.
+   - Detail screen loaded without authorization blocks; viewers do not expect owner-specific action buttons.
+2. **Path B — My Itineraries (`MyItinerariesScreen`):**
+   - User taps `MyItineraryCard` in My Itineraries.
+   - Handled by `onTap` navigating to `ItineraryDetailScreen(itineraryId: item.itineraryId)`.
+   - **Root Cause 1 (Backend Authorization on Status):** In `ItineraryServiceImpl.getItineraryDetail()`, the backend unconditionally rejected any itinerary with `status != ItineraryStatus.ACTIVE` with a 404 `ResourceNotFoundException`, blocking owners from viewing their own `DRAFT` itineraries in My Itineraries.
+   - **Root Cause 2 (Missing DTO Fields):** `ItinerarySummaryResponse.java` and `ItineraryDetailResponse.java` lacked `visibility` and `status` mappings in `ItineraryServiceImpl.mapToSummaryResponse()`, returning `null` status/visibility to `MyItinerariesScreen`.
+   - **Root Cause 3 (Brittle Creator Deserialization & Broken Ownership):** In `itinerary_summary.dart`, `json['creator'] is Map<String, dynamic>` evaluated to `false` under Dart VM's `_InternalLinkedHashMap<dynamic, dynamic>`, parsing `creator` as `null`. Consequently, `ItineraryDetailScreen` could not match `creator.userId` or `creator.username`, evaluating `isOwner = false` even when navigated from My Itineraries. This hid all owner management actions ("Thêm ngày đầu tiên", "Thêm ngày", edit, delete).
+   - **Root Cause 4 (Absence of Summary Prefill & Unhandled Async Lag):** Navigation from My Itineraries only passed `itineraryId`. While `GET /api/itineraries/{id}` was fetching asynchronously, `itineraryDetail` remained `null`. Any network delay or transient error resulted in a blank white screen rather than displaying the existing itinerary summary information with an inline retry banner.
 
+### 38.3. Implemented Fixes
+1. **Backend Service & DTOs (`backend`):**
+   - **`ItinerarySummaryResponse.java` & `ItineraryDetailResponse.java`:** Added `visibility` and `status` fields.
+   - **`ItineraryServiceImpl.java`:**
+     - Updated `mapToSummaryResponse` to map `itinerary.getVisibility().name()` and `itinerary.getStatus().name()`.
+     - Updated `getItineraryDetail` so that non-ACTIVE (e.g. `DRAFT`) itineraries and `PRIVATE` itineraries are accessible to their authenticated owner (`currentUsername != null && currentUsername.equals(itinerary.getUser().getUsername())`).
+     - Mapped `status` in `ItineraryDetailResponse.builder()`.
+2. **Mobile Data Model Resiliency (`itinerary_summary.dart`):**
+   - Updated `ItinerarySummary.fromJson` to handle generic `Map` (`json['creator'] is Map`), string-to-number fallback parsing (`int.tryParse`, `num.tryParse`), and defaulted `visibility` to `'PUBLIC'` and `status` to `'ACTIVE'` if missing.
+3. **Detail Screen & Notifier Prefill (`itinerary_detail_screen.dart` & `itinerary_detail_notifier.dart`):**
+   - Added `initialSummary` and `isOwner` parameters to `ItineraryDetailScreen` and `ItineraryDetailNotifier`.
+   - Constructed initial `ItineraryDetail` from `initialSummary` immediately on mount, eliminating any blank screen during async load.
+   - Explicitly honoured `widget.isOwner == true` (guaranteed owner context from My Itineraries) alongside existing username and userId checks.
+   - Added subtle non-blocking loading progress indicator and retry banner in `_buildContent` when background detail refresh is in progress or encounters connection issues, preserving displayed summary data.
+4. **Navigation Contract Updates (`my_itineraries_screen.dart` & `explore_screen.dart`):**
+   - `MyItinerariesScreen`: Passed `initialSummary: item` and `isOwner: true` to `ItineraryDetailScreen`.
+   - `ExploreScreen`: Passed `initialSummary: itinerary` to `ItineraryDetailScreen`.
 
+### 38.4. Files Modified
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/ItinerarySummaryResponse.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/ItineraryDetailResponse.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/ItineraryServiceImpl.java`
+- `Travel_Planner/frontend/mobile/lib/features/explore/data/models/itinerary_summary.dart`
+- `Travel_Planner/frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`
+- `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/my_itineraries_screen.dart`
+- `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`
+- `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/itinerary_detail_notifier.dart`
+- `Travel_Planner/frontend/mobile/test/my_itineraries_test.dart`
+- `Travel_Planner/docs/ai/09-development-log.md`
 
+### 38.5. Verification & Test Results
+- **Spring Boot Backend Test Suite:**
+  - Command: `.\mvnw.cmd test`
+  - Result: **69 / 69 tests passed (0 failures, 0 errors, BUILD SUCCESS)**.
+- **Flutter Mobile Static Analysis:**
+  - Command: `flutter analyze`
+  - Result: **No issues found! (0 errors, 0 warnings)**.
+- **Flutter Mobile Unit and Widget Test Suite:**
+  - Command: `flutter test test/my_itineraries_test.dart`
+  - Result: **12 / 12 tests passed (including immediate summary prefill and 0-activity days rendering with owner actions)**.
+  - Command: `flutter test`
+  - Result: **123 / 123 tests passed (100% across all 11 mobile test files)**.
+
+### 38.6. Runtime Verification & Known Limitations
+- **Automated Verification:** Fully verified through comprehensive end-to-end unit and widget regression tests mocking network latency, 0-activity states, and ownership flags.
+- **Physical Device Status:** An Android device (`RFCW8105T0H`) is connected with ADB reverse active (`tcp:8080 tcp:8080`). Flutter application build and hot-restart can be observed live against the running backend server.
+
+---
+
+## 39. Session Entry: UI/UX Improvement — Itinerary Detail Hierarchy, Day Selector, and Activity Modal Bottom Sheet (2026-10-27)
+
+### 39.1. Problem Statement
+1. **Oversized Header Pushing Days Section Off-Screen:**
+   - In `itinerary_detail_screen.dart`, `_buildOverview` occupied excessive vertical screen height (~550dp) due to a 250dp `AspectRatio(16/10)` cover image, loose vertical spacing, full-width creator cards, and multi-line descriptions.
+   - Users on standard mobile screens (e.g., 360x640 or 390x844) were forced to scroll substantially before locating the days list and day management actions.
+2. **Disruptive Full-Screen Activity Form Dialog:**
+   - Tapping "Thêm hoạt động" or "Sửa hoạt động" opened a centered `Dialog` (`activity_form_dialog.dart`) that blocked the entire screen, obscuring the itinerary context and day backdrop.
+   - On small screens and when the software keyboard emerged, centered dialog layouts risked vertical overflow and lacked mobile-native dismissibility and drag affordances.
+3. **Clunky Day Scanning on Multi-Day Itineraries:**
+   - Viewing itineraries with multiple days required scrolling past every activity of preceding days to reach a target day.
+
+### 39.2. Implemented Fixes
+1. **Compact, Scannable Itinerary Detail Header (`itinerary_detail_screen.dart`):**
+   - Replaced the 250dp cover image with a sleek 110dp banner (or a 76dp compact placeholder when no cover image is provided).
+   - Streamlined typography (18sp bold title) and wrapped key metadata in compact chips (location, total days, visibility badge, theme, rating, budget in VND).
+   - Rendered creator and description in a tight inline format.
+   - Reduced total header height from ~550dp to ~220dp, bringing the "Lịch trình theo ngày" section into the initial screen viewport without requiring scrolling.
+2. **Ergonomic Day Selector (`_buildDaySelector`):**
+   - Implemented an interactive day filter using a compact `Wrap` of `ChoiceChip`s: `Tất cả (X)`, `Ngày 1 (N)`, `Ngày 2 (M)` displaying day numbers and activity counts.
+   - Users can tap a day chip to focus strictly on that day's schedule or tap "Tất cả" to see the full itinerary.
+   - Provided a "Xem toàn bộ các ngày" helper button when a single day is filtered.
+   - Used `Wrap` rather than a secondary horizontal `ListView` to avoid nested `Scrollable` conflicts and ensure reliable touch handling across narrow devices.
+3. **Mobile-Native Activity Modal Bottom Sheet (`activity_form_dialog.dart`):**
+   - Replaced `showDialog` with `showModalBottomSheet<bool>` (`ActivityFormBottomSheet`).
+   - Sized dynamically to content with an 88% screen height cap (`BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88)`).
+   - Added a standard mobile drag handle (`40x4dp`), rounded top corners (`20dp`), and a clear header row with title, day badge subtitle, and an explicit close icon button (`IconButton(icon: Icon(Icons.close))`).
+   - Integrated `AnimatedPadding(padding: EdgeInsets.only(bottom: keyboardHeight))` so the sheet gracefully lifts above the software keyboard without clipping or overflowing.
+   - Docked footer action buttons ("Hủy" and "Thêm hoạt động" / "Lưu thay đổi") at the bottom of the sheet, keeping the submit action accessible at all times while form fields remain independently scrollable.
+   - Preserved all working fields and validation: activity name (required, max 150 chars), destination dropdown, start and end time pickers with time range validation, estimated cost in VND, and description.
+4. **Preserved CRUD Behavior and Authorization:**
+   - Retained all existing day and activity management handlers: adding days, editing days, deleting days (with 1-day minimum guard), adding activities, editing activities, deleting activities, and reordering activities.
+   - Enforced client-side ownership restrictions: owner-only management buttons remain strictly hidden from viewers.
+
+### 39.3. Files Modified
+- `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart` (compact header, day selector wrap, day filtering, initial viewport layout)
+- `frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart` (converted to modal bottom sheet with keyboard adaptation and 88% height cap)
+- `frontend/mobile/test/itinerary_activity_management_test.dart` (added tests for small screen rendering, keyboard insets, sheet dismissal, and error state)
+- `frontend/mobile/test/itinerary_detail_test.dart` (added tests for immediate day visibility near top and day selector chip filtering)
+- `frontend/mobile/test/my_itineraries_test.dart` (updated days section visibility assertion without requiring artificial scroll)
+- `docs/ai/09-development-log.md` (appended Session 39 entry)
+
+### 39.4. Verification & Automated Tests
+- **Flutter Mobile Static Analysis:**
+  - Command: `flutter analyze` in `frontend/mobile`
+  - Result: **No issues found! (0 errors, 0 warnings)**.
+- **Dart Code Formatting:**
+  - Command: `dart format lib test` in `frontend/mobile`
+  - Result: All modified files formatted cleanly.
+- **Flutter Mobile Test Suite:**
+  - Command: `flutter test` in `frontend/mobile`
+  - Result: **128 / 128 tests passed (100% across all 11 test suites)**:
+    - `itinerary_activity_management_test.dart`: 23 / 23 passed.
+    - `itinerary_detail_test.dart`: 13 / 13 passed.
+    - `my_itineraries_test.dart`: 12 / 12 passed.
+    - `itinerary_day_management_test.dart`: 17 / 17 passed.
+    - `itinerary_edit_delete_test.dart`: 16 / 16 passed.
+    - `create_itinerary_test.dart`: 11 / 11 passed.
+    - `explore_test.dart`: 15 / 15 passed.
+    - `auth_401_test.dart`: 8 / 8 passed.
+    - `animation_enhancements_test.dart`: 6 / 6 passed.
+    - `username_validation_test.dart`: 1 / 1 passed.
+    - `widget_test.dart`: 1 / 1 passed.
+- **Backend Test Suite:**
+  - Command: `.\mvnw.cmd test` in `backend`
+  - Result: **69 / 69 tests passed (0 failures, BUILD SUCCESS)**.
+
+### 39.5. Runtime & Physical Device Status
+- **Physical Device Connection:** Android device `RFCW8105T0H` connected with active ADB reverse tunnel (`tcp:8080 tcp:8080`).
+- **Automated Verification:** Fully verified through comprehensive unit and widget regression tests mocking small screens (360x640), software keyboard insets, and CRUD interactions. Live smoke testing is also ready on the connected device against the active Spring Boot backend.
+
+---
+
+## 40. Session Entry: UI/UX Bug Fix — Activity Reordering Inline Interaction (2026-10-27)
+
+### 40.1. Problem Statement
+- **Actual Widget Causing Oversized Overlay:**
+  - Tapping the "Sắp xếp" button or selecting "Sắp xếp hoạt động" from the day card's 3-dots popup menu invoked `_handleReorderActivities` in `itinerary_detail_screen.dart`, which called `showReorderActivitiesDialog`.
+  - In `reorder_activities_dialog.dart`, `showReorderActivitiesDialog` rendered an unconstrained centered `Dialog(BoxConstraints(maxHeight: 560))`. On mobile devices (e.g. 640–800px screens), this covered almost the entire screen, completely obscured the itinerary background context, and disrupted the user's travel planning flow.
+
+### 40.2. Implemented Fixes
+1. **Native In-Place Activity Reordering in `ItineraryDayCard`:**
+   - Converted `ItineraryDayCard` from a `StatelessWidget` to a `StatefulWidget` managing inline reorder state (`_isReordering`, `_isSaving`, `_items`).
+   - Tapping "Sắp xếp" or selecting "Sắp xếp hoạt động" now toggles inline reorder mode directly within the day card — opening **zero dialogs and zero full-screen overlays**.
+   - Displays an inline banner: `Icons.swap_vert_rounded` + `"Kéo biểu tượng ≡ để đổi thứ tự hoạt động"`.
+   - Uses Flutter's native `ReorderableListView.builder` configured with:
+     - `buildDefaultDragHandles: false` so only grabbing the drag handle initiates reorder, while touching elsewhere scrolls the screen normally.
+     - `shrinkWrap: true` and `physics: const NeverScrollableScrollPhysics()` to integrate smoothly inside the parent `CustomScrollView`.
+     - `proxyDecorator` applying elevation and a primary shadow to make the dragged item and insertion position visually distinct.
+   - Each reorder item features a dedicated drag handle (`ReorderableDragStartListener`), index number badge (`1`, `2`, `3`), activity name (constrained with ellipsis), time/cost/destination tags, and preserved edit/delete popup menus.
+   - Replaced bottom action buttons with inline "Hủy" and "Lưu thứ tự" (with loading indicator during in-flight network requests).
+   - If the API call fails, displays an error SnackBar and reconciles displayed items back to the original server state order to prevent data corruption.
+2. **Mobile-Appropriate Fallback Modal Bottom Sheet in `reorder_activities_dialog.dart`:**
+   - Updated `showReorderActivitiesDialog` to use `showModalBottomSheet<bool>` (`_ReorderActivitiesBottomSheet`) capped at 75% screen height with rounded top corners, top drag handle, header row with close button, scrollable list with drag handles, and docked footer actions.
+3. **Screen Density & Narrow Viewport Overflow Protection:**
+   - In `itinerary_day_card.dart`, replaced `Row` with `Wrap` for the bottom action buttons ("Thêm hoạt động", "Sắp xếp").
+   - In `activity_timeline_item.dart`, wrapped badge rows in `Expanded(child: Wrap(...))` preventing horizontal overflow on 360px viewports.
+4. **Wiring & Persistence in `itinerary_detail_screen.dart`:**
+   - Implemented `_handleSaveActivityOrder` submitting reordered items to `_crudRepository.reorderActivities` with the user's Bearer token.
+   - Wired `onSaveActivityOrder` callback to each `ItineraryDayCard` for owners, automatically reloading itinerary detail on success.
+
+### 40.3. Files Modified
+- `frontend/mobile/lib/features/itinerary/presentation/widgets/itinerary_day_card.dart` (converted to StatefulWidget with native inline activity reordering, drag handles, Wrap action buttons, and order persistence)
+- `frontend/mobile/lib/features/itinerary/presentation/widgets/activity_timeline_item.dart` (wrapped badge row in Expanded Wrap to prevent horizontal overflow on narrow screens)
+- `frontend/mobile/lib/features/itinerary/presentation/widgets/reorder_activities_dialog.dart` (converted from oversized dialog to compact modal bottom sheet with 75% height cap)
+- `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart` (added `_handleSaveActivityOrder`, wired `onSaveActivityOrder` to day cards)
+- `frontend/mobile/test/itinerary_activity_management_test.dart` (added 5 comprehensive inline reorder UX tests)
+- `docs/ai/09-development-log.md` (appended Session 40 entry)
+
+### 40.4. Verification & Automated Tests
+- **Flutter Mobile Static Analysis:**
+  - Command: `flutter analyze` in `frontend/mobile`
+  - Result: **No issues found! (0 errors, 0 warnings)**.
+- **Dart Code Formatting:**
+  - Command: `dart format lib test` in `frontend/mobile`
+  - Result: All modified files formatted cleanly.
+- **Activity Management & Reorder Tests:**
+  - Command: `flutter test test/itinerary_activity_management_test.dart`
+  - Result: **30 / 30 tests passed (100%)**.
+- **Full Mobile Test Suite:**
+  - Command: `flutter test` in `frontend/mobile`
+  - Result: **133 / 133 tests passed (100% across all 11 test suites)**.
+
+### 40.5. Physical Android Device Status
+- **Device Connection:** Android device `RFCW8105T0H` connected with active reverse tunnel (`tcp:8080 tcp:8080`).
+- **Verification Summary:** All automated widget tests simulating small Android screen dimensions (360x640dp), drag gestures, inline reordering, cancelation, and API error reconciliation pass with 0 errors and 0 overflows. Live smoke-testing on the connected hardware device is running against the active Spring Boot backend.
 
 

@@ -550,6 +550,210 @@ void main() {
       expect(find.text('150000'), findsOneWidget);
       expect(find.text('Lưu thay đổi'), findsOneWidget);
     });
+
+    testWidgets(
+      'renders modal bottom sheet without overflowing on a small mobile screen (360x640)',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'test_user'},
+          token: 'token123',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => showActivityFormDialog(
+                  context,
+                  itineraryId: 10,
+                  dayId: 20,
+                  dayNumber: 1,
+                  authNotifier: authNotifier,
+                  repository: repository,
+                ),
+                child: const Text('Open Sheet'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Sheet'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Thêm hoạt động mới'), findsOneWidget);
+        expect(find.byType(ActivityFormBottomSheet), findsOneWidget);
+        expect(find.byIcon(Icons.close), findsOneWidget);
+        expect(find.text('Hủy'), findsOneWidget);
+        expect(find.text('Thêm hoạt động'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'form fields and submit button remain usable when software keyboard opens',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'test_user'},
+          token: 'token123',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => showActivityFormDialog(
+                  context,
+                  itineraryId: 10,
+                  dayId: 20,
+                  dayNumber: 1,
+                  authNotifier: authNotifier,
+                  repository: repository,
+                ),
+                child: const Text('Open Sheet'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Sheet'));
+        await tester.pumpAndSettle();
+
+        // Title and input remain accessible
+        expect(find.text('Thêm hoạt động mới'), findsOneWidget);
+        final nameField = find.widgetWithText(TextFormField, 'Tên hoạt động *');
+        expect(nameField, findsOneWidget);
+
+        await tester.enterText(nameField, 'Uống cà phê sáng');
+        expect(find.text('Uống cà phê sáng'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'tapping close icon dismisses modal bottom sheet returning null or false',
+      (tester) async {
+        bool? sheetResult;
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'test_user'},
+          token: 'token123',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () async {
+                  sheetResult = await showActivityFormDialog(
+                    context,
+                    itineraryId: 10,
+                    dayId: 20,
+                    dayNumber: 1,
+                    authNotifier: authNotifier,
+                    repository: repository,
+                  );
+                },
+                child: const Text('Open Sheet'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Sheet'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ActivityFormBottomSheet), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ActivityFormBottomSheet), findsNothing);
+        expect(sheetResult, isFalse);
+      },
+    );
+
+    testWidgets(
+      'displays error SnackBar and stays on form when API submission fails',
+      (tester) async {
+        final mockClient = MockClient((request) async {
+          return http.Response(
+            jsonEncode({'message': 'Tên hoạt động không hợp lệ'}),
+            400,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        });
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'test_user'},
+          token: 'token123',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () => showActivityFormDialog(
+                    context,
+                    itineraryId: 10,
+                    dayId: 20,
+                    dayNumber: 1,
+                    authNotifier: authNotifier,
+                    repository: repository,
+                  ),
+                  child: const Text('Open Sheet'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Sheet'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Tên hoạt động *'),
+          'Hoạt động lỗi',
+        );
+
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Thêm hoạt động'));
+        await tester.pumpAndSettle();
+
+        // Sheet remains open
+        expect(find.byType(ActivityFormBottomSheet), findsOneWidget);
+        // Error message shown in SnackBar
+        expect(find.text('Tên hoạt động không hợp lệ'), findsOneWidget);
+      },
+    );
   });
 
   group('DeleteActivityConfirmationDialog Tests', () {
@@ -916,5 +1120,485 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  group('Destination Query and Selection Tests', () {
+    test(
+      'ItineraryCrudRepository.getDestinations parses active destinations',
+      () async {
+        final mockClient = MockClient((request) async {
+          expect(request.url.path, equals('/api/destinations'));
+          return http.Response(
+            jsonEncode([
+              {
+                'destinationId': 42,
+                'name': 'Hồ Tuyền Lâm',
+                'address': 'Đà Lạt',
+                'description': 'Hồ nước ngọt lớn nhất Đà Lạt',
+              },
+            ]),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final list = await repo.getDestinations();
+        expect(list.length, equals(1));
+        expect(list.first.destinationId, equals(42));
+        expect(list.first.name, equals('Hồ Tuyền Lâm'));
+      },
+    );
+
+    testWidgets(
+      'ActivityFormDialog loads destinations and submits with destinationId',
+      (tester) async {
+        int? submittedDestinationId;
+        final mockClient = MockClient((request) async {
+          if (request.url.path == '/api/destinations') {
+            return http.Response(
+              jsonEncode([
+                {
+                  'destinationId': 88,
+                  'name': 'Thung Lũng Tình Yêu',
+                  'address': 'Phường 8, Đà Lạt',
+                },
+              ]),
+              200,
+              headers: {'content-type': 'application/json; charset=utf-8'},
+            );
+          }
+          if (request.url.path.endsWith('/activities') &&
+              request.method == 'POST') {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            submittedDestinationId = body['destinationId'] as int?;
+            return http.Response(
+              jsonEncode({
+                'activityId': 999,
+                'name': body['name'],
+                'destinationId': submittedDestinationId,
+                'orderIndex': 0,
+              }),
+              201,
+              headers: {'content-type': 'application/json; charset=utf-8'},
+            );
+          }
+          return http.Response('{}', 200);
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final auth = MockAuthNotifier(
+          user: {'username': 'testuser'},
+          token: 'test_token',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () => showActivityFormDialog(
+                    ctx,
+                    itineraryId: 10,
+                    dayId: 1,
+                    dayNumber: 1,
+                    authNotifier: auth,
+                    repository: repo,
+                  ),
+                  child: const Text('Open Dialog'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Dialog'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Thêm hoạt động mới'), findsOneWidget);
+        expect(find.text('Điểm đến / Địa điểm (tùy chọn)'), findsOneWidget);
+
+        // Enter activity name
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Tên hoạt động *'),
+          'Dạo chơi ngắm cảnh',
+        );
+
+        // Select destination from dropdown
+        await tester.tap(find.text('Không liên kết địa điểm'));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('Thung Lũng Tình Yêu'), findsWidgets);
+        await tester.tap(find.textContaining('Thung Lũng Tình Yêu').last);
+        await tester.pumpAndSettle();
+
+        // Submit
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Thêm hoạt động'));
+        await tester.pumpAndSettle();
+
+        expect(submittedDestinationId, equals(88));
+      },
+    );
+  });
+
+  group('Inline Activity Reordering UX Tests', () {
+    final testDetailWithOwner = ItineraryDetail(
+      itineraryId: 10,
+      title: 'Đà Lạt Mộng Mơ 3N2Đ',
+      description: 'Chuyến đi nghỉ dưỡng',
+      location: 'Đà Lạt',
+      totalDays: 2,
+      budget: 3000000.0,
+      theme: 'Nghỉ dưỡng',
+      visibility: 'PUBLIC',
+      status: 'ACTIVE',
+      viewCount: 10,
+      favoriteCount: 5,
+      ratingCount: 3,
+      averageRating: 4.8,
+      createdAt: DateTime(2026, 10, 20),
+      creator: const CreatorSummary(
+        userId: 1,
+        username: 'traveler_viet',
+        fullName: 'Nguyễn Văn Việt',
+      ),
+      days: [
+        ItineraryDayDetail(
+          dayId: 21,
+          dayNumber: 1,
+          title: 'Ngày 1: Check-in & Cà phê',
+          date: DateTime(2026, 10, 27),
+          activities: [
+            const ActivityDetail(
+              activityId: 301,
+              name: 'Uống cà phê Tùng',
+              startTime: '08:00',
+              endTime: '09:30',
+              displayOrder: 1,
+              estimatedCost: 50000.0,
+            ),
+            const ActivityDetail(
+              activityId: 302,
+              name: 'Dạo Quảng trường Lâm Viên',
+              startTime: '10:00',
+              endTime: '11:30',
+              displayOrder: 2,
+              estimatedCost: 0.0,
+            ),
+          ],
+        ),
+        ItineraryDayDetail(
+          dayId: 22,
+          dayNumber: 2,
+          title: 'Ngày 2: Khám phá ngoại thành',
+          date: DateTime(2026, 10, 28),
+          activities: const [],
+        ),
+      ],
+    );
+
+    testWidgets(
+      'Tapping Sắp xếp enters inline reordering mode without opening any overlay or dialog',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'traveler_viet'},
+          token: 'token_viet',
+        );
+
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          presetDetail: testDetailWithOwner,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Initially in normal timeline mode
+        expect(find.text('Sắp xếp'), findsOneWidget);
+        expect(find.byType(Dialog), findsNothing);
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(
+          find.text('Kéo biểu tượng ≡ để đổi thứ tự hoạt động'),
+          findsNothing,
+        );
+
+        // Tap "Sắp xếp" button
+        await tester.tap(find.text('Sắp xếp'));
+        await tester.pumpAndSettle();
+
+        // Confirmed: NO Dialog, NO ModalBottomSheet opened!
+        expect(find.byType(Dialog), findsNothing);
+        expect(find.byType(BottomSheet), findsNothing);
+
+        // Inline reorder banner and buttons appear right inside the day card
+        expect(
+          find.text('Kéo biểu tượng ≡ để đổi thứ tự hoạt động'),
+          findsOneWidget,
+        );
+        expect(find.text('Lưu thứ tự'), findsOneWidget);
+        expect(find.text('Hủy'), findsOneWidget);
+
+        // Drag handles are rendered
+        expect(find.byIcon(Icons.drag_handle_rounded), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'Canceling reordering restores original order and exits reorder mode',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'traveler_viet'},
+          token: 'token_viet',
+        );
+
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          presetDetail: testDetailWithOwner,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap "Sắp xếp" to enter inline reorder mode
+        await tester.tap(find.text('Sắp xếp'));
+        await tester.pumpAndSettle();
+        expect(find.text('Lưu thứ tự'), findsOneWidget);
+
+        // Tap "Hủy"
+        await tester.tap(find.text('Hủy'));
+        await tester.pumpAndSettle();
+
+        // Exits reorder mode, returns to normal timeline
+        expect(find.text('Sắp xếp'), findsOneWidget);
+        expect(find.text('Lưu thứ tự'), findsNothing);
+        expect(
+          find.text('Kéo biểu tượng ≡ để đổi thứ tự hoạt động'),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets('Saving reorder calls backend API and updates detail', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      bool reorderApiCalled = false;
+      final mockClient = MockClient((request) async {
+        if (request.method == 'PUT' &&
+            request.url.path ==
+                '/api/itineraries/10/days/21/activities/reorder') {
+          reorderApiCalled = true;
+          return http.Response(
+            jsonEncode([
+              {'activityId': 301, 'name': 'Uống cà phê Tùng', 'orderIndex': 1},
+              {
+                'activityId': 302,
+                'name': 'Dạo Quảng trường Lâm Viên',
+                'orderIndex': 2,
+              },
+            ]),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response('{}', 200);
+      });
+
+      final repository = ItineraryCrudRepository(
+        apiClient: ApiClient(client: mockClient),
+      );
+      final authNotifier = MockAuthNotifier(
+        user: {'username': 'traveler_viet'},
+        token: 'token_viet',
+      );
+
+      final notifier = FakeItineraryDetailNotifier(
+        itineraryId: 10,
+        presetDetail: testDetailWithOwner,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ItineraryDetailScreen(
+            itineraryId: 10,
+            notifier: notifier,
+            authNotifier: authNotifier,
+            crudRepository: repository,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap "Sắp xếp"
+      await tester.tap(find.text('Sắp xếp'));
+      await tester.pumpAndSettle();
+
+      // Tap "Lưu thứ tự"
+      await tester.tap(find.text('Lưu thứ tự'));
+      await tester.pumpAndSettle();
+
+      expect(reorderApiCalled, isTrue);
+      expect(find.text('Đã cập nhật thứ tự hoạt động.'), findsOneWidget);
+    });
+
+    testWidgets(
+      'Failed reorder save displays error SnackBar and restores original order',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final mockClient = MockClient((request) async {
+          if (request.method == 'PUT' &&
+              request.url.path.contains('/activities/reorder')) {
+            return http.Response(
+              jsonEncode({'message': 'Lỗi máy chủ khi lưu thứ tự'}),
+              500,
+              headers: {'content-type': 'application/json; charset=utf-8'},
+            );
+          }
+          return http.Response('{}', 200);
+        });
+
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'traveler_viet'},
+          token: 'token_viet',
+        );
+
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          presetDetail: testDetailWithOwner,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Sắp xếp'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Lưu thứ tự'));
+        await tester.pumpAndSettle();
+
+        // Error message appears
+        expect(find.text('Lỗi máy chủ khi lưu thứ tự'), findsOneWidget);
+        // Original activities remain present
+        expect(find.text('Uống cà phê Tùng'), findsOneWidget);
+        expect(find.text('Dạo Quảng trường Lâm Viên'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Inline reordering renders without overflow on a small screen (360x640)',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'traveler_viet'},
+          token: 'token_viet',
+        );
+
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          presetDetail: testDetailWithOwner,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Scroll to make sure "Sắp xếp" is visible if needed
+        await tester.scrollUntilVisible(
+          find.text('Sắp xếp'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Sắp xếp'));
+        await tester.pumpAndSettle();
+
+        // Zero exceptions / zero render overflows
+        expect(tester.takeException(), isNull);
+        expect(find.text('Lưu thứ tự'), findsOneWidget);
+      },
+    );
   });
 }

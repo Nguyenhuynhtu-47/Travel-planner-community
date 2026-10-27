@@ -607,6 +607,88 @@ void main() {
     },
   );
 
+  testWidgets(
+    'days section is immediately visible near top and day selector filters displayed days',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            ..._detailResponse(99),
+            'totalDays': 2,
+            'days': [
+              {
+                'dayId': 1,
+                'dayNumber': 1,
+                'title': 'Ngày 1: Check-in',
+                'activities': [
+                  {
+                    'activityId': 10,
+                    'name': 'Bà Nà Hills',
+                    'startTime': '08:00:00',
+                    'endTime': '12:00:00',
+                    'displayOrder': 1,
+                  },
+                ],
+              },
+              {
+                'dayId': 2,
+                'dayNumber': 2,
+                'title': 'Ngày 2: Biển Mỹ Khê',
+                'activities': [],
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final repo = ItineraryRepository(apiClient: ApiClient(client: client));
+      final notifier = ItineraryDetailNotifier(
+        itineraryId: 99,
+        repository: repo,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ItineraryDetailScreen(
+            itineraryId: 99,
+            notifier: notifier,
+            isOwner: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Days section and day selector are immediately visible WITHOUT scrolling
+      expect(find.text('Lịch trình theo ngày (2 ngày)'), findsOneWidget);
+      expect(find.text('Tất cả (2)'), findsOneWidget);
+      expect(find.text('Ngày 1 (1)'), findsOneWidget);
+      expect(find.text('Ngày 2 (0)'), findsOneWidget);
+
+      // Initially Day 1 is shown at top of the days list
+      expect(find.text('Ngày 1'), findsOneWidget);
+
+      // Tap 'Ngày 2 (0)' chip to filter to Day 2
+      await tester.tap(find.text('Ngày 2 (0)'));
+      await tester.pumpAndSettle();
+
+      // Day 2 is now shown at top, Day 1 card is filtered out
+      expect(find.text('Ngày 2'), findsOneWidget);
+      expect(find.text('Ngày 1'), findsNothing);
+
+      // Tap 'Tất cả (2)' chip to restore
+      await tester.tap(find.text('Tất cả (2)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ngày 1'), findsOneWidget);
+    },
+  );
+
   test('ItineraryDetail.fromJson handles generic Map, string numbers, and nullables', () {
     final raw = <dynamic, dynamic>{
       'itineraryId': '282',

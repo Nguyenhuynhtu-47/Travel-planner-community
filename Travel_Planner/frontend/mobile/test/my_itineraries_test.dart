@@ -437,6 +437,7 @@ void main() {
             home: MyItinerariesScreen(
               authNotifier: authNotifier,
               notifier: notifier,
+              repository: repo,
             ),
           ),
         );
@@ -467,6 +468,201 @@ void main() {
 
         expect(find.byType(ItineraryDetailScreen), findsOneWidget);
         expect(find.text('Chi tiết lịch trình'), findsOneWidget);
+        expect(find.text('Chuyến phượt Tây Bắc'), findsWidgets);
+        expect(find.text('Tây Bắc'), findsWidgets);
+        expect(find.text('5 ngày'), findsWidgets);
+        // Owner actions are visible
+        expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Tapping MyItineraryCard immediately renders itinerary details using initialSummary before async load',
+      (tester) async {
+        final mockClient = MockClient((request) async {
+          if (request.url.path.contains('/api/user/itineraries')) {
+            return http.Response(
+              jsonEncode({
+                'content': [
+                  {
+                    'itineraryId': 88,
+                    'title': 'Hành trình Miền Tây',
+                    'location': 'Cần Thơ',
+                    'totalDays': 2,
+                    'budget': 1500000,
+                    'theme': 'Sinh thái',
+                    'visibility': 'PUBLIC',
+                    'status': 'ACTIVE',
+                    'viewCount': 10,
+                    'favoriteCount': 2,
+                    'ratingCount': 0,
+                    'averageRating': 0.0,
+                  },
+                ],
+                'pageNumber': 0,
+                'pageSize': 10,
+                'totalElements': 1,
+                'totalPages': 1,
+                'last': true,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+
+          // Slow detail endpoint response
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          return http.Response(
+            jsonEncode({
+              'itineraryId': 88,
+              'title': 'Hành trình Miền Tây',
+              'location': 'Cần Thơ',
+              'totalDays': 2,
+              'budget': 1500000,
+              'theme': 'Sinh thái',
+              'visibility': 'PUBLIC',
+              'status': 'ACTIVE',
+              'days': [],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final notifier = MyItinerariesNotifier(repository: repo);
+        final authNotifier = AuthNotifier();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MyItinerariesScreen(
+              authNotifier: authNotifier,
+              notifier: notifier,
+              repository: repo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap card to navigate
+        await tester.tap(find.byType(MyItineraryCard));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ItineraryDetailScreen), findsOneWidget);
+        expect(find.text('Hành trình Miền Tây'), findsWidgets);
+        expect(find.text('Cần Thơ'), findsWidgets);
+        expect(find.text('2 ngày'), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'Tapping an itinerary with zero activities in My Itineraries renders days section and owner actions',
+      (tester) async {
+        final mockClient = MockClient((request) async {
+          if (request.url.path.contains('/api/user/itineraries')) {
+            return http.Response(
+              jsonEncode({
+                'content': [
+                  {
+                    'itineraryId': 99,
+                    'title': 'Lịch trình Mới Tạo',
+                    'location': 'Nha Trang',
+                    'totalDays': 3,
+                    'budget': 3000000,
+                    'theme': 'Biển đảo',
+                    'visibility': 'PUBLIC',
+                    'status': 'ACTIVE',
+                  },
+                ],
+                'pageNumber': 0,
+                'pageSize': 10,
+                'totalElements': 1,
+                'totalPages': 1,
+                'last': true,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+
+          // Detail endpoint returning 3 days with empty activities
+          return http.Response(
+            jsonEncode({
+              'itineraryId': 99,
+              'title': 'Lịch trình Mới Tạo',
+              'location': 'Nha Trang',
+              'totalDays': 3,
+              'budget': 3000000,
+              'theme': 'Biển đảo',
+              'visibility': 'PUBLIC',
+              'status': 'ACTIVE',
+              'days': [
+                {
+                  'dayId': 10,
+                  'dayNumber': 1,
+                  'title': 'Ngày 1: Đến Nha Trang',
+                  'activities': [],
+                },
+                {
+                  'dayId': 11,
+                  'dayNumber': 2,
+                  'title': 'Ngày 2: Tour 4 đảo',
+                  'activities': [],
+                },
+                {
+                  'dayId': 12,
+                  'dayNumber': 3,
+                  'title': 'Ngày 3: Mua sắm và về',
+                  'activities': [],
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final notifier = MyItinerariesNotifier(repository: repo);
+        final authNotifier = AuthNotifier();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MyItinerariesScreen(
+              authNotifier: authNotifier,
+              notifier: notifier,
+              repository: repo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(MyItineraryCard));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ItineraryDetailScreen), findsOneWidget);
+        expect(find.text('Lịch trình Mới Tạo'), findsWidgets);
+        expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+
+        // Days section is immediately accessible and visible near the top
+        expect(find.text('Lịch trình theo ngày (3 ngày)'), findsOneWidget);
+        expect(find.text('Thêm ngày'), findsOneWidget);
+
+        // Day cards and empty activity state are accessible
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -100));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Chưa có hoạt động nào được lên kế hoạch cho ngày này.'),
+          findsWidgets,
+        );
+        expect(find.text('Thêm hoạt động đầu tiên'), findsWidgets);
       },
     );
   });
