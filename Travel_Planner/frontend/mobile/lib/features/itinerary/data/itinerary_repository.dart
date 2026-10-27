@@ -17,8 +17,8 @@ class ItineraryRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
-      return ItineraryDetail.fromJson(response);
+    if (response is Map) {
+      return ItineraryDetail.fromJson(Map<String, dynamic>.from(response));
     }
 
     throw Exception('Phản hồi từ máy chủ không hợp lệ.');

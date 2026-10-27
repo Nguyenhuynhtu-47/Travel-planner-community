@@ -46,37 +46,46 @@ class ItinerarySummary {
     final rawBudget = json['budget'];
     final rawAverageRating = json['averageRating'];
 
+    final rawCreator = json['creator'];
+    CreatorSummary? parsedCreator;
+    if (rawCreator is Map) {
+      parsedCreator = CreatorSummary.fromJson(
+        Map<String, dynamic>.from(rawCreator),
+      );
+    }
+
     return ItinerarySummary(
       itineraryId: json['itineraryId'] is num
           ? (json['itineraryId'] as num).toInt()
-          : 0,
+          : (int.tryParse(json['itineraryId']?.toString() ?? '') ?? 0),
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString(),
       location: json['location']?.toString() ?? '',
       coverImage: json['coverImage']?.toString(),
       totalDays: json['totalDays'] is num
           ? (json['totalDays'] as num).toInt()
-          : 1,
-      budget: rawBudget is num ? rawBudget.toDouble() : 0.0,
+          : (int.tryParse(json['totalDays']?.toString() ?? '') ?? 1),
+      budget: rawBudget is num
+          ? rawBudget.toDouble()
+          : (num.tryParse(rawBudget?.toString() ?? '')?.toDouble() ?? 0.0),
       theme: json['theme']?.toString(),
-      visibility: json['visibility']?.toString(),
-      status: json['status']?.toString(),
+      visibility: json['visibility']?.toString() ?? 'PUBLIC',
+      status: json['status']?.toString() ?? 'ACTIVE',
       viewCount: json['viewCount'] is num
           ? (json['viewCount'] as num).toInt()
-          : 0,
+          : (int.tryParse(json['viewCount']?.toString() ?? '') ?? 0),
       favoriteCount: json['favoriteCount'] is num
           ? (json['favoriteCount'] as num).toInt()
-          : 0,
+          : (int.tryParse(json['favoriteCount']?.toString() ?? '') ?? 0),
       ratingCount: json['ratingCount'] is num
           ? (json['ratingCount'] as num).toInt()
-          : 0,
+          : (int.tryParse(json['ratingCount']?.toString() ?? '') ?? 0),
       averageRating: rawAverageRating is num
           ? rawAverageRating.toDouble()
-          : 0.0,
+          : (num.tryParse(rawAverageRating?.toString() ?? '')?.toDouble() ??
+                0.0),
       createdAt: parsedDate,
-      creator: json['creator'] is Map<String, dynamic>
-          ? CreatorSummary.fromJson(json['creator'] as Map<String, dynamic>)
-          : null,
+      creator: parsedCreator,
     );
   }
 }

@@ -7,6 +7,7 @@ import 'models/activity_detail.dart';
 import 'models/create_activity_request.dart';
 import 'models/create_day_request.dart';
 import 'models/create_itinerary_request.dart';
+import 'models/destination_summary.dart';
 import 'models/itinerary_day_detail.dart';
 import 'models/itinerary_detail.dart';
 import 'models/reorder_activity_item.dart';
@@ -46,10 +47,11 @@ class ItineraryCrudRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
+    if (response is Map) {
       return PageResult.fromJson(
-        response,
-        (item) => ItinerarySummary.fromJson(item as Map<String, dynamic>),
+        Map<String, dynamic>.from(response),
+        (item) =>
+            ItinerarySummary.fromJson(Map<String, dynamic>.from(item as Map)),
       );
     }
 
@@ -74,8 +76,8 @@ class ItineraryCrudRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
-      return ItineraryDetail.fromJson(response);
+    if (response is Map) {
+      return ItineraryDetail.fromJson(Map<String, dynamic>.from(response));
     }
 
     throw ApiException(
@@ -96,8 +98,8 @@ class ItineraryCrudRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
-      return ItineraryDetail.fromJson(response);
+    if (response is Map) {
+      return ItineraryDetail.fromJson(Map<String, dynamic>.from(response));
     }
 
     throw ApiException(
@@ -126,8 +128,8 @@ class ItineraryCrudRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
-      return ItineraryDayDetail.fromJson(response);
+    if (response is Map) {
+      return ItineraryDayDetail.fromJson(Map<String, dynamic>.from(response));
     }
 
     throw ApiException(
@@ -149,8 +151,8 @@ class ItineraryCrudRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
-      return ItineraryDayDetail.fromJson(response);
+    if (response is Map) {
+      return ItineraryDayDetail.fromJson(Map<String, dynamic>.from(response));
     }
 
     throw ApiException(
@@ -180,8 +182,8 @@ class ItineraryCrudRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
-      return ActivityDetail.fromJson(response);
+    if (response is Map) {
+      return ActivityDetail.fromJson(Map<String, dynamic>.from(response));
     }
 
     throw ApiException(
@@ -204,8 +206,8 @@ class ItineraryCrudRepository {
       token: token,
     );
 
-    if (response is Map<String, dynamic>) {
-      return ActivityDetail.fromJson(response);
+    if (response is Map) {
+      return ActivityDetail.fromJson(Map<String, dynamic>.from(response));
     }
 
     throw ApiException(
@@ -242,7 +244,9 @@ class ItineraryCrudRepository {
 
     if (response is List) {
       return response
-          .map((e) => ActivityDetail.fromJson(e as Map<String, dynamic>))
+          .map(
+            (e) => ActivityDetail.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
           .toList();
     }
 
@@ -250,5 +254,33 @@ class ItineraryCrudRepository {
       statusCode: 0,
       message: 'Phản hồi từ máy chủ không hợp lệ.',
     );
+  }
+
+  /// Fetches available destinations with an optional keyword filter.
+  Future<List<DestinationSummary>> getDestinations({
+    String? keyword,
+    String? token,
+  }) async {
+    final queryParams = <String, dynamic>{
+      if (keyword != null && keyword.trim().isNotEmpty)
+        'keyword': keyword.trim(),
+    };
+    final response = await _apiClient.get(
+      ApiConstants.destinationsEndpoint,
+      queryParameters: queryParams,
+      token: token,
+    );
+
+    if (response is List) {
+      return response
+          .map(
+            (e) => DestinationSummary.fromJson(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
+          .toList();
+    }
+
+    return const [];
   }
 }

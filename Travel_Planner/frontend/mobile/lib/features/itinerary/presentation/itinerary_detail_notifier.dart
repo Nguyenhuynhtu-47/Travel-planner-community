@@ -20,7 +20,31 @@ class ItineraryDetailNotifier extends ChangeNotifier {
     this.initialSummary,
     ItineraryDetail? initialDetail,
     ItineraryRepository? repository,
-  }) : itineraryDetail = initialDetail,
+  }) : itineraryDetail =
+           initialDetail ??
+           (initialSummary != null
+               ? ItineraryDetail(
+                   itineraryId: initialSummary.itineraryId != 0
+                       ? initialSummary.itineraryId
+                       : itineraryId,
+                   title: initialSummary.title,
+                   description: initialSummary.description,
+                   location: initialSummary.location,
+                   coverImage: initialSummary.coverImage,
+                   totalDays: initialSummary.totalDays,
+                   budget: initialSummary.budget,
+                   theme: initialSummary.theme,
+                   viewCount: initialSummary.viewCount,
+                   favoriteCount: initialSummary.favoriteCount,
+                   ratingCount: initialSummary.ratingCount,
+                   averageRating: initialSummary.averageRating,
+                   visibility: initialSummary.visibility ?? 'PUBLIC',
+                   status: initialSummary.status ?? 'ACTIVE',
+                   createdAt: initialSummary.createdAt,
+                   creator: initialSummary.creator,
+                   days: const [],
+                 )
+               : null),
        isLoading = initialDetail == null,
        _repository = repository ?? ItineraryRepository();
 
@@ -47,16 +71,11 @@ class ItineraryDetailNotifier extends ChangeNotifier {
       errorMessage = null;
       errorStatusCode = null;
     } on ApiException catch (e) {
-      if (itineraryDetail == null) {
-        errorMessage = e.message;
-        errorStatusCode = e.statusCode;
-      }
+      errorMessage = e.message;
+      errorStatusCode = e.statusCode;
     } catch (_) {
-      if (itineraryDetail == null) {
-        errorMessage =
-            'Không thể tải chi tiết lịch trình. Vui lòng thử lại sau.';
-        errorStatusCode = null;
-      }
+      errorMessage = 'Không thể tải chi tiết lịch trình. Vui lòng thử lại sau.';
+      errorStatusCode = null;
     } finally {
       isLoading = false;
       notifyListeners();
