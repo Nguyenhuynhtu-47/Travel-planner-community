@@ -639,6 +639,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   if (isOwner)
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
+                        minimumSize: Size.zero,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 6,

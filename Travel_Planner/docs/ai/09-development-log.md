@@ -2051,4 +2051,172 @@ Resolved two defects in the Travel Planner mobile application (`frontend/mobile`
 - **Device Connection:** Android device `RFCW8105T0H` connected with active reverse tunnel (`tcp:8080 tcp:8080`).
 - **Verification Summary:** All automated widget tests simulating small Android screen dimensions (360x640dp), drag gestures, inline reordering, cancelation, and API error reconciliation pass with 0 errors and 0 overflows. Live smoke-testing on the connected hardware device is running against the active Spring Boot backend.
 
+---
+
+## 41. Session Entry: Runtime Layout Diagnosis — Missing Day Heading & 260dp Blank Gap (2026-10-28)
+
+### 41.1. Problem Statement
+- **Reported Anomaly:** On connected Android physical device (`RFCW8105T0H`), the itinerary detail screen showed an unexpected ~260dp (~731 physical px) blank gap between the itinerary overview and the day selector chips. The Day Section Heading (`Lịch trình theo ngày` and `Thêm ngày`) was visually missing.
+- **Task Scope:** Strictly diagnostic only. No UI redesign, no speculative margin/padding tweaks, no layout hierarchy changes.
+
+### 41.2. Diagnostic Methodology & Instrumentation
+1. **Runtime Measurement Instrumentation:**
+   - Attached controlled `GlobalKey`s inside `itinerary_detail_screen.dart`: `_overviewKey`, `_headingKey`, `_daySelectorKey`, `_firstDayCardKey`, `_overviewSliverKey`, `_headingSliverKey`, `_selectorSliverKey`, and `_scrollKey`.
+   - Utilized `WidgetsBinding.instance.addPostFrameCallback` with change-signature memoization to prevent log spam.
+   - Measured global boundaries, sizes, and gap distances via `localToGlobal(Offset.zero)` and `RenderBox.size`.
+   - Inspected `RenderViewportBase` sliver list and individual `RenderSliver` geometry (`scrollExtent`, `paintExtent`, `layoutExtent`).
+
+2. **Physical Device Runtime Measurements (`RFCW8105T0H`):**
+   - Viewport: `384.0 x 832.0 dp` (`devicePixelRatio: 2.8125`).
+   - Overview Container: `top = 82.67 dp`, `bottom = 342.67 dp`, `height = 260.00 dp`.
+   - Day Section Heading: `NOT MOUNTED / NO SIZE` (`renderBox.hasSize == false`).
+   - Day Selector Chips: `top = 602.67 dp`, `bottom = 696.67 dp`, `height = 94.00 dp` | **Gap from Overview = 260.00 dp**.
+   - First Day Card: `top = 702.67 dp`, `bottom = 1038.67 dp`, `height = 336.00 dp` | Gap from Day Selector = `6.00 dp` (matches `SliverPadding.top = 6.0`).
+
+3. **Runtime Crash Trace & Layout Pipeline Failure:**
+   - The device caught a fatal Flutter rendering library exception during layout:
+     ```text
+     BoxConstraints forces an infinite width.
+     The offending constraints were: BoxConstraints(w=Infinity, 48.0<=h<=Infinity)
+     creator: ConstrainedBox ← _InputPadding ← Semantics ← OutlinedButton ← Row ← Padding ← KeyedSubtree-[GlobalKey#diag_heading] ← SliverToBoxAdapter-[GlobalKey#diag_heading_sliver]
+     ```
+   - Subsequent cascade:
+     ```text
+     RenderBox was not laid out: RenderConstrainedBox relayoutBoundary=up6 NEEDS-PAINT
+     RenderBox was not laid out: _RenderInputPadding relayoutBoundary=up5 NEEDS-PAINT
+     RenderBox was not laid out: RenderSemanticsAnnotations relayoutBoundary=up4 NEEDS-PAINT
+     RenderBox was not laid out: RenderFlex relayoutBoundary=up3 NEEDS-PAINT
+     RenderBox was not laid out: RenderPadding relayoutBoundary=up2 NEEDS-PAINT
+     RenderBox was not laid out: RenderPadding: Failed assertion: line 2251 pos 12: 'hasSize': is not true.
+     ```
+
+### 41.3. Proven Root Cause
+1. **Global Theme Definition in `lib/core/theme/app_theme.dart` (lines 90-98):**
+   - `outlinedButtonTheme` defines `minimumSize: const Size.fromHeight(48)`.
+   - In Flutter, `Size.fromHeight(48)` resolves to `Size(double.infinity, 48)`.
+2. **Context Trigger in `itinerary_detail_screen.dart` (lines 800-840):**
+   - In `Day Section Header`, when `isOwner == true`, `OutlinedButton.icon` (`'Thêm ngày'`) is built as an unflexed child inside a horizontal `Row` alongside `Expanded`.
+   - Because the `Row` passes unconstrained horizontal bounds (`maxWidth = double.infinity`) to non-flexible children, `OutlinedButton` attempts to satisfy `minWidth: double.infinity` inherited from the global theme.
+   - Flutter's `RenderConstrainedBox` asserts against infinite width inside unconstrained containers, terminating layout calculation for `RenderFlex` (Row) and `RenderPadding`.
+   - `RenderSliverToBoxAdapter` containing the heading crashes during `performLayout()`, rendering no text or buttons (`NOT MOUNTED / NO SIZE`), while occupying a 260.00dp corrupted sliver extent in the viewport layout before the Day Selector.
+
+### 41.4. Verification & Testing
+- `flutter analyze` in `frontend/mobile`: 0 issues found.
+- `flutter test test/itinerary_detail_test.dart`: 12/12 tests passed (where `theme: AppTheme.lightTheme` was not previously supplied to MaterialApp).
+- Independent layout crash test using `AppTheme.lightTheme` + `isOwner: true`: Reproduced exact identical `BoxConstraints forces an infinite width` and `RenderBox was not laid out: 'hasSize' is false` assertion failures.
+
+### 41.5. Proposed Minimal Fix
+- Set `minimumSize: Size.zero` and `tapTargetSize: MaterialTapTargetSize.shrinkWrap` on `OutlinedButton.styleFrom` for the `"Thêm ngày"` button in `itinerary_detail_screen.dart`, or sanitize `outlinedButtonTheme` in `app_theme.dart` to avoid `Size.fromHeight(48)`. Implementation pending user confirmation.
+
+---
+
+## 42. Session Entry: UI Bug Fix — Minimal Scoped Fix for Itinerary Detail 260dp Blank Gap (2026-10-28)
+
+### 42.1. Problem & Context
+- The itinerary detail screen on Android physical devices exhibited a persistent 260dp blank vertical gap and missing day-section header due to `OutlinedButton.icon` inheriting `minimumSize: const Size.fromHeight(48)` from global `AppTheme`. This attempted to enforce `minWidth = double.infinity` within a horizontal `Row`, causing an assertion failure in `RenderConstrainedBox` and aborting sliver layout.
+
+### 42.2. Implemented Minimal Scoped Fix
+- **Scoped Style Override in `itinerary_detail_screen.dart`:**
+  - Added `minimumSize: Size.zero` to `OutlinedButton.styleFrom` on the "Thêm ngày" button inside the Day Section Header (`Row`).
+  - Preserved standard Material Design tap-target accessibility padding without forcing `MaterialTapTargetSize.shrinkWrap`.
+  - Did **not** modify `app_theme.dart` or any global themes.
+  - Did **not** modify `CustomScrollView`, sliver ordering, padding, margins, physics, or widget hierarchy.
+
+### 42.3. Animation Guidelines Compliance (docs/ai/10-animation-guidelines.md)
+- **Motion Level Selection:** Level 0 (None) / Direct state rendering.
+- **Frequency-of-Use Justification:** The day-section header and action buttons are static structural navigation anchors on the itinerary detail screen. Adding motion to header buttons or sliver anchors would introduce visual instability and delay the user's travel planning tasks.
+- **Lifecycle & Accessibility:** No controllers or tickers were introduced. Touch-target accessibility requirements are preserved.
+
+### 42.4. Files Modified
+- `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`: Added `minimumSize: Size.zero` to "Thêm ngày" `OutlinedButton.icon` style.
+- `frontend/mobile/test/itinerary_detail_test.dart`: Imported `AppTheme` and added 2 focused widget tests testing owner view (heading + "Thêm ngày" with zero exceptions) and non-owner view under `AppTheme.lightTheme`.
+- `docs/ai/09-development-log.md`: Appended Session 42 entry.
+
+### 42.5. Verification & Testing
+- **Flutter Analyze:** `flutter analyze` in `frontend/mobile` -> **No issues found (0 warnings, 0 errors)**.
+- **Focused Widget Tests:** `flutter test test/itinerary_detail_test.dart` -> **14 / 14 tests passed (100%)**.
+  - Confirmed `Lịch trình theo ngày` and `Thêm ngày` render cleanly with `AppTheme.lightTheme`.
+  - Confirmed gap between Overview and Day Section Heading is `0.00 dp`.
+  - Confirmed gap between Day Section Heading and Day Selector Chips is `0.00 dp`.
+  - Confirmed non-owner view renders without layout crash and without owner button.
+- **Full Mobile Test Suite:** `flutter test` in `frontend/mobile` -> **135 / 135 tests passed (100% across all 11 suites)**.
+
+---
+
+## 43. Session Entry: Daily Activity Reordering UI Diagnosis, Fix, and Physical Android Verification (2026-10-28)
+
+### 43.1. Context & Objective
+Investigated and resolved a UI issue in the daily activity reordering feature of the Flutter mobile app. Followed strict requirement to reproduce directly on the physical Android phone (`RFCW8105T0H`), collect runtime evidence, trace root cause, implement minimal scoped fix, and verify reordering and data persistence directly on the physical phone.
+
+### 43.2. Reproduction & Runtime Evidence on Physical Device (`RFCW8105T0H` / Samsung SM-A346E)
+1. **Device Setup & Connectivity:**
+   - Physical phone detected: `RFCW8105T0H` (Samsung Galaxy A34 5G, Android 16, API 36).
+   - Configured `adb reverse tcp:8080 tcp:8080` bridging the local Spring Boot backend.
+   - Built and installed the Flutter app with `--dart-define=API_BASE_URL=http://localhost:8080`.
+   - Logged in as `minh danh` and navigated to owner itinerary `hello4`.
+2. **Reproduction Steps:**
+   - Navigated to `hello4` detail screen containing Day 1 with 2 activities ("anw cowm", "ddi bien").
+   - Tapped "Sắp xếp" on Day 1 card to enter inline activity reordering mode.
+3. **Observed UI Defect & Evidence:**
+   - The top banner ("Kéo biểu tượng ≡ để đổi thứ tự hoạt động") was obscured or unrendered.
+   - The "Hủy" text button was positioned incorrectly at the top-left of the reorder area, rendering directly over the drag handle of the first activity item.
+   - The "Lưu thứ tự" (`ElevatedButton`) button failed layout completely and was missing from the screen.
+   - A large white blank gap appeared below the items inside the card.
+4. **Diagnostic Error Trace:**
+   - Flutter rendering library threw:
+     ```text
+     ══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+     The following assertion was thrown during performLayout():
+     BoxConstraints forces an infinite width.
+     The offending constraints were:
+       BoxConstraints(w=Infinity, 48.0<=h<=Infinity)
+     The relevant error-causing widget was:
+       ElevatedButton: .../itinerary_day_card.dart:453:25
+     ```
+   - Followed by `RenderBox was not laid out: RenderParagraph ... hasSize: false` and corrupted `RenderFlex` layout.
+
+### 43.3. Proven Root Cause
+1. **Global `elevatedButtonTheme` in `lib/core/theme/app_theme.dart` (lines 68-89):**
+   - Configured with `minimumSize: const WidgetStatePropertyAll<Size>(Size.fromHeight(48))`.
+   - In Flutter, `Size.fromHeight(48)` defines `width = double.infinity`.
+2. **Unconstrained Row in `itinerary_day_card.dart` (lines 437-486):**
+   - The inline reorder action buttons are housed inside a `Row`:
+     ```dart
+     Row(
+       mainAxisAlignment: MainAxisAlignment.end,
+       children: [
+         TextButton(child: Text('Hủy')),
+         SizedBox(width: 8),
+         ElevatedButton(child: Text('Lưu thứ tự')),
+       ],
+     )
+     ```
+   - `Row` provides unconstrained horizontal width (`0.0 <= width <= double.infinity`) to unflexed children.
+   - `ElevatedButton` inherited `minWidth: double.infinity` from global theme without an overriding `minimumSize`, violating `BoxConstraints` and aborting `performLayout()` for the entire button row and parent column.
+   - Consequently, "Lưu thứ tự" failed to render, "Hủy" mispositioned at (0, 0) over item 1's handle, and the reorder interface was rendered broken and unusable.
+
+### 43.4. Minimal Scoped Fix
+- In `frontend/mobile/lib/features/itinerary/presentation/widgets/itinerary_day_card.dart` line 456:
+  - Added `minimumSize: Size.zero` to `ElevatedButton.styleFrom` for the "Lưu thứ tự" button.
+- Did **not** alter global themes, API contracts, screen architecture, or unrelated widgets.
+- Preserved existing touch targets, padding (`EdgeInsets.symmetric(horizontal: 16, vertical: 8)`), and design system tokens.
+
+### 43.5. Animation Guidelines Compliance (`docs/ai/10-animation-guidelines.md`)
+- **Motion Level Selection:** Level 1 (Subtle Micro-interactions).
+- **Existing Smooth Transitions:** Utilized Flutter's built-in `ReorderableListView` elevation transition via `proxyDecorator` (`Material(elevation: 4, borderRadius: 10)`).
+- **Compliance:** Fixed layout constraint crash without introducing unbounded tickers, jank, or disruptive layout jumps.
+
+### 43.6. Verification & Test Results
+- **Static Analysis:** `flutter analyze` -> `No issues found! (ran in 2.6s)`.
+- **Targeted Automated Tests:** `flutter test test/itinerary_activity_management_test.dart`:
+  - Added regression test `Inline reordering renders with AppTheme.lightTheme without BoxConstraints forces an infinite width error`.
+  - **31 / 31 tests passed (100%)**.
+- **Physical Device Runtime Verification (`RFCW8105T0H`):**
+  - Built APK: `flutter build apk --debug --dart-define=API_BASE_URL=http://localhost:8080`.
+  - Installed onto real device: `adb -s RFCW8105T0H install -r build/app/outputs/flutter-apk/app-debug.apk`.
+  - **Reorder Mode Verification:** Tapped "Sắp xếp" on Day 1. Header banner ("Kéo biểu tượng ≡ để đổi thứ tự hoạt động") rendered cleanly at top; item 1 and item 2 drag handles and index badges rendered with zero overlap; "Hủy" and "Lưu thứ tự" rendered in proper alignment at bottom right.
+  - **Drag Interaction Verification:** Dragged "ddi bien" upward above "anw cowm" via swipe input. Items reordered dynamically (`ddi bien` became #1, `anw cowm` became #2).
+  - **Save & Persistence Verification:** Tapped "Lưu thứ tự". Backend PUT request `/api/itineraries/4/days/1/activities/reorder` succeeded with HTTP 200. Detail screen reloaded with green SnackBar "Đã cập nhật thứ tự hoạt động." and activities persisted in new order without moving across days.
+  - **Existing Operations:** Verified "Thêm hoạt động" modal bottom sheet continues to open and function normally.
+  - **Runtime Logs:** Verified zero `flutter:E` or `flutter:W` layout/rendering exceptions during and after reordering.
 

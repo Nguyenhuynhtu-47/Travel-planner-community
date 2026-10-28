@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/presentation/auth_notifier.dart';
 import 'package:mobile/features/explore/data/models/creator_summary.dart';
 import 'package:mobile/features/itinerary/data/itinerary_crud_repository.dart';
@@ -1598,6 +1599,79 @@ void main() {
         // Zero exceptions / zero render overflows
         expect(tester.takeException(), isNull);
         expect(find.text('Lưu thứ tự'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Inline reordering renders with AppTheme.lightTheme without BoxConstraints forces an infinite width error',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2340);
+        tester.view.devicePixelRatio = 2.8125;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repository = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final authNotifier = MockAuthNotifier(
+          user: {'username': 'traveler_viet'},
+          token: 'token_viet',
+        );
+
+        final notifier = FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          presetDetail: testDetailWithOwner,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.scrollUntilVisible(
+          find.text('Sắp xếp'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Sắp xếp'));
+        await tester.pumpAndSettle();
+
+        // Must not throw any exception
+        expect(tester.takeException(), isNull);
+
+        // Banner and both action buttons must be present and correctly laid out
+        expect(
+          find.text('Kéo biểu tượng ≡ để đổi thứ tự hoạt động'),
+          findsOneWidget,
+        );
+        expect(find.text('Hủy'), findsOneWidget);
+        expect(find.text('Lưu thứ tự'), findsOneWidget);
+
+        final huyBox = tester.getRect(find.text('Hủy'));
+        final saveBox = tester.getRect(find.text('Lưu thứ tự'));
+        final bannerBox = tester.getRect(
+          find.text('Kéo biểu tượng ≡ để đổi thứ tự hoạt động'),
+        );
+
+        // Banner must be at top of reordering section
+        expect(bannerBox.bottom, lessThan(huyBox.top));
+        expect(bannerBox.bottom, lessThan(saveBox.top));
+
+        // Save button must be horizontally to the right of Huy button
+        expect(huyBox.right, lessThan(saveBox.left));
       },
     );
   });

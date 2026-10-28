@@ -455,6 +455,7 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
                             elevation: 0,
+                            minimumSize: Size.zero,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,

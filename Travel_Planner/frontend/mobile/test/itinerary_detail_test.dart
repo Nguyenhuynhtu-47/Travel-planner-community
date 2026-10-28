@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/presentation/auth_notifier.dart';
 import 'package:mobile/features/explore/data/explore_repository.dart';
 import 'package:mobile/features/explore/presentation/explore_notifier.dart';
@@ -686,6 +687,112 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Ngày 1'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'owner view with AppTheme.lightTheme renders day section heading and "Thêm ngày" button without layout exception',
+    (tester) async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            ..._detailResponse(99),
+            'totalDays': 2,
+            'days': [
+              {
+                'dayId': 1,
+                'dayNumber': 1,
+                'title': 'Ngày 1',
+                'activities': [],
+              },
+              {
+                'dayId': 2,
+                'dayNumber': 2,
+                'title': 'Ngày 2',
+                'activities': [],
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final repo = ItineraryRepository(apiClient: ApiClient(client: client));
+      final notifier = ItineraryDetailNotifier(
+        itineraryId: 99,
+        repository: repo,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: ItineraryDetailScreen(
+            itineraryId: 99,
+            notifier: notifier,
+            isOwner: true,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // Heading and Thêm ngày button are rendered without layout exception
+      expect(find.text('Lịch trình theo ngày (2 ngày)'), findsOneWidget);
+      expect(find.text('Thêm ngày'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'non-owner view with AppTheme.lightTheme renders heading without owner-only "Thêm ngày" button',
+    (tester) async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            ..._detailResponse(99),
+            'totalDays': 2,
+            'days': [
+              {
+                'dayId': 1,
+                'dayNumber': 1,
+                'title': 'Ngày 1',
+                'activities': [],
+              },
+              {
+                'dayId': 2,
+                'dayNumber': 2,
+                'title': 'Ngày 2',
+                'activities': [],
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final repo = ItineraryRepository(apiClient: ApiClient(client: client));
+      final notifier = ItineraryDetailNotifier(
+        itineraryId: 99,
+        repository: repo,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: ItineraryDetailScreen(
+            itineraryId: 99,
+            notifier: notifier,
+            isOwner: false,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // Heading is present, owner-only button is absent
+      expect(find.text('Lịch trình theo ngày (2 ngày)'), findsOneWidget);
+      expect(find.text('Thêm ngày'), findsNothing);
+      expect(tester.takeException(), isNull);
     },
   );
 
