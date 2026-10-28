@@ -4,9 +4,9 @@ import 'core/network/api_client.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
-import 'features/explore/presentation/screens/explore_screen.dart';
 import 'features/itinerary/presentation/screens/my_itineraries_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
+import 'shared/navigation/main_navigation_shell.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,7 +68,7 @@ class _MyAppState extends State<MyApp> {
             );
           }
 
-          return ExploreScreen(authNotifier: _authNotifier);
+          return MainNavigationShell(authNotifier: _authNotifier);
         },
       ),
     );

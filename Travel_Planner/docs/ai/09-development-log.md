@@ -2220,3 +2220,86 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
   - **Existing Operations:** Verified "Thêm hoạt động" modal bottom sheet continues to open and function normally.
   - **Runtime Logs:** Verified zero `flutter:E` or `flutter:W` layout/rendering exceptions during and after reordering.
 
+## Session 44 — Mobile Bottom Navigation Bar & Top-Right Notification UI
+
+### 44.1. Objective and Architecture Selection
+- Replaced the previous top-navigation/popup access model on mobile with a clean, ergonomic bottom navigation bar containing five icon-only destinations.
+- Moved notification entry points to an accessible bell icon in the top-right area across main screens.
+- **Navigation Architecture:** Built `MainNavigationShell` (`lib/shared/navigation/main_navigation_shell.dart`) using `IndexedStack` hosted within a root `Scaffold`.
+  - **State Preservation:** Keeps state, scroll offsets, form inputs, and search queries alive without rebuilding or remounting tabs on selection.
+  - **Zero Stack Clutter:** Avoids nested navigator synchronization complexity or route duplication.
+  - **Modal/Sub-screen Isolation:** Secondary screens (`LoginScreen`, `RegisterScreen`, `ItineraryDetailScreen`, `NotificationsScreen`) are pushed onto the root Navigator, cleanly covering the bottom bar without unwanted navigation overlays.
+
+### 44.2. Five Destinations Implementation Status
+1. **Explore / Home (Index 0, Default):**
+   - Reused existing `ExploreScreen`.
+   - Icons: `Icons.explore_outlined` (unselected), `Icons.explore` (selected, `AppColors.primary`).
+   - Title made `Flexible` with ellipsis to guarantee zero overflow on compact viewports (e.g. 360dp width).
+2. **Community (Index 1):**
+   - Implemented placeholder `CommunityScreen` (`lib/features/social/presentation/screens/community_screen.dart`).
+   - Icons: `Icons.group_outlined` (unselected), `Icons.group` (selected).
+   - Clean empty state (`AppEmptyState`) explaining that public itinerary community discovery is in development.
+3. **Create Itinerary (Index 2, Center):**
+   - Reused existing `CreateItineraryScreen` and established creation flow (`CreateItineraryRequest` -> `ItineraryCrudRepository` -> `POST /api/itineraries` -> `ItineraryDetailScreen`).
+   - Icons: `Icons.add_circle_outline` (unselected, 28dp), `Icons.add_circle` (selected, 28dp).
+   - Added optional `onCreated` callback that resets form inputs and smoothly returns focus to the Explore screen upon completion.
+4. **Saved Itineraries (Index 3):**
+   - Implemented placeholder `SavedItinerariesScreen` (`lib/features/saved_itineraries/presentation/screens/saved_itineraries_screen.dart`).
+   - Icons: `Icons.bookmark_outline` (unselected), `Icons.bookmark` (selected).
+   - Clean empty state communicating that favorite bookmarking is coming soon.
+5. **Personal Profile (Index 4):**
+   - Reused existing `ProfileScreen` with full edit and view capabilities.
+   - Icons: `Icons.person_outline` (unselected), `Icons.person` (selected).
+   - Added unauthenticated guest empty state (`AppEmptyState`) with direct "Đăng nhập" button to eliminate perpetual loading spinners when not authenticated.
+
+### 44.3. Top-Right Notification UI
+- Implemented `NotificationsScreen` (`lib/features/notifications/presentation/screens/notifications_screen.dart`) displaying a clean empty state ("Chưa có thông báo").
+- Placed `IconButton(tooltip: 'Thông báo', icon: Icon(Icons.notifications_outlined))` in the top-right `AppBar.actions` across `ExploreScreen`, `CommunityScreen`, `SavedItinerariesScreen`, and `ProfileScreen`.
+- Strict UI-only scope: no fake unread badges, push notification libraries, or unverified polling endpoints.
+
+### 44.4. Animation & Design System Compliance
+- **Gating:** Followed `docs/ai/10-animation-guidelines.md` (Level 0/1). Tab switching is instant via `IndexedStack` to ensure maximum responsiveness.
+- **Visuals:** Icon-only bottom bar (`showSelectedLabels: false`, `showUnselectedLabels: false`), active tint with brand primary accent (`AppColors.primary`), touch targets >= 48dp, and full accessibility tooltips and semantics.
+
+### 44.5. Files Changed & Created
+- `frontend/mobile/lib/features/notifications/presentation/screens/notifications_screen.dart` (created)
+- `frontend/mobile/lib/features/social/presentation/screens/community_screen.dart` (created)
+- `frontend/mobile/lib/features/saved_itineraries/presentation/screens/saved_itineraries_screen.dart` (created)
+- `frontend/mobile/lib/shared/navigation/main_navigation_shell.dart` (created)
+- `frontend/mobile/lib/main.dart` (updated root to `MainNavigationShell`)
+- `frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart` (added top-right notification bell and wrapped title in Flexible)
+- `frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart` (added notification bell, unauthenticated empty state, and didUpdateWidget)
+- `frontend/mobile/lib/features/itinerary/presentation/screens/create_itinerary_screen.dart` (added onCreated callback and form reset)
+- `frontend/mobile/test/bottom_navigation_test.dart` (created 10 focused tests)
+- `docs/ai/09-development-log.md` (appended Session 44)
+
+### 44.6. Verification & Automated Tests
+- **Static Analysis:** `flutter analyze` -> `No issues found! (ran in 1.5s)`.
+- **Targeted Test Suite:** `flutter test test/bottom_navigation_test.dart` -> `10/10 passed`.
+- **Comprehensive Mobile Suite:** `flutter test` -> `146/146 passed (0 failures, 0 errors across all 12 test suites)`.
+- **Physical Device:** Attempted check with `adb devices` and `flutter devices`. Device `RFCW8105T0H` was disconnected at verification time; full visual and touch-interaction verification was completed via widget testing harness with small screen bounds (360x640) and simulated touch events.
+
+## Session 45 — Remove Profile Dropdown from Explore App Bar
+
+### 45.1. Objective and Scope
+- Removed the profile section (avatar, username, dropdown arrow, and `PopupMenuButton`) from the top-right app bar of the Flutter mobile Explore screen (`frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`).
+- Retained the notification bell icon button on the right, keeping it fully functional to navigate to `NotificationsScreen`.
+- Retained the Travel Planner brand logo and title on the left without layout disruption.
+- Preserved the dedicated Profile destination in the bottom navigation bar (Index 4).
+- Preserved all account and itinerary management workflows:
+  - Profile viewing, biography/name editing, and logout were already accessible on `ProfileScreen`.
+  - Added an accessible "Lịch trình của tôi" entry button to `ProfileScreen` so users can seamlessly view and manage their personal itineraries without relying on the retired app bar dropdown.
+  - Preserved the guest "Đăng nhập" button when unauthenticated.
+
+### 45.2. Files Changed
+- `frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`: Removed `PopupMenuButton<String>`, avatar, username text, dropdown arrow, and unused imports (`profile_screen.dart`, `my_itineraries_screen.dart`). Retained the notification bell and guest login button.
+- `frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart`: Added "Lịch trình của tôi" button navigating to `MyItinerariesScreen`; exposed constructor parameter `ProfileRepository? repository` for testability.
+- `frontend/mobile/lib/shared/navigation/main_navigation_shell.dart`: Forwarded optional `ProfileRepository? profileRepository` to `ProfileScreen`.
+- `frontend/mobile/test/bottom_navigation_test.dart`: Added regression tests verifying that the Explore app bar contains only the notification bell when authenticated and that `ProfileScreen` opens `MyItinerariesScreen`.
+- `docs/ai/09-development-log.md`: Appended Session 45 entry.
+
+### 45.3. Verification & Automated Tests
+- **Static Analysis:** `flutter analyze` -> `No issues found! (ran in 3.4s)`.
+- **Targeted Test Suite:** `flutter test test/bottom_navigation_test.dart` -> `12/12 passed (100%)`.
+- **Full Test Suite:** `flutter test` -> `148/148 passed (100% across all 12 test files)`.
+- **Physical Device:** Connected Android phone `RFCW8105T0H` verified via `adb devices` and `flutter devices`.

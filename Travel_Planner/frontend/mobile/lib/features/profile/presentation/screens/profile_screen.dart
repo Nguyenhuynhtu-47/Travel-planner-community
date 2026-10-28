@@ -2,15 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../auth/presentation/auth_notifier.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
+import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../data/profile_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
+  final ProfileRepository? repository;
 
-  const ProfileScreen({super.key, required this.authNotifier});
+  const ProfileScreen({
+    super.key,
+    required this.authNotifier,
+    this.repository,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -23,7 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _bioController = TextEditingController();
-  final _repository = ProfileRepository();
+  late final ProfileRepository _repository;
 
   Map<String, dynamic>? _profile;
   bool _loading = true;
@@ -35,6 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? ProfileRepository();
     _loadProfile();
   }
 
@@ -63,9 +73,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _bioController.text = p['bio']?.toString() ?? '';
   }
 
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.authNotifier.token != oldWidget.authNotifier.token) {
+      if (widget.authNotifier.isAuthenticated) {
+        _loadProfile();
+      } else {
+        setState(() {
+          _profile = null;
+          _loading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _loadProfile() async {
     final token = widget.authNotifier.token;
-    if (token == null) return;
+    if (token == null) {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -193,11 +223,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.authNotifier.isAuthenticated) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('Hồ sơ cá nhân'),
+          actions: [
+            IconButton(
+              tooltip: 'Thông báo',
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        body: AppEmptyState(
+          icon: Icons.account_circle_outlined,
+          title: 'Chưa đăng nhập',
+          message:
+              'Vui lòng đăng nhập để xem và cập nhật thông tin hồ sơ của bạn.',
+          actionText: 'Đăng nhập',
+          onActionPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => LoginScreen(authNotifier: widget.authNotifier),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Hồ sơ cá nhân'),
         actions: [
+          IconButton(
+            tooltip: 'Thông báo',
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Đăng xuất',
             icon: const Icon(Icons.logout),
@@ -415,6 +492,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
             AppPrimaryButton(
               text: 'Chỉnh sửa hồ sơ',
               onPressed: () => setState(() => _editing = true),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.map_outlined, color: AppColors.primary),
+              label: const Text(
+                'Lịch trình của tôi',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => MyItinerariesScreen(
+                      authNotifier: widget.authNotifier,
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
           ],

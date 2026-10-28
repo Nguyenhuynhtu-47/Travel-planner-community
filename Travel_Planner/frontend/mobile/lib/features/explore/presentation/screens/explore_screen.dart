@@ -6,9 +6,8 @@ import '../../../../shared/widgets/app_error_state.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
-import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
-import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
+import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../explore_notifier.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import '../widgets/itinerary_card.dart';
@@ -129,14 +128,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
       listenable: widget.authNotifier,
       builder: (context, _) {
         final isAuthenticated = widget.authNotifier.isAuthenticated;
-        final user = widget.authNotifier.currentUser;
-        final displayName =
-            user?['fullName'] ?? user?['username'] ?? 'Người dùng';
 
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
             title: const Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.travel_explore_rounded,
@@ -144,125 +141,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   size: 26,
                 ),
                 SizedBox(width: 8),
-                Text(
-                  'Travel Planner',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
+                Flexible(
+                  child: Text(
+                    'Travel Planner',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
+                    ),
                   ),
                 ),
               ],
             ),
             actions: [
-              if (isAuthenticated)
-                PopupMenuButton<String>(
-                  tooltip: 'Tài khoản',
-                  onSelected: (value) {
-                    if (value == 'my_itineraries') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => MyItinerariesScreen(
-                            authNotifier: widget.authNotifier,
-                          ),
-                        ),
-                      );
-                    } else if (value == 'profile') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              ProfileScreen(authNotifier: widget.authNotifier),
-                        ),
-                      );
-                    } else if (value == 'logout') {
-                      widget.authNotifier.logout();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem<String>(
-                      value: 'profile',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_outline, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              displayName,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+              IconButton(
+                tooltip: 'Thông báo',
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationsScreen(),
                     ),
-                    const PopupMenuItem<String>(
-                      value: 'my_itineraries',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.map_outlined,
-                            size: 20,
-                            color: AppColors.primary,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Lịch trình của tôi',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem<String>(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.logout, size: 20, color: AppColors.error),
-                          SizedBox(width: 10),
-                          Text(
-                            'Đăng xuất',
-                            style: TextStyle(color: AppColors.error),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircleAvatar(
-                          radius: 14,
-                          backgroundColor: AppColors.primaryLight,
-                          child: Icon(
-                            Icons.person,
-                            size: 18,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 100),
-                          child: Text(
-                            displayName,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const Icon(Icons.arrow_drop_down, size: 20),
-                      ],
-                    ),
-                  ),
-                )
-              else
+                  );
+                },
+              ),
+              if (!isAuthenticated)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: OutlinedButton(

@@ -12,11 +12,13 @@ import 'itinerary_detail_screen.dart';
 class CreateItineraryScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository? repository;
+  final void Function(int createdItineraryId)? onCreated;
 
   const CreateItineraryScreen({
     super.key,
     required this.authNotifier,
     this.repository,
+    this.onCreated,
   });
 
   @override
@@ -64,6 +66,20 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
     _descriptionController.dispose();
     _coverImageController.dispose();
     super.dispose();
+  }
+
+  void _resetForm() {
+    _titleController.clear();
+    _locationController.clear();
+    _totalDaysController.text = '3';
+    _budgetController.text = '3000000';
+    _themeController.clear();
+    _descriptionController.clear();
+    _coverImageController.clear();
+    setState(() {
+      _visibility = 'PRIVATE';
+      _isSubmitting = false;
+    });
   }
 
   Future<void> _submit() async {
@@ -125,7 +141,13 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
       );
 
       if (mounted) {
-        Navigator.of(context).pop(true);
+        if (widget.onCreated != null) {
+          final id = created.itineraryId;
+          _resetForm();
+          widget.onCreated!(id);
+        } else if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        }
       }
     } on ApiException catch (e) {
       if (!mounted) return;
