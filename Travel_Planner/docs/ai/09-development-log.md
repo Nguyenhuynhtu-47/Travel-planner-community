@@ -2303,3 +2303,37 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 - **Targeted Test Suite:** `flutter test test/bottom_navigation_test.dart` -> `12/12 passed (100%)`.
 - **Full Test Suite:** `flutter test` -> `148/148 passed (100% across all 12 test files)`.
 - **Physical Device:** Connected Android phone `RFCW8105T0H` verified via `adb devices` and `flutter devices`.
+
+## Session 46 — Fix Explore Category Filter UI and Selection Logic
+
+### 46.1. Root Cause of the Incorrect Selection Behavior
+- In `ExploreNotifier.setQuickTheme(String? theme)`:
+  - Tapping "Tất cả" passed `null` as the theme argument (`isAll ? null : theme`).
+  - When a category (e.g., "Nghỉ dưỡng") was active, `_filter.theme == theme` (`'Nghỉ dưỡng' == null`) evaluated to `false`.
+  - The notifier fell through to `_filter = _filter.copyWith(theme: null)`.
+  - In `ExploreFilter.copyWith`: `theme: clearTheme ? null : (theme ?? this.theme)`. Because `clearTheme` defaulted to `false`, passing `theme: null` evaluated `null ?? this.theme` back to `this.theme` ("Nghỉ dưỡng"), preventing "Tất cả" from ever clearing the active category.
+
+### 46.2. Implementation Details
+1. **Removed Checkmark Icon on Category Chips:**
+   - In `frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`, added `showCheckmark: false` to `FilterChip`.
+   - Selected category styling continues to use the existing brand dark pill (`selectedColor: AppColors.textPrimary`) and white text (`Colors.white`, `FontWeight.w600`) with zero checkmark icon on the left.
+2. **Corrected "Tất cả" & Category Selection Logic:**
+   - In `frontend/mobile/lib/features/explore/presentation/explore_notifier.dart`, updated `setQuickTheme`:
+     - If `theme == null`: If already null, return early (no redundant fetch); otherwise, explicitly invoke `_filter.copyWith(clearTheme: true)` to clear the theme filter to `null`.
+     - Preserves all other filters (`_searchKeyword`, `location`, `minBudget`, `maxBudget`, `minDays`, `maxDays`, `minRating`, `_sort`).
+     - If the currently selected category is tapped again, toggles it off via `clearTheme: true`.
+     - Tapping "Xóa tất cả" retains its original behavior via `resetAllFilters()`, resetting search keyword, filter criteria, and sort to defaults.
+
+### 46.3. Files Changed
+- `frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`: Added `showCheckmark: false` to `FilterChip`.
+- `frontend/mobile/lib/features/explore/presentation/explore_notifier.dart`: Updated `setQuickTheme` to explicitly clear theme when `theme == null` or toggled off.
+- `frontend/mobile/test/explore_test.dart`: Added unit and widget regression tests verifying initial state, checkmark absence, category selection, "Tất cả" tap clearing, filter preservation, and "Xóa tất cả".
+- `frontend/mobile/test/bottom_navigation_test.dart`: Cleaned up unused variable warning.
+- `docs/ai/09-development-log.md`: Appended Session 46 entry.
+
+### 46.4. Verification & Test Results
+- **Static Analysis:** `flutter analyze` -> `No issues found! (ran in 1.5s)`.
+- **Targeted Test Suite:** `flutter test test/explore_test.dart` -> `16/16 passed (100%)`.
+- **Full Test Suite:** `flutter test` -> `150/150 passed (100% across all 12 test files)`.
+- **APK Compilation:** `flutter build apk --debug` -> Exit code 0 (`√ Built build\app\outputs\flutter-apk\app-debug.apk` in 27.0s).
+- **Physical Device:** Attempted adb install on `RFCW8105T0H`, but device disconnected from adb (`device 'RFCW8105T0H' not found`); verification was confirmed via automated widget tests.

@@ -229,7 +229,10 @@ class ExploreNotifier extends ChangeNotifier {
   }
 
   void setQuickTheme(String? theme, {String? token}) {
-    if (_filter.theme == theme) {
+    if (theme == null) {
+      if (_filter.theme == null) return;
+      _filter = _filter.copyWith(clearTheme: true);
+    } else if (_filter.theme == theme) {
       _filter = _filter.copyWith(clearTheme: true);
     } else {
       _filter = _filter.copyWith(theme: theme);

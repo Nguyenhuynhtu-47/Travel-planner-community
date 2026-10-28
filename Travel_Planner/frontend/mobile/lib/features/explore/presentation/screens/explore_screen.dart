@@ -238,6 +238,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: FilterChip(
+                            showCheckmark: false,
                             label: Text(theme),
                             selected: isSelected,
                             onSelected: (_) {

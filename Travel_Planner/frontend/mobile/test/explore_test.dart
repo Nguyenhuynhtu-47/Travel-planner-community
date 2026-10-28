@@ -609,4 +609,191 @@ void main() {
       },
     );
   });
+
+  group('Explore Category Filter UI and Selection Logic Tests', () {
+    test('ExploreNotifier setQuickTheme selection and clearing logic', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'content': [],
+            'pageNumber': 0,
+            'pageSize': 10,
+            'totalElements': 0,
+            'totalPages': 0,
+            'last': true,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final notifier = ExploreNotifier(
+        repository: ExploreRepository(apiClient: ApiClient(client: mockClient)),
+      );
+
+      // 1. Initial state: theme is null ("Tất cả")
+      expect(notifier.filter.theme, isNull);
+
+      // Tapping "Tất cả" when already null does nothing
+      notifier.setQuickTheme(null);
+      expect(notifier.filter.theme, isNull);
+
+      // 2. Select "Nghỉ dưỡng"
+      notifier.setQuickTheme('Nghỉ dưỡng');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(notifier.filter.theme, equals('Nghỉ dưỡng'));
+
+      // 3. Set other filters (search keyword and location)
+      notifier.search('biển');
+      notifier.applyFilter(notifier.filter.copyWith(location: 'Đà Nẵng'));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(notifier.filter.theme, equals('Nghỉ dưỡng'));
+      expect(notifier.searchKeyword, equals('biển'));
+      expect(notifier.filter.location, equals('Đà Nẵng'));
+
+      // 4. Tap "Tất cả": clears ONLY theme, preserves search text and location
+      notifier.setQuickTheme(null);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(notifier.filter.theme, isNull);
+      expect(notifier.searchKeyword, equals('biển'));
+      expect(notifier.filter.location, equals('Đà Nẵng'));
+
+      // 5. Select another category and toggle it off
+      notifier.setQuickTheme('Khám phá');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(notifier.filter.theme, equals('Khám phá'));
+
+      notifier.setQuickTheme('Khám phá');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(notifier.filter.theme, isNull);
+
+      // 6. Reset all filters clears everything
+      notifier.setQuickTheme('Ẩm thực');
+      expect(notifier.filter.theme, equals('Ẩm thực'));
+      notifier.resetAllFilters();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(notifier.filter.theme, isNull);
+      expect(notifier.searchKeyword, isEmpty);
+      expect(notifier.filter.location, isNull);
+    });
+
+    testWidgets(
+      'ExploreScreen category chips display no checkmark and tapping Tất cả clears category filter while preserving unrelated filters',
+      (tester) async {
+        final capturedRequests = <Uri>[];
+        final mockClient = MockClient((request) async {
+          capturedRequests.add(request.url);
+          return http.Response(
+            jsonEncode({
+              'content': [
+                {
+                  'itineraryId': 1,
+                  'title': 'Chuyến đi nghỉ dưỡng',
+                  'location': 'Phú Quốc',
+                  'totalDays': 3,
+                  'budget': 3000000,
+                  'theme': 'Nghỉ dưỡng',
+                  'viewCount': 10,
+                  'favoriteCount': 2,
+                  'ratingCount': 1,
+                  'averageRating': 4.5,
+                  'createdAt': '2026-10-23T10:00:00',
+                  'creator': {'userId': 1, 'username': 'user1'},
+                }
+              ],
+              'pageNumber': 0,
+              'pageSize': 10,
+              'totalElements': 1,
+              'totalPages': 1,
+              'last': true,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final authNotifier = AuthNotifier();
+        final exploreNotifier = ExploreNotifier(
+          repository: ExploreRepository(apiClient: ApiClient(client: mockClient)),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ExploreScreen(
+              authNotifier: authNotifier,
+              exploreNotifier: exploreNotifier,
+            ),
+          ),
+        );
+
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        FilterChip getFilterChip(String text) {
+          return tester.widget<FilterChip>(
+            find.ancestor(
+              of: find.text(text),
+              matching: find.byType(FilterChip),
+            ),
+          );
+        }
+
+        // 1. Initially, "Tất cả" is selected, "Nghỉ dưỡng" is not selected.
+        expect(getFilterChip('Tất cả').selected, isTrue);
+        expect(getFilterChip('Nghỉ dưỡng').selected, isFalse);
+
+        // 2. No checkmark is displayed on the chips.
+        expect(getFilterChip('Tất cả').showCheckmark, isFalse);
+        expect(getFilterChip('Nghỉ dưỡng').showCheckmark, isFalse);
+        expect(find.byIcon(Icons.check), findsNothing);
+
+        // 3. Tapping "Nghỉ dưỡng" activates that category filter.
+        await tester.tap(find.widgetWithText(FilterChip, 'Nghỉ dưỡng'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // 4. "Nghỉ dưỡng" is highlighted without a checkmark, "Tất cả" is unselected.
+        expect(getFilterChip('Nghỉ dưỡng').selected, isTrue);
+        expect(getFilterChip('Nghỉ dưỡng').showCheckmark, isFalse);
+        expect(getFilterChip('Tất cả').selected, isFalse);
+        expect(getFilterChip('Tất cả').showCheckmark, isFalse);
+        expect(find.byIcon(Icons.check), findsNothing);
+        expect(exploreNotifier.filter.theme, equals('Nghỉ dưỡng'));
+
+        // 5. "Tất cả" remains enabled and tappable while "Nghỉ dưỡng" is selected.
+        expect(getFilterChip('Tất cả').onSelected, isNotNull);
+
+        // Add a search query to verify unrelated filter preservation.
+        await tester.enterText(find.byType(TextField), 'Đà Lạt');
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(exploreNotifier.searchKeyword, equals('Đà Lạt'));
+        expect(exploreNotifier.filter.theme, equals('Nghỉ dưỡng'));
+
+        // 6 & 7. Tapping "Tất cả" clears the category filter and restores its selected state,
+        // preserving search text.
+        await tester.tap(find.widgetWithText(FilterChip, 'Tất cả'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(getFilterChip('Tất cả').selected, isTrue);
+        expect(getFilterChip('Tất cả').showCheckmark, isFalse);
+        expect(getFilterChip('Nghỉ dưỡng').selected, isFalse);
+        expect(find.byIcon(Icons.check), findsNothing);
+        expect(exploreNotifier.filter.theme, isNull);
+        expect(exploreNotifier.searchKeyword, equals('Đà Lạt'));
+
+        // 8. Tapping "Xóa tất cả" clears all filters including search text.
+        expect(find.text('Xóa tất cả'), findsOneWidget);
+        await tester.tap(find.text('Xóa tất cả'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(getFilterChip('Tất cả').selected, isTrue);
+        expect(exploreNotifier.filter.theme, isNull);
+        expect(exploreNotifier.searchKeyword, isEmpty);
+      },
+    );
+  });
 }

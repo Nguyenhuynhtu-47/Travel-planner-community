@@ -40,6 +40,7 @@ void main() {
   late ExploreRepository exploreRepository;
   late ExploreNotifier exploreNotifier;
   late ItineraryCrudRepository itineraryRepository;
+  late ProfileRepository profileRepository;
   late MockAuthNotifier authNotifier;
 
   setUp(() {
@@ -116,7 +117,7 @@ void main() {
     exploreRepository = ExploreRepository(apiClient: apiClient);
     exploreNotifier = ExploreNotifier(repository: exploreRepository);
     itineraryRepository = ItineraryCrudRepository(apiClient: apiClient);
-    final profileRepository = ProfileRepository(apiClient: apiClient);
+    profileRepository = ProfileRepository(apiClient: apiClient);
     authNotifier = MockAuthNotifier(
       currentUser: {
         'userId': 1,
@@ -137,7 +138,7 @@ void main() {
         authNotifier: customAuthNotifier ?? authNotifier,
         exploreNotifier: exploreNotifier,
         itineraryRepository: itineraryRepository,
-        profileRepository: ProfileRepository(apiClient: apiClient),
+        profileRepository: profileRepository,
         initialIndex: initialIndex,
       ),
     );
