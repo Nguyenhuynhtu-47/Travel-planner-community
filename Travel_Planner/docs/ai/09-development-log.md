@@ -2337,3 +2337,23 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 - **Full Test Suite:** `flutter test` -> `150/150 passed (100% across all 12 test files)`.
 - **APK Compilation:** `flutter build apk --debug` -> Exit code 0 (`√ Built build\app\outputs\flutter-apk\app-debug.apk` in 27.0s).
 - **Physical Device:** Attempted adb install on `RFCW8105T0H`, but device disconnected from adb (`device 'RFCW8105T0H' not found`); verification was confirmed via automated widget tests.
+
+## 47. Session Entry: Itinerary Comments API and Mobile UI (2026-10-31)
+
+### 47.1. Summary
+- Implemented paginated public comments and authenticated comment creation for public active itineraries.
+- Added the mobile comments section to public active itinerary details, including submission and pagination.
+- Branch: `feature/comments`. Commit information was not recorded during this task.
+
+### 47.2. Files Changed
+- Backend: comment request/response DTOs, controller, service, paginated repository query, atomic itinerary comment counter update, and GET security rule.
+- Mobile: comment model, repository, notifier, detail-screen section, and API route constant.
+- Documentation: API contract and this development log.
+
+### 47.3. Business Rules and UI
+- Blank comment content is rejected. Only `ACTIVE` comments are listed, newest first.
+- Comment edit/delete and eligibility based on itinerary reuse remain unimplemented because the functional specification marks those rules as unconfirmed.
+- The mobile section provides loading, empty, error, submit, and load-more states. Motion level 0 (none) was selected for high-frequency comment submission and list updates; no animation controller is used.
+
+### 47.4. Verification
+- Tests, static analysis, and builds were not run in this session.

@@ -158,8 +158,8 @@ Current inventory of API endpoints:
 | Reuse | POST | `/api/itineraries/{id}/reuse` | Authenticated | Clone itinerary as personal copy | Planned |
 | Reviews | GET | `/api/itineraries/{id}/ratings` | Public | List ratings and feedback | Planned |
 | Reviews | POST | `/api/itineraries/{id}/ratings` | Authenticated | Submit itinerary rating | Planned |
-| Comments | GET | `/api/itineraries/{id}/comments` | Public | List comments on itinerary | Planned |
-| Comments | POST | `/api/itineraries/{id}/comments` | Authenticated | Post comment on itinerary | Planned |
+| Comments | GET | `/api/itineraries/{id}/comments` | Public | List active comments on a public active itinerary (paginated) | Implemented |
+| Comments | POST | `/api/itineraries/{id}/comments` | Authenticated | Post a comment on a public active itinerary | Implemented |
 | Admin | GET | `/api/admin/dashboard` | Admin | Administrative metrics dashboard | Planned |
 | Admin | GET | `/api/admin/users` | Admin | List and manage users | Planned |
 | Admin | PUT | `/api/admin/moderation` | Admin | Moderate reported content/trips | Planned |
@@ -167,6 +167,12 @@ Current inventory of API endpoints:
 ---
 
 ## 10. Itinerary CRUD Specification (Phase 1)
+
+### Comments
+- **List:** `GET /api/itineraries/{id}/comments?page=0&size=10` is public and returns `200 OK` with `PageResponse<CommentResponse>`. Results include active comments only, ordered newest first; `page` is zero-based and `size` defaults to 10 and is capped at 50.
+- **Create:** `POST /api/itineraries/{id}/comments` requires a Bearer JWT and accepts `{"content":"..."}`. Content must not be blank. Returns `201 Created` with `CommentResponse` containing `commentId`, `content`, `creator` (`userId`, `username`, `fullName`, `avatar`), `createdAt`, and `updatedAt`.
+- Both operations only expose active, public itineraries whose owner account is active. Missing, private, or non-active itineraries return `404`; missing authentication returns `401`; invalid content returns `400`.
+- Creating a comment persists an `ACTIVE` record and increments the itinerary comment counter in the same transaction. Comment editing/deletion and eligibility based on itinerary reuse remain unspecified and are not included.
 
 ### 10.1. List Authenticated User's Itineraries
 - **Path:** `GET /api/user/itineraries`
