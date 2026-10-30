@@ -8,6 +8,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
@@ -22,5 +25,9 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, 
     Optional<Itinerary> findByTitleAndUser_UserId(String title, Integer userId);
 
     boolean existsByTitleAndUser_UserId(String title, Integer userId);
+
+    @Modifying
+    @Query("update Itinerary i set i.commentCount = i.commentCount + 1 where i.itineraryId = :itineraryId")
+    int incrementCommentCount(@Param("itineraryId") Integer itineraryId);
 }
 
