@@ -2357,3 +2357,215 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 
 ### 47.4. Verification
 - Tests, static analysis, and builds were not run in this session.
+
+
+## 48. Session Entry: Map Integration Audit and Implementation Planning (2026-10-31)
+
+### 48.1. Objective and Scope
+- Performed a comprehensive technical audit of the current project codebase across Backend (Spring Boot), Mobile (Flutter), Web (Flutter Web), and Database (MySQL) regarding itinerary destinations, activities, geographical coordinates, and map functionality.
+- Evaluated available map technologies (Google Maps Platform, Mapbox, OpenStreetMap with Leaflet/flutter_map, Goong Maps).
+- Formulated a detailed, multi-phase technical implementation plan for integrating map rendering, location search, and day-by-day route visualization.
+- **Strict Scope Constraint:** Audit and planning ONLY. No application source code, configuration files, database schemas, or dependencies were modified or installed.
+
+### 48.2. Key Audit Findings
+1. **Database & Models:**
+   - `Destination` entity possesses `latitude` and `longitude` fields (`DECIMAL(10, 7)`) and `address`.
+   - `Activity` entity allows nullable `destination_id`, but has no direct coordinates or custom location fields.
+   - `Itinerary` entity holds only a free-form `location` text string without coordinates or multi-destination mapping.
+2. **Backend APIs:**
+   - Existing APIs include basic read-only endpoints: `GET /api/destinations` and `GET /api/destinations/{id}`.
+   - Missing: External place search, geocoding, reverse geocoding, route calculation, and destination management CRUD.
+3. **Frontend Mobile:**
+   - `ActivityFormDialog` uses a simple `DropdownButtonFormField` selecting from seeded database destinations.
+   - `CreateItineraryScreen` uses a plain text field for location.
+   - Zero map rendering packages or widgets exist in the mobile app.
+4. **Frontend Web:**
+   - Early skeleton stage; destination and itinerary management screens remain unimplemented (`locations/` and `itineraries/` contain only `.gitkeep`).
+   - Zero map rendering packages installed.
+
+### 48.3. Architectural Decisions & Deliverables
+- Created comprehensive report: `docs/ai/11-map-integration-audit-and-plan.md` covering all 16 required sections.
+- Recommended architecture:
+  - **Client Map Engine:** `flutter_map` (OpenStreetMap / Carto tiles) for 100% free, cross-platform canvas rendering without credit cards, native build issues, or surprise billing.
+  - **Search & Routing Proxy:** Spring Boot backend facade (`/api/locations/search`, `/api/locations/reverse-geocode`, `/api/itineraries/{id}/route`) with server-side caching (`location_search_cache` table) to eliminate master API key exposure.
+  - **Data Model:** Additive hybrid columns on `activities` (`custom_location_name`, `custom_address`, `latitude`, `longitude`, `place_id`) for ad-hoc stops alongside the curated `destinations` catalog.
+- Structured an 8-phase implementation roadmap (Phase 0 through Phase 7).
+
+### 48.4. Verification
+- All findings verified against actual source code files in `backend/`, `frontend/mobile/`, `frontend/web/`, and `docs/`.
+- Git status verified clean (no code or configuration changes).
+
+
+## 49. Session Entry: Refinement of the Map Integration Plan (2026-10-31)
+
+### 49.1. Objective and Scope
+- Refined and improved the existing Map Integration Plan directly in `docs/ai/11-map-integration-audit-and-plan.md` in place, without creating separate plan files.
+- Verified actual Spring Boot version from `pom.xml` (`spring-boot-starter-parent` v4.1.1 on Java 22).
+- Standardized Activity location data modeling, Destination catalog permissions, per-day route calculation semantics, and provider cost/policy disclosures.
+- **Strict Scope Constraint:** Documentation only. No application source code, database schemas, dependencies, or configuration files were modified.
+
+### 49.2. Key Refinements Incorporated
+1. **Activity Location Model:** Explicitly defined three mutually exclusive states:
+   - *Catalog Destination:* `destinationId != null`, all custom fields null.
+   - *Custom Location:* `destinationId == null`, custom fields (`customLocationName`, `customAddress`, `latitude`, `longitude`, `placeId`, `locationProvider`) populated with coordinate bounds validation (`[-90..90]`, `[-180..180]`).
+   - *No Location:* all fields null.
+   - Disambiguated `Activity.name` (action description) versus `customLocationName` (physical venue).
+2. **Destination Catalog RBAC:** Regular users can attach custom locations to their own activities without admin approval; only `ROLE_ADMIN` can manage shared catalog entries via `/api/admin/destinations`.
+3. **Route API Standardization:** Standardized on `GET /api/itineraries/{id}/days/{dayId}/route`. Routes are calculated strictly per day. If road routing fails, the system returns an explicitly labeled `ESTIMATED_INDICATIVE` fallback.
+4. **Provider Constraints & Attribution:** Clarified differences between `flutter_map` (Dart library), tile hosts, geocoding engines, and routing engines. Emphasized mandatory ODbL attribution and OSM tile usage policies.
+5. **Architectural Pruning & Deferrals:** Deferred `Itinerary.latitude/longitude`, replaced persistent database search caching with in-memory Caffeine caching for Phase 2, and deferred marker clustering until POIs exceed 40.
+
+### 49.3. Verification
+- `docs/ai/11-map-integration-audit-and-plan.md` updated in place as the single source of truth.
+- `git status` verified: only documentation files updated (`09-development-log.md` and `11-map-integration-audit-and-plan.md`).
+
+
+## 50. Session Entry: Final Refinement of the Map Integration Plan (2026-10-31)
+
+### 50.1. Objective and Scope
+- Performed a final refinement of `docs/ai/11-map-integration-audit-and-plan.md` directly in place to address tile security, pricing accuracy, route fallback fidelity, and authorization guards.
+- **Strict Scope Constraint:** Documentation only. No application source code, database schemas, dependencies, or configuration files were modified.
+
+### 50.2. Key Refinements Incorporated
+1. **Tile Security & Architecture:** Clarified that Flutter clients request map tiles directly from tile CDNs (e.g. CartoDB/MapTiler) to prevent Spring Boot connection pool saturation. Public client tile tokens are restricted at the provider level, while geocoding and routing master secrets remain strictly server-side.
+2. **Pricing & Free-Tier Nuance:** Removed absolute claims ("100% free", "zero financial risk"). Explicitly decoupled free software libraries (MIT), open map data (ODbL), tile hosting infrastructure, geocoding, and routing services. Marked unverified quotas as requiring confirmation from official provider documentation.
+3. **Route Fallback Fidelity:** In `ESTIMATED_INDICATIVE` fallback mode, `totalDurationSeconds` is set to `null` (never inventing an estimate), and `directDistanceMeters` explicitly reports straight-line distance. The client UI distinguishes road routes (solid line) from indicative fallbacks (dashed line with banner).
+4. **Route API Authorization & Integrity:** Formulated strict backend validation: `itinerary.status != DELETED`, `dayId` must belong to `itineraryId` (preventing cross-itinerary day injection), and private itineraries require owner JWT authentication or `ROLE_ADMIN`.
+5. **Phase 0 Configuration:** Standardized on the existing secure configuration pattern (`${ENV_VAR:default}`) in `application.properties`, separating client tile endpoints from private backend geocoding/routing credentials without committing secrets.
+
+### 50.3. Verification
+- `docs/ai/11-map-integration-audit-and-plan.md` updated in place as the single source of truth.
+- `git status` verified: only documentation files modified (`09-development-log.md` and `11-map-integration-audit-and-plan.md`).
+
+
+## 51. Session Entry: Technical Refinement of the Map Integration Plan (2026-10-31)
+
+### 51.1. Objective and Scope
+- Conducted a comprehensive technical refinement of `docs/ai/11-map-integration-audit-and-plan.md` directly in place, incorporating six key architectural refinements identified during final plan review.
+- Verified existing codebase conventions: Spring Security role-based matching in `SecurityConfig.java`, backend Activity request DTOs (`CreateActivityRequest`, `UpdateActivityRequest`), Flutter Mobile models (`create_activity_request.dart`, `update_activity_request.dart`), and Flutter environment configuration (`--dart-define`).
+- **Strict Scope Constraint:** Documentation only. No application source code, database schemas, dependencies, or configuration files were modified.
+
+### 51.2. Key Refinements Incorporated
+1. **Tile Configuration Delivery & Network Architecture (Section 3.1 & 16.1):**
+   - Explicitly separated private backend configurations (`application.properties`) from client-side map tile configurations.
+   - Flutter Mobile directly requests map tiles from tile providers (CartoDB / MapTiler) using `--dart-define` (`MAP_TILE_URL_TEMPLATE`, `MAP_TILE_API_KEY`, `MAP_TILE_ATTRIBUTION`), avoiding Spring Boot thread pool starvation.
+   - Clarified that public tile tokens are client-visible identifiers restricted via HTTP referrers/allowed origins at the provider dashboard.
+2. **Custom Location Validation & Reverse-Geocoding Resilience (Section 8.2 & 10.3):**
+   - Solidified the three-state location model (Catalog Destination, Custom Pin, No Location).
+   - If a custom pin is placed, `latitude` and `longitude` are mandatory, but `customLocationName`, `customAddress`, `placeId`, and `locationProvider` remain optional.
+   - Reverse-geocoding failures or network timeouts never block saving an activity with a pin. UI provides a deterministic fallback: *"Vị trí đã ghim"* ("Pinned location").
+3. **Routing Provider & Travel Mode Compatibility (Section 11.2 & 14.1):**
+   - Specified provider travel mode capabilities (e.g., public OSRM demo only supports `driving`, while GraphHopper/ORS support `driving`, `walking`, `cycling`).
+   - If a requested mode is unsupported by the active upstream routing provider, the backend returns HTTP 400 Bad Request with an explicit descriptive error message, strictly forbidding silent mode conversions (e.g. driving instead of walking).
+4. **Location Search Rate Limiting & Abuse Protection (Section 10.4):**
+   - Added in-memory rate limiting (Bucket4j/sliding window per IP/user: 30 requests/minute/IP) to `/api/locations/search` and `/api/locations/reverse-geocode`.
+   - Added strict input validation and query normalization (trim whitespace, limit query to 100 characters, reject blank/empty inputs).
+   - Enforced 3–4 second upstream timeouts and mapped upstream HTTP 429 / quota exceeded errors to descriptive HTTP 429 responses.
+5. **Route Response Semantics & Waypoint Handling (Section 11.3 & 11.4):**
+   - Formally defined `directDistanceMeters` as the cumulative sum of direct Haversine distances between waypoints in itinerary `displayOrder`.
+   - Standardized the response contract for fewer than 2 valid waypoints (`INSUFFICIENT_WAYPOINTS`): `routeType: NONE`, `geometryCoordinates: []`, `totalDistanceMeters: null`, `totalDurationSeconds: null`, `directDistanceMeters: 0.0`, with `waypoints` containing only valid stops.
+6. **DTO, Controller, and Security Parity (Section 8.4, 10.2 & 10.5):**
+   - Maintained strict field symmetry across `CreateActivityRequest` and `UpdateActivityRequest` in both backend Java and Flutter Mobile Dart models.
+   - Dedicated `AdminDestinationController` mapped to `/api/admin/destinations` for destination catalog management, naturally inheriting `.requestMatchers("/api/admin/**").hasRole("ADMIN")` from `SecurityConfig.java`.
+   - Public GET operations remain on `/api/destinations`. Regular users manage ad-hoc locations strictly on their owned activities without requiring catalog modifications.
+
+### 51.3. Verification
+- `docs/ai/11-map-integration-audit-and-plan.md` updated directly in place with all six technical refinements.
+- Verified clean repository state: zero application source code, schema migrations, or package dependencies modified.
+- Verified file consistency against existing Java and Dart models.
+
+
+## 52. Session Entry: Strict Free-Only Architecture & Quota Safeguards Revision (2026-10-31)
+
+### 52.1. Objective and Scope
+- Conducted a comprehensive audit and in-place revision of `docs/ai/11-map-integration-audit-and-plan.md` to strictly enforce a **100% free-software, free-API, and free-tier architecture**.
+- Mandated zero financial exposure: no paid APIs, no subscriptions, no automatic billing, no paid overages, and no mandatory credit card registration.
+- Verified all official pricing, quotas, rate limits, credit card policies, and terms of service across providers as of **October 2026**.
+- **Strict Scope Constraint:** Documentation only. No application source code, database schemas, dependencies, or configuration files were modified.
+
+### 52.2. Key Refinements Incorporated
+1. **Official Provider Terms Verification (October 2026):**
+   - *CARTO Basemaps:* Free up to 5,000,000 tile requests/month for non-commercial/academic use; no credit card required; hard suspension/support contact on limit without automatic billing.
+   - *OpenRouteService (HeiGIT):* Free 2,000 requests/day (40 req/min) directions; funded by research/humanitarian grants; no credit card required; hard HTTP 429 stop.
+   - *LocationIQ:* Free 5,000 requests/day (2 req/sec); no credit card required; hard HTTP 429 stop without auto-upgrade.
+   - *Universal Google Maps URLs:* Free universal deep-link navigation intents (`https://www.google.com/maps/dir/?api=1&...`); zero API keys, SDKs, or billing accounts required.
+2. **Standardized Cost Classification Table (Section 9):**
+   - Categorized all components into `FREE SOFTWARE`, `FREE TIER`, `SELF-HOSTED`, `OPTIONAL PAID` (Banned), and `UNVERIFIED`.
+   - Explicitly banned Google Maps Platform paid APIs and Mapbox SDK/services from project dependencies to eliminate accidental billing risks.
+3. **Billing & Quota-Exhaustion Safeguards (Section 11):**
+   - Formulated a multi-tier defense matrix for upstream quota exhaustion.
+   - Designed graceful degradation: HTTP 429 mapped to friendly Vietnamese user notices; Caffeine in-memory cache (24h TTL) absorbs repeat queries.
+   - Local Haversine formula implemented on backend to calculate `ESTIMATED_INDICATIVE` straight-line geometry and distance when road routing is unavailable, requiring zero external API requests.
+4. **Core Feature Independence & Decoupled Architecture:**
+   - Guaranteed that core travel planning workflows (`Create Activity -> Pin Location -> Save Coordinates -> Open Map -> Display Marker`) operate 100% locally from internal MySQL records and Flutter canvas rendering.
+   - Dropping a pin on the map saves exact coordinates even if reverse geocoding fails, times out, or is exhausted (fallback label: *"Vị trí đã ghim"*).
+5. **Implementation Roadmap Alignment (Phases 0–7):**
+   - Re-anchored the 8 implementation phases so that external geocoding and routing are strictly decoupled optional enhancements that never block core feature delivery.
+
+### 52.3. Verification
+- `docs/ai/11-map-integration-audit-and-plan.md` updated directly in place with complete free-only requirements and verified citations.
+- `git status` verified clean: zero application source code, schema migrations, or package dependencies modified.
+
+
+## 53. Session Entry: Free-Only Map Architecture Accuracy & Precision Review (2026-10-31)
+
+### 53.1. Objective and Scope
+- Conducted a targeted accuracy review and refinement of `docs/ai/11-map-integration-audit-and-plan.md` to resolve specific technical nuances, provider terms, and legal/licensing boundaries.
+- Refined quotas, caching policies, license classifications, and fallback behaviors to eliminate unverified assumptions.
+- **Strict Scope Constraint:** Documentation only. No application source code, database schemas, dependencies, or configuration files were modified.
+
+### 53.2. Key Refinements Incorporated
+1. **CARTO Basemaps Precision (Section 1, 8.2, 8.3, 9):**
+   - Explicitly distinguished the 5,000,000 monthly tile request ceiling for non-commercial/academic use from the 1,000,000 monthly limit for commercial use.
+   - Documented the project's non-commercial assumption (academic university project `TLCN`) and mandated formal reassessment before any commercialization.
+   - Clarified that academic exemptions beyond 5M requests are not automatic or unconditional, but require case-by-case evaluation by CARTO support. Documented over-quota outcome (HTTP 429/403 or blank tiles, without automatic credit card billing).
+2. **LocationIQ Terms & Caching Restrictions (Section 8.2, 8.3, 9, 15):**
+   - Preserved verified free quota (5,000 requests/day, 2 requests/second).
+   - Documented Limited Commercial Use policy and mandatory attribution (`Search by LocationIQ.com`).
+   - Verified LocationIQ caching terms: request-response caching is permitted for **up to 48 hours** for free tier users (tile caching on server is prohibited). Documented that backend Caffeine cache TTL (24h) strictly complies with this $\le 48\text{h}$ restriction.
+   - Clarified that while pricing terms state no credit card is required for free tokens, live registration flow must be confirmed during initial account setup.
+3. **OpenRouteService Quotas & Payment Separation (Section 8.2, 8.3, 9):**
+   - Preserved verified Directions quota (2,000 requests/day, 40 requests/minute).
+   - Documented separate Geocoding and Reverse Geocoding quota (3,000 requests/day, 100 requests/minute).
+   - Separated verified free pricing (€0) from unverified registration payment-method requirements, marking live onboarding verification as required.
+4. **OpenStreetMap Public Tile Policy & Flutter Web Limitation (Section 8.3, 9, 10, 11, 16):**
+   - **Strictly excluded public OSM tiles from automatic production fallback.**
+   - Documented User-Agent, Referer, attribution (`© OpenStreetMap contributors`), caching, and no-bulk-download policies.
+   - Documented Flutter Web browser sandbox limitation: web browsers prevent overriding or setting custom `User-Agent` HTTP headers on cross-origin image requests. Public OSM tiles are restricted strictly to manual local mobile development where custom headers can be set.
+5. **OSRM Public Demo Server Restriction (Section 8.3, 9, 10, 11, 15):**
+   - Restricted `router.project-osrm.org` strictly to manual development/sandbox testing.
+   - Strictly prohibited using OSRM demo as an automatic production fallback. Mandated local Haversine calculations (`ESTIMATED_INDICATIVE`) when ORS is unavailable.
+6. **Financial Risk & Cost Terminology Precision (Section 1, 8.4, 9, 11, 18):**
+   - Replaced absolute phrases ("zero financial risk", "100% free") with precise language: "no mandatory paid dependencies", "no automatic billing", and "no automatic paid fallback".
+   - Explicitly distinguished free software and free-tier APIs from potentially paid hosting, domain, SSL, and server infrastructure.
+   - Mandated explicit human approval from the project owner before introducing any paid service or subscription.
+7. **Bucket4j License Verification (Section 9, 15):**
+   - Verified that Bucket4j Core (`com.bucket4j:bucket4j-core` v8.10.1) is licensed under the Apache License, Version 2.0.
+   - Confirmed that single-JVM in-memory token bucket rate limiting does not require any paid commercial license.
+
+### 53.3. Verification
+- `docs/ai/11-map-integration-audit-and-plan.md` updated directly in place with complete accuracy and verified terms.
+- `git status` clean: zero application source code, schema migrations, or package dependencies modified.
+
+
+## 54. Session Entry: Provider Quota & CARTO Fair-Use Error Handling Correction (2026-10-31)
+
+### 54.1. Objective and Scope
+- Conducted a targeted correction of `docs/ai/11-map-integration-audit-and-plan.md` to resolve OpenRouteService Standard plan quota figures and CARTO fair-use error handling semantics.
+- Aligned all figures with official provider documentation at `https://openrouteservice.org/plans/` and `https://carto.com/legal/basemap-terms/`.
+- **Strict Scope Constraint:** Documentation only. No application source code, database schemas, dependencies, or configuration files were modified.
+
+### 54.2. Key Corrections Incorporated
+1. **OpenRouteService Standard Plan Quotas (Section 8.1, 8.2, 8.3, 9):**
+   - Corrected Geocoding, Reverse Geocoding, and Geocoding Autocomplete daily quotas from 3,000 requests/day to the verified official Standard Plan ceiling: **1,000 requests/day** and **100 requests/minute**.
+   - Preserved Directions V2 quota at **2,000 requests/day** and **40 requests/minute**.
+   - Clarified that higher allowances (e.g. 15,000 requests/day) belong strictly to the Collaborative Plan, which requires manual application and approval for recognized academic/humanitarian institutions.
+2. **CARTO Fair-Use Limits & Error Handling (Section 8.2, 8.3, 9, 11):**
+   - Removed guarantees that CARTO always returns specific HTTP status codes (such as HTTP 429 or 403) upon exceeding fair-use thresholds.
+   - Documented that CARTO may apply rate limiting, temporary service suspension, or request blocking (manifesting as connection timeouts, failed image loads, non-standard HTTP errors, or blank tiles).
+   - Specified that client map rendering (`flutter_map`) must handle unavailable, timed-out, or invalid tile responses gracefully (e.g. via `errorTileCallback` or `TileLayer.errorImage`) without relying on specific HTTP status codes and without crashing the canvas.
+   - Updated source citation to include official terms at `https://carto.com/legal/basemap-terms/`.
+
+### 54.3. Verification
+- All occurrences of outdated quota figures ("3,000" and "3k" for ORS) verified completely resolved.
+- Verified clean repository state: zero application source code, database schemas, or build configurations modified.
