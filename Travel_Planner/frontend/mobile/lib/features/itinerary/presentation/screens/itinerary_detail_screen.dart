@@ -18,6 +18,7 @@ import '../widgets/delete_day_dialog.dart';
 import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/itinerary_day_card.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
+import '../../../comments/presentation/widgets/itinerary_comments_section.dart';
 import '../../data/models/reorder_activity_item.dart';
 import '../widgets/reorder_activities_dialog.dart';
 import 'edit_itinerary_screen.dart';
@@ -781,6 +782,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                     ),
                     onPressed: () => setState(() => _selectedDayNumber = null),
                   ),
+                ),
+              ),
+            if (itinerary.status == 'ACTIVE' && itinerary.visibility == 'PUBLIC')
+              SliverToBoxAdapter(
+                child: ItineraryCommentsSection(
+                  itineraryId: itinerary.itineraryId,
+                  token: _effectiveToken,
+                  authNotifier: widget.authNotifier,
                 ),
               ),
           ],
