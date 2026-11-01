@@ -278,3 +278,14 @@ Current inventory of API endpoints:
   - Validates that all IDs belong to `dayId`, no duplicates, and order values form a contiguous 1..N permutation.
   - Uses two-phase persistence (sets orders to `-i` with `flush()`, then assigns target orders) to avoid MySQL unique key violation on `uk_activity_day_order (day_id, display_order)`.
   - Response: `200 OK` with `List<ActivityResponse>` ordered by `displayOrder`.
+
+## 11. Image Upload
+
+- Path: POST /api/media/images
+- Auth: Bearer JWT required (any authenticated user).
+- Content-Type: multipart/form-data with one file field.
+- Validation: JPEG, PNG or WebP file signatures; maximum file size 5 MiB. SVG and other file types are rejected.
+- Response: 201 Created with ImageUploadResponse: {"secureUrl":"https://res.cloudinary.com/..."}.
+- Storage: Spring Boot signs and sends the image to Cloudinary. Existing users.avatar and itineraries.cover_image URL columns remain the persisted image fields; no local files or schema migration are used.
+- Errors: 400 for invalid, empty or oversized files; 401 for missing or invalid JWT; 502 for Cloudinary errors; 503 when Cloudinary settings are missing.
+- Asset lifecycle: Replaced or abandoned Cloudinary assets are not deleted automatically until a safe reference and ownership policy is defined.

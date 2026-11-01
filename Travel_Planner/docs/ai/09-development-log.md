@@ -2569,3 +2569,74 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 54.3. Verification
 - All occurrences of outdated quota figures ("3,000" and "3k" for ORS) verified completely resolved.
 - Verified clean repository state: zero application source code, database schemas, or build configurations modified.
+
+## 55. Session Entry: Cloudinary Image Upload and Device Gallery Selection (2026-11-01)
+
+### 55.1. Objective and Scope
+- Implemented authenticated image upload for profile avatars and itinerary cover images, with device gallery selection and previews in the Flutter mobile application.
+- Added the Explore header avatar action to open the existing Profile bottom tab.
+- Branch: `develop`. No commit was created.
+
+### 55.2. Implementation
+- Added `POST /api/media/images`, protected by the existing JWT security chain. The endpoint accepts JPEG, PNG, and WebP signatures up to 5 MiB, signs upload parameters on the server, and returns only a Cloudinary `secureUrl`.
+- Cloudinary configuration is read from `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`; no credential values are stored in source files.
+- Added gallery picker, local preview, client-side size feedback, multipart upload, and reuse of the existing `avatar` and `coverImage` URL fields. No database migration was required.
+- Updated API documentation, local setup instructions, and backend secret-file ignores. Added the iOS photo library usage description.
+- Added upload service tests, multipart client test, navigation test, and updated image-picker UI assertions.
+- Set `kotlin.incremental=false` in `frontend/mobile/android/gradle.properties` to avoid incremental compiler cache close failures during Android builds.
+
+### 55.3. Verification
+- `flutter analyze`: passed with no issues.
+- `flutter test`: passed, 152 tests.
+- `backend/.\mvnw.cmd test`: passed, 73 tests with zero failures or errors.
+- Initial `flutter build apk --debug` failed while Kotlin incremental cache files were being closed. After setting `kotlin.incremental=false`, `flutter build apk --debug` completed successfully and generated `build/app/outputs/flutter-apk/app-debug.apk`.
+- No live Cloudinary upload or iOS build was performed; credentials and an iOS build environment were not used for verification.
+
+## 56. Session Entry: Prevent Profile Null-Check Crash After Login (2026-11-01)
+
+### 56.1. Objective and Root Cause
+- Investigated the Flutter red error screen shown after logging in from the Profile tab.
+- `ProfileScreen` only loaded profile state during initialization and did not listen to `AuthNotifier`. Logging in on the pushed login route could leave the underlying Profile screen unauthenticated with `_profile == null`; after navigation, `_profileView()` force-unwrapped the missing value.
+
+### 56.2. Fix
+- `ProfileScreen` now listens for authentication changes, loads the profile when a token becomes available, and clears profile state on logout or token removal.
+- Added a safe missing-profile/error state so a missing profile cannot trigger a null-check exception.
+
+### 56.3. Verification
+- `flutter analyze lib/features/profile/presentation/screens/profile_screen.dart`: passed with no issues.
+- No tests were run for this correction.
+
+## 57. Session Entry: Fix Profile Bio Multiline Text Field Assertion (2026-11-01)
+
+### 57.1. Objective and Root Cause
+- Investigated the Flutter assertion shown when editing the Profile bio field.
+- The field used `TextInputAction.newline` and multiple lines while inheriting the default single-line keyboard type, violating Flutter's `TextFormField` configuration assertion.
+
+### 57.2. Fix
+- Set the bio field keyboard type to `TextInputType.multiline`.
+- Confirmed the existing save request sends `bio` and the backend profile service persists and returns it; the assertion prevented the editor from being used to submit that value.
+
+### 57.3. Verification
+- `flutter analyze lib/features/profile/presentation/screens/profile_screen.dart`: passed with no issues.
+- No tests were run for this correction.
+
+## 58. Session Entry: Diagnose Profile Image Save Failure (2026-11-01)
+
+### 58.1. Findings
+- The device log lines reference Android Zygote/Chrome process startup and do not identify the backend request failure.
+- The visible snackbar text matches the backend's generic unhandled-exception response. The screenshot alone does not distinguish image upload from the subsequent profile update.
+- The backend stack trace identified the root cause: `NoClassDefFoundError: org/reactivestreams/Publisher` while invoking Spring `RestClient`.
+- After resolving that missing runtime class, the next trace identified a Jackson 2/3 type mismatch: Spring Boot 4's Jackson 3 mapper could not deserialize into `com.fasterxml.jackson.databind.JsonNode`.
+
+### 58.2. Diagnostic Changes
+- The profile save flow now identifies whether an API error occurred during image upload or profile update.
+- The backend generic exception handler now logs the request method/path and exception stack trace. It does not log credentials, request bodies, or image data.
+- Cloudinary upload now distinguishes provider HTTP rejection, connection failure, other REST client failures, and unexpected processing exceptions; provider responses expose only the HTTP status to the app, while unexpected causes are logged server-side.
+- Added the missing `org.reactivestreams:reactive-streams:1.0.4` runtime dependency required by the Spring `RestClient` call path.
+- Changed the Cloudinary response node type to `tools.jackson.databind.JsonNode`, matching Spring Boot 4's Jackson 3 message converter.
+
+### 58.3. Verification
+- `flutter analyze lib/features/profile/presentation/screens/profile_screen.dart`: passed with no issues.
+- `backend/.\mvnw.cmd -q -DskipTests compile`: passed with the runtime dependency and Jackson 3 response type.
+- `backend/.\mvnw.cmd -q test`: passed, 73 tests with zero failures or errors.
+- No live Cloudinary upload was run for this correction.
