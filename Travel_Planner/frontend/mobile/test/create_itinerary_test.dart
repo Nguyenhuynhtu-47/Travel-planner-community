@@ -213,7 +213,7 @@ void main() {
       expect(find.text('Ngân sách (VNĐ) *'), findsOneWidget);
       expect(find.text('Chủ đề / Thể loại'), findsOneWidget);
       expect(find.text('Mô tả chuyến đi'), findsOneWidget);
-      expect(find.text('Ảnh bìa (URL)'), findsOneWidget);
+      expect(find.text('Chọn ảnh bìa'), findsOneWidget);
       expect(find.text('Quyền riêng tư'), findsOneWidget);
       expect(find.text('Riêng tư'), findsOneWidget);
       expect(find.text('Công khai'), findsOneWidget);

@@ -63,6 +63,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           ExploreScreen(
             authNotifier: widget.authNotifier,
             exploreNotifier: widget.exploreNotifier,
+            onProfileTap: () => _onDestinationTapped(4),
           ),
           const CommunityScreen(),
           CreateItineraryScreen(
@@ -85,10 +86,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         decoration: const BoxDecoration(
           color: AppColors.surface,
           border: Border(
-            top: BorderSide(
-              color: AppColors.hairlineSoft,
-              width: 0.5,
-            ),
+            top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
           ),
         ),
         child: BottomNavigationBar(

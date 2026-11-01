@@ -274,7 +274,7 @@ void main() {
       expect(find.text('Hà Giang'), findsOneWidget);
       expect(find.text('4000000'), findsOneWidget);
       expect(find.text('Chuyến đi ngắm hoa'), findsOneWidget);
-      expect(find.text('https://example.com/hagiang.jpg'), findsOneWidget);
+      expect(find.text('Chọn ảnh bìa mới'), findsOneWidget);
       expect(find.text('Khám phá'), findsWidgets);
       expect(
         find.text(

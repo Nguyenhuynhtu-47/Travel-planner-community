@@ -167,6 +167,46 @@ class ApiClient {
     }
   }
 
+  Future<dynamic> uploadFile(
+    String path, {
+    required List<int> bytes,
+    required String filename,
+    String? token,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConstants.baseUrl}$path'),
+    );
+    request.headers['Accept'] = 'application/json';
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: filename),
+    );
+
+    try {
+      final streamedResponse = await _client
+          .send(request)
+          .timeout(_requestTimeout);
+      final response = await http.Response.fromStream(streamedResponse)
+          .timeout(_requestTimeout);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw _timeoutException();
+    } on SocketException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng.',
+      );
+    }
+  }
+
   ApiException _timeoutException() => ApiException(
     statusCode: 0,
     message: 'Máy chủ không phản hồi sau 15 giây. Hãy kiểm tra điện thoại và máy tính có cùng Wi-Fi, địa chỉ API và trạng thái backend.',

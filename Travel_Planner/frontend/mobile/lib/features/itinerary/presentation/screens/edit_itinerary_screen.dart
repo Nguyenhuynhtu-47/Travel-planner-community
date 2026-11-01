@@ -1,9 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/services/image_picker_service.dart';
+import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../data/itinerary_crud_repository.dart';
@@ -23,6 +28,7 @@ class EditItineraryScreen extends StatefulWidget {
 
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository? repository;
+  final ImagePickerService? imagePickerService;
 
   const EditItineraryScreen({
     super.key,
@@ -37,6 +43,7 @@ class EditItineraryScreen extends StatefulWidget {
     this.totalDays,
     required this.authNotifier,
     this.repository,
+    this.imagePickerService,
   });
 
   factory EditItineraryScreen.fromDetail(
@@ -95,7 +102,10 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
   late final TextEditingController _budgetController;
   late final TextEditingController _themeController;
   late final TextEditingController _descriptionController;
-  late final TextEditingController _coverImageController;
+  late final ImagePickerService _imagePickerService;
+  XFile? _selectedCoverImage;
+  Uint8List? _selectedCoverBytes;
+  String? _coverImageUrl;
 
   late String _visibility;
   bool _isSubmitting = false;
@@ -127,9 +137,9 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
     _descriptionController = TextEditingController(
       text: widget.initialDescription ?? '',
     );
-    _coverImageController = TextEditingController(
-      text: widget.initialCoverImage ?? '',
-    );
+    _coverImageUrl = widget.initialCoverImage;
+    _imagePickerService =
+        widget.imagePickerService ?? DeviceImagePickerService();
     _visibility = widget.initialVisibility.toUpperCase() == 'PUBLIC'
         ? 'PUBLIC'
         : 'PRIVATE';
@@ -142,8 +152,37 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
     _budgetController.dispose();
     _themeController.dispose();
     _descriptionController.dispose();
-    _coverImageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCoverImage() async {
+    try {
+      final image = await _imagePickerService.pickImage();
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      if (bytes.length > 5 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ảnh không được vượt quá 5 MB')),
+          );
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _selectedCoverImage = image;
+          _selectedCoverBytes = bytes;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể mở thư viện ảnh. Vui lòng thử lại.'),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -157,23 +196,37 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
 
     final budget = double.tryParse(_budgetController.text.trim()) ?? 0.0;
 
-    final request = UpdateItineraryRequest(
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
-      location: _locationController.text.trim(),
-      coverImage: _coverImageController.text.trim().isEmpty
-          ? null
-          : _coverImageController.text.trim(),
-      budget: budget,
-      theme: _themeController.text.trim().isEmpty
-          ? null
-          : _themeController.text.trim(),
-      visibility: _visibility,
-    );
-
     try {
+      String? coverImage = _coverImageUrl;
+      final selectedImage = _selectedCoverImage;
+      final selectedBytes = _selectedCoverBytes;
+      final token = widget.authNotifier.token;
+      if (selectedImage != null && selectedBytes != null) {
+        if (token == null) {
+          throw ApiException(
+            statusCode: 401,
+            message: 'Vui lòng đăng nhập để tải ảnh lên.',
+          );
+        }
+        coverImage = await _repository.uploadImage(
+          token,
+          bytes: selectedBytes,
+          filename: selectedImage.name,
+        );
+      }
+      final request = UpdateItineraryRequest(
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        location: _locationController.text.trim(),
+        coverImage: coverImage,
+        budget: budget,
+        theme: _themeController.text.trim().isEmpty
+            ? null
+            : _themeController.text.trim(),
+        visibility: _visibility,
+      );
       final updated = await _repository.updateItinerary(
         widget.itineraryId,
         request,
@@ -381,19 +434,13 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Cover Image URL
-              AppTextField(
-                label: 'Ảnh bìa (URL)',
-                hint: 'https://example.com/cover.jpg',
-                controller: _coverImageController,
-                keyboardType: TextInputType.url,
-                textInputAction: TextInputAction.done,
-                validator: (value) {
-                  if (value != null && value.trim().length > 500) {
-                    return 'Đường dẫn ảnh tối đa 500 ký tự';
-                  }
-                  return null;
-                },
+              ImageUploadPreview(
+                selectedBytes: _selectedCoverBytes,
+                imageUrl: _coverImageUrl,
+                buttonLabel: _coverImageUrl == null || _coverImageUrl!.isEmpty
+                    ? 'Chọn ảnh bìa'
+                    : 'Chọn ảnh bìa mới',
+                onPick: _pickCoverImage,
               ),
               const SizedBox(height: 20),
 

@@ -1,10 +1,15 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/services/image_picker_service.dart';
+import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
@@ -14,11 +19,13 @@ import '../../data/profile_repository.dart';
 class ProfileScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ProfileRepository? repository;
+  final ImagePickerService? imagePickerService;
 
   const ProfileScreen({
     super.key,
     required this.authNotifier,
     this.repository,
+    this.imagePickerService,
   });
 
   @override
@@ -28,13 +35,16 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
-  final _avatarController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _bioController = TextEditingController();
   late final ProfileRepository _repository;
+  late final ImagePickerService _imagePickerService;
 
   Map<String, dynamic>? _profile;
+  String? _observedToken;
+  XFile? _selectedAvatar;
+  Uint8List? _selectedAvatarBytes;
   bool _loading = true;
   bool _saving = false;
   bool _editing = false;
@@ -45,13 +55,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _repository = widget.repository ?? ProfileRepository();
+    _imagePickerService =
+        widget.imagePickerService ?? DeviceImagePickerService();
+    _observedToken = widget.authNotifier.token;
+    widget.authNotifier.addListener(_handleAuthChanged);
     _loadProfile();
   }
 
   @override
   void dispose() {
+    widget.authNotifier.removeListener(_handleAuthChanged);
     _fullNameController.dispose();
-    _avatarController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _bioController.dispose();
@@ -67,32 +81,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _fillFields(Map<String, dynamic> p) {
     _fullNameController.text = p['fullName']?.toString() ?? '';
-    _avatarController.text = p['avatar']?.toString() ?? '';
+    _selectedAvatar = null;
+    _selectedAvatarBytes = null;
     _phoneController.text = p['phone']?.toString() ?? '';
     _addressController.text = p['address']?.toString() ?? '';
     _bioController.text = p['bio']?.toString() ?? '';
   }
 
+  Future<void> _pickAvatar() async {
+    try {
+      final image = await _imagePickerService.pickImage();
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      if (bytes.length > 5 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ảnh không được vượt quá 5 MB')),
+          );
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _selectedAvatar = image;
+          _selectedAvatarBytes = bytes;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể mở thư viện ảnh. Vui lòng thử lại.'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void didUpdateWidget(ProfileScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.authNotifier.token != oldWidget.authNotifier.token) {
-      if (widget.authNotifier.isAuthenticated) {
+    if (widget.authNotifier != oldWidget.authNotifier) {
+      oldWidget.authNotifier.removeListener(_handleAuthChanged);
+      widget.authNotifier.addListener(_handleAuthChanged);
+      _observedToken = widget.authNotifier.token;
+      if (widget.authNotifier.isAuthenticated &&
+          widget.authNotifier.token != null) {
         _loadProfile();
       } else {
         setState(() {
           _profile = null;
+          _error = null;
           _loading = false;
         });
       }
     }
   }
 
+  void _handleAuthChanged() {
+    if (!mounted) return;
+
+    final token = widget.authNotifier.token;
+    if (token == _observedToken) {
+      setState(() {});
+      return;
+    }
+
+    _observedToken = token;
+    if (widget.authNotifier.isAuthenticated && token != null) {
+      _loadProfile();
+      return;
+    }
+
+    setState(() {
+      _profile = null;
+      _error = null;
+      _loading = false;
+      _editing = false;
+    });
+  }
+
   Future<void> _loadProfile() async {
     final token = widget.authNotifier.token;
     if (token == null) {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() {
+          _profile = null;
+          _loading = false;
+          _error = widget.authNotifier.isAuthenticated
+              ? 'Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.'
+              : null;
+        });
       }
       return;
     }
@@ -135,15 +214,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
     final token = widget.authNotifier.token;
     if (token == null) return;
+    var failedOperation = 'tải ảnh lên';
     setState(() {
       _saving = true;
       _validationErrors = null;
     });
 
     try {
+      String? avatarUrl = _profile?['avatar']?.toString();
+      final selectedAvatar = _selectedAvatar;
+      final selectedBytes = _selectedAvatarBytes;
+      if (selectedAvatar != null && selectedBytes != null) {
+        avatarUrl = await _repository.uploadImage(
+          token,
+          bytes: selectedBytes,
+          filename: selectedAvatar.name,
+        );
+      }
+      failedOperation = 'lưu thông tin hồ sơ';
       final profile = await _repository.updateProfile(token, {
         'fullName': _fullNameController.text.trim(),
-        'avatar': _avatarController.text.trim(),
+        'avatar': avatarUrl ?? '',
         'phone': _phoneController.text.trim(),
         'address': _addressController.text.trim(),
         'bio': _bioController.text.trim(),
@@ -178,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              e.message,
+              'Không thể $failedOperation: ${e.message}',
               style: const TextStyle(color: Colors.white),
             ),
             backgroundColor: AppColors.error,
@@ -287,7 +378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               key: ValueKey('profile_loading'),
               child: CircularProgressIndicator(color: AppColors.primary),
             )
-          : _error != null
+          : _error != null || _profile == null
           ? KeyedSubtree(
               key: const ValueKey('profile_error'),
               child: _errorView(),
@@ -321,7 +412,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
             Text(
-              _error!,
+              _error ?? 'Không thể tải hồ sơ. Vui lòng thử lại.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 15,
@@ -514,9 +605,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => MyItinerariesScreen(
-                      authNotifier: widget.authNotifier,
-                    ),
+                    builder: (_) =>
+                        MyItinerariesScreen(authNotifier: widget.authNotifier),
                   ),
                 );
               },
@@ -622,13 +712,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     : null,
               ),
               const SizedBox(height: 16),
-              AppTextField(
-                label: 'Ảnh đại diện (URL)',
-                hint: 'https://example.com/avatar.jpg',
-                controller: _avatarController,
-                keyboardType: TextInputType.url,
-                textInputAction: TextInputAction.next,
-                errorText: _validationErrors?['avatar'],
+              ImageUploadPreview(
+                circular: true,
+                selectedBytes: _selectedAvatarBytes,
+                imageUrl: _profile?['avatar']?.toString(),
+                buttonLabel: _selectedAvatar == null
+                    ? 'Chọn ảnh đại diện'
+                    : 'Chọn ảnh khác',
+                onPick: _pickAvatar,
               ),
               const SizedBox(height: 16),
               AppTextField(
@@ -654,6 +745,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 controller: _bioController,
                 maxLines: 3,
                 minLines: 2,
+                keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 errorText: _validationErrors?['bio'],
               ),

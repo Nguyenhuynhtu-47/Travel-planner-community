@@ -110,7 +110,11 @@ void main() {
           headers: {'content-type': 'application/json'},
         );
       }
-      return http.Response('{}', 200, headers: {'content-type': 'application/json'});
+      return http.Response(
+        '{}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
     });
 
     apiClient = ApiClient(client: mockClient);
@@ -260,7 +264,10 @@ void main() {
 
       // Enter custom text in the title field
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
+        find.widgetWithText(
+          TextFormField,
+          'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm',
+        ),
         'Chuyến đi phượt Tây Bắc',
       );
       await tester.pump();
@@ -287,7 +294,10 @@ void main() {
         await tester.pumpAndSettle();
 
         // Find notification bell icon in AppBar
-        final bellFinder = find.widgetWithIcon(IconButton, Icons.notifications_outlined);
+        final bellFinder = find.widgetWithIcon(
+          IconButton,
+          Icons.notifications_outlined,
+        );
         expect(bellFinder, findsWidgets);
 
         // Tap the bell on ExploreScreen
@@ -302,7 +312,7 @@ void main() {
     );
 
     testWidgets(
-      'ExploreScreen top-right app bar displays only notification bell and no profile dropdown when authenticated',
+      'ExploreScreen top-right app bar shows the profile avatar without a dropdown',
       (tester) async {
         await tester.pumpWidget(buildTestShell());
         await tester.pumpAndSettle();
@@ -313,7 +323,8 @@ void main() {
           findsWidgets,
         );
 
-        // Verify no profile avatar or dropdown in AppBar
+        // The header avatar is a direct shortcut, not a profile dropdown.
+        expect(find.byTooltip('Hồ sơ cá nhân'), findsOneWidget);
         expect(find.byType(PopupMenuButton), findsNothing);
         expect(find.byIcon(Icons.arrow_drop_down), findsNothing);
         expect(find.text('traveler_viet'), findsNothing);
@@ -322,28 +333,44 @@ void main() {
     );
 
     testWidgets(
-      'ProfileScreen provides access to MyItinerariesScreen',
+      'Tapping the Explore header avatar selects the existing Profile tab',
       (tester) async {
-        await tester.pumpWidget(buildTestShell(initialIndex: 4));
+        await tester.pumpWidget(buildTestShell());
         await tester.pumpAndSettle();
 
-        expect(find.byType(ProfileScreen), findsOneWidget);
+        await tester.tap(find.byTooltip('Hồ sơ cá nhân'));
+        await tester.pumpAndSettle();
 
-        await tester.scrollUntilVisible(
-          find.text('Lịch trình của tôi'),
-          200,
-          scrollable: find.byType(Scrollable).first,
+        final bottomNav = tester.widget<BottomNavigationBar>(
+          find.byType(BottomNavigationBar),
         );
-        await tester.pumpAndSettle();
-
-        expect(find.text('Lịch trình của tôi'), findsOneWidget);
-
-        await tester.tap(find.text('Lịch trình của tôi'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('Lịch trình của tôi'), findsWidgets);
+        expect(bottomNav.currentIndex, equals(4));
+        expect(find.byType(ProfileScreen), findsOneWidget);
       },
     );
+
+    testWidgets('ProfileScreen provides access to MyItinerariesScreen', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildTestShell(initialIndex: 4));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileScreen), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Lịch trình của tôi'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lịch trình của tôi'), findsOneWidget);
+
+      await tester.tap(find.text('Lịch trình của tôi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lịch trình của tôi'), findsWidgets);
+    });
 
     testWidgets(
       'Notification bell in Community top-right opens NotificationsScreen',
@@ -352,7 +379,10 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(CommunityScreen), findsOneWidget);
-        final bellFinder = find.widgetWithIcon(IconButton, Icons.notifications_outlined);
+        final bellFinder = find.widgetWithIcon(
+          IconButton,
+          Icons.notifications_outlined,
+        );
         await tester.tap(bellFinder.first);
         await tester.pumpAndSettle();
 
@@ -368,7 +398,10 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(SavedItinerariesScreen), findsOneWidget);
-        final bellFinder = find.widgetWithIcon(IconButton, Icons.notifications_outlined);
+        final bellFinder = find.widgetWithIcon(
+          IconButton,
+          Icons.notifications_outlined,
+        );
         await tester.tap(bellFinder.first);
         await tester.pumpAndSettle();
 
@@ -422,12 +455,17 @@ void main() {
       'ProfileScreen in guest mode renders login prompt and does not hang',
       (tester) async {
         final guestAuth = MockAuthNotifier(); // token == null
-        await tester.pumpWidget(buildTestShell(customAuthNotifier: guestAuth, initialIndex: 4));
+        await tester.pumpWidget(
+          buildTestShell(customAuthNotifier: guestAuth, initialIndex: 4),
+        );
         await tester.pumpAndSettle();
 
         expect(find.byType(ProfileScreen), findsOneWidget);
         expect(find.text('Chưa đăng nhập'), findsOneWidget);
-        expect(find.widgetWithText(OutlinedButton, 'Đăng nhập'), findsOneWidget);
+        expect(
+          find.widgetWithText(OutlinedButton, 'Đăng nhập'),
+          findsOneWidget,
+        );
       },
     );
   });

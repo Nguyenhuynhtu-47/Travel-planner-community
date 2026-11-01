@@ -30,4 +30,5 @@ class ApiConstants {
   static const String userItinerariesEndpoint = '/api/user/itineraries';
   static const String destinationsEndpoint = '/api/destinations';
   static const String healthEndpoint = '/api/health';
+  static const String imageUploadEndpoint = '/api/media/images';
 }

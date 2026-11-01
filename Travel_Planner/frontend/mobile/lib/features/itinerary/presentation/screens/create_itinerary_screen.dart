@@ -1,9 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/services/image_picker_service.dart';
+import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/create_itinerary_request.dart';
@@ -13,12 +18,14 @@ class CreateItineraryScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository? repository;
   final void Function(int createdItineraryId)? onCreated;
+  final ImagePickerService? imagePickerService;
 
   const CreateItineraryScreen({
     super.key,
     required this.authNotifier,
     this.repository,
     this.onCreated,
+    this.imagePickerService,
   });
 
   @override
@@ -34,12 +41,14 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
   final _budgetController = TextEditingController(text: '3000000');
   final _themeController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _coverImageController = TextEditingController();
+  XFile? _selectedCoverImage;
+  Uint8List? _selectedCoverBytes;
 
   String _visibility = 'PRIVATE'; // Default PRIVATE
   bool _isSubmitting = false;
 
   late final ItineraryCrudRepository _repository;
+  late final ImagePickerService _imagePickerService;
 
   final List<String> _suggestedThemes = [
     'Nghỉ dưỡng',
@@ -54,6 +63,8 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
   void initState() {
     super.initState();
     _repository = widget.repository ?? ItineraryCrudRepository();
+    _imagePickerService =
+        widget.imagePickerService ?? DeviceImagePickerService();
   }
 
   @override
@@ -64,7 +75,6 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
     _budgetController.dispose();
     _themeController.dispose();
     _descriptionController.dispose();
-    _coverImageController.dispose();
     super.dispose();
   }
 
@@ -75,11 +85,42 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
     _budgetController.text = '3000000';
     _themeController.clear();
     _descriptionController.clear();
-    _coverImageController.clear();
+    _selectedCoverImage = null;
+    _selectedCoverBytes = null;
     setState(() {
       _visibility = 'PRIVATE';
       _isSubmitting = false;
     });
+  }
+
+  Future<void> _pickCoverImage() async {
+    try {
+      final image = await _imagePickerService.pickImage();
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      if (bytes.length > 5 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ảnh không được vượt quá 5 MB')),
+          );
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _selectedCoverImage = image;
+          _selectedCoverBytes = bytes;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể mở thư viện ảnh. Vui lòng thử lại.'),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -94,24 +135,38 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
     final totalDays = int.tryParse(_totalDaysController.text.trim()) ?? 1;
     final budget = double.tryParse(_budgetController.text.trim()) ?? 0.0;
 
-    final request = CreateItineraryRequest(
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
-      location: _locationController.text.trim(),
-      coverImage: _coverImageController.text.trim().isEmpty
-          ? null
-          : _coverImageController.text.trim(),
-      totalDays: totalDays,
-      budget: budget,
-      theme: _themeController.text.trim().isEmpty
-          ? null
-          : _themeController.text.trim(),
-      visibility: _visibility,
-    );
-
     try {
+      String? coverImage;
+      final selectedImage = _selectedCoverImage;
+      final selectedBytes = _selectedCoverBytes;
+      final token = widget.authNotifier.token;
+      if (selectedImage != null && selectedBytes != null) {
+        if (token == null) {
+          throw ApiException(
+            statusCode: 401,
+            message: 'Vui lòng đăng nhập để tải ảnh lên.',
+          );
+        }
+        coverImage = await _repository.uploadImage(
+          token,
+          bytes: selectedBytes,
+          filename: selectedImage.name,
+        );
+      }
+      final request = CreateItineraryRequest(
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        location: _locationController.text.trim(),
+        coverImage: coverImage,
+        totalDays: totalDays,
+        budget: budget,
+        theme: _themeController.text.trim().isEmpty
+            ? null
+            : _themeController.text.trim(),
+        visibility: _visibility,
+      );
       final created = await _repository.createItinerary(
         request,
         token: widget.authNotifier.token,
@@ -338,19 +393,11 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Cover Image URL
-              AppTextField(
-                label: 'Ảnh bìa (URL)',
-                hint: 'https://example.com/cover.jpg',
-                controller: _coverImageController,
-                keyboardType: TextInputType.url,
-                textInputAction: TextInputAction.done,
-                validator: (value) {
-                  if (value != null && value.trim().length > 500) {
-                    return 'Đường dẫn ảnh tối đa 500 ký tự';
-                  }
-                  return null;
-                },
+              ImageUploadPreview(
+                selectedBytes: _selectedCoverBytes,
+                imageUrl: null,
+                buttonLabel: 'Chọn ảnh bìa',
+                onPick: _pickCoverImage,
               ),
               const SizedBox(height: 20),
 

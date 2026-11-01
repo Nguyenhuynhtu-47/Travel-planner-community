@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
@@ -18,12 +20,14 @@ class ExploreScreen extends StatefulWidget {
   final ExploreNotifier? exploreNotifier;
   final ItineraryDetailNotifier Function(int itineraryId, String? token)?
   itineraryDetailNotifierFactory;
+  final VoidCallback? onProfileTap;
 
   const ExploreScreen({
     super.key,
     required this.authNotifier,
     this.exploreNotifier,
     this.itineraryDetailNotifierFactory,
+    this.onProfileTap,
   });
 
   @override
@@ -81,6 +85,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LoginScreen(authNotifier: widget.authNotifier),
+      ),
+    );
+  }
+
+  void _navigateToProfile() {
+    final onProfileTap = widget.onProfileTap;
+    if (onProfileTap != null) {
+      onProfileTap();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(authNotifier: widget.authNotifier),
       ),
     );
   }
@@ -165,6 +182,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   );
                 },
               ),
+              if (isAuthenticated)
+                CurrentUserAvatarButton(
+                  avatarUrl: widget.authNotifier.currentUser?['avatar']
+                      ?.toString(),
+                  onPressed: _navigateToProfile,
+                ),
               if (!isAuthenticated)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),

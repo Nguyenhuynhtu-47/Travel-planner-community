@@ -23,6 +23,26 @@ class ItineraryCrudRepository {
   ItineraryCrudRepository({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
+  Future<String> uploadImage(
+    String token, {
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final response = await _apiClient.uploadFile(
+      ApiConstants.imageUploadEndpoint,
+      bytes: bytes,
+      filename: filename,
+      token: token,
+    );
+    if (response is Map && response['secureUrl'] is String) {
+      return response['secureUrl'] as String;
+    }
+    throw ApiException(
+      statusCode: 0,
+      message: 'Phản hồi upload ảnh không hợp lệ.',
+    );
+  }
+
   /// Fetches the authenticated user's itineraries with pagination and optional filters.
   Future<PageResult<ItinerarySummary>> getMyItineraries({
     String? token,
