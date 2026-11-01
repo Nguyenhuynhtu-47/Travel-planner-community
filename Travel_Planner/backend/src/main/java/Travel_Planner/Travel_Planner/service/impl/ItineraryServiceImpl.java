@@ -26,6 +26,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class ItineraryServiceImpl implements ItineraryService {
@@ -36,6 +38,8 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final ActivityRepository activityRepository;
     private final UserRepository userRepository;
     private final DestinationRepository destinationRepository;
+    private final FavoriteRepository favoriteRepository;
+    private final SavedItineraryRepository savedItineraryRepository;
 
     public ItineraryServiceImpl(
             ItineraryRepository itineraryRepository,
@@ -43,7 +47,9 @@ public class ItineraryServiceImpl implements ItineraryService {
             ItineraryDayRepository itineraryDayRepository,
             ActivityRepository activityRepository,
             UserRepository userRepository,
-            DestinationRepository destinationRepository
+            DestinationRepository destinationRepository,
+            FavoriteRepository favoriteRepository,
+            SavedItineraryRepository savedItineraryRepository
     ) {
         this.itineraryRepository = itineraryRepository;
         this.ratingRepository = ratingRepository;
@@ -51,6 +57,8 @@ public class ItineraryServiceImpl implements ItineraryService {
         this.activityRepository = activityRepository;
         this.userRepository = userRepository;
         this.destinationRepository = destinationRepository;
+        this.favoriteRepository = favoriteRepository;
+        this.savedItineraryRepository = savedItineraryRepository;
     }
 
     @Override
@@ -101,6 +109,116 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .last(itineraryPage.isLast())
                 .build();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ItinerarySummaryResponse> getRecommendations(String currentUsername, int page, int size) {
+        int normalizedPage = Math.max(page, 0);
+        int normalizedSize = (size <= 0) ? 6 : Math.min(size, 50);
+
+        List<String> preferredThemes = new ArrayList<>();
+        Set<Integer> excludeIds = new HashSet<>();
+
+        if (currentUsername != null && !currentUsername.isBlank()) {
+            userRepository.findByUsername(currentUsername).ifPresent(user -> {
+                List<Itinerary> userItins = itineraryRepository.findByUser_UserId(user.getUserId());
+                for (Itinerary itin : userItins) {
+                    excludeIds.add(itin.getItineraryId());
+                    if (itin.getTheme() != null && !itin.getTheme().isBlank()) {
+                        preferredThemes.add(itin.getTheme().trim());
+                    }
+                }
+
+                List<Favorite> favorites = favoriteRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
+                for (Favorite fav : favorites) {
+                    if (fav.getItinerary() != null) {
+                        excludeIds.add(fav.getItinerary().getItineraryId());
+                        if (fav.getItinerary().getTheme() != null && !fav.getItinerary().getTheme().isBlank()) {
+                            preferredThemes.add(fav.getItinerary().getTheme().trim());
+                        }
+                    }
+                }
+
+                List<SavedItinerary> saved = savedItineraryRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
+                for (SavedItinerary s : saved) {
+                    if (s.getItinerary() != null) {
+                        excludeIds.add(s.getItinerary().getItineraryId());
+                        if (s.getItinerary().getTheme() != null && !s.getItinerary().getTheme().isBlank()) {
+                            preferredThemes.add(s.getItinerary().getTheme().trim());
+                        }
+                    }
+                }
+            });
+        }
+
+        List<String> topThemes = preferredThemes.stream()
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .map(Map.Entry::getKey)
+                .toList();
+
+        Page<Itinerary> itineraryPage = Page.empty();
+
+        if (!topThemes.isEmpty()) {
+            Specification<Itinerary> spec = (root, query, cb) -> {
+                List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+                predicates.add(cb.equal(root.get("visibility"), Visibility.PUBLIC));
+                predicates.add(cb.equal(root.get("status"), ItineraryStatus.ACTIVE));
+                predicates.add(cb.equal(root.get("user").get("status"), UserStatus.ACTIVE));
+                if (!excludeIds.isEmpty()) {
+                    predicates.add(cb.not(root.get("itineraryId").in(excludeIds)));
+                }
+                predicates.add(root.get("theme").in(topThemes));
+                return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            };
+            Pageable pageable = PageRequest.of(normalizedPage, normalizedSize,
+                    Sort.by(Sort.Direction.DESC, "favoriteCount")
+                            .and(Sort.by(Sort.Direction.DESC, "ratingCount"))
+                            .and(Sort.by(Sort.Direction.DESC, "createdAt"))
+                            .and(Sort.by(Sort.Direction.DESC, "itineraryId")));
+            itineraryPage = itineraryRepository.findAll(spec, pageable);
+        }
+
+        if (itineraryPage.isEmpty()) {
+            Specification<Itinerary> fallbackSpec = (root, query, cb) -> {
+                List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+                predicates.add(cb.equal(root.get("visibility"), Visibility.PUBLIC));
+                predicates.add(cb.equal(root.get("status"), ItineraryStatus.ACTIVE));
+                predicates.add(cb.equal(root.get("user").get("status"), UserStatus.ACTIVE));
+                if (!excludeIds.isEmpty()) {
+                    predicates.add(cb.not(root.get("itineraryId").in(excludeIds)));
+                }
+                return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            };
+            Pageable pageable = PageRequest.of(normalizedPage, normalizedSize,
+                    Sort.by(Sort.Direction.DESC, "favoriteCount")
+                            .and(Sort.by(Sort.Direction.DESC, "ratingCount"))
+                            .and(Sort.by(Sort.Direction.DESC, "createdAt"))
+                            .and(Sort.by(Sort.Direction.DESC, "itineraryId")));
+            itineraryPage = itineraryRepository.findAll(fallbackSpec, pageable);
+        }
+
+        List<Integer> ids = itineraryPage.getContent().stream()
+                .map(Itinerary::getItineraryId)
+                .toList();
+
+        Map<Integer, Double> ratingMap = fetchAverageRatings(ids);
+
+        List<ItinerarySummaryResponse> content = itineraryPage.getContent().stream()
+                .map(item -> mapToSummaryResponse(item, ratingMap.getOrDefault(item.getItineraryId(), 0.0)))
+                .toList();
+
+        return PageResponse.<ItinerarySummaryResponse>builder()
+                .content(content)
+                .pageNumber(itineraryPage.getNumber())
+                .pageSize(itineraryPage.getSize())
+                .totalElements(itineraryPage.getTotalElements())
+                .totalPages(itineraryPage.getTotalPages())
+                .last(itineraryPage.isLast())
+                .build();
+    }
+
 
     private void validateFilters(BigDecimal minBudget, BigDecimal maxBudget, Integer minDays, Integer maxDays, Double minRating) {
         if (minBudget != null && minBudget.compareTo(BigDecimal.ZERO) < 0) {

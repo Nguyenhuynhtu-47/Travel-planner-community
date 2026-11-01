@@ -44,6 +44,17 @@ public class ItineraryController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/recommendations")
+    public ResponseEntity<PageResponse<ItinerarySummaryResponse>> getRecommendations(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String currentUsername = userDetails != null ? userDetails.getUsername() : null;
+        PageResponse<ItinerarySummaryResponse> response = itineraryService.getRecommendations(currentUsername, page, size);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ItineraryDetailResponse> getItineraryDetail(
             @PathVariable Integer id,

@@ -8,7 +8,9 @@ import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.model.enums.Visibility;
 import Travel_Planner.Travel_Planner.repository.ItineraryRepository;
+import Travel_Planner.Travel_Planner.repository.FavoriteRepository;
 import Travel_Planner.Travel_Planner.repository.RatingRepository;
+import Travel_Planner.Travel_Planner.repository.SavedItineraryRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -48,6 +50,12 @@ class ItineraryControllerTest {
     private RatingRepository ratingRepository;
 
     @Autowired
+    private FavoriteRepository favoriteRepository;
+
+    @Autowired
+    private SavedItineraryRepository savedItineraryRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -64,6 +72,8 @@ class ItineraryControllerTest {
                 .apply(springSecurity())
                 .build();
 
+        favoriteRepository.deleteAll();
+        savedItineraryRepository.deleteAll();
         ratingRepository.deleteAll();
         itineraryRepository.deleteAll();
         userRepository.deleteAll();
@@ -90,6 +100,8 @@ class ItineraryControllerTest {
 
     @AfterEach
     void tearDown() {
+        favoriteRepository.deleteAll();
+        savedItineraryRepository.deleteAll();
         ratingRepository.deleteAll();
         itineraryRepository.deleteAll();
         userRepository.deleteAll();
@@ -588,5 +600,48 @@ class ItineraryControllerTest {
                 .andExpect(jsonPath("$.content", hasSize(1)))
                 .andExpect(jsonPath("$.pageNumber").value(1))
                 .andExpect(jsonPath("$.last").value(true));
+    }
+
+    @Test
+    @DisplayName("22. Recommendations endpoint allows public guest access and returns popular itineraries")
+    void testRecommendationsForGuest() throws Exception {
+        createItinerary("Trip 1", "Loc A", "Nghỉ dưỡng", "Desc",
+                new BigDecimal("1000000.00"), 2, Visibility.PUBLIC, ItineraryStatus.ACTIVE, activeUser);
+        createItinerary("Trip 2", "Loc B", "Ẩm thực", "Desc",
+                new BigDecimal("2000000.00"), 3, Visibility.PUBLIC, ItineraryStatus.ACTIVE, activeUser);
+
+        mockMvc.perform(get("/api/itineraries/recommendations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    @DisplayName("23. Recommendations endpoint for authenticated user excludes user's own itineraries and prioritizes preferred themes")
+    void testRecommendationsForAuthenticatedUser() throws Exception {
+        User otherUser = userRepository.save(User.builder()
+                .username("traveler2")
+                .password(passwordEncoder.encode("Password123!"))
+                .email("traveler2@example.com")
+                .fullName("Nguyen Van B")
+                .role(Role.USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+
+        Itinerary myTrip = createItinerary("My Own Trip", "Loc A", "Nghỉ dưỡng", "Desc",
+                new BigDecimal("1000000.00"), 2, Visibility.PUBLIC, ItineraryStatus.ACTIVE, activeUser);
+
+        Itinerary recTrip = createItinerary("Other Nghỉ dưỡng Trip", "Loc B", "Nghỉ dưỡng", "Desc",
+                new BigDecimal("2000000.00"), 3, Visibility.PUBLIC, ItineraryStatus.ACTIVE, otherUser);
+        createItinerary("Other Ẩm thực Trip", "Loc C", "Ẩm thực", "Desc",
+                new BigDecimal("3000000.00"), 4, Visibility.PUBLIC, ItineraryStatus.ACTIVE, otherUser);
+
+        String token = "Bearer " + jwtTokenProvider.generateToken(activeUser);
+
+        mockMvc.perform(get("/api/itineraries/recommendations")
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].itineraryId").value(recTrip.getItineraryId()))
+                .andExpect(jsonPath("$.content[0].title").value("Other Nghỉ dưỡng Trip"));
     }
 }
