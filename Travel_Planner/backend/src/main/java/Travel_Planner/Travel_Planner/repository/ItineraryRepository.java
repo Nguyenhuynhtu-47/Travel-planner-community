@@ -1,6 +1,7 @@
 package Travel_Planner.Travel_Planner.repository;
 
 import Travel_Planner.Travel_Planner.model.Itinerary;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,8 +27,9 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, 
 
     boolean existsByTitleAndUser_UserId(String title, Integer userId);
 
+    List<Itinerary> findByUser_UserId(Integer userId);
+
     @Modifying
     @Query("update Itinerary i set i.commentCount = i.commentCount + 1 where i.itineraryId = :itineraryId")
     int incrementCommentCount(@Param("itineraryId") Integer itineraryId);
 }
-

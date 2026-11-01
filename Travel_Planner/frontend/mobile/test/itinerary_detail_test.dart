@@ -39,7 +39,7 @@ void main() {
   ) async {
     final requestedDetailPaths = <String>[];
     final client = MockClient((request) async {
-      if (request.url.path == '/api/itineraries') {
+      if (request.url.path == '/api/itineraries' || request.url.path == '/api/itineraries/recommendations') {
         return http.Response(
           jsonEncode({
             'content': [

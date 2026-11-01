@@ -61,4 +61,37 @@ class ExploreRepository {
       isLast: true,
     );
   }
+
+  Future<PageResult<ItinerarySummary>> getRecommendations({
+    int page = 0,
+    int size = 6,
+    String? token,
+  }) async {
+    final queryParameters = <String, dynamic>{
+      'page': page,
+      'size': size,
+    };
+
+    final response = await _apiClient.get(
+      ApiConstants.recommendationsEndpoint,
+      queryParameters: queryParameters,
+      token: token,
+    );
+
+    if (response is Map<String, dynamic>) {
+      return PageResult.fromJson(
+        response,
+        (item) => ItinerarySummary.fromJson(item as Map<String, dynamic>),
+      );
+    }
+
+    return const PageResult(
+      content: [],
+      pageNumber: 0,
+      pageSize: 6,
+      totalElements: 0,
+      totalPages: 0,
+      isLast: true,
+    );
+  }
 }

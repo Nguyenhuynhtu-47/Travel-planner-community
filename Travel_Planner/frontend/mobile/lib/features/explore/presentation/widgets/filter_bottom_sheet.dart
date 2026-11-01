@@ -217,6 +217,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         children: _sortOptions.entries.map((entry) {
                           final isSelected = _selectedSort == entry.key;
                           return ChoiceChip(
+                            showCheckmark: false,
                             label: Text(entry.value),
                             selected: isSelected,
                             onSelected: (selected) {
@@ -322,6 +323,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         children: _popularThemes.map((theme) {
                           final isSelected = _selectedTheme == theme;
                           return ChoiceChip(
+                            showCheckmark: false,
                             label: Text(theme),
                             selected: isSelected,
                             onSelected: (selected) {
@@ -493,6 +495,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         spacing: 8,
                         children: [
                           ChoiceChip(
+                            showCheckmark: false,
                             label: const Text('Tất cả'),
                             selected: _selectedMinRating == null,
                             onSelected: (selected) {
@@ -523,6 +526,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                           ...[3.0, 4.0, 4.5].map((rating) {
                             final isSelected = _selectedMinRating == rating;
                             return ChoiceChip(
+                              showCheckmark: false,
                               label: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [

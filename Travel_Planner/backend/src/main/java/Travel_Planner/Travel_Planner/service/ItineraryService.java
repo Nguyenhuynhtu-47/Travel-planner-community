@@ -32,6 +32,12 @@ public interface ItineraryService {
             String sort
     );
 
+    PageResponse<ItinerarySummaryResponse> getRecommendations(
+            String currentUsername,
+            int page,
+            int size
+    );
+
     ItineraryDetailResponse getItineraryDetail(Integer id, String currentUsername);
 
     PageResponse<ItinerarySummaryResponse> getMyItineraries(

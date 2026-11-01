@@ -2640,3 +2640,111 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 - `backend/.\mvnw.cmd -q -DskipTests compile`: passed with the runtime dependency and Jackson 3 response type.
 - `backend/.\mvnw.cmd -q test`: passed, 73 tests with zero failures or errors.
 - No live Cloudinary upload was run for this correction.
+
+
+## 59. Session Entry: Redesign and Implementation of Section-Based Explore Homepage (2026-11-01)
+
+### 59.1. Objective and Architecture Audit
+- **Objective:** Redesign the Travel Planner mobile Explore screen (`frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`), transforming the single vertical scrolling list into a structured, section-based travel discovery interface.
+- **Backend & Database Audit Findings:**
+  - The `itineraries` database table contains `visibility`, `status`, `view_count`, `favorite_count`, `rating_count`, `theme`, and `created_at`.
+  - Average rating is dynamically calculated from the `ratings` table via `AVG(r.score)`.
+  - No synthetic `is_featured` column exists; deterministic selection strategy utilizes public active itineraries ordered by community engagement (`viewCount,desc`).
+  - Implemented an authentic server-side recommendation endpoint without inventing mock models or introducing unauthorized database schema modifications.
+
+### 59.2. Backend Implementation
+1. **`ItineraryRepository.java`:**
+   - Added `List<Itinerary> findByUser_UserId(Integer userId);` to fetch itineraries authored by a specific user.
+2. **`ItineraryService.java` & `ItineraryServiceImpl.java`:**
+   - Implemented `PageResponse<ItinerarySummaryResponse> getRecommendations(String currentUsername, int page, int size)`.
+   - Injected existing `FavoriteRepository` and `SavedItineraryRepository`.
+   - **Recommendation Algorithm:**
+     - Analyzes interactions of the authenticated user: extracts theme frequencies across user's favorited trips, saved trips, and created trips.
+     - Weights preferred themes and queries matching public active itineraries while strictly excluding the user's own itineraries.
+     - Falls back deterministically to top-rated / most-favorited public itineraries for guests or authenticated users with insufficient interaction history.
+     - Efficiently queries and populates average ratings in batch via `fetchAverageRatings(ids)`.
+3. **`ItineraryController.java` & `SecurityConfig.java`:**
+   - Exposed `GET /api/itineraries/recommendations` with optional `@AuthenticationPrincipal UserDetails`.
+   - Permitted public access to `GET /api/itineraries/recommendations` in `SecurityConfig.java`.
+4. **Backend Verification (`ItineraryControllerTest.java`):**
+   - Added Test 22: Guest recommendations fallback to top public itineraries.
+   - Added Test 23: Authenticated user recommendations weighting preferred themes and excluding user's own itineraries.
+   - All 75 backend tests passing (`mvnw.cmd test`).
+
+### 59.3. Frontend Implementation
+1. **API & Data Layer:**
+   - `lib/core/constants/api_constants.dart`: Added `static const String recommendationsEndpoint = '/api/itineraries/recommendations';`.
+   - `lib/features/explore/data/explore_repository.dart`: Added `getRecommendations({int page = 0, int size = 6, String? token})`.
+2. **State Management (`lib/features/explore/presentation/explore_notifier.dart`):**
+   - Added `SectionStatus` (`initial`, `loading`, `success`, `error`) and `HomeSectionType` (`featured`, `recommended`, `topRated`, `popular`, `recent`).
+   - Added generic immutable `SectionState<T>` holding status, items list, and optional error message.
+   - Added independent section states: `_featuredSection`, `_recommendedSection`, `_topRatedSection`, `_popularSection`, `_recentSection`.
+   - Implemented `loadHomeSections()` loading all sections concurrently with isolated try/catch blocks so an issue in one section never degrades others.
+   - Implemented `retrySection(HomeSectionType)` for isolated recovery without reloading unaffected sections.
+   - Added "Xem tất cả" support via `showAllForSection(HomeSectionType)` and `closeViewingAll()`.
+3. **UI Widgets Created (`lib/features/explore/presentation/widgets/`):**
+   - `SectionHeader`: Section title, optional subtitle, and "Xem tất cả" action with forward chevron.
+   - `FeaturedItineraryCard` (Section A): Prominent horizontal card (280x240) with photo cover, dark gradient scrim, duration chip, location, rating badge, theme badge, and interactive favorite button.
+   - `CompactItineraryCard` (Sections B, C, D): Clean horizontal card (195x230) supporting configurable highlight chips (`rating`, `popular`, `theme`), duration pill, location, and favorite button.
+   - `ThemeCategoryCard` (Section E): Visual category shortcut card for project themes ("Nghỉ dưỡng", "Khám phá", "Ẩm thực", "Văn hóa", "Phiêu lưu", "Sinh thái", "Biển đảo").
+   - `SectionSkeletonLoader`: Horizontal pulsing shimmer placeholder adhering to `prefers-reduced-motion`.
+   - `SectionErrorView`: Compact, isolated error banner with retry button.
+4. **Explore Screen Discovery Experience (`explore_screen.dart`):**
+   - Seamlessly toggles between the section-based discovery homepage and the search/filter paginated list.
+   - Added cross-section itinerary deduplication so items displayed in upper sections are not repeated redundantly below.
+   - Preserves all search, filter bottom sheet, quick theme filtering, and pagination mechanics.
+   - Added viewing-all top navigation banner with back button to cleanly dismiss "Xem tất cả" mode.
+
+### 59.4. Verification Results
+- `flutter analyze`: **0 issues found** (0 errors, 0 warnings, 0 lints).
+- Backend tests (`mvnw.cmd test`): **75 tests passed, 0 failures, 0 errors**.
+- Frontend new tests (`test/explore_sections_test.dart`): **13 tests passed, 0 failures**.
+- Frontend existing tests (`test/explore_test.dart`): **16 tests passed, 0 failures**.
+- Full test suite verified across all 14 mobile test files.
+
+
+## 60. Session Entry: Remove Horizontal Theme Filter Chip Row from Homepage (2026-11-01)
+
+### 60.1. Objective and Scope
+- Removed the horizontal theme filter chip row (`Tất cả`, `Nghỉ dưỡng`, `Phượt`, `Ẩm thực`, etc.) rendered immediately beneath the search bar on the Explore homepage (`explore_screen.dart`).
+- Narrowly scoped UI change: preserved the search bar, advanced filter button, Section E "Khám phá theo chủ đề" section, and all theme filtering functionality in the dedicated Explore/search results view.
+- Zero modifications to backend APIs, database schemas, recommendation algorithms, homepage discovery sections, itinerary cards, or navigation.
+
+### 60.2. Implementation Details
+- Removed the `SizedBox(height: 40, child: ListView.builder(...))` widget hosting the horizontal theme filter chips in `explore_screen.dart`.
+- Removed genuinely unused `_categoryThemes` list state from `_ExploreScreenState`.
+- Retained `setQuickTheme(...)` and `ExploreFilter` theme filtering in `ExploreNotifier` for "Khám phá theo chủ đề" (`ThemeCategoryCard`) and the advanced filter bottom sheet (`FilterBottomSheet`).
+- Updated `test/explore_test.dart` to assert that no `FilterChip` widgets remain on the homepage, while verifying that activating theme filters dynamically displays the active filter summary chip and cleanly preserves search keywords.
+
+### 60.3. Verification Results
+- `flutter analyze`: Passed with 0 issues found.
+- `flutter test test/explore_test.dart`: Passed, 16/16 tests.
+- `flutter test test/explore_sections_test.dart`: Passed, 13/13 tests.
+- Full Flutter test suite: 165/165 tests passed across all 14 test suites.
+
+
+## 61. Session Entry: Fix Excessive Vertical Spacing on Explore Homepage (2026-11-01)
+
+### 61.1. Problem & Root Cause Analysis
+- **Problem:** Following the removal of the horizontal theme filter chips row from the Explore screen, an excessive vertical gap (~40px) was observed between the search bar pill and the first content section ("Chuyến đi nổi bật") on physical Android devices.
+- **Root Cause:**
+  1. An unconditional `const SizedBox(height: 8)` widget remained immediately above `Expanded(child: _buildBody(...))`, which was an orphan remnant of the old layout between the chips row and the content list.
+  2. `SearchBarPill` padding had `bottom: 12px`, which originally accommodated spacing above the theme chip row.
+  3. `SectionHeader` had an unconfigurable top padding of `20px` (`EdgeInsets.fromLTRB(16, 20, 16, 12)`), designed to separate subsequent sections from preceding card carousels.
+  4. Cumulative vertical gap: 12px (search bar bottom) + 8px (`SizedBox`) + 20px (`SectionHeader` top) = 40px.
+
+### 61.2. Implementation Details
+1. **`section_header.dart`:**
+   - Added configurable `final double topPadding;` parameter to `SectionHeader`, defaulting to `20` to preserve the exact spacing between all subsequent sections (Section E, B, C, D, F).
+2. **`explore_screen.dart`:**
+   - Removed the orphan `const SizedBox(height: 8)` widget before `Expanded`.
+   - Tightened `SearchBarPill` bottom padding from `12px` to `6px`.
+   - Specified `topPadding: 10` for Section A's `SectionHeader` ("Chuyến đi nổi bật").
+   - Resulting gap between SearchBar and "Chuyến đi nổi bật" reduced from 40px to 16px (6px + 10px), perfectly matching the app's 16px horizontal margin grid without layout distortion or negative margins.
+
+### 61.3. Physical Device Verification (Samsung Galaxy A34 5G - SM-A346E)
+- Connected to physical device `RFCW8105T0H`.
+- Built debug APK and installed onto physical device.
+- Captured before (`before_fix.png`) and after (`after_fix.png`) screenshots directly from the device.
+- Visually confirmed that the excessive 40px gap was eliminated, Section A sits naturally 16px below the search bar, spacing across all other sections remains uniform (20px), and scrolling and bottom navigation operate seamlessly.
+- Verification: `flutter analyze` passed with 0 issues; all 29 explore tests passed.

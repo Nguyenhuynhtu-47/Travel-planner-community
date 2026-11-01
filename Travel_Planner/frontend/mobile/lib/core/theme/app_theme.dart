@@ -96,6 +96,9 @@ class AppTheme {
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
       ),
+      chipTheme: const ChipThemeData(
+        showCheckmark: false,
+      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.textPrimary,
