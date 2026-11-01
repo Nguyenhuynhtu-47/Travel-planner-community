@@ -6,6 +6,40 @@ import '../data/models/itinerary_summary.dart';
 
 enum ExploreStatus { initial, loading, success, error }
 
+enum SectionStatus { initial, loading, success, error }
+
+enum HomeSectionType { featured, recommended, topRated, popular, recent }
+
+class SectionState<T> {
+  final SectionStatus status;
+  final List<T> items;
+  final String? errorMessage;
+
+  const SectionState({
+    this.status = SectionStatus.initial,
+    this.items = const [],
+    this.errorMessage,
+  });
+
+  bool get isLoading => status == SectionStatus.loading;
+  bool get isSuccess => status == SectionStatus.success;
+  bool get isError => status == SectionStatus.error;
+  bool get isEmpty => isSuccess && items.isEmpty;
+
+  SectionState<T> copyWith({
+    SectionStatus? status,
+    List<T>? items,
+    String? errorMessage,
+    bool clearError = false,
+  }) {
+    return SectionState<T>(
+      status: status ?? this.status,
+      items: items ?? this.items,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+    );
+  }
+}
+
 class ExploreFilter {
   final String? location;
   final String? theme;
@@ -85,8 +119,17 @@ class ExploreNotifier extends ChangeNotifier {
   String _searchKeyword = '';
   String _sort = 'createdAt,desc';
   ExploreFilter _filter = const ExploreFilter();
+  bool _isViewingAll = false;
+  HomeSectionType? _viewingAllSection;
 
   int _requestId = 0;
+
+  // Section States for Homepage
+  SectionState<ItinerarySummary> _featuredSection = const SectionState();
+  SectionState<ItinerarySummary> _recommendedSection = const SectionState();
+  SectionState<ItinerarySummary> _topRatedSection = const SectionState();
+  SectionState<ItinerarySummary> _popularSection = const SectionState();
+  SectionState<ItinerarySummary> _recentSection = const SectionState();
 
   ExploreNotifier({ExploreRepository? repository})
     : _repository = repository ?? ExploreRepository();
@@ -105,12 +148,254 @@ class ExploreNotifier extends ChangeNotifier {
   String get searchKeyword => _searchKeyword;
   String get sort => _sort;
   ExploreFilter get filter => _filter;
+  bool get isViewingAll => _isViewingAll;
+  HomeSectionType? get viewingAllSection => _viewingAllSection;
+
+  SectionState<ItinerarySummary> get featuredSection => _featuredSection;
+  SectionState<ItinerarySummary> get recommendedSection => _recommendedSection;
+  SectionState<ItinerarySummary> get topRatedSection => _topRatedSection;
+  SectionState<ItinerarySummary> get popularSection => _popularSection;
+  SectionState<ItinerarySummary> get recentSection => _recentSection;
+
+  bool get isSearchOrFilterActive =>
+      _searchKeyword.isNotEmpty || !_filter.isEmpty || _isViewingAll;
 
   bool get isEmptyResults =>
       _status == ExploreStatus.success && _itineraries.isEmpty;
 
   Future<void> loadInitialItineraries({String? token}) async {
-    await fetchItineraries(resetPage: true, token: token);
+    await Future.wait([
+      fetchItineraries(resetPage: true, token: token),
+      loadHomeSections(token: token),
+    ]);
+  }
+
+  Future<void> refreshAll({String? token}) async {
+    await Future.wait([
+      fetchItineraries(resetPage: true, token: token),
+      loadHomeSections(token: token),
+    ]);
+  }
+
+  Future<void> loadHomeSections({String? token}) async {
+    _featuredSection = _featuredSection.copyWith(
+      status: SectionStatus.loading,
+      clearError: true,
+    );
+    _recommendedSection = _recommendedSection.copyWith(
+      status: SectionStatus.loading,
+      clearError: true,
+    );
+    _topRatedSection = _topRatedSection.copyWith(
+      status: SectionStatus.loading,
+      clearError: true,
+    );
+    _popularSection = _popularSection.copyWith(
+      status: SectionStatus.loading,
+      clearError: true,
+    );
+    _recentSection = _recentSection.copyWith(
+      status: SectionStatus.loading,
+      clearError: true,
+    );
+    notifyListeners();
+
+    await Future.wait([
+      _loadFeaturedSection(token: token),
+      _loadRecommendedSection(token: token),
+      _loadTopRatedSection(token: token),
+      _loadPopularSection(token: token),
+      _loadRecentSection(token: token),
+    ]);
+  }
+
+  Future<void> retrySection(HomeSectionType type, {String? token}) async {
+    switch (type) {
+      case HomeSectionType.featured:
+        _featuredSection = _featuredSection.copyWith(
+          status: SectionStatus.loading,
+          clearError: true,
+        );
+        notifyListeners();
+        await _loadFeaturedSection(token: token);
+      case HomeSectionType.recommended:
+        _recommendedSection = _recommendedSection.copyWith(
+          status: SectionStatus.loading,
+          clearError: true,
+        );
+        notifyListeners();
+        await _loadRecommendedSection(token: token);
+      case HomeSectionType.topRated:
+        _topRatedSection = _topRatedSection.copyWith(
+          status: SectionStatus.loading,
+          clearError: true,
+        );
+        notifyListeners();
+        await _loadTopRatedSection(token: token);
+      case HomeSectionType.popular:
+        _popularSection = _popularSection.copyWith(
+          status: SectionStatus.loading,
+          clearError: true,
+        );
+        notifyListeners();
+        await _loadPopularSection(token: token);
+      case HomeSectionType.recent:
+        _recentSection = _recentSection.copyWith(
+          status: SectionStatus.loading,
+          clearError: true,
+        );
+        notifyListeners();
+        await _loadRecentSection(token: token);
+    }
+  }
+
+  Future<void> _loadFeaturedSection({String? token}) async {
+    try {
+      final res = await _repository.getPublicItineraries(
+        sort: 'viewCount,desc',
+        size: 6,
+        token: token,
+      );
+      _featuredSection = SectionState(
+        status: SectionStatus.success,
+        items: res.content,
+      );
+    } catch (_) {
+      _featuredSection = const SectionState(
+        status: SectionStatus.error,
+        errorMessage: 'Không thể tải lịch trình nổi bật.',
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadRecommendedSection({String? token}) async {
+    try {
+      final res = await _repository.getRecommendations(
+        page: 0,
+        size: 6,
+        token: token,
+      );
+      _recommendedSection = SectionState(
+        status: SectionStatus.success,
+        items: res.content,
+      );
+    } catch (_) {
+      _recommendedSection = const SectionState(
+        status: SectionStatus.error,
+        errorMessage: 'Không thể tải lịch trình gợi ý.',
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadTopRatedSection({String? token}) async {
+    try {
+      var res = await _repository.getPublicItineraries(
+        minRating: 4.0,
+        sort: 'rating,desc',
+        size: 6,
+        token: token,
+      );
+      if (res.content.isEmpty) {
+        res = await _repository.getPublicItineraries(
+          sort: 'rating,desc',
+          size: 6,
+          token: token,
+        );
+      }
+      final sorted = List<ItinerarySummary>.from(res.content);
+      sorted.sort((a, b) {
+        final rateCmp = b.averageRating.compareTo(a.averageRating);
+        if (rateCmp != 0) return rateCmp;
+        return b.ratingCount.compareTo(a.ratingCount);
+      });
+      _topRatedSection = SectionState(
+        status: SectionStatus.success,
+        items: sorted,
+      );
+    } catch (_) {
+      _topRatedSection = const SectionState(
+        status: SectionStatus.error,
+        errorMessage: 'Không thể tải lịch trình đánh giá cao.',
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadPopularSection({String? token}) async {
+    try {
+      final res = await _repository.getPublicItineraries(
+        sort: 'favoriteCount,desc',
+        size: 6,
+        token: token,
+      );
+      _popularSection = SectionState(
+        status: SectionStatus.success,
+        items: res.content,
+      );
+    } catch (_) {
+      _popularSection = const SectionState(
+        status: SectionStatus.error,
+        errorMessage: 'Không thể tải lịch trình phổ biến.',
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadRecentSection({String? token}) async {
+    try {
+      final res = await _repository.getPublicItineraries(
+        sort: 'createdAt,desc',
+        size: 6,
+        token: token,
+      );
+      _recentSection = SectionState(
+        status: SectionStatus.success,
+        items: res.content,
+      );
+    } catch (_) {
+      _recentSection = const SectionState(
+        status: SectionStatus.error,
+        errorMessage: 'Không thể tải lịch trình mới nhất.',
+      );
+    }
+    notifyListeners();
+  }
+
+  void showAllForSection(HomeSectionType type, {String? token}) {
+    _isViewingAll = true;
+    _viewingAllSection = type;
+    _currentPage = 0;
+    _searchKeyword = '';
+    switch (type) {
+      case HomeSectionType.featured:
+        _filter = const ExploreFilter();
+        _sort = 'viewCount,desc';
+      case HomeSectionType.recommended:
+        _filter = const ExploreFilter();
+        _sort = 'favoriteCount,desc';
+      case HomeSectionType.topRated:
+        _filter = const ExploreFilter(minRating: 4.0);
+        _sort = 'rating,desc';
+      case HomeSectionType.popular:
+        _filter = const ExploreFilter();
+        _sort = 'favoriteCount,desc';
+      case HomeSectionType.recent:
+        _filter = const ExploreFilter();
+        _sort = 'createdAt,desc';
+    }
+    fetchItineraries(resetPage: true, token: token);
+  }
+
+  void closeViewingAll({String? token}) {
+    _isViewingAll = false;
+    _viewingAllSection = null;
+    _searchKeyword = '';
+    _filter = const ExploreFilter();
+    _sort = 'createdAt,desc';
+    loadHomeSections(token: token);
+    fetchItineraries(resetPage: true, token: token);
   }
 
   Future<void> fetchItineraries({bool resetPage = true, String? token}) async {
@@ -214,11 +499,13 @@ class ExploreNotifier extends ChangeNotifier {
     if (_searchKeyword == trimmed && _status == ExploreStatus.success) return;
 
     _searchKeyword = trimmed;
+    _isViewingAll = trimmed.isNotEmpty;
     fetchItineraries(resetPage: true, token: token);
   }
 
   void applyFilter(ExploreFilter newFilter, {String? token}) {
     _filter = newFilter;
+    _isViewingAll = !newFilter.isEmpty;
     fetchItineraries(resetPage: true, token: token);
   }
 
@@ -236,6 +523,7 @@ class ExploreNotifier extends ChangeNotifier {
       _filter = _filter.copyWith(clearTheme: true);
     } else {
       _filter = _filter.copyWith(theme: theme);
+      _isViewingAll = true;
     }
     fetchItineraries(resetPage: true, token: token);
   }
@@ -244,10 +532,13 @@ class ExploreNotifier extends ChangeNotifier {
     _searchKeyword = '';
     _filter = const ExploreFilter();
     _sort = 'createdAt,desc';
+    _isViewingAll = false;
+    loadHomeSections(token: token);
     fetchItineraries(resetPage: true, token: token);
   }
 
   void retry({String? token}) {
     fetchItineraries(resetPage: _itineraries.isEmpty, token: token);
+    loadHomeSections(token: token);
   }
 }
