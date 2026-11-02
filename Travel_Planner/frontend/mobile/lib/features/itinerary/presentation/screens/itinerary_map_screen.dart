@@ -1,22 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_map_view.dart';
 import '../../data/models/itinerary_detail.dart';
+import '../../data/models/route_models.dart';
+import '../../data/route_repository.dart';
 import '../widgets/itinerary_map_helper.dart';
+import '../widgets/navigation_launcher_helper.dart';
 
 /// Full-screen interactive map screen for exploring itinerary activity locations
-/// day-by-day.
+/// day-by-day with road route calculation, straight-line Haversine fallback,
+/// and free Google Maps navigation deep links.
 class ItineraryMapScreen extends StatefulWidget {
   final ItineraryDetail itinerary;
   final int? initialDayNumber;
+  final String? token;
+  final RouteRepository? routeRepository;
+  final UrlLauncherFn? navigationLauncher;
 
   const ItineraryMapScreen({
     super.key,
     required this.itinerary,
     this.initialDayNumber,
+    this.token,
+    this.routeRepository,
+    this.navigationLauncher,
   });
 
   @override
@@ -25,15 +36,27 @@ class ItineraryMapScreen extends StatefulWidget {
 
 class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
   late final MapController _mapController;
+  late final RouteRepository _routeRepository;
   int? _selectedDayNumber;
   MappedActivityStop? _selectedStop;
   DateTime? _lastMarkerTappedAt;
+
+  RouteResponse? _routeResponse;
+  bool _isRouteLoading = false;
+  String? _routeError;
+  int _routeRequestId = 0;
+  String _selectedTravelMode = 'driving';
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
+    _routeRepository = widget.routeRepository ?? RouteRepository();
     _selectedDayNumber = widget.initialDayNumber;
+
+    if (_selectedDayNumber != null) {
+      _loadRouteForSelectedDay();
+    }
   }
 
   @override
@@ -45,9 +68,75 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
   void _onDaySelected(int? dayNumber) {
     setState(() {
       _selectedDayNumber = dayNumber;
-      _selectedStop = null; // Clear stale selection on day change
+      _selectedStop = null; // Clear stale marker selection
+      _routeResponse = null; // Clear stale route geometry
+      _routeError = null;
     });
     _recenterCamera();
+
+    if (dayNumber != null) {
+      _loadRouteForSelectedDay();
+    }
+  }
+
+  Future<void> _loadRouteForSelectedDay() async {
+    final currentDayNumber = _selectedDayNumber;
+    if (currentDayNumber == null) return;
+
+    final day = widget.itinerary.days
+        .where((d) => d.dayNumber == currentDayNumber)
+        .firstOrNull;
+    if (day == null) return;
+
+    final stops = ItineraryMapHelper.extractMappedStops(
+      widget.itinerary,
+      selectedDayNumber: currentDayNumber,
+    );
+
+    if (stops.length < 2) {
+      setState(() {
+        _routeResponse = RouteResponse(
+          itineraryId: widget.itinerary.itineraryId,
+          dayId: day.dayId,
+          status: 'INSUFFICIENT_WAYPOINTS',
+          routeType: 'NONE',
+          mode: _selectedTravelMode,
+          directDistanceMeters: null,
+        );
+        _isRouteLoading = false;
+        _routeError = null;
+      });
+      return;
+    }
+
+    final requestId = ++_routeRequestId;
+    setState(() {
+      _isRouteLoading = true;
+      _routeError = null;
+    });
+
+    try {
+      final route = await _routeRepository.getDayRoute(
+        itineraryId: widget.itinerary.itineraryId,
+        dayId: day.dayId,
+        mode: _selectedTravelMode,
+        token: widget.token,
+      );
+
+      if (!mounted || requestId != _routeRequestId) return;
+
+      setState(() {
+        _routeResponse = route;
+        _isRouteLoading = false;
+      });
+    } catch (e) {
+      if (!mounted || requestId != _routeRequestId) return;
+
+      setState(() {
+        _routeError = e.toString();
+        _isRouteLoading = false;
+      });
+    }
   }
 
   void _recenterCamera() {
@@ -56,19 +145,27 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
       selectedDayNumber: _selectedDayNumber,
     );
 
-    if (stops.isEmpty) {
+    final List<LatLng> targetPoints = stops.map((s) => s.point).toList();
+
+    // Include route geometry points ONLY if actual road route is available
+    if (_routeResponse != null &&
+        _routeResponse!.isRoadRoute &&
+        _routeResponse!.polylinePoints.isNotEmpty) {
+      targetPoints.addAll(_routeResponse!.polylinePoints);
+    }
+
+    if (targetPoints.isEmpty) {
       _mapController.move(
         MapConstants.fallbackCoordinates,
         MapConstants.fallbackZoom,
       );
-    } else if (stops.length == 1) {
-      _mapController.move(stops.first.point, 15.0);
+    } else if (targetPoints.length == 1) {
+      _mapController.move(targetPoints.first, 15.0);
     } else {
-      final points = stops.map((s) => s.point).toList();
       _mapController.fitCamera(
         CameraFit.coordinates(
-          coordinates: points,
-          padding: const EdgeInsets.fromLTRB(40, 90, 40, 100),
+          coordinates: targetPoints,
+          padding: const EdgeInsets.fromLTRB(40, 110, 40, 100),
           maxZoom: 16.0,
         ),
       );
@@ -118,6 +215,21 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
       onStopTapped: _onStopTapped,
     );
 
+    // Build route polyline layers: strictly render a polyline ONLY for actual road routes.
+    // Haversine fallback is purely an indicative distance estimate, not a route, so no polyline is drawn.
+    final List<Polyline<Object>> polylines = [];
+    if (_routeResponse != null &&
+        _routeResponse!.isRoadRoute &&
+        _routeResponse!.polylinePoints.isNotEmpty) {
+      polylines.add(
+        Polyline(
+          points: _routeResponse!.polylinePoints,
+          color: const Color(0xFF2563EB),
+          strokeWidth: 4.5,
+        ),
+      );
+    }
+
     final points = stops.map((s) => s.point).toList();
 
     CameraFit? initialCameraFit;
@@ -133,7 +245,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
     } else {
       initialCameraFit = CameraFit.coordinates(
         coordinates: points,
-        padding: const EdgeInsets.fromLTRB(40, 90, 40, 100),
+        padding: const EdgeInsets.fromLTRB(40, 110, 40, 100),
         maxZoom: 16.0,
       );
     }
@@ -181,7 +293,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
       ),
       body: Stack(
         children: [
-          // 1. Full-Screen Interactive Map
+          // 1. Full-Screen Interactive Map with Polylines & Markers
           Positioned.fill(
             child: AppMapView(
               mapController: _mapController,
@@ -189,6 +301,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
               initialZoom: initialZoom,
               initialCameraFit: initialCameraFit,
               markers: markers,
+              polylines: polylines,
               onTap: (_, _) {
                 final lastTap = _lastMarkerTappedAt;
                 if (lastTap != null &&
@@ -336,7 +449,18 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
               ),
             ),
 
-          // 5. Selected Activity Bottom Floating Detail Card
+          // 5. Floating Route Calculation & Navigation Card (Only in single-day mode)
+          if (_selectedDayNumber != null)
+            Positioned(
+              top: missingNotice != null ? 90 : 56,
+              left: 14,
+              right: 14,
+              child: Center(
+                child: _buildRouteSummaryCard(stops),
+              ),
+            ),
+
+          // 6. Selected Activity Bottom Floating Detail Card
           if (_selectedStop != null)
             Positioned(
               left: 14,
@@ -368,9 +492,9 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                             child: Text(
                               'Điểm #${_selectedStop!.sequence}',
                               style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
                                 color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
@@ -383,28 +507,27 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                             decoration: BoxDecoration(
                               color: ItineraryMapHelper.getDayColor(
                                 _selectedStop!.day.dayNumber,
-                              ).withValues(alpha: 0.15),
+                              ),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               'Ngày ${_selectedStop!.day.dayNumber}',
-                              style: TextStyle(
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: ItineraryMapHelper.getDayColor(
-                                  _selectedStop!.day.dayNumber,
-                                ),
                               ),
                             ),
                           ),
                           const Spacer(),
-                          GestureDetector(
-                            onTap: () => setState(() => _selectedStop = null),
-                            child: const Icon(
-                              Icons.close,
-                              size: 18,
-                              color: AppColors.textSecondary,
-                            ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            color: AppColors.textSecondary,
+                            onPressed: () {
+                              setState(() => _selectedStop = null);
+                            },
                           ),
                         ],
                       ),
@@ -418,27 +541,24 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 4),
 
-                      // Location & Address
-                      if (_selectedStop!.activity.effectiveLocationName !=
-                              null ||
-                          _selectedStop!.activity.effectiveAddress != null) ...[
-                        const SizedBox(height: 4),
+                      // Location Name / Address
+                      if ((_selectedStop!.activity.effectiveLocationName ?? '').isNotEmpty) ...[
                         Row(
                           children: [
                             const Icon(
-                              Icons.place,
-                              size: 14,
-                              color: AppColors.primary,
+                              Icons.place_outlined,
+                              size: 13,
+                              color: AppColors.textSecondary,
                             ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                _selectedStop!.activity.effectiveLocationName ??
-                                    _selectedStop!
-                                        .activity
-                                        .effectiveAddress!,
+                                _selectedStop!.activity.effectiveLocationName!,
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,
@@ -449,67 +569,40 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 4),
                       ],
 
-                      // Time & Cost row
-                      const SizedBox(height: 8),
+                      // Time & Cost Row
                       Row(
                         children: [
-                          if (_selectedStop!.activity.timeRangeFormatted !=
-                              null) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceSoft,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: AppColors.hairline),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.access_time,
-                                    size: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _selectedStop!.activity.timeRangeFormatted!,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          if (_selectedStop!.activity.timeRangeFormatted != null) ...[
+                            const Icon(
+                              Icons.access_time,
+                              size: 13,
+                              color: AppColors.textSecondary,
                             ),
-                            const SizedBox(width: 8),
-                          ],
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF0FDF4),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: const Color(0xFFBBF7D0),
-                              ),
-                            ),
-                            child: Text(
-                              _formatCost(
-                                _selectedStop!.activity.estimatedCost,
-                              ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _selectedStop!.activity.timeRangeFormatted!,
                               style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
                               ),
+                            ),
+                            const SizedBox(width: 14),
+                          ],
+                          const Icon(
+                            Icons.attach_money,
+                            size: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            _formatCost(_selectedStop!.activity.estimatedCost),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ],
@@ -524,29 +617,417 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
     );
   }
 
+  Widget _buildRouteSummaryCard(List<MappedActivityStop> stops) {
+    if (_isRouteLoading) {
+      return Material(
+        elevation: 3,
+        shadowColor: Colors.black12,
+        borderRadius: BorderRadius.circular(20),
+        color: AppColors.surface,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
+              ),
+              SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Đang tính toán tuyến đường...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_routeError != null) {
+      return Material(
+        elevation: 2,
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFFFEF2F2),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 14, color: AppColors.error),
+              const SizedBox(width: 6),
+              const Flexible(
+                child: Text(
+                  'Không thể tải tuyến đường',
+                  style: TextStyle(fontSize: 11, color: AppColors.error),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: _loadRouteForSelectedDay,
+                child: const Text(
+                  'Thử lại',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_routeResponse == null) {
+      return const SizedBox.shrink();
+    }
+
+    final route = _routeResponse!;
+
+    // Case 1: Road route calculated by routing provider
+    if (route.isRoadRoute) {
+      return Material(
+        elevation: 3,
+        shadowColor: Colors.black12,
+        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surface,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildModeIconButton(
+                icon: Icons.directions_car,
+                mode: 'driving',
+                tooltip: 'Lái xe',
+              ),
+              const SizedBox(width: 2),
+              _buildModeIconButton(
+                icon: Icons.directions_walk,
+                mode: 'walking',
+                tooltip: 'Đi bộ',
+              ),
+              const SizedBox(width: 2),
+              _buildModeIconButton(
+                icon: Icons.directions_bike,
+                mode: 'cycling',
+                tooltip: 'Xe đạp',
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Khoảng cách đường bộ: ${route.formattedRoadDistance}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (route.formattedDuration.isNotEmpty)
+                      Text(
+                        'Thời gian di chuyển: ${route.formattedDuration}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  backgroundColor: AppColors.primaryLight,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.navigation,
+                  size: 12,
+                  color: AppColors.primary,
+                ),
+                label: const Text(
+                  'Chỉ đường',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+                onPressed: () {
+                  final wps = stops.map((s) => s.point).toList();
+                  NavigationLauncherHelper.launchNavigation(
+                    context: context,
+                    waypoints: wps,
+                    mode: _selectedTravelMode,
+                    launcher: widget.navigationLauncher ?? launchUrl,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Case 2: Haversine straight-line fallback estimate
+    if (route.isFallback) {
+      return Material(
+        elevation: 3,
+        shadowColor: Colors.black12,
+        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFFFFFBEB),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildModeIconButton(
+                icon: Icons.directions_car,
+                mode: 'driving',
+                tooltip: 'Lái xe',
+              ),
+              const SizedBox(width: 2),
+              _buildModeIconButton(
+                icon: Icons.directions_walk,
+                mode: 'walking',
+                tooltip: 'Đi bộ',
+              ),
+              const SizedBox(width: 2),
+              _buildModeIconButton(
+                icon: Icons.directions_bike,
+                mode: 'cycling',
+                tooltip: 'Xe đạp',
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Khoảng cách đường chim bay (ước tính): ${route.formattedDirectDistance}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF92400E),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Text(
+                      'Tuyến đường bộ tạm thời không khả dụng',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFFB45309),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  backgroundColor: const Color(0xFFFEF3C7),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.navigation,
+                  size: 12,
+                  color: Color(0xFF92400E),
+                ),
+                label: const Text(
+                  'Chỉ đường',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF92400E),
+                  ),
+                ),
+                onPressed: () {
+                  final wps = stops.map((s) => s.point).toList();
+                  NavigationLauncherHelper.launchNavigation(
+                    context: context,
+                    waypoints: wps,
+                    mode: _selectedTravelMode,
+                    launcher: widget.navigationLauncher ?? launchUrl,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Case 3: Single located stop in day
+    if (route.isInsufficientWaypoints && stops.length == 1) {
+      return Material(
+        elevation: 2,
+        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surface,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.place, size: 15, color: AppColors.primary),
+              const SizedBox(width: 6),
+              const Flexible(
+                child: Text(
+                  '1 điểm dừng có tọa độ',
+                  style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  backgroundColor: AppColors.primaryLight,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.open_in_new,
+                  size: 12,
+                  color: AppColors.primary,
+                ),
+                label: const Text(
+                  'Mở Google Maps',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+                onPressed: () {
+                  final wps = stops.map((s) => s.point).toList();
+                  NavigationLauncherHelper.launchNavigation(
+                    context: context,
+                    waypoints: wps,
+                    mode: _selectedTravelMode,
+                    launcher: widget.navigationLauncher ?? launchUrl,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildModeIconButton({
+    required IconData icon,
+    required String mode,
+    required String tooltip,
+  }) {
+    final isSelected = _selectedTravelMode == mode;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: () {
+          if (_selectedTravelMode != mode) {
+            setState(() {
+              _selectedTravelMode = mode;
+            });
+            _loadRouteForSelectedDay();
+          }
+        },
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryLight : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: isSelected
+                ? Border.all(color: AppColors.primary, width: 1)
+                : null,
+          ),
+          child: Icon(
+            icon,
+            size: 15,
+            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDayChip({
     required String label,
     required bool isSelected,
     required Color color,
     required VoidCallback onSelected,
   }) {
-    return Material(
-      elevation: isSelected ? 3 : 1,
-      shadowColor: Colors.black26,
-      borderRadius: BorderRadius.circular(16),
-      color: isSelected ? color : AppColors.surface,
-      child: InkWell(
-        onTap: onSelected,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? Colors.white : AppColors.textPrimary,
+    return GestureDetector(
+      onTap: onSelected,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? color : AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? color : AppColors.hairline,
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isSelected ? color.withAlpha(50) : Colors.black12,
+              blurRadius: 4,
+              offset: const Offset(0, 1.5),
             ),
+          ],
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : AppColors.textPrimary,
           ),
         ),
       ),

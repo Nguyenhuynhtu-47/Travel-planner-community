@@ -3770,3 +3770,138 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 76.4. Phase Status & Next Steps
 - **Status:** **`PHASE 5 COMPLETE & VERIFIED`**.
 - **Scope Confirmation:** Zero Phase 6 or later work performed. Working tree changes left uncommitted for user review. Ready to proceed to Phase 6 (Per-Day Route Calculation & Navigation Deep Links) upon user instruction.
+
+---
+
+## 77. Session 77 — Map Integration Phase 6: Per-Day Route Calculation & Free Navigation Deep Links (2026-11-02)
+
+### 77.1. Objectives & Scope
+- **Task:** Implement Phase 6 (Per-Day Route Calculation & Free Navigation Deep Links) strictly following Section 15.6 of `docs/ai/11-map-integration-audit-and-plan.md`:
+  1. Backend Routing Architecture & Configuration: Define `MapProperties.Routing` (`provider`, `apiKey`, `timeoutMs = 4000`, `baseUrl`, `maxWaypoints = 50`) in Spring Boot. Add routing properties to `application.properties` and test configuration. Zero API keys in frontend code.
+  2. OpenRouteService Integration: Implement `OpenRouteServiceRoutingProvider` consuming Directions v2 GeoJSON POST API (`/v2/directions/{profile}/geojson`). Support profiles: `driving` (`driving-car`), `walking` (`foot-walking`), `cycling` (`cycling-regular`). Enforce strict 4-second timeout mapped to `RoutingProviderException`. Parse GeoJSON `[lon, lat]` geometry, distance meters, and duration seconds.
+  3. Caffeine In-Memory Route Cache: Max 500 entries, 12-hour TTL. Composite SHA-256 cache key: `route:v1:ors:{profile}:{optionsHash}:{waypointsCoordsHash}` using coordinates formatted to 5 decimal places. Strictly cache normalized provider output (`CachedRouteResult`), NEVER domain or user entities. Dynamically assemble `RouteResponse`.
+  4. Local Straight-Line Haversine Fallback: Implement `HaversineUtil` to compute great-circle distance locally. On upstream timeout, failure, HTTP 429 quota exhaustion, or unconfigured API key, compute straight-line geometry locally (`routeType = ESTIMATED_INDICATIVE`, `totalDurationSeconds = null`, `totalDistanceMeters = null`, `directDistanceMeters = <direct>`). Fallback results are NEVER cached.
+  5. Security & Authorization: Implement `RouteController` (`GET /api/itineraries/{id}/days/{dayId}/route?mode={mode}`). Validates ownership and visibility (returns 404 for unpermitted/private/deleted itineraries to prevent ID enumeration). Validates `dayId` belongs to `itineraryId` (returns 400 Bad Request). Validates supported mode (returns 400 Bad Request). Days with $<2$ coordinates return `INSUFFICIENT_WAYPOINTS` with zero direct distance and empty geometry.
+  6. Flutter Mobile Dependencies: Add `url_launcher: ^6.3.1` (BSD-3-Clause) to `frontend/mobile/pubspec.yaml`.
+  7. Mobile Models & Repository: Create `RouteWaypoint` and `RouteResponse` models with GeoJSON coordinate inversion (`[lon, lat]` $\to$ `LatLng(lat, lon)`), road/fallback/insufficient getters, and Vietnamese distance/duration formatters. Create `RouteRepository` calling the backend routing proxy with Bearer token authentication.
+  8. Free Navigation Deep Links: Create `NavigationLauncherHelper` to build universal, keyless Google Maps URLs:
+     - Single stop: place search (`https://www.google.com/maps/search/?api=1&query=lat,lon`)
+     - Multiple stops: turn-by-turn navigation (`https://www.google.com/maps/dir/?api=1&origin=...&destination=...&waypoints=...`)
+     - Intermediate waypoints capped at 9 stops.
+     - Travelmode mapped to `driving`, `walking`, `bicycling`.
+     - Launches native app using `LaunchMode.externalApplication`.
+  9. Mobile Map UI Integration: Update `ItineraryMapScreen` to render solid blue polyline (`#2563EB`) for `ACTUAL_ROAD` and dashed amber polyline (`#D97706`, `StrokePattern.dashed(segments: [8, 6])`) for `ESTIMATED_INDICATIVE`. Display route summary card with travel mode switcher (🚗, 🚶, 🚲), road distance & duration (or Haversine fallback notice with zero fake duration), and "Chỉ đường" button. Day switching re-fetches routes and clears stale geometry.
+- **Strict Scope Boundaries:**
+  - Phase 6 only. Strictly zero Phase 7+ work: NO Flutter Web Admin Destination management, NO paid SDKs (Mapbox/Google Maps Platform SDKs), NO live GPS tracking/turn-by-turn navigation, NO route optimization that changes itinerary activity order.
+  - Zero commits, zero pushes, and no branch switching. Working tree changes left uncommitted for user review.
+
+### 77.2. Architecture & Implementation Details
+
+1. **Backend Configuration & Data Contracts:**
+   - **`MapProperties.Routing` (`config/MapProperties.java`):** Added inner class with fields `provider`, `apiKey`, `timeoutMs` (default 4000), `baseUrl`, and `maxWaypoints` (default 50).
+   - **`application.properties` & test properties:** Added `app.map.routing.*` properties with default ORS configuration.
+   - **`CachedRouteResult` (`model/CachedRouteResult.java`):** Immutable record storing raw provider route output: `status`, `routeType`, `totalDistanceMeters`, `totalDurationSeconds`, `geometryCoordinates`.
+   - **`WaypointCoordinate` (`model/WaypointCoordinate.java`):** Immutable strongly-typed record `(double latitude, double longitude)`.
+   - **`RouteWaypointResponse` & `RouteResponse` (`dto/response/`):** API response contracts matching Section 14.3.
+   - **`HaversineUtil` (`util/HaversineUtil.java`):** Pure mathematical implementation of great-circle distance between coordinates on WGS84 sphere ($R = 6,371,000$ m).
+
+2. **Backend Service & Controller Layer:**
+   - **`RoutingProvider` (`service/RoutingProvider.java`):** Interface declaring `calculateRoute(profile, waypoints)`.
+   - **`OpenRouteServiceRoutingProvider` (`service/impl/`):** RestClient client sending POST requests to `/v2/directions/{profile}/geojson` with `coordinates: [[lon, lat], ...]`. Handles 4-second timeout via `SimpleClientHttpRequestFactory`, maps HTTP 429 and network errors to `RoutingProviderException`.
+   - **`RouteService` & `RouteServiceImpl` (`service/`):**
+     - Ownership/visibility check: uses `@EntityGraph(attributePaths = {"user"})` query `findByIdWithUser` to prevent LazyInitializationException. Returns 404 for non-existent, soft-deleted, or unauthorized private itineraries.
+     - Day validation: ensures `day.getItinerary().getItineraryId().equals(itineraryId)`.
+     - Coordinates extraction: extracts activities with valid coordinates in ascending `displayOrder`.
+     - Waypoint threshold: if $< 2$ waypoints, returns `INSUFFICIENT_WAYPOINTS`.
+     - Cache lookup & population: Caffeine cache (max 500 entries, 12h TTL) keyed by SHA-256 hash.
+     - Fallback execution: On provider error, calculates straight-line segments with `HaversineUtil`, returning `ESTIMATED_INDICATIVE` with null duration and null road distance.
+   - **`RouteController` (`controller/RouteController.java`):** Authenticated endpoint at `GET /api/itineraries/{itineraryId}/days/{dayId}/route?mode={mode}`.
+
+3. **Flutter Mobile Models & Infrastructure:**
+   - **`pubspec.yaml`:** Added `url_launcher: ^6.3.1` (BSD-3-Clause). Ran `flutter pub get` cleanly.
+   - **`route_models.dart` (`models/`):** `RouteWaypoint` and `RouteResponse`. Converts GeoJSON `[lon, lat]` to Flutter `LatLng(lat, lon)`. Formats distance (`m` / `km`) and duration (`X giờ Y phút` / `Y phút` / `< 1 phút`).
+   - **`route_repository.dart` (`data/`):** Communicates with backend proxy via `ApiClient.get`, forwarding optional Bearer token.
+   - **`navigation_launcher_helper.dart` (`widgets/`):** Utility generating universal Google Maps URLs. Single stop $\to$ search query; multiple stops $\to$ directions with origin, destination, intermediate waypoints capped at 9, and mapped travelmode (`driving`, `walking`, `bicycling`). Invokes `launchUrl` with `LaunchMode.externalApplication`.
+
+4. **Flutter Mobile UI Integration (`itinerary_map_screen.dart`):**
+   - Renders `Polyline` with solid `#2563EB` (road route) or dashed `#D97706` (`StrokePattern.dashed(segments: [8, 6])` for indicative fallback).
+   - Floating route summary card with mode switchers (🚗, 🚶, 🚲), formatted road distance & duration, and "Chỉ đường" button.
+   - Handles indicative fallback: displays straight-line distance warning that road route is temporarily unavailable, with zero fake duration.
+   - Handles single stop: displays "1 điểm dừng có tọa độ" and "Mở Google Maps" button.
+   - Day switching immediately clears previous route geometry and triggers fresh calculation.
+   - All text in floating cards wrapped in `Flexible` with `overflow: TextOverflow.ellipsis` to prevent render overflow on narrow viewports.
+
+### 77.3. Verification & Test Results
+
+1. **Backend Tests (Maven Surefire):**
+   - `OpenRouteServiceRoutingProviderTest.java`: 12 tests passing (URL formatting, POST body, timeout handling, error mapping, profile mapping).
+   - `RouteServiceTest.java`: 13 tests passing (RBAC authorization, day integrity, 404/400 validation, cache hit/miss, Caffeine boundary, Haversine fallback, insufficient waypoints).
+   - Full backend regression suite: **156 / 156 tests passed, 0 failures, 0 errors, 0 skipped** across all 14 test classes.
+
+2. **Mobile Tests (Flutter Test):**
+   - `itinerary_route_test.dart`: 19 comprehensive unit and widget tests passing:
+     - `RouteResponse` & `RouteWaypoint` JSON parsing, GeoJSON coordinate inversion, road and fallback metrics.
+     - Distance and duration formatters (including `< 1 phút`, `X giờ`, `X giờ Y phút`).
+     - `NavigationLauncherHelper`: single stop search, two-stop directions, multi-stop with intermediate waypoints, 9-stop cap, mode mapping (`walking`, `bicycling`), and `launchUrl` invocation with `LaunchMode.externalApplication`.
+     - `RouteRepository`: authenticated GET request, Bearer token forwarding, 400 and 404 error handling.
+     - `ItineraryMapScreen`: road route rendering, fallback banner without duration, single-stop badge, "Chỉ đường" tap intent, mode switching, and day switching.
+   - Full mobile regression suite: **280 / 280 tests passed, 0 failures, 0 errors** across all test suites.
+
+3. **Static Analysis (`flutter analyze`):**
+   - **0 errors, 0 warnings** found in all Phase 6 mobile files and test suites.
+
+### 77.4. Phase Status & Next Steps
+- **Status:** **`PHASE 6 IMPLEMENTATION COMPLETE`**.
+- **Scope Confirmation:** Ready for final compliance review.
+
+---
+
+## 78. Session 78 — Phase 6: Final Compliance Review & Targeted Fixes (2026-11-02)
+
+### 78.1. Objectives & Scope
+- **Task:** Perform rigorous final compliance audit and targeted fixes for Map Integration Phase 6:
+  1. Critical Fix — Haversine Fallback Geometry: Ensure Haversine fallback returns only straight-line distance (`directDistanceMeters`) and never generates synthetic route geometry (`geometryCoordinates` is strictly empty). Flutter Mobile must render polylines exclusively when a verified `ACTUAL_ROAD` route is present, removing the dashed amber polyline and any UI logic implying Haversine is a route.
+  2. `INSUFFICIENT_WAYPOINTS` Semantics: Ensure days with fewer than 2 coordinates do not report a misleading `directDistanceMeters = 0.0`. Set `directDistanceMeters = null` across backend and Flutter models.
+  3. Cache & Authorization Integrity: Verify authorization, soft-delete check, and day-to-itinerary integrity checks execute prior to cache access, including cache hits. Confirm raw provider outputs only are cached, and verify options and waypoint coordinate hashing.
+  4. Google Maps Waypoint Handling: Verify `NavigationLauncherHelper` waypoint ordering, 9-intermediate-waypoint cap, transparent excess stop notification, travelmode mapping, and launch failure handling.
+  5. Regression Testing: Add targeted tests for all points; run full backend and mobile test suites and static analysis.
+- **Scope Constraints:**
+  - Zero Phase 7+ work (no Flutter Web Admin Destination screen).
+  - Zero commits, zero pushes, no branch switching. Working tree changes left uncommitted for user review.
+
+### 78.2. Implementation Details
+
+1. **Haversine Fallback Geometry Elimination:**
+   - **Backend (`RouteServiceImpl.java`):** For `status("FALLBACK")`, replaced synthetic straight-line coordinate generation with `geometryCoordinates(Collections.emptyList())`. `directDistanceMeters` continues to report great-circle distance via `HaversineUtil`.
+   - **Mobile (`itinerary_map_screen.dart`):** Removed the dashed amber polyline layer entirely. Polylines are appended to the map exclusively when `_routeResponse != null && _routeResponse!.isRoadRoute && _routeResponse!.polylinePoints.isNotEmpty`. Camera fitting in `_recenterCamera()` also includes route geometry only for `ACTUAL_ROAD`. The floating summary card retains the Vietnamese warning and straight-line distance notice (*"Khoảng cách đường chim bay (ước tính)"*, *"Tuyến đường bộ tạm thời không khả dụng"*), without fake duration.
+
+2. **Null Distance on Insufficient Waypoints:**
+   - **Backend (`RouteServiceImpl.java`):** Set `.directDistanceMeters(null)` for `INSUFFICIENT_WAYPOINTS` (previously `0.0`).
+   - **Mobile (`route_models.dart`):** Updated `directDistanceMeters` to `final double? directDistanceMeters`. `formattedDirectDistance` returns `''` when null. In `itinerary_map_screen.dart`, `<2` stop state sets `directDistanceMeters: null`.
+
+3. **Cache & Authorization Verification:**
+   - Audited `calculateDayRoute`: Confirmed that itinerary existence, soft-delete (`DELETED`), active user status, visibility/ownership check, and day-to-itinerary relationship check occur in steps 2–3 before Caffeine cache lookup in step 9.
+   - Added test `testCacheHitStillEnforcesAuthorizationAndIntegrity` in `RouteServiceTest.java`: Populates cache, then verifies that an unauthorized user on a private itinerary, a cross-itinerary day request, or a soft-deleted itinerary throws the appropriate exception (`ResourceNotFoundException` or `BadRequestException`) without bypassing checks on cache hits.
+
+4. **Google Maps Waypoint Transparency & Limits:**
+   - `NavigationLauncherHelper.launchNavigation`: When waypoints exceed 11 stops (1 origin + 9 intermediate + 1 destination), displays an informative, transparent SnackBar (*"Google Maps giới hạn tối đa 9 điểm trung gian. Đã chọn 11 điểm đầu tiên."*) before launching external intent.
+   - Tested 9-intermediate waypoint cap, parameter encoding, travel mode mappings, and error handling.
+
+### 78.3. Verification & Test Results
+
+1. **Backend Tests (Maven Surefire):**
+   - `RouteServiceTest.java`: 14 tests passing (including cache hit authorization & integrity, Haversine fallback empty geometry, and insufficient waypoints null distance).
+   - `OpenRouteServiceRoutingProviderTest.java`: 12 tests passing.
+   - Full backend regression suite: **157 / 157 tests passed, 0 failures, 0 errors, 0 skipped** (44.3 s).
+
+2. **Flutter Mobile Tests:**
+   - `itinerary_route_test.dart`: 20 unit and widget tests passing (including fallback empty geometry, no polyline rendering for fallback, insufficient waypoints null distance, and excess waypoint notification).
+   - `itinerary_map_test.dart`: 22 tests passing.
+   - Full mobile regression suite: **281 / 281 tests passed, 0 failures, 0 errors** (36.0 s).
+
+3. **Flutter Static Analysis (`flutter analyze`):**
+   - **0 errors, 0 warnings** found in mobile codebase.
+
+### 78.4. Phase Status & Next Steps
+- **Status:** **`PHASE 6 AUDITED, COMPLIANT & FULLY VERIFIED`**.
+- **Scope Confirmation:** Zero Phase 7+ work performed. Working tree changes left uncommitted for user review. Ready to proceed to Phase 7 (Flutter Web Admin Destination Management) upon user instruction.

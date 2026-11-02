@@ -440,6 +440,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
         builder: (_) => ItineraryMapScreen(
           itinerary: itinerary,
           initialDayNumber: _selectedDayNumber,
+          token: _effectiveToken,
         ),
       ),
     );

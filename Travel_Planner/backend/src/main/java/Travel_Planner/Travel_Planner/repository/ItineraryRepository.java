@@ -23,6 +23,10 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, 
     @EntityGraph(attributePaths = {"user"})
     Page<Itinerary> findAll(Specification<Itinerary> spec, @NonNull Pageable pageable);
 
+    @EntityGraph(attributePaths = {"user"})
+    @Query("select i from Itinerary i where i.itineraryId = :id")
+    Optional<Itinerary> findByIdWithUser(@Param("id") Integer id);
+
     Optional<Itinerary> findByTitleAndUser_UserId(String title, Integer userId);
 
     boolean existsByTitleAndUser_UserId(String title, Integer userId);
