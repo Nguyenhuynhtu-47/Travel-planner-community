@@ -2748,3 +2748,284 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 - Captured before (`before_fix.png`) and after (`after_fix.png`) screenshots directly from the device.
 - Visually confirmed that the excessive 40px gap was eliminated, Section A sits naturally 16px below the search bar, spacing across all other sections remains uniform (20px), and scrolling and bottom navigation operate seamlessly.
 - Verification: `flutter analyze` passed with 0 issues; all 29 explore tests passed.
+
+
+## 62. Session Entry: Map Integration Plan Re-Audit & Implementation Readiness (2026-11-02)
+
+### 62.1. Objective and Scope
+- Conducted a comprehensive technical re-audit of the map integration plan (`docs/ai/11-map-integration-audit-and-plan.md`) against the latest source code in Spring Boot backend, Flutter mobile, and Flutter web.
+- Evaluated the technical correctness, architectural soundess, and operational risk of all major proposals.
+- Prepared an updated, actionable implementation roadmap with explicit phase boundaries and dependencies.
+- **Strict Scope Constraint:** Audit and preparation only. No application source code, database schema migrations, dependencies, or configuration files were modified.
+
+### 62.2. Key Codebase Findings & Reality Check
+1. **Spring Boot 4.1.1 & Jackson 3 Compatibility:**
+   - Spring Boot 4 uses Jackson 3 (`tools.jackson.databind`), not Jackson 2 (`com.fasterxml.jackson.databind`), for message conversion in `RestClient`. Any JSON parsing for upstream LocationIQ or OpenRouteService APIs must adhere to Jackson 3 to prevent `NoClassDefFoundError` or deserialization exceptions (as resolved in Session 58).
+2. **Backend Service Layer Architecture Gap:**
+   - `DestinationController` currently injects `DestinationRepository` directly without a service layer, violating the layered architecture rule in `docs/ai/01-architecture.md`. Introducing Admin Destination management requires introducing `DestinationService` and `DestinationServiceImpl` rather than adding more direct repository queries.
+3. **SecurityConfig Whitelist Requirements:**
+   - `SecurityConfig.java` strictly enforces authentication for any unlisted endpoint. Endpoints `GET /api/locations/**` and `GET /api/itineraries/{id:[0-9]+}/days/{dayId:[0-9]+}/route` must be explicitly added to `SecurityConfig` authorizeHttpRequests to allow guest exploration of public routes.
+4. **Mobile Dependencies Gap:**
+   - Universal external turn-by-turn navigation requires launching Google Maps URL intents via `url_launcher`. However, `url_launcher` is not currently in `frontend/mobile/pubspec.yaml` and was omitted from the previous Phase 0 list.
+5. **Database Model Parity:**
+   - `destinations` holds coordinates (`DECIMAL(10, 7)`). `activities` currently has no coordinate columns and relies exclusively on nullable `destination_id`. Adding additive columns (`custom_location_name`, `custom_address`, `latitude`, `longitude`, `place_id`, `location_provider`) is backwards-compatible and avoids catalog pollution.
+
+### 62.3. Systematic Proposal Evaluation Summary
+- **VALID (Ready to Implement):**
+  - Map provider strategy & provider independence (CARTO tiles, LocationIQ geocoding, ORS routing, Haversine fallback, universal deep links).
+  - Flutter map rendering engine (`flutter_map: ^7.0.2` with `latlong2: ^0.9.1`).
+  - Backend proxy & facade architecture hiding private master API keys.
+  - Rate limiting with Bucket4j Core v8.10.1 (30 req/min/IP) and Caffeine in-memory cache (24h TTL $\le 48\text{h}$).
+  - Strict separation of curated catalog destinations (`destinations`) from ad-hoc custom activity locations (`activities`).
+  - Three-state location model (Catalog Destination, Custom Location, No Location).
+  - Coordinate precision and validation bounds ($[-90..90], [-180..180]$).
+  - Per-day route calculation semantics along `displayOrder`.
+  - Fallback engine: local Haversine calculations (`ESTIMATED_INDICATIVE`) without automatic failover to public OSM/OSRM community servers.
+  - Quota and cost boundaries: zero paid SDKs, zero payment instruments registered.
+- **NEEDS REVISION (Technically Sound, Requires Adjustment):**
+  - Backend Proxy Responsibilities: Must introduce `DestinationService` to fix existing layering violation, incorporate Jackson 3 handling for `RestClient`, and house routes under the itinerary controller hierarchy.
+  - Compatibility & Dependencies: Must add `url_launcher: ^6.3.1` to Phase 0 mobile dependencies and explicitly document `SecurityConfig.java` whitelist updates.
+- **MISSING (Identified & Added):**
+  - Dependency specification for `url_launcher` in mobile `pubspec.yaml`.
+  - `DestinationService` interface and implementation.
+  - `SecurityConfig.java` authorization rules for new endpoints.
+  - `LatLngBounds` edge-case handling for single stops or identical coordinates.
+- **NOT RECOMMENDED (Correctly Excluded):**
+  - Storing coordinates on `Itinerary` (trips span multiple regions).
+  - Persistent database table for location search cache (Caffeine in-memory cache is far lighter and sufficient).
+  - Automatic production failover to public OSM tiles or OSRM demo server (violates terms of service).
+
+### 62.4. Phased Implementation Roadmap
+- **Phase 0:** Free Map Environment Setup & Configuration (`flutter_map`, `latlong2`, `url_launcher`, `MapConfig.java`, `map_constants.dart`).
+- **Phase 1:** Activity Location Data Support & Schema Evolution (`Activity.java`, `CreateActivityRequest`, `UpdateActivityRequest`, `ActivityResponse`, Dart models).
+- **Phase 2:** Backend Location Services, Rate Limiting & Admin Destination APIs (`DestinationService`, `LocationService`, Caffeine, Bucket4j, `SecurityConfig`, Jackson 3).
+- **Phase 3:** Reusable Free Flutter Map Infrastructure on Mobile (`AppMapView`, marker builder, attribution, error handling).
+- **Phase 4:** Activity Location Picker with Offline Pin-Drop Fallback (`LocationPickerSheet`, pin dropper, fallback label).
+- **Phase 5:** Itinerary Detail Map View & Day-by-Day Activity Markers (`ItineraryMapPreviewCard`, `ItineraryMapScreen`, day filtering).
+- **Phase 6:** Per-Day Route Calculation & Free Navigation Deep Links (`RouteService`, polyline rendering, dashed fallback, Google Maps deep link).
+- **Phase 7:** Flutter Web Admin Destination Management (`AdminDestinationsScreen`, Web map picker).
+
+### 62.5. Implementation Readiness Assessment
+- **Status:** **`READY WITH REVISIONS`**.
+- **Recommended First Phase:** **Phase 0 (Setup & Configuration)** followed immediately by **Phase 1 (Activity Location Data Model & DTOs)** upon user approval.
+- **Verification:** `docs/ai/11-map-integration-audit-and-plan.md` updated directly in place. Git working directory remains clean (zero application source code or configuration changes made).
+
+
+## 63. Session Entry: Supplementary Map Implementation Readiness Review (2026-11-02)
+
+### 63.1. Objective and Scope
+- Conducted a focused supplementary implementation readiness review on `docs/ai/11-map-integration-audit-and-plan.md`.
+- Resolved outstanding architectural, operational, and data-integrity questions across provider decoupling, dual-tier rate limiting, distributed caching limitations, atomic coordinate validation, and routing edge-case semantics.
+- Verified test suites and investigated static analysis diagnostic exit codes.
+- **Strict Scope Constraint:** Review and documentation only. No application source code, dependencies, database schema, or configuration files were modified.
+
+### 63.2. Provider Decoupling & Vendor Independence
+1. **Client Map Tiles (`AppMapView`):**
+   - Eliminated any direct coupling between Flutter UI widgets and CARTO.
+   - Introduced the generic `MapTileConfig` model (`urlTemplate`, `attribution`, `subdomains`, `minZoom`, `maxZoom`).
+   - Configured compile-time resolution via `--dart-define` in `MapConstants`. Replacing the tile provider (e.g. to MapTiler, Stadia Maps, or self-hosted TileServer-GL) requires zero Dart code changes.
+2. **Backend Strategy Interfaces:**
+   - Introduced `GeocodingProvider` and `RoutingProvider` Java strategy interfaces in the service layer.
+   - Activated concrete implementations (`LocationIqGeocodingProvider`, `OpenRouteServiceRoutingProvider`) via Spring `@ConditionalOnProperty`.
+   - Enabled seamless provider replacement without altering controller contracts, rate limiting, or caching logic.
+
+### 63.3. Rate Limiting & Caching Deep-Dive
+1. **Dual-Tier Rate Limiting:**
+   - Evaluated IP-based vs authenticated user rate limiting.
+   - *Guest Tier:* Keyed by client IP (`30 requests/minute/IP`).
+   - *Authenticated Tier:* Keyed by user identity `auth:<username>` (`60 requests/minute/user`).
+   - Avoids false-positive lockouts for legitimate users sharing an IP on university Wi-Fi or mobile CGNAT.
+2. **Distributed & Multi-Instance Limitations:**
+   - Documented that single-JVM in-memory Bucket4j resides in heap memory; in a clustered deployment, requests distributed across $N$ instances effectively multiply the limit by $N$, and node restarts wipe token counters.
+   - Confirmed in-memory Bucket4j is appropriate for the current single-instance deployment, with a documented drop-in migration path to `bucket4j-redis` / Lettuce if the backend scales horizontally.
+3. **Caffeine Cache Specifications:**
+   - `locationSearchCache`: Key = normalized query + limit + rounded coords (2 decimals ~1.1km). Max size: 500 entries. TTL: 24h (`expireAfterWrite`, strictly compliant with LocationIQ $\le 48\text{h}$ terms).
+   - `reverseGeocodeCache`: Key = coordinates rounded to 4 decimals (~11m resolution). Max size: 1,000 entries. TTL: 24h.
+   - `routeCalculationCache`: Key = mode + sorted waypoint coordinates hash. Max size: 300 entries. TTL: 12h.
+   - Cache failure handling: Read/write errors bypass the cache; stale data is served when upstream providers fail or time out.
+
+### 63.4. Activity Location Data Integrity
+1. **Three Mutually Exclusive Modes:**
+   - *Catalog Destination:* `destinationId != null`, all custom fields null.
+   - *Custom Location:* `destinationId == null`, mandatory atomic coordinate pair, optional custom name/address/place_id/provider.
+   - *No Location:* all location fields null.
+2. **Atomic Coordinate Pair Validation:**
+   - Enforced `(lat == null && lng == null) || (lat != null && lng != null)`. Supplying one without the other throws `HTTP 400 Bad Request`.
+   - Bounds validation: $-90.0 \le \text{latitude} \le 90.0$ and $-180.0 \le \text{longitude} \le 180.0$.
+3. **Mutual Exclusivity Enforcement:**
+   - Providing both `destinationId` and custom coordinates throws `HTTP 400 Bad Request`.
+4. **UI Fallback Resilience:**
+   - Dropping a pin without reverse geocoding assigns the deterministic fallback label: *"Vị trí đã ghim"* ("Pinned location").
+
+### 63.5. Routing Reliability, Edge Cases & Authorization
+1. **Route Type Separation:**
+   - `ACTUAL_ROAD`: Road routing via ORS; solid primary polyline.
+   - `ESTIMATED_INDICATIVE`: Local Haversine fallback; `totalDurationSeconds: null` (never invented), `directDistanceMeters` populated; dashed amber polyline with prominent user disclaimer banner.
+   - `NONE`: Fewer than 2 coordinates; no polyline.
+2. **Edge Cases:**
+   - Empty day -> `INSUFFICIENT_WAYPOINTS`, `NONE`, HTTP 200.
+   - Single stop -> `INSUFFICIENT_WAYPOINTS`, single marker pin, HTTP 200.
+   - Missing coordinates -> filtered out; counter chip displayed (*"X hoạt động không có vị trí"*).
+   - Duplicate coordinates -> deduplicated for upstream routing; preserved in response.
+   - Reordered activities -> sequence dynamically follows `displayOrder ASC`; route cache key changes, guaranteeing automatic invalidation.
+3. **Security & Ownership Guards:**
+   - Soft-delete verification (`status != DELETED`).
+   - Day ownership verification (`dayId` belongs to `itineraryId`).
+   - Privacy checks: public active trips accessible to all; private/draft trips require owner JWT or `ROLE_ADMIN`.
+
+### 63.6. Quality Verification & Static Analysis
+1. **`flutter analyze` Diagnostic Investigation:**
+   - Analyzed exit code 1: single advisory `info - Unnecessary use of multiple underscores. Try using '_' - test\filter_bottom_sheet_test.dart:25:43 - unnecessary_underscores`.
+   - Verified pre-existing: committed in `70c151d` (Session 59, 2026-11-01).
+   - Verified application source code (`frontend/mobile/lib/`): **0 errors, 0 warnings, 0 lints**.
+2. **Automated Test Execution Results:**
+   - Mobile: `flutter test` -> **168 / 168 passed (100% across all 15 test files)**.
+   - Backend: `.\mvnw.cmd test -q` -> **79 / 79 passed (100% across all suites)**.
+3. **Git Working Tree Verification:**
+   - `git diff --stat` confirms only documentation files were updated (`11-map-integration-audit-and-plan.md` and `09-development-log.md`). Zero code or configuration files modified.
+
+### 63.7. Implementation Readiness Verdict
+- **Status:** **`READY WITH REVISIONS`**.
+- All open technical questions and architectural decisions are codified in `11-map-integration-audit-and-plan.md`.
+- Implementation is halted pending explicit human approval before beginning Phase 0.
+
+
+## 64. Session Entry: Finalization of Map Integration Plan (2026-11-02)
+
+### 64.1. Objective and Scope
+- Finalized `docs/ai/11-map-integration-audit-and-plan.md` following the Final Map Implementation Readiness Review.
+- Supplemented missing technical rules: activity location state transitions, database migration sequencing, provider decoupling abstractions, dual-tier rate limiting, detailed Caffeine cache key construction, service-layer route authorization, Haversine UI semantics, and provider verification classifications.
+- Refined phase boundaries and measurable acceptance criteria to ensure foundational stability before UI integration.
+- **Strict Scope Constraint:** Documentation only. No application source code, dependencies, database schema, or configuration files were modified.
+
+### 64.2. Activity Location State Transitions & Legacy Data
+- **Transition Mechanics:** Codified update logic for transitions between Catalog Destination, Custom Location, and No Location. Switching to Catalog clears all custom location fields; switching to Custom Location clears `destinationId`; switching to No Location clears all location fields.
+- **Backend Enforcement:** Enforced in `ItineraryServiceImpl`; requests attempting to combine `destinationId` with custom coordinates are rejected with `HTTP 400 Bad Request`.
+- **Legacy Activity Data Compatibility:** Verified that existing rows in `activities` will receive `NULL` for new columns, naturally mapping to Catalog Destination (if `destination_id != null`) or No Location (if `destination_id == null`) without requiring conversion scripts.
+
+### 64.3. Database Migration & Backward Compatibility
+- **Additive Schema Evolution:** Only additive columns (`custom_location_name`, `custom_address`, `latitude`, `longitude`, `place_id`, `location_provider`) and index `idx_activities_coordinates` added in Phase 1; no column deletions or renames.
+- **Layer Update Sequencing:** Standardized the safe implementation sequence: Database Schema $\longrightarrow$ JPA Entity (`Activity.java`) $\longrightarrow$ DTOs (`CreateActivityRequest`, `UpdateActivityRequest`, `ActivityResponse`) $\longrightarrow$ Service (`ItineraryServiceImpl`) $\longrightarrow$ Flutter models (`create_activity_request.dart`, etc.) $\longrightarrow$ UI forms (`ActivityFormDialog`).
+- **Rollback & Verification:** Defined verification queries and safe rollback SQL. Confirmed existing Activity CRUD workflows are completely preserved.
+
+### 64.4. Rate Limiting, Caching & Provider Protection
+- **Dual-Tier Protection:** Guest tier (30 req/min/IP) vs Authenticated tier (60 req/min/user keyed by `auth:<username>`), eliminating false-positive lockouts on shared university Wi-Fi or cellular CGNAT.
+- **Cluster & Restart Limitations:** Documented single-JVM Bucket4j heap limitations in clustered environments, identifying the Redis/Lettuce drop-in migration path for future horizontal scaling.
+- **Caffeine Cache Specifications:** Detailed composite cache keys (including query normalization, limit, search type, language, and rounded coordinates), TTLs (24h for search/reverse-geocode, 12h for routes), and maximum capacities.
+- **Input Constraints & Log Hygiene:** Enforced query length (2–100 chars), autocomplete result limits (max 20), and waypoint limits (max 25). Explicitly mandated masking API keys in application logs.
+
+### 64.5. Routing Authorization & Reliability Semantics
+- **Service-Layer Authorization:** `GET /api/itineraries/{id}/days/{dayId}/route` enforces that guests can only view public active trips; owners can view their own trips in any state; admins have global access; soft-deleted trips return 404; and `dayId` must strictly belong to `itineraryId` (rejecting cross-itinerary day injection with 400).
+- **Haversine Fallback Rules:** Explicitly defined `ESTIMATED_INDICATIVE` as straight-line distance only; strictly forbade inferring travel duration (`totalDurationSeconds = null`); mandated prominent warning banners in the UI.
+- **Edge Case Semantics:** Codified behavior for empty days (0 activities), single stops (single marker, no polyline), missing coordinates (filtered with UI badge), duplicate coordinates (deduplicated for routing query), and activity reordering (cache auto-invalidated via coordinate sequence hash).
+
+### 64.6. Provider Verification Status
+- Categorized provider assumptions into `CONFIRMED (DOCS)` (CARTO 5M academic ceiling, LocationIQ 5k req/day with $\le 48\text{h}$ caching, ORS 2k directions/day, Google Maps URL intents) versus `UNVERIFIED (LIVE SIGNUP REQUIRED)` (live account registration credit-card prompt).
+- Mandated that quotas and timeouts must never be hardcoded in application logic, but configured dynamically via properties and environment variables.
+
+### 64.7. Refined Phase Boundaries
+- **Phase 0 (Environment & Dependencies):** Strictly limited to dependency setup, configuration classes, and basic map initialization. **Zero database schema changes, zero Activity DTO changes, and zero business API implementations.**
+- **Phase 1 (Activity Location Data Model):** Schema evolution, JPA entity, DTOs, service validation, and Flutter models.
+- **Phase 2 (Backend Provider Infrastructure):** `DestinationService`, strategy interfaces (`GeocodingProvider`, `RoutingProvider`), LocationIQ, Caffeine, Bucket4j, and security whitelisting.
+- **Phases 3–7:** UI map infrastructure, location picker, detail map view, route polylines, and Web Admin.
+
+### 64.8. Verification & Git Summary
+- **Modified Files:**
+  - `Travel_Planner/docs/ai/11-map-integration-audit-and-plan.md`
+  - `Travel_Planner/docs/ai/09-development-log.md`
+- **Source Code Integrity:** Verified with `git status` that zero application code, dependencies, XML/YAML files, or database schemas were modified.
+- **Status:** **`READY FOR IMPLEMENTATION (PENDING PHASE 0 APPROVAL)`**. All planning and audit requirements are complete. Implementation is halted awaiting user instruction to begin Phase 0.
+
+
+## 65. Session Entry: Map Integration Plan Consistency Fixes (2026-11-02)
+
+### 65.1. Objective and Scope
+- Performed consistency refinement on `docs/ai/11-map-integration-audit-and-plan.md` in response to audit feedback.
+- Restored the comprehensive 18-section architecture document, preserving all prior research, cost classifications, provider evaluations, prohibited pattern rules, Vietnamese error copy, and quality verification findings.
+- Resolved 6 specific technical consistency issues: database migration with `ddl-auto=update` and realistic rollback constraints, Phase 0 scope confinement (deferring `MapConfig.java` to Phase 2), authenticated rate-limit keying via internal numeric user ID, fully specified route cache keys, verified authorization compatibility matching source code enums and 404 enumeration-defense behavior, and provider verification metadata.
+- **Strict Scope Constraint:** Documentation only. Zero modifications to Java, Dart, XML, YAML, application configs, dependencies, or database schemas.
+
+### 65.2. Database Migration with `ddl-auto=update` & Realistic Rollback Constraints
+- **Schema Evolution Mechanics:** Documented how `spring.jpa.hibernate.ddl-auto=update` applies additive columns automatically on startup in development when `Activity.java` is updated. Documented composite indexing via `@Table(name = "activities", indexes = { @Index(name = "idx_activities_coordinates", columnList = "latitude, longitude") })`.
+- **Schema Verification Checklist:** Provided verification queries (`DESCRIBE activities;`, `SHOW INDEX FROM activities;`, `SELECT COUNT(*) FROM activities WHERE latitude IS NOT NULL;`).
+- **Realistic Rollback Analysis:**
+  - Explicitly corrected the assumption that `DROP COLUMN` is unconditionally safe.
+  - While dropping columns is harmless prior to custom data creation, **after custom location data has been written by users**, `DROP COLUMN` is **destructive** and permanently deletes coordinates and venue names.
+  - Specified safe rollback options: pre-rollback data export/backup (`mysqldump` or `SELECT ... INTO OUTFILE`), or code-only reversion (reverting backend DTOs/services while keeping schema columns dormant).
+- **CRUD Preservation:** Confirmed all existing activities with catalog destinations or no locations remain 100% backward-compatible, with zero conversion scripts required.
+
+### 65.3. Phase 0 Backend Simplification
+- **Phase 0 Confined to Mobile:** Reassessed backend requirements in Phase 0 and confirmed that `MapConfig.java` is completely unused until Phase 2 (when external location providers and endpoints are introduced).
+- **Zero Backend Changes in Phase 0:** Removed backend tasks from Phase 0 entirely. Phase 0 now strictly focuses on mobile dependencies (`flutter_map: ^7.0.2`, `latlong2: ^0.9.1`, `url_launcher: ^6.3.1`), `MapConstants.dart`, and initial rendering smoke tests.
+- **Phase 2 Destination:** Moved `MapConfig.java` and provider property specifications directly into Phase 2 where they are actually consumed.
+
+### 65.4. Rate Limiting Identity & Real-World Constraints
+- **Internal Numeric User ID Keying:** Authenticated users are keyed by `auth:user:<userId>` (internal numeric ID extracted securely from JWT `UserPrincipal.getId()`), not usernames or emails, ensuring quota consistency across username updates.
+- **Shared-IP Realities:** Clarified that shared-IP isolation applies *only* to authenticated users. Unauthenticated guests behind shared networks (campus Wi-Fi, dormitories, mobile cellular CGNAT) still share the single guest rate limit bucket (`ip:<clientIp>`). Added UI guidance prompting guests to log in for dedicated quota upon encountering HTTP 429.
+- **Multi-Instance Deployment Reality:** Documented that in-memory Bucket4j is bound to the single JVM heap. For multi-node deployments, documented the seamless transition to Redis (`bucket4j-redis` / Lettuce).
+
+### 65.5. Route Cache Key Specification
+- **Fully Specified Composite Key:** Formatted as `route:{version}:{provider}:{mode}:{optionsHash}:{waypointsCoordsHash}`.
+- **Components:** Version (`v1`), provider (`ors`), travel mode (`driving-car`, `foot-walking`), options hash (MD5/SHA256 hex of normalized routing options), and waypoint coordinates hash (MD5/SHA256 hex of ordered sequence of coordinates rounded to 5 decimal places, ~1.1m precision).
+- **Auto-Invalidation:** Any change in activity display order, stop addition/removal, or coordinate modification alters `waypointsCoordsHash`, automatically triggering a cache miss and recalculation.
+
+### 65.6. Authorization Compatibility with Codebase Reality
+- **Verified Enums:** Verified from source code that `ItineraryStatus` contains `ACTIVE`, `HIDDEN`, `DELETED` (no `DRAFT`), and `Visibility` contains `PUBLIC`, `PRIVATE`. Removed all non-existent status references across the plan.
+- **Service Logic Matching:** Replicated the exact access control pattern of `ItineraryServiceImpl.java:330-342`:
+  - `DELETED` trips return HTTP 404 (`ResourceNotFoundException`).
+  - Non-`ACTIVE` (e.g. `HIDDEN`) or `PRIVATE` trips requested by non-owners return HTTP 404 (preventing private trip ID enumeration rather than returning 403).
+  - Owner and `ROLE_ADMIN` retain authorized access.
+  - Day ownership verification: `day.getItinerary().getId().equals(itineraryId)` must match, rejecting cross-itinerary day injection with HTTP 400.
+
+### 65.7. Research Preservation & Verification Metadata
+- **18 Complete Sections Restored:** Preserved all original sections: Executive Summary, Current Implementation Audit, Existing Data Model & ERD, Backend Audit, Mobile Audit, Web Audit, Database Audit, Map Technology Evaluation, Cost Classification & Quota Reference Table, Disallowed Services & Prohibited Architecture Patterns, Billing & Quota-Exhaustion Safeguards, Target Architecture & Decoupled Data Flow, Proposed Database Changes, Proposed API Contracts, Revised Implementation Roadmap (Phases 0–7), Risks & Mitigation, Testing & Acceptance Criteria, Verification Summary & Next Steps.
+- **Provider Metadata & Dates:** Documented October/November 2026 verification dates, official URLs, and clear classification into `CONFIRMED (DOCS)` vs `UNVERIFIED (LIVE SIGNUP REQUIRED)` for live account registration flows.
+
+### 65.8. Verification & Git Summary
+- **Modified Files:**
+  - `Travel_Planner/docs/ai/11-map-integration-audit-and-plan.md`
+  - `Travel_Planner/docs/ai/09-development-log.md`
+- **Source Code Integrity:** Verified with `git status` that zero application code, dependencies, XML/YAML files, or database schemas were modified.
+- **Status:** **`READY FOR IMPLEMENTATION (PENDING PHASE 0 APPROVAL)`**. All consistency corrections are applied, documented, and verified.
+
+
+## 66. Session Entry: Final Map Plan Polish & Architectural Refinements (2026-11-02)
+
+### 66.1. Objective and Scope
+- Conducted the final polish of `docs/ai/11-map-integration-audit-and-plan.md` addressing four specific technical refinement items:
+  1. Trusted reverse proxy whitelist and anti-spoofing IP resolution for guest rate limiting.
+  2. Targeted dependency phase allocation (confining Phase 0 to `flutter_map` and `latlong2`, moving `url_launcher` to Phase 6).
+  3. Default map camera centering strategy (three-tier priority hierarchy with optional location permissions).
+  4. Decoupled route cache payload architecture (`CachedRouteResult` provider output only, zero domain data in cache, dynamic response assembly, and strict SHA-256 hashing).
+- **Strict Scope Constraint:** Documentation only. No source code, dependencies, configuration files, or database schemas were modified.
+
+### 66.2. Trusted Proxy Whitelist & Guest Rate Limiting (§11.3, §14.1, §15 Phase 2)
+- **Anti-Spoofing Rule:** Documented that client-provided `X-Forwarded-For` or `X-Real-IP` headers must never be trusted blindly, as attackers could trivially spoof arbitrary IP addresses on each request to circumvent the 30 req/min guest rate limit.
+- **Trusted Whitelist Resolution:** Forwarded IP headers are inspected only when the direct TCP connecting socket (`request.getRemoteAddr()`) matches an explicitly configured trusted reverse proxy whitelist (`app.security.trusted-proxies`).
+- **Fallback to Remote Address:** When no trusted proxy is configured or the connecting socket is not in the whitelist, the application strictly uses `request.getRemoteAddr()`, discarding untrusted forwarded headers.
+- **Production vs Local Reality:** Clarified that in production behind Nginx/Cloudflare/ALB, administrators must whitelist the reverse proxy IP to ensure client IPs are correctly resolved and avoid grouping all worldwide guest users into a single shared rate-limit bucket. In local standalone dev, `request.getRemoteAddr()` (e.g. `127.0.0.1`) operates reliably.
+
+### 66.3. Dependency Phase Allocation (§9, §15 Phase 0 & Phase 6)
+- **Phase 0 Scope:** Confined strictly to `flutter_map: ^7.0.2` and `latlong2: ^0.9.1` (MIT & Apache 2.0).
+- **`url_launcher` Deferred to Phase 6:** Moved `url_launcher: ^6.3.1` to Phase 6 where native Google Maps navigation deep linking is implemented.
+- **Acceptance Criteria Synchronized:** Updated Phase 0 criteria to verify `flutter_map` and `latlong2` only; updated Phase 6 criteria to verify `url_launcher` compiles and properly invokes external OS navigation intents.
+
+### 66.4. Default Map Camera Centering & Permission Strategy (§12.5, §15 Phase 0)
+- **Removal of Fixed Da Nang Product Assumption:** Clarified that Da Nang is not an immutable product default. Established a flexible three-tier priority hierarchy:
+  1. **Priority 1 (User Current Location):** Triggered when user grants location permission AND valid GPS coordinates are obtained within 2–3 seconds; camera centers on GPS position at street zoom (~14.0).
+  2. **Priority 2 (Contextual Coordinates):** When map is opened in itinerary detail, day route view, or destination preview, camera computes `LatLngBounds` or destination point to fit active stops on screen.
+  3. **Priority 3 (Configurable Application-Wide Fallback):** When GPS is unavailable/denied and no contextual coordinates exist, camera centers on configurable coordinates loaded from `MapConstants` (`DEFAULT_MAP_LATITUDE`, `DEFAULT_MAP_LONGITUDE`, `DEFAULT_MAP_ZOOM`), defaulting to a configurable center (~6.0 zoom).
+- **Optional Permission & Non-Blocking Fallback:** Location permission is strictly optional. Map exploration and pin-dropping are never gated on location permissions. If denied or GPS times out, the app silently falls back down the priority chain without blocking modal dialogs. An explicit "My Location" button tap triggers a polite, non-blocking toast/snackbar if permanently denied.
+
+### 66.5. Route Cache Payload Decoupling & SHA-256 Hashing (§14.3, §15 Phase 6)
+- **Strict Domain Entity Decoupling:** Routing cache stores **ONLY** raw provider routing output (`CachedRouteResult`: `routeType`, `provider`, `totalDistanceMeters`, `directDistanceMeters`, `totalDurationSeconds`, `geometryCoordinates`).
+- **Zero Domain Data in Cache:** Activity IDs, Activity names, venue names, display orders, costs, and user/itinerary IDs are strictly excluded from the cache payload.
+- **Dynamic Response Assembly:** At request time, `RouteController` / `RouteService` fetches fresh live domain entities from MySQL and dynamically merges them with the cached road geometry from `CachedRouteResult` to produce `RouteResponse`.
+- **Consistent SHA-256 Hashing:** Cache key formatted as `route:{version}:{provider}:{mode}:{optionsHash}:{waypointsCoordsHash}`, where both `optionsHash` and `waypointsCoordsHash` strictly use 64-character SHA-256 hex strings. Waypoints hash incorporates ordered coordinates formatted to 5 decimal places (~1.1m precision), automatically invalidating cached routes upon activity reordering or stop modifications.
+
+### 66.6. Verification & Git Summary
+- **Modified Files:**
+  - `Travel_Planner/docs/ai/11-map-integration-audit-and-plan.md`
+  - `Travel_Planner/docs/ai/09-development-log.md`
+- **Source Code Integrity:** Verified with `git status` that zero application code, dependencies, XML/YAML files, or database schemas were modified.
+- **Status:** **`READY FOR IMPLEMENTATION (PENDING PHASE 0 APPROVAL)`**. All planning, audit, and polish tasks are complete. Implementation remains halted awaiting explicit human approval.
