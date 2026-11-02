@@ -3440,3 +3440,90 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 72.4. Phase Status & Next Steps
 - **Status:** **`PHASE 2 AUDIT COMPLETE & APPROVED`**.
 - **Scope Confirmation:** Zero Phase 3 or later code implemented. Ready for Phase 3 upon user instruction.
+
+
+---
+
+## 73. Session 73 — Phase 2 Completion: Admin Destination APIs & Mobile Location Repository (2026-11-02)
+
+### 73.1. Objectives & Scope
+- **Task:** Implement and verify the missing Phase 2 requirements identified during the roadmap audit (`docs/ai/11-map-integration-audit-and-plan.md` Section 14.4 and Section 15.2):
+  1. Backend: Admin Destination Management APIs (`/api/admin/destinations` with `POST`, `PUT`, `DELETE`, `GET`), DTO validation, service layer, and Spring Security RBAC.
+  2. Mobile: `LocationRepository` and `LocationSearchResult` model consuming `/api/locations/search` and `/api/locations/reverse-geocode`.
+- **Scope Boundaries:**
+  - Preserved all Phase 0, Phase 1, and Phase 2 implementations.
+  - Zero Phase 3 or later code implemented: no location picker UI, no Flutter map screens, no OpenRouteService routing, and no route caching.
+  - Zero-commit and zero-push constraints maintained.
+
+### 73.2. Architecture & Implementation Details
+
+1. **Backend Admin Destination Management:**
+   - **DTOs (`CreateDestinationRequest.java`, `UpdateDestinationRequest.java`):**
+     - Fields: `name` (@NotBlank, max 150), `address` (@NotBlank, max 255), `description` (max 2000), `imageUrl` (max 500), `latitude` ([-90.0..90.0]), `longitude` ([-180.0..180.0]), `status` (`DestinationStatus`).
+   - **Response DTO (`DestinationResponse.java`):**
+     - Added `status` field (`DestinationStatus`) to expose destination visibility.
+   - **Repository (`DestinationRepository.java`):**
+     - Added `findByNameContainingIgnoreCase(String keyword)` for unconstrained admin searching.
+   - **Service Layer (`DestinationService.java`, `DestinationServiceImpl.java`):**
+     - Enforces business rules: unique destination name checks (rejects duplicate catalog names with `BadRequestException`), coordinate pair validation (requires both lat and lon if either is present, normalizes to 7 decimal places matching MySQL column definition), and entity existence checks (`ResourceNotFoundException`).
+     - **Safe Deletion Contract:** `deleteDestination(Integer id)` performs a soft-delete by updating status to `DestinationStatus.HIDDEN`. This prevents database foreign key violations (`FK_activity_destination`) with existing user itineraries referencing catalog destinations while immediately removing the destination from public catalog listings.
+   - **Public Controller Parity (`DestinationController.java`):**
+     - Refactored to delegate to `DestinationService`, preserving all existing public `/api/destinations` and `/api/destinations/{id}` behavior.
+   - **Admin Controller (`AdminDestinationController.java`):**
+     - Mapped to `/api/admin/destinations` with `@PreAuthorize("hasRole('ADMIN')")`.
+     - Endpoints:
+       - `POST /api/admin/destinations`: Creates destination, returns HTTP 201 Created.
+       - `PUT /api/admin/destinations/{id}`: Updates destination, returns HTTP 200 OK.
+       - `DELETE /api/admin/destinations/{id}`: Soft-deletes destination to `HIDDEN`, returns HTTP 204 No Content.
+       - `GET /api/admin/destinations`: Lists all destinations with optional keyword and status filters.
+       - `GET /api/admin/destinations/{id}`: Retrieves single destination by ID for admin.
+   - **Security Configuration (`SecurityConfig.java`):**
+     - Naturally protected by existing rule: `.requestMatchers("/api/admin/**").hasRole("ADMIN")`.
+
+2. **Mobile Location Repository & Model:**
+   - **Constants (`api_constants.dart`):**
+     - Added `locationsEndpoint = '/api/locations'`, `locationSearchEndpoint = '/api/locations/search'`, `locationReverseGeocodeEndpoint = '/api/locations/reverse-geocode'`.
+   - **Model (`location_search_result.dart`):**
+     - Encapsulates `placeId`, `name`, `formattedAddress`, `latitude`, `longitude`, `category`, and `provider`.
+     - Supports `fromJson` with both camelCase standard backend keys and alternative snake_case/LocationIQ fallback keys (`place_id`, `display_name`, `lat`, `lon`).
+     - Provides `hasCoordinates` helper getter, `toJson()`, `copyWith(...)`, `operator ==`, `hashCode`, and `toString()`.
+   - **Repository (`location_repository.dart`):**
+     - Integrates with project's `ApiClient`:
+       - `searchLocations(query, {limit, latitude, longitude, token})`: Immediately returns empty list for queries < 2 characters without network overhead. Transmits sanitized query parameters and parses JSON list into `List<LocationSearchResult>`. Propagates `ApiException` (e.g. HTTP 429).
+       - `reverseGeocode(latitude, longitude, {token})`: Passes coordinates and parses `LocationSearchResult`. Gracefully handles HTTP 404 by returning `null` (unmapped coordinate), while rethrowing other `ApiException` instances.
+
+### 73.3. Verification & Test Results
+
+1. **Backend Integration Tests:**
+   - **`AdminDestinationControllerTest.java` (11 new tests):**
+     - `createDestination_unauthenticated_returns401`: Verified unauthenticated requests fail with HTTP 401.
+     - `createDestination_asRegularUser_returns403`: Verified regular users fail with HTTP 403.
+     - `updateDestination_asRegularUser_returns403`: Verified regular users fail with HTTP 403 on PUT.
+     - `deleteDestination_asRegularUser_returns403`: Verified regular users fail with HTTP 403 on DELETE.
+     - `createDestination_asAdmin_success`: Verified admin creates destination (HTTP 201).
+     - `updateDestination_asAdmin_success`: Verified admin updates destination (HTTP 200).
+     - `deleteDestination_softDeletesToHidden_preservesRecord`: Verified admin DELETE sets status to `HIDDEN` (HTTP 204), hides from public catalog (HTTP 404), and preserves record in database and admin view.
+     - `createDestination_blankFields_badRequest`: Verified validation error on empty name/address (HTTP 400).
+     - `createDestination_outOfBoundsCoordinates_badRequest`: Verified validation on latitude > 90 (HTTP 400).
+     - `createDestination_duplicateName_badRequest`: Verified duplicate catalog name rejection (HTTP 400).
+     - `updateOrDelete_nonExistentId_returns404`: Verified non-existent ID handling (HTTP 404).
+     - Result: **11/11 tests passed**.
+   - **`DestinationControllerTest.java` (2 existing tests):**
+     - Result: **2/2 tests passed**.
+   - **Full Backend Test Suite (`mvnw test`):**
+     - Result: **131/131 tests passed, 0 failures, 0 errors, 0 skipped** across all 12 test classes (time: 35.615 s). Zero regressions.
+
+2. **Frontend Mobile Tests:**
+   - **`location_repository_test.dart` (11 new tests):**
+     - Verified `LocationSearchResult.fromJson` with standard and fallback keys, `hasCoordinates`, `toJson`, `copyWith`, and equality.
+     - Verified `searchLocations` query length debouncing (< 2 chars returns empty list), parameter mapping, JSON list parsing, token propagation, and 429 error rethrow.
+     - Verified `reverseGeocode` coordinate query mapping, result parsing, 404 null return, and 429 rethrow.
+     - Result: **11/11 tests passed**.
+   - **Full Mobile Test Suite (`flutter test`):**
+     - Result: **202/202 tests passed** (time: ~25 s). Zero regressions.
+   - **Mobile Static Analysis (`flutter analyze`):**
+     - Result: **0 issues found** on all changed and added files.
+
+### 73.4. Phase Status & Next Steps
+- **Status:** **`PHASE 2 100% COMPLETE & VERIFIED`**.
+- **Scope Confirmation:** Zero Phase 3 or later code implemented. Ready to begin Phase 3 upon user instruction.

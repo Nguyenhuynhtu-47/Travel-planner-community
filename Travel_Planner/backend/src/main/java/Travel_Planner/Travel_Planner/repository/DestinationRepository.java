@@ -17,5 +17,7 @@ public interface DestinationRepository extends JpaRepository<Destination, Intege
 
     List<Destination> findByStatus(DestinationStatus status);
 
+    List<Destination> findByNameContainingIgnoreCase(String keyword);
+
     List<Destination> findByNameContainingIgnoreCaseAndStatus(String keyword, DestinationStatus status);
 }

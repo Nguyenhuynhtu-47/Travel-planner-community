@@ -1,5 +1,6 @@
 package Travel_Planner.Travel_Planner.dto.response;
 
+import Travel_Planner.Travel_Planner.model.enums.DestinationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,4 +22,5 @@ public class DestinationResponse {
     private String imageUrl;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    private DestinationStatus status;
 }
