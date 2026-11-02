@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/auth_notifier.dart';
+import '../../../location/data/location_repository.dart';
+import '../../../location/presentation/widgets/location_picker_sheet.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/activity_detail.dart';
 import '../../data/models/create_activity_request.dart';
@@ -19,6 +22,7 @@ Future<bool?> showActivityFormDialog(
   ActivityDetail? initialActivity,
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
+  LocationRepository? locationRepository,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
@@ -34,6 +38,7 @@ Future<bool?> showActivityFormDialog(
       initialActivity: initialActivity,
       authNotifier: authNotifier,
       repository: repository,
+      locationRepository: locationRepository,
     ),
   );
 }
@@ -48,6 +53,7 @@ Future<bool?> showActivityFormBottomSheet(
   ActivityDetail? initialActivity,
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
+  LocationRepository? locationRepository,
 }) => showActivityFormDialog(
   context,
   itineraryId: itineraryId,
@@ -57,6 +63,7 @@ Future<bool?> showActivityFormBottomSheet(
   initialActivity: initialActivity,
   authNotifier: authNotifier,
   repository: repository,
+  locationRepository: locationRepository,
 );
 
 class ActivityFormBottomSheet extends StatefulWidget {
@@ -67,6 +74,7 @@ class ActivityFormBottomSheet extends StatefulWidget {
   final ActivityDetail? initialActivity;
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository repository;
+  final LocationRepository? locationRepository;
 
   const ActivityFormBottomSheet({
     super.key,
@@ -77,6 +85,7 @@ class ActivityFormBottomSheet extends StatefulWidget {
     this.initialActivity,
     required this.authNotifier,
     required this.repository,
+    this.locationRepository,
   });
 
   @override
@@ -86,6 +95,7 @@ class ActivityFormBottomSheet extends StatefulWidget {
 
 class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   final _formKey = GlobalKey<FormState>();
+  late final LocationRepository _locationRepository;
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _costController;
@@ -99,16 +109,37 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   List<DestinationSummary> _availableDestinations = [];
   bool _loadingDestinations = false;
 
+  // Custom location state (mutually exclusive with _selectedDestinationId)
+  String? _customLocationName;
+  String? _customAddress;
+  double? _latitude;
+  double? _longitude;
+  String? _placeId;
+  String? _locationProvider;
+
   bool get _isEditing => widget.initialActivity != null;
 
   @override
   void initState() {
     super.initState();
+    _locationRepository = widget.locationRepository ??
+        LocationRepository(apiClient: widget.repository.apiClient);
+
     _selectedDestinationId = widget.initialActivity?.destination?.destinationId;
     if (widget.initialActivity?.destination != null) {
       _availableDestinations = [widget.initialActivity!.destination!];
     }
     _fetchDestinations();
+
+    // If editing an activity without destination, initialize custom location state
+    if (_selectedDestinationId == null && widget.initialActivity != null) {
+      _customLocationName = widget.initialActivity!.customLocationName;
+      _customAddress = widget.initialActivity!.customAddress;
+      _latitude = widget.initialActivity!.latitude;
+      _longitude = widget.initialActivity!.longitude;
+      _placeId = widget.initialActivity!.placeId;
+      _locationProvider = widget.initialActivity!.locationProvider;
+    }
 
     _nameController = TextEditingController(
       text: widget.initialActivity?.name ?? '',
@@ -130,6 +161,47 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     if (widget.initialActivity?.endTime != null) {
       _endTime = _parseTimeOfDay(widget.initialActivity!.endTime!);
     }
+  }
+
+  Future<void> _openLocationPicker() async {
+    LatLng? initialCenter;
+    if (_latitude != null && _longitude != null) {
+      initialCenter = LatLng(_latitude!, _longitude!);
+    }
+
+    final result = await showLocationPickerSheet(
+      context,
+      repository: _locationRepository,
+      initialCenter: initialCenter,
+      initialName: _customLocationName,
+      initialAddress: _customAddress,
+      initialPlaceId: _placeId,
+      initialProvider: _locationProvider,
+      token: widget.authNotifier.token,
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedDestinationId = null; // Mutually exclusive: clears catalog destination
+        _customLocationName = result.locationName;
+        _customAddress = result.address;
+        _latitude = result.latitude;
+        _longitude = result.longitude;
+        _placeId = result.placeId;
+        _locationProvider = result.locationProvider;
+      });
+    }
+  }
+
+  void _clearCustomLocation() {
+    setState(() {
+      _customLocationName = null;
+      _customAddress = null;
+      _latitude = null;
+      _longitude = null;
+      _placeId = null;
+      _locationProvider = null;
+    });
   }
 
   Future<void> _fetchDestinations() async {
@@ -290,22 +362,22 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           endTime: endTimeStr,
           cost: rawCost,
           customLocationName: _selectedDestinationId == null
-              ? widget.initialActivity?.customLocationName
+              ? _customLocationName
               : null,
           customAddress: _selectedDestinationId == null
-              ? widget.initialActivity?.customAddress
+              ? _customAddress
               : null,
           latitude: _selectedDestinationId == null
-              ? widget.initialActivity?.latitude
+              ? _latitude
               : null,
           longitude: _selectedDestinationId == null
-              ? widget.initialActivity?.longitude
+              ? _longitude
               : null,
           placeId: _selectedDestinationId == null
-              ? widget.initialActivity?.placeId
+              ? _placeId
               : null,
           locationProvider: _selectedDestinationId == null
-              ? widget.initialActivity?.locationProvider
+              ? _locationProvider
               : null,
         );
         await widget.repository.updateActivity(
@@ -323,6 +395,24 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           startTime: startTimeStr,
           endTime: endTimeStr,
           cost: rawCost,
+          customLocationName: _selectedDestinationId == null
+              ? _customLocationName
+              : null,
+          customAddress: _selectedDestinationId == null
+              ? _customAddress
+              : null,
+          latitude: _selectedDestinationId == null
+              ? _latitude
+              : null,
+          longitude: _selectedDestinationId == null
+              ? _longitude
+              : null,
+          placeId: _selectedDestinationId == null
+              ? _placeId
+              : null,
+          locationProvider: _selectedDestinationId == null
+              ? _locationProvider
+              : null,
         );
         await widget.repository.addActivity(
           widget.itineraryId,
@@ -592,9 +682,143 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                               : (val) {
                                   setState(() {
                                     _selectedDestinationId = val;
+                                    if (val != null) {
+                                      // Mutually exclusive: selecting catalog destination clears custom location
+                                      _customLocationName = null;
+                                      _customAddress = null;
+                                      _latitude = null;
+                                      _longitude = null;
+                                      _placeId = null;
+                                      _locationProvider = null;
+                                    }
                                   });
                                 },
                         ),
+                        const SizedBox(height: 8),
+
+                        // Custom Location Card or Pick on Map Button
+                        if (_latitude != null && _longitude != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceSoft,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.pin_drop,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _customLocationName ?? 'Vị trí đã ghim',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (_customAddress != null &&
+                                          _customAddress!.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _customAddress!,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Tọa độ: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit_location_alt_outlined,
+                                    size: 20,
+                                    color: AppColors.primary,
+                                  ),
+                                  tooltip: 'Đổi vị trí trên bản đồ',
+                                  onPressed:
+                                      _isLoading ? null : _openLocationPicker,
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    size: 18,
+                                    color: AppColors.muted,
+                                  ),
+                                  tooltip: 'Xóa vị trí',
+                                  onPressed:
+                                      _isLoading ? null : _clearCustomLocation,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              icon: const Icon(
+                                Icons.map_outlined,
+                                size: 18,
+                                color: AppColors.primary,
+                              ),
+                              label: const Text(
+                                'Chọn vị trí trên bản đồ',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: const BorderSide(
+                                    color: AppColors.hairline,
+                                  ),
+                                ),
+                              ),
+                              onPressed:
+                                  _isLoading ? null : _openLocationPicker,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 14),
 
                         // Time Pickers Row

@@ -3605,3 +3605,87 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 74.4. Phase Status & Next Steps
 - **Status:** **`PHASE 3 COMPLETE & VERIFIED`**.
 - **Scope Confirmation:** Zero Phase 4 or later work performed. Ready to begin Phase 4 (Activity Location Picker & Pin Dropping) upon user instruction.
+
+---
+
+## 75. Session 75 — Map Integration Phase 4: Activity Location Picker with Offline Pin-Drop Fallback (2026-11-02)
+
+### 75.1. Objectives & Scope
+- **Task:** Implement Phase 4 (Activity Location Picker with Offline Pin-Drop Fallback) following `docs/ai/11-map-integration-audit-and-plan.md` Section 15.4:
+  1. Reusable Location Picker Modal Sheet: Create `lib/features/location/presentation/widgets/location_picker_sheet.dart` supporting place search autocomplete and manual interactive pin-drop fallback.
+  2. Autocomplete Search Integration: Connect `LocationRepository.searchLocations(query)` with 400ms debounce, minimum 2-character query guard, request cancellation/sequence tracking, and graceful handling of HTTP 429 rate limit or network errors.
+  3. Map Preview & Interactive Manual Pin Drop: Reuse `AppMapView` and `MapMarkerBuilder.buildPinMarker`. Tapping anywhere on the map drops/moves the pin and immediately enables the confirmation button without waiting for or depending on reverse geocoding.
+  4. Zero-API Resilience & Reverse Geocoding Fallback: Trigger background reverse geocoding via `LocationRepository.reverseGeocode(lat, lng)`. If reverse geocoding fails, times out, returns 404/429, or network is unavailable, preserve the fallback label `"Vị trí đã ghim"` ("Pinned location") and allow immediate coordinate saving. Allow custom name editing via dialog.
+  5. Activity Creation & Editing Integration: Update `ActivityFormBottomSheet` in `activity_form_dialog.dart` to enforce the three mutually exclusive location states:
+     - State 1 (Catalog Destination): `destinationId` set, custom location fields null.
+     - State 2 (Custom Location): `destinationId = null`, `latitude` and `longitude` set, custom fields populated (`customLocationName`, `customAddress`, `placeId`, `locationProvider`).
+     - State 3 (No Location): `destinationId = null`, all custom fields null.
+  6. Location Preservation on Edit: Ensure normal edits of existing activities preserve all location data in full PUT replacement semantics.
+  7. Activity Timeline Display: Update `ActivityTimelineItem` in `activity_timeline_item.dart` to render a custom location card when `activity.destination == null && (activity.customLocationName != null || activity.latitude != null)`.
+- **Scope Boundaries:**
+  - Zero Phase 5 or later functionality implemented: no itinerary detail map preview card, no day-by-day filter markers, no route calculation, no ORS routing, no route caching, no Google Maps external navigation deep links, and no Flutter Web Admin map.
+  - Zero modifications to backend code or database schemas.
+  - Zero-commit and zero-push constraints strictly maintained on branch `map`.
+
+### 75.2. Architecture & Implementation Details
+
+1. **`CustomLocationResult` Model (`location_picker_sheet.dart`):**
+   - Clean data record holding `locationName`, `address`, `latitude`, `longitude`, `placeId`, and `locationProvider`.
+   - Factory `CustomLocationResult.fromSearchResult` seamlessly converts `LocationSearchResult` models.
+
+2. **`LocationPickerSheet` Widget (`location_picker_sheet.dart`):**
+   - Modal bottom sheet invoked via `showLocationPickerSheet(...)` or `LocationPickerSheet.show(...)`.
+   - Bottom sheet configured with `enableDrag: false` to eliminate gesture contention between map panning and modal sheet dismissal.
+   - **Place Search Autocomplete:**
+     - 400ms debounce via `Timer`.
+     - Guard: query length $< 2$ characters immediately clears results without network calls.
+     - Sequence tracking (`_searchRequestId`) ensures slow out-of-order HTTP responses do not overwrite newer user input.
+     - HTTP 429 returns user-friendly banner: `"Đã vượt quá giới hạn tìm kiếm, vui lòng thử lại sau."`.
+     - Generic network errors display `"Không thể kết nối máy chủ tìm kiếm."`.
+     - Tapping any search result closes the dropdown overlay, animates map camera to location coordinates (`_mapController.move(point, 15.0)`), updates the marker pin, and populates the details card.
+   - **Interactive Pin Dropper with Zero-API Resilience:**
+     - User taps map canvas (`AppMapView.onTap`).
+     - Pin is placed/moved immediately, and the confirmation button (`Xác nhận vị trí`) is enabled instantaneously with zero network dependency.
+     - Sets immediate fallback label: `"Vị trí đã ghim"`.
+     - Initiates background reverse geocoding with sequence tracking (`_reverseGeocodeRequestId`).
+     - If reverse geocoding succeeds, updates name and address. If it returns 404, 429, or fails, the fallback label `"Vị trí đã ghim"` is preserved and coordinates remain 100% saveable.
+     - Tap-to-edit action allows users to customize the location name via a lightweight dialog.
+
+3. **`ActivityFormBottomSheet` Integration (`activity_form_dialog.dart`):**
+   - Injects `LocationRepository` (defaulting to shared `ApiClient`).
+   - Preloads existing location data on edit (preserving all custom fields when editing name, times, or cost).
+   - Enforces three mutually exclusive location states:
+     - Selecting a catalog destination automatically clears custom location state (`_customLocationName`, `_customAddress`, `_latitude`, `_longitude`, `_placeId`, `_locationProvider`).
+     - Confirming a location in `LocationPickerSheet` automatically sets `_selectedDestinationId = null` and populates custom location state, rendering a distinct Custom Location Card with edit and delete actions.
+     - Tapping delete on the Custom Location Card resets to No Location.
+   - Both `CreateActivityRequest` and `UpdateActivityRequest` payloads transmit `_selectedDestinationId == null ? _customLocationName : null`, `_latitude`, `_longitude`, etc.
+
+4. **`ActivityTimelineItem` Enhancement (`activity_timeline_item.dart`):**
+   - Renders a styled location card for activities with custom locations (`activity.destination == null && (activity.customLocationName != null || activity.latitude != null)`).
+   - Displays pin icon, effective location name (`activity.customLocationName ?? 'Vị trí đã ghim'`), and formatted address or coordinates.
+
+### 75.3. Verification & Test Results
+
+1. **`location_picker_test.dart` (19 automated unit & widget tests):**
+   - Model tests: direct constructor, `fromSearchResult`, fallback naming, `toString`.
+   - Sheet rendering: uninitialized state (map, search bar, disabled confirm button, close button) vs. initial coordinates state (marker pin, pre-filled details, enabled confirm button).
+   - Autocomplete debounce & query length guards ($< 2$ chars suppresses network calls; $\ge 2$ chars calls API and displays results).
+   - Error handling: HTTP 429 rate limit message, generic network failure message, empty results notice.
+   - Manual pin drop: immediate pin placement, Zero-API resilience, reverse geocoding success vs. 404/429 failure preserving `"Vị trí đã ghim"`, and custom name editing.
+   - Dismissal: confirming returns `CustomLocationResult`, cancel returns `null`.
+   - Activity form integration: open picker, save custom location, edit preservation, switching to catalog destination clears custom fields, deleting custom location transitions to No Location.
+   - Activity timeline: renders custom location card and fallback coordinates.
+   - Result: **19/19 tests passed**.
+
+2. **Full Flutter Mobile Test Suite (`flutter test`):**
+   - Result: **239/239 tests passed, 0 failures** across all test suites (time: ~30 s). Zero regressions.
+
+3. **Flutter Static Analysis (`flutter analyze`):**
+   - Result: **0 issues found** across all added and modified files (`lib/features/location/`, `lib/features/itinerary/`, `test/location_picker_test.dart`).
+
+4. **Spring Boot Backend Test Suite (`mvnw test`):**
+   - Result: **131/131 tests passed, 0 failures, 0 errors, 0 skipped** across all 12 test classes (time: 35.098 s). Zero regressions.
+
+### 75.4. Phase Status & Next Steps
+- **Status:** **`PHASE 4 COMPLETE & VERIFIED`**.
+- **Scope Confirmation:** Zero Phase 5 or later work performed. Working tree changes left uncommitted for user review. Ready to proceed to Phase 5 upon user instruction.
