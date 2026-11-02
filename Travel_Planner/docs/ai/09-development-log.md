@@ -3290,3 +3290,153 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 70.4. Audit Status
 - **Status:** **`PHASE 1 AUDITED & CERTIFIED`**.
 - **Scope Confirmation:** Zero Phase 2 or later work performed.
+
+
+## 71. Session Entry: Map Integration Phase 2 — Backend Location Services, Rate Limiting & Trusted Proxy (2026-11-02)
+
+### 71.1. Objective and Scope
+- Implemented **Phase 2 — Backend Location Services** strictly according to the approved roadmap in `docs/ai/11-map-integration-audit-and-plan.md`.
+- Added provider abstraction, LocationIQ proxy integration, location search/autocomplete API, reverse geocoding API, Caffeine in-memory caching, Bucket4j dual-tier rate limiting, and trusted reverse-proxy client IP resolution.
+- **Strict Scope Boundaries:**
+  - Zero Phase 3 or later features implemented: no OpenRouteService routing, no route calculation, no route caching, and no Flutter UI location pickers or map screens.
+  - Zero modifications to Activity database schema.
+  - Preserved existing Spring Security, authentication, and authorization rules.
+  - Maintained zero-commit, zero-push, and branch isolation constraints on branch `map`.
+
+### 71.2. Architecture & Implementation Details
+
+1. **Dependencies (`pom.xml`):**
+   - Added `com.github.ben-manes.caffeine:caffeine` (Apache 2.0).
+   - Added `com.bucket4j:bucket4j-core:8.10.1` (Apache 2.0).
+
+2. **Configuration & Properties (`MapProperties.java` & `application.properties`):**
+   - Added `app.map.geocoding.provider` (default `LOCATION_IQ`).
+   - Added `app.map.geocoding.api-key` (environment variable `LOCATION_IQ_API_KEY`, default empty).
+   - Added `app.map.geocoding.timeout-ms` (default 3000ms).
+   - Added `app.map.geocoding.base-url` (default `https://us1.locationiq.com/v1`).
+   - Added `app.security.trusted-proxies` (default `127.0.0.1,0:0:0:0:0:0:0:1,::1`).
+
+3. **Trusted Reverse-Proxy Client IP Resolution (`ClientIpResolver.java`):**
+   - Validates the direct connection's `request.getRemoteAddr()`.
+   - **Anti-Spoofing Rule:** `X-Forwarded-For` and `X-Real-IP` headers are trusted **only** when the direct remote address matches the configured `app.security.trusted-proxies` whitelist. Untrusted direct clients attempting to spoof `X-Forwarded-For` are identified strictly by `request.getRemoteAddr()`.
+   - Supports IPv4 and IPv6 loopback representations.
+
+4. **Bucket4j Dual-Tier Rate Limiting (`LocationRateLimiter.java` & `RateLimitExceededException.java`):**
+   - **Guest Tier:** 30 requests/minute per resolved client IP (`ip:<clientIp>`).
+   - **Authenticated Tier:** 60 requests/minute per stable user ID (`auth:user:<userId>`).
+   - Token buckets stored in a Caffeine cache with 1-hour access eviction (`maximumSize(10_000)`), preventing memory leaks from inactive client IPs.
+   - Rejections throw `RateLimitExceededException` mapped to `HTTP 429 Too Many Requests`.
+
+5. **Provider Abstraction & LocationIQ Integration (`GeocodingProvider.java` & `LocationIqGeocodingProvider.java`):**
+   - `GeocodingProvider` interface decoupling upstream providers from controllers and services.
+   - `LocationIqGeocodingProvider` utilizes Spring Boot 4 `RestClient` configured with a 3000ms connect/read timeout via `SimpleClientHttpRequestFactory`.
+   - **Graceful Failure & Quota Handling:**
+     - Missing / unconfigured API key returns empty list gracefully without throwing exceptions.
+     - Upstream HTTP 404 (no places found) returns empty list.
+     - Upstream HTTP 429 (quota exceeded) logs warning and returns empty list.
+     - Timeout / network errors log warning and return empty list.
+   - **Secret Protection:** API key is never included in log output, error responses, or client payloads.
+
+6. **Location Service & Caffeine Caching (`LocationService.java` & `LocationServiceImpl.java`):**
+   - `searchLocations(...)`: Normalizes queries (trimmed, 2-100 characters), validates limit (1-20, default 10), and bounds-checks optional coordinates `[-90..90]`, `[-180..180]`.
+   - `reverseGeocode(...)`: Validates mandatory coordinates `[-90..90]`, `[-180..180]`.
+   - **In-Memory Caffeine Cache:**
+     - `searchCache`: Max 500 entries, 24-hour TTL (strictly complying with LocationIQ's $\le 48\text{h}$ restriction).
+     - `reverseCache`: Max 500 entries, 24-hour TTL.
+     - **Decoupled Caching:** Caches only upstream provider DTOs (`LocationSearchResultResponse`). Zero domain entities or user-specific data cached.
+
+7. **REST Endpoints (`LocationController.java` & `SecurityConfig.java`):**
+   - `GET /api/locations/search`: Public/authenticated place search proxy.
+   - `GET /api/locations/reverse-geocode`: Public/authenticated coordinate lookup.
+   - Configured `SecurityConfig` to permit `GET /api/locations/**` for public access under rate-limiting protection.
+
+### 71.3. Verification & Test Results
+
+1. **Focused Location Services Test Suite (`LocationServiceTest.java`):**
+   - Added 20 automated tests across 6 nested categories:
+     - Search query validation: short (< 2), blank, long (> 100), limit bounds (< 1, > 20), lat/lng bounds $\to$ HTTP 400.
+     - Reverse geocode validation: missing coordinates, out-of-bounds lat/lng $\to$ HTTP 400.
+     - Caffeine caching: verified search and reverse geocode cache hits prevent upstream provider re-invocation.
+     - Bucket4j rate limiting: verified guest 30 req/min threshold, authenticated 60 req/min threshold, key isolation, and HTTP 429 response.
+     - Trusted proxy resolution: verified trusted proxy header extraction vs untrusted proxy header rejection.
+     - Graceful failure & secret safety: unconfigured key returns empty list; API key never exposed in responses.
+   - Execution result: **20/20 passed** (time: 18.096 s).
+
+2. **Full Backend Regression Suite (`mvnw test`):**
+   - **112/112 tests passed, 0 failures, 0 errors, 0 skipped** across all 10 test classes (time: 30.855 s). Zero regressions.
+
+### 71.4. Phase Status & Next Steps
+- **Status:** **`PHASE 2 IMPLEMENTED (AWAITING AUDIT)`**.
+- **Scope Confirmation:** Zero Phase 3 or later work performed. No ORS routing, no route caching, no Flutter UI pickers or map screens.
+- **Next Step:** Perform Phase 2 final audit.
+
+---
+
+## 72. Session 72 — Final Audit & Hardening: Map Integration Phase 2 (Backend Location Services) (2026-11-02)
+
+### 72.1. Audit Objectives & Scope
+- **Task:** Perform rigorous source-code audit of Phase 2 (Backend Location Services) against `docs/ai/11-map-integration-audit-and-plan.md`, `AGENTS.md`, and technical specifications.
+- **Scope Boundaries:**
+  - Audit and remediate Phase 2 backend components only: reverse-geocoding cache, trusted proxy resolution, Bucket4j rate limiting, upstream provider failure handling, secret management.
+  - Maintain zero-commit, zero-push, and branch isolation constraints on branch `map`.
+  - Zero Phase 3 or later code implemented: no OpenRouteService routing, no route caching, and no Flutter mobile UI pickers or map screens.
+
+### 72.2. Audit Findings & Remediations
+
+1. **Reverse-Geocoding Cache & Coordinate Rounding:**
+   - *Status:* **PASS (Enhanced)**
+   - *Findings & Enhancement:* Enhanced `LocationServiceImpl.java` to round both `latitude` and `longitude` to 5 decimal places (~1.1 meter ground resolution) using `BigDecimal.valueOf(coord).setScale(5, RoundingMode.HALF_UP).doubleValue()` before querying the cache or upstream provider.
+   - *Consistency:* Cache key `reverse:%.5f:%.5f` and coordinates passed to `geocodingProvider.reverseGeocode(roundedLat, roundedLon)` now match 100%, completely eliminating coordinate jitter and key collisions.
+   - *Conditional Caching:* Search and reverse results are cached in Caffeine (`24h` TTL, `500` max entries) only when `geocodingProvider.isConfigured() == true`, preventing transient unconfigured states from polluting the cache.
+
+2. **Trusted Proxy & Client IP Resolution:**
+   - *Status:* **PASS (Enhanced)**
+   - *Findings & Enhancement:* Enhanced `ClientIpResolver.java` with a robust `cleanIp(String raw)` helper:
+     - Strips surrounding quotes (e.g. `"\"203.0.113.195\""` $\to$ `203.0.113.195`).
+     - Strips ephemeral client ports from IPv4 addresses (e.g. `198.51.100.1:8080` $\to$ `198.51.100.1`).
+     - Normalizes bracketed IPv6 notation with ports (e.g. `[2001:db8::1]:8080` $\to$ `2001:db8::1`).
+     - Iterates through comma-separated `X-Forwarded-For` parts, gracefully ignoring empty elements and `"unknown"` tokens to resolve the first legitimate client IP.
+     - Supports IPv6 loopback variants (`0:0:0:0:0:0:0:1` and `::1`).
+     - Maintained strict anti-spoofing rule: `X-Forwarded-For` and `X-Real-IP` are only inspected when the direct `request.getRemoteAddr()` matches the configured `app.security.trusted-proxies` whitelist.
+
+3. **Rate Limiting Architecture:**
+   - *Status:* **PASS**
+   - *Verification:*
+     - Authenticated requests resolve stable identity from Spring Security principal (`auth:user:<userId>`).
+     - Guest requests isolate by client IP (`ip:<clientIp>`).
+     - Bucket creation and token consumption are thread-safe (Bucket4j atomic CAS operations inside Caffeine compute-if-absent).
+     - Bucket cache configuration: `expireAfterAccess(Duration.ofHours(1))` with `maximumSize(10_000)`. Because the token replenishment window is 1 minute, 1 hour of inactivity guarantees active clients' 1-minute rate limits are never prematurely reset, while protecting against memory exhaustion.
+
+4. **Provider Failure Modes & Upstream Error Distinction:**
+   - *Status:* **PASS (Remediated)**
+   - *Findings & Remediations:* In `LocationIqGeocodingProvider.java`:
+     - **Genuine Empty Results:** Upstream HTTP 404 (no places found) returns `Collections.emptyList()` for search and `null` for reverse geocode without throwing errors.
+     - **Unconfigured Provider:** `!isConfigured()` returns empty list / null gracefully without caching.
+     - **Upstream Quota Exhaustion:** Upstream HTTP 429 now throws `RateLimitExceededException` (HTTP 429) rather than misleading callers with an empty list.
+     - **Upstream Timeouts:** Connection and read timeouts (`ResourceAccessException`) throw `AppException` (HTTP 504 Gateway Timeout).
+     - **Upstream 5xx Errors:** Throw `AppException` (HTTP 502 Bad Gateway).
+     - **Secret Safety:** LocationIQ API key is never exposed in logs, exceptions, or JSON error responses.
+
+### 72.3. Verification & Regression Testing
+
+1. **Expanded Location Services Test Suite (`LocationServiceTest.java`):**
+   - Added 8 new automated test cases (total 28 tests):
+     - `reverse_coordinateRounding_cacheHitAndProviderConsistency`: Verifies coordinate jitter within 1 meter hits the same cache key and passes rounded coordinates to provider.
+     - `unconfiguredProvider_doesNotPopulateCache`: Verifies unconfigured provider does not write empty results to Caffeine cache.
+     - `resolveIp_portsAndQuotesAndBrackets_cleaned`: Tests IPv4 port stripping, bracketed IPv6 with ports, and quoted IP strings.
+     - `resolveIp_malformedAndUnknownParts_skipsToFirstValid`: Tests skipping malformed commas and `"unknown"` in `X-Forwarded-For`.
+     - `provider_upstream404_returnsEmptyList`: Verifies HTTP 404 returns genuine empty list.
+     - `provider_upstream429_throwsRateLimitExceeded`: Verifies HTTP 429 propagates `RateLimitExceededException`.
+     - `provider_upstream5xx_throwsBadGateway`: Verifies HTTP 5xx propagates `AppException(BAD_GATEWAY)`.
+     - `provider_upstreamTimeout_throwsGatewayTimeout`: Verifies timeouts propagate `AppException(GATEWAY_TIMEOUT)`.
+   - Result: **28/28 tests passed** (0 failures, 0 errors, 0 skipped).
+
+2. **Full Backend Test Suite (`mvnw test`):**
+   - Result: **120/120 tests passed, 0 failures, 0 errors, 0 skipped** across all 11 test classes (time: 34.860 s). Zero regressions.
+
+3. **Frontend Mobile Test Suite (`flutter test`):**
+   - Result: **191/191 tests passed** (time: ~26 s). Zero regressions.
+
+### 72.4. Phase Status & Next Steps
+- **Status:** **`PHASE 2 AUDIT COMPLETE & APPROVED`**.
+- **Scope Confirmation:** Zero Phase 3 or later code implemented. Ready for Phase 3 upon user instruction.
