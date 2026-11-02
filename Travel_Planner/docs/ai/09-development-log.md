@@ -3527,3 +3527,81 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 73.4. Phase Status & Next Steps
 - **Status:** **`PHASE 2 100% COMPLETE & VERIFIED`**.
 - **Scope Confirmation:** Zero Phase 3 or later code implemented. Ready to begin Phase 3 upon user instruction.
+
+
+---
+
+## 74. Session 74 — Map Integration Phase 3: Reusable Free Flutter Map Infrastructure on Mobile (2026-11-02)
+
+### 74.1. Objectives & Scope
+- **Task:** Implement Phase 3 (Reusable Free Flutter Map Infrastructure on Mobile) following `docs/ai/11-map-integration-audit-and-plan.md` Section 15.3:
+  1. Reusable Map Widget: Create `shared/widgets/app_map_view.dart`, reusing and extending Phase 0 `AppBaseMap` rather than duplicating infrastructure.
+  2. Custom Map Marker Builder: Create `shared/widgets/map_marker_builder.dart` supporting sequence numbers, day badges, drop pins, and GPS location dots.
+  3. Mandatory Attribution Enforcement: Preserve `RichAttributionWidget` and licensing compliance for CARTO Basemaps and OpenStreetMap.
+  4. Lifecycle and Memory Safety: Ensure statelessness, clean disposal of optional `MapController`, and zero layout overflows.
+- **Scope Boundaries:**
+  - Zero Phase 4 or later functionality implemented: no location picker bottom sheet, no place search autocomplete UI, no manual pin dropping for activities, no `ActivityFormDialog` integration, no ORS routing, and no route caching.
+  - Zero modifications to backend code or database schemas.
+  - Zero-commit and zero-push constraints maintained on branch `map`.
+
+### 74.2. Architecture & Implementation Details
+
+1. **Reusable Map View (`app_map_view.dart`):**
+   - Reuses `AppBaseMap` under the hood to prevent duplicate map logic or fragmented configuration.
+   - Provides first-class properties for `markers` (`List<Marker>?`) and `polylines` (`List<Polyline<Object>>?`), automatically wrapping them in `MarkerLayer` and `PolylineLayer` in the correct visual stacking order:
+     1. `TileLayer` (CARTO Basemaps Voyager directly via CDN).
+     2. `PolylineLayer` (rendered beneath marker pins).
+     3. `MarkerLayer` (stop pins and location markers).
+     4. Custom child layers (`children`).
+     5. Mandatory Attribution layer (`RichAttributionWidget`).
+   - Supports configurable `initialCenter`, `initialZoom`, and `initialCameraFit` (Priority 1 GPS $\to$ Priority 2 Contextual Bounds $\to$ Priority 3 Neutral Vietnam Centroid at 14.0583, 108.2772, zoom 6.0).
+   - Re-exports `AppBaseMap`, `MapMarkerBuilder`, `MapConstants`, and `MapTileProviderConfig` as a single unified entry point for mobile map features.
+
+2. **Custom Map Marker Builder (`map_marker_builder.dart`):**
+   - Decoupled from itinerary or activity domain models.
+   - **`buildStopMarker(...)`:** Builds teardrop pin with circular head and drop shadow. Supports sequence numbers (e.g. 1, 2, 3), custom icons, and optional day pill badge (e.g. `D1`, `Ngày 2`). Uses `Alignment.topCenter` so the bottom pin tip precisely anchors at geographic coordinates.
+   - **`buildPinMarker(...)`:** Builds destination/location pin with center dot accent and bottom drop shadow.
+   - **`buildGpsMarker(...)`:** Concentric circular indicator (white outer border, vibrant blue inner dot) anchored at `Alignment.center`.
+   - **`buildNumberedMarker(...)`:** Circular badge with number text, border, and elevation shadow anchored at `Alignment.center`.
+   - **`buildCustomMarker(...)`:** Generic wrapper for arbitrary widget marker children with configurable dimensions and alignment.
+
+3. **Attribution & Licensing Compliance:**
+   - CARTO Basemaps and OpenStreetMap attribution notice (`MapConstants.tileAttribution`: `© OpenStreetMap contributors, © CARTO`) is strictly preserved via `MapTileProviderConfig.requiresAttribution`.
+   - Passing `showAttribution: false` does not hide required attribution, preventing accidental licensing non-compliance.
+   - `attributionAlignment` allows repositioning the attribution badge to `AttributionAlignment.bottomLeft` to avoid overlapping floating action buttons.
+
+4. **Lifecycle & Memory Safety:**
+   - Both `AppMapView` and `MapMarkerBuilder` are stateless and allocate no unmanaged streams, subscriptions, or listeners.
+   - `MapController` is caller-owned; `AppMapView` does not instantiate unmanaged controllers when none is provided.
+   - Default `NetworkTileProvider` has `silenceExceptions: true` to prevent unhandled network crashes during offline browsing.
+   - Compact screen constraint testing (320x480) confirmed zero layout overflows.
+
+### 74.3. Verification & Test Results
+
+1. **`map_view_test.dart` (18 automated tests):**
+   - Verified default camera fallback to neutral Vietnam centroid (14.0583, 108.2772, zoom 6.0).
+   - Verified custom `initialCenter`, `initialZoom`, and `initialCameraFit`.
+   - Verified `interactionOptions` configuration.
+   - Verified layer composition order (`TileLayer` $\to$ `PolylineLayer` $\to$ `MarkerLayer` $\to$ `CircleAvatar` child $\to$ `RichAttributionWidget`).
+   - Verified mandatory attribution safety (cannot be hidden when provider requires it).
+   - Verified attribution alignment customization (`bottomLeft`).
+   - Verified `MapMarkerBuilder` for `buildStopMarker` (sequence, day badge, tap callback, icon fallback), `buildPinMarker`, `buildGpsMarker`, `buildNumberedMarker`, and `buildCustomMarker`.
+   - Verified layout resilience without overflow on compact 320x480 constraints.
+   - Verified widget lifecycle (mount, dynamic marker update, unmount, and controller disposal).
+   - Result: **18/18 tests passed**.
+
+2. **Phase 0 Smoke Test Suite (`map_smoke_test.dart`):**
+   - Result: **14/14 tests passed**.
+
+3. **Full Flutter Mobile Test Suite (`flutter test`):**
+   - Result: **220/220 tests passed, 0 failures** (time: ~27 s).
+
+4. **Flutter Static Analysis (`flutter analyze`):**
+   - Result: **0 issues found** on all changed and added map files.
+
+5. **Spring Boot Backend Test Suite (`mvnw test`):**
+   - Result: **131/131 tests passed, 0 failures, 0 errors, 0 skipped** across all 12 test classes (time: 34.565 s).
+
+### 74.4. Phase Status & Next Steps
+- **Status:** **`PHASE 3 COMPLETE & VERIFIED`**.
+- **Scope Confirmation:** Zero Phase 4 or later work performed. Ready to begin Phase 4 (Activity Location Picker & Pin Dropping) upon user instruction.
