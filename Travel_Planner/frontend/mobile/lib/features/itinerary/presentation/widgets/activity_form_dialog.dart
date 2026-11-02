@@ -289,6 +289,24 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           startTime: startTimeStr,
           endTime: endTimeStr,
           cost: rawCost,
+          customLocationName: _selectedDestinationId == null
+              ? widget.initialActivity?.customLocationName
+              : null,
+          customAddress: _selectedDestinationId == null
+              ? widget.initialActivity?.customAddress
+              : null,
+          latitude: _selectedDestinationId == null
+              ? widget.initialActivity?.latitude
+              : null,
+          longitude: _selectedDestinationId == null
+              ? widget.initialActivity?.longitude
+              : null,
+          placeId: _selectedDestinationId == null
+              ? widget.initialActivity?.placeId
+              : null,
+          locationProvider: _selectedDestinationId == null
+              ? widget.initialActivity?.locationProvider
+              : null,
         );
         await widget.repository.updateActivity(
           widget.itineraryId,

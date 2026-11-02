@@ -8,16 +8,20 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "activities", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_activity_day_order", columnNames = {"day_id", "display_order"})
-})
+@Table(name = "activities",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_activity_day_order", columnNames = {"day_id", "display_order"})
+    },
+    indexes = {
+        @Index(name = "idx_activities_coordinates", columnList = "latitude, longitude")
+    }
+)
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Activity {
-
-    public Activity() {
-    }
 
     public Activity(Integer activityId, ItineraryDay itineraryDay, Destination destination, String name,
                     String description, LocalTime startTime, LocalTime endTime, BigDecimal cost,
@@ -53,6 +57,24 @@ public class Activity {
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "custom_location_name", length = 150)
+    private String customLocationName;
+
+    @Column(name = "custom_address", length = 255)
+    private String customAddress;
+
+    @Column(name = "latitude", precision = 10, scale = 7)
+    private BigDecimal latitude;
+
+    @Column(name = "longitude", precision = 10, scale = 7)
+    private BigDecimal longitude;
+
+    @Column(name = "place_id", length = 100)
+    private String placeId;
+
+    @Column(name = "location_provider", length = 30)
+    private String locationProvider;
 
     @Column(name = "start_time")
     private LocalTime startTime;

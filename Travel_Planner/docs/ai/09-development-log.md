@@ -3151,3 +3151,142 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 
 ### 68.4. Phase Status
 - **Status:** **`PHASE 0 FINALIZED & VERIFIED`**. Fallback camera coordinates are neutral and configurable; map attribution is legally protected against accidental omission.
+
+
+## 69. Session Entry: Map Integration Phase 1 — Activity Location Data Model & Backend Schema Evolution (2026-11-02)
+
+### 69.1. Objective and Scope
+- Implemented **Phase 1 — Activity Location Data Model & Backend Schema** strictly according to the approved roadmap in `docs/ai/11-map-integration-audit-and-plan.md`.
+- Evolved the activity domain model across backend (Spring Boot) and mobile (Flutter) layers to support custom activity locations alongside existing catalog destinations and unlocated activities.
+- **Strict Scope Boundaries:**
+  - Zero Phase 2 or later code implemented: no geocoding, LocationIQ, ORS, routing, proxy endpoints, or route caching.
+  - Zero UI picker widgets or unrelated frontend screens modified.
+  - Preserved existing authorization rules, itinerary ownership checks, and day consistency.
+  - Maintained zero-commit, zero-push, and branch isolation constraints on branch `map`.
+
+### 69.2. Implementation Details
+
+1. **Database Schema & JPA Entity (`Activity.java`):**
+   - Added 6 additive nullable location columns to `activities`:
+     - `customLocationName` (`VARCHAR(150)`, nullable)
+     - `customAddress` (`VARCHAR(255)`, nullable)
+     - `latitude` (`DECIMAL(10, 7)`, nullable)
+     - `longitude` (`DECIMAL(10, 7)`, nullable)
+     - `placeId` (`VARCHAR(100)`, nullable)
+     - `locationProvider` (`VARCHAR(30)`, nullable)
+   - Added composite database index `idx_activities_coordinates` on `(latitude, longitude)` via `@Table(indexes = ...)`.
+   - Verified schema generation in MySQL: table `activities` successfully altered with exact column types and `idx_activities_coordinates` index.
+
+2. **Backend Request & Response DTOs:**
+   - `CreateActivityRequest.java`: Added the 6 location fields with validation annotations (`@Size`, `@DecimalMin`, `@DecimalMax` for latitude `[-90.0..90.0]` and longitude `[-180.0..180.0]`).
+   - `UpdateActivityRequest.java`: Added the 6 location fields with identical validation annotations.
+   - `ActivityResponse.java`: Added the 6 location fields to output DTO and updated builder.
+
+3. **Validation, Normalization & State Transitions (`ItineraryServiceImpl.java`):**
+   - Implemented `applyLocation(...)` and helper `trimToNull(...)` enforcing the exact three-state model:
+     - **State 1 (Catalog Destination):** `destinationId != null`; validates destination existence and active status. Automatically resets/clears all custom location fields (`customLocationName`, `customAddress`, `latitude`, `longitude`, `placeId`, `locationProvider`) to `null`.
+     - **State 2 (Custom Location):** `destinationId == null` with atomic coordinate pair present (`latitude != null && longitude != null`). Bounds checked against `[-90..90]` and `[-180..180]`. Sets destination reference to `null`.
+     - **State 3 (No Location):** `destinationId == null` and both coordinates `null`. Cleanses all custom metadata fields to `null`.
+   - Strict rejection (HTTP 400 `IllegalArgumentException`) for invalid states:
+     - Conflicting location modes: both `destinationId` and coordinates provided.
+     - Unpaired coordinates: only one of `latitude` or `longitude` provided.
+     - Custom location metadata provided without valid coordinates.
+   - Preserved all existing ownership checks (`user.getUserId().equals(currentUser.getUserId())`) and day-to-itinerary consistency checks (`day.getItinerary().getItineraryId().equals(itineraryId)`).
+
+4. **Frontend Mobile Model Synchronization (`frontend/mobile`):**
+   - `CreateActivityRequest.dart`: Added optional custom location fields and updated `toJson()` to conditionally serialize non-null values.
+   - `UpdateActivityRequest.dart`: Added optional custom location fields and updated `toJson()` to serialize `null` values for clean state transitions.
+   - `ActivityDetail.dart`: Added custom location fields, updated `fromJson(...)` parser, and added computed helper getters:
+     - `effectiveLatitude`: returns `destination?.latitude ?? latitude`.
+     - `effectiveLongitude`: returns `destination?.longitude ?? longitude`.
+     - `effectiveLocationName`: returns `destination?.name ?? customLocationName`.
+     - `effectiveAddress`: returns `destination?.address ?? customAddress`.
+     - `hasCoordinates`: returns `effectiveLatitude != null && effectiveLongitude != null`.
+
+### 69.3. Verification & Test Results
+
+1. **Backend Integration & Unit Tests (`ActivityLocationTest.java`):**
+   - Added 17 comprehensive automated tests covering:
+     - State 1: Catalog Destination creation and mapping.
+     - State 2: Custom Location creation with full metadata and coordinates-only.
+     - State 3: No Location creation and retrieval.
+     - Rejection of conflicting states (destinationId + coordinates $\rightarrow$ HTTP 400).
+     - Rejection of unpaired coordinates (lat without lng, lng without lat $\rightarrow$ HTTP 400).
+     - Rejection of custom name without coordinates $\rightarrow$ HTTP 400.
+     - Coordinate bounds validation (`lat > 90`, `lat < -90`, `lng > 180`, `lng < -180` $\rightarrow$ HTTP 400).
+     - State transitions: Custom $\rightarrow$ Catalog cleanses stale custom fields.
+     - State transitions: Catalog $\rightarrow$ Custom cleanses stale destination reference.
+     - State transitions: Any $\rightarrow$ None cleanses all location fields.
+     - Backward compatibility: Legacy activity records with null custom location fields retrieve cleanly.
+     - Authorization & security: Non-owner mutation rejected (HTTP 403), day mismatch rejected (HTTP 404), unauthenticated rejected (HTTP 401).
+   - Test execution result: **17/17 passed** (0 failures, 0 errors, time: 14.85 s).
+
+2. **Backend Regression Testing (`ItineraryCrudTest.java`):**
+   - Ran existing itinerary CRUD test suite: **11/11 passed** (0 failures, 0 errors, time: 13.92 s). Zero regressions.
+
+3. **Mobile Model Unit Tests (`test/activity_location_model_test.dart`):**
+   - Added 7 focused unit tests covering State 1, State 2, State 3, legacy JSON backward compatibility, JSON parsing, and request serialization.
+   - Test execution result: **7/7 passed**.
+
+4. **Mobile Static Analysis & Regression Suite:**
+   - `flutter analyze`: **0 new issues** (1 pre-existing info in `filter_bottom_sheet_test.dart`).
+   - `flutter test` (Full Suite): **189/189 tests passed** across the entire mobile test suite (182 existing + 7 new). Zero regressions.
+
+5. **Database Verification (MySQL 8):**
+   - Inspected `activities` table via MySQL CLI: 6 new columns verified (`custom_location_name`, `custom_address`, `latitude`, `longitude`, `placeId`, `location_provider`) and index `idx_activities_coordinates` on `(latitude, longitude)` confirmed active.
+
+### 69.4. Phase Status & Next Steps
+- **Status:** **`PHASE 1 COMPLETE`**.
+- **Scope Confirmation:** Zero Phase 2 or later work performed. No geocoding, routing, caching, or UI pickers added.
+- **Next Step:** Await explicit user approval to proceed to **Phase 2: Free Geocoding & Search Integration (LocationIQ / Nominatim API + In-Memory Caching)**.
+
+
+## 70. Session Entry: Phase 1 Final Audit — Activity Location Data Model & Full Regression (2026-11-02)
+
+### 70.1. Objective and Scope
+- Conducted the final audit of Phase 1 implementation against `docs/ai/11-map-integration-audit-and-plan.md`, `AGENTS.md`, and architectural requirements before Phase 2.
+- Verified update semantics, full Activity persistence paths, framework/schema consistency, and full test suite regression across backend and mobile.
+- **Strict Scope Boundaries:** Zero Phase 2 or later work (no geocoding, no routing, no caching, no rate limiting). No commits or branch switches.
+
+### 70.2. Key Audit Findings & Remediation
+
+1. **Update Semantics & Contract (`PUT /api/itineraries/{id}/days/{dayId}/activities/{activityId}`):**
+   - **Contract Semantics:** The endpoint uses standard RESTful `PUT` (full resource replacement semantics).
+   - **Omitted vs. Explicit Null:** In standard Spring Boot / Jackson JSON deserialization to Java POJOs, both omitted fields and explicitly null fields deserialize as `null`.
+   - **Preservation on Normal Edits:** In `activity_form_dialog.dart`, when a user edits non-location fields (name, time, description) of an activity with a custom location, `UpdateActivityRequest` now explicitly forwards `initialActivity`'s custom location fields when `_selectedDestinationId == null`. This prevents normal activity edits from accidentally clearing custom coordinates and metadata.
+   - **Intentional Transitions:** Verified working cleanly:
+     - Selecting a catalog destination sends `destinationId: <id>`, resetting custom location fields.
+     - Sending coordinates with `destinationId: null` updates custom location and clears catalog destination.
+     - Sending null coordinates and null `destinationId` clears both, transitioning cleanly to No Location.
+   - Added 2 new unit tests in `activity_location_model_test.dart` (total 9 tests) validating normal edit coordinate preservation and state transition behavior.
+
+2. **Activity Persistence Paths Audit:**
+   - Audited all occurrences of `activityRepository.save()` across the backend:
+     - `ItineraryServiceImpl.addActivity`: Passes all request location fields through `applyLocation()`. Validates 3 states, atomic coordinates, bounds, and normalizes strings.
+     - `ItineraryServiceImpl.updateActivity`: Passes all request location fields through `applyLocation()`. Enforces full replacement semantics and state transition cleanup.
+     - `ItineraryServiceImpl.deleteActivity`: Only updates `displayOrder` of remaining activities. Does not modify location fields.
+     - `ItineraryServiceImpl.reorderActivities`: Two-pass update only modifying `displayOrder`. Does not touch location fields.
+     - `DataSeeder.saveActivityIfNotExists`: Development seed utility creating initial activities with catalog destinations or no location (valid State 1 / State 3).
+   - Confirmed zero direct entity persistence paths bypassing `applyLocation()` in production services.
+
+3. **Framework & Schema Consistency:**
+   - **Framework Version Reconciled:** Verified `pom.xml`. The project uses **Spring Boot `4.1.1`** (Java 22, Hibernate 7.4.5), reconciling the earlier documentation reference to Spring Boot 3.
+   - **Schema & Indexes:** Inspected MySQL 8 schema on `travel_planner_test`. Verified all 6 nullable columns (`custom_location_name VARCHAR(150)`, `custom_address VARCHAR(255)`, `latitude DECIMAL(10, 7)`, `longitude DECIMAL(10, 7)`, `place_id VARCHAR(100)`, `location_provider VARCHAR(30)`) and composite index `idx_activities_coordinates` on `(latitude, longitude)`.
+
+4. **Test Suite Isolation Defect Remediation:**
+   - **Root Cause:** `ActivityLocationTest` ran first in alphabetical suite execution and left persisted entities behind, causing subsequent `AuthControllerTest` to fail during its `itineraryRepository.deleteAll()` setup due to MySQL foreign key constraint `FKib3kgo39dhcha9umbhwn7emue` (`itinerary_days -> itineraries`).
+   - **Fix:** Added `@AfterEach void tearDown()` to `ActivityLocationTest.java` ensuring full database cleanup across `activityRepository`, `itineraryDayRepository`, `itineraryRepository`, `destinationRepository`, and `userRepository`.
+
+### 70.3. Full Verification Results
+- **Full Backend Test Suite (`mvnw test`):**
+  - **92 tests run: 0 failures, 0 errors, 0 skipped**. Total time: 30.66 s.
+  - Test classes verified: `ActivityLocationTest` (17), `AuthControllerTest` (21), `CloudinaryImageUploadServiceTest` (2), `DataSeederTest` (4), `DestinationControllerTest` (15), `HealthControllerTest` (1), `ItineraryControllerTest` (15), `ItineraryCrudTest` (11), `JwtTokenProviderTest` (5), `TravelPlannerApplicationTests` (1).
+- **Mobile Model & UI Tests (`flutter test`):**
+  - **191 tests run: 191 passed, 0 failed**. Total time: 27 s.
+  - Zero regressions across the entire mobile test suite.
+- **Mobile Static Analysis (`flutter analyze`):**
+  - **0 new issues** (1 pre-existing info in `filter_bottom_sheet_test.dart`).
+
+### 70.4. Audit Status
+- **Status:** **`PHASE 1 AUDITED & CERTIFIED`**.
+- **Scope Confirmation:** Zero Phase 2 or later work performed.
