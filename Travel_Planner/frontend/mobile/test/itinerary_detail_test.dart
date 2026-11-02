@@ -611,7 +611,7 @@ void main() {
   testWidgets(
     'days section is immediately visible near top and day selector filters displayed days',
     (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
+      tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);

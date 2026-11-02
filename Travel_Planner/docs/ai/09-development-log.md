@@ -3689,3 +3689,84 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 75.4. Phase Status & Next Steps
 - **Status:** **`PHASE 4 COMPLETE & VERIFIED`**.
 - **Scope Confirmation:** Zero Phase 5 or later work performed. Working tree changes left uncommitted for user review. Ready to proceed to Phase 5 upon user instruction.
+
+---
+
+## 76. Session 76 — Map Integration Phase 5: Itinerary Detail Map View & Day-by-Day Activity Markers (2026-11-02)
+
+### 76.1. Objectives & Scope
+- **Task:** Implement Phase 5 (Itinerary Detail Map View & Day-by-Day Activity Markers) following Section 15.5 of `docs/ai/11-map-integration-audit-and-plan.md`:
+  1. Embedded Map Preview Card: Create `lib/features/itinerary/presentation/widgets/itinerary_map_preview_card.dart` embedded in `ItineraryDetailScreen`.
+  2. Full-Screen Interactive Map Screen: Create `lib/features/itinerary/presentation/screens/itinerary_map_screen.dart` with horizontal day tabs (`Tất cả`, `Ngày 1`, `Ngày 2`, etc.).
+  3. Map Data & Logic Helper: Create `lib/features/itinerary/presentation/widgets/itinerary_map_helper.dart` to validate coordinates, extract mapped stops, compute dynamic camera bounds, generate custom markers with sequence indicators and day badges, and compute missing-coordinate statistics.
+  4. Activity Markers: Transform itinerary activities with coordinates into interactive markers using `MapMarkerBuilder.buildStopMarker`, color-coded by day and displaying sequential numbers matching itinerary order.
+  5. Dynamic Camera Bounds: Automatically fit camera bounds (`CameraFit.coordinates` / `MapController.fitCamera`) to enclose all markers with proper padding; handle single coordinate gracefully without bounding errors.
+  6. Missing-Coordinate Counting & Messaging: Display informative indicators for activities without coordinates (*"X hoạt động chưa có vị trí trên bản đồ"* or *"Các hoạt động trong ngày này chưa có vị trí trên bản đồ"*).
+  7. Empty Day Handling: Cleanly distinguish between days with zero activities and days with activities that have no coordinates.
+  8. Interactive Marker Inspection: Tapping a marker selects it, moves camera to focus, and renders an activity preview card with name, location, timing, cost, and close action.
+  9. GPS Independence: Map browsing works 100% without requesting location permission or accessing device GPS.
+- **Scope Boundaries:**
+  - Phase 5 only. Strictly zero Phase 6+ work: no route calculation, no OpenRouteService API integration, no route caching, no local Haversine route lines, no Google Maps navigation deep links, no external URL intents (`url_launcher`), no polyline route connections, and no Flutter Web Admin map.
+  - Zero backend code or database schema changes.
+  - Zero commits, zero pushes, and no branch switching. Working tree changes left uncommitted for user review.
+
+### 76.2. Architecture & Implementation Details
+
+1. **`ItineraryMapHelper` & `MappedActivityStop` (`itinerary_map_helper.dart`):**
+   - **`MappedActivityStop` Model:** Holds `ActivityDetail activity`, `ItineraryDayDetail day`, `int sequence`, and `LatLng point`.
+   - **`isValidCoordinate(lat, lng)`:** Validates that coordinates are non-null, finite, non-NaN, and within legal Earth latitude `[-90, 90]` and longitude `[-180, 180]` ranges.
+   - **`extractMappedStops(itinerary, {selectedDayNumber})`:** Filters activities with valid coordinates (`effectiveLatitude` and `effectiveLongitude`), preserving activity display order within day. Supports single-day filtering or all-days extraction.
+   - **`countMissingCoordinates(itinerary, {selectedDayNumber})` & `countTotalActivities(...)`:** Accurately tallies non-geocoded activities and total activities for the active filter.
+   - **`getMissingCoordinatesMessage(...)`:** Emits localized Vietnamese status messages:
+     - All activities lack coordinates: *"Các hoạt động trong ngày này chưa có vị trí trên bản đồ"* (or *"Chưa có hoạt động nào có vị trí trên bản đồ"*).
+     - Some activities lack coordinates: *"X hoạt động chưa có vị trí trên bản đồ"*.
+     - All activities mapped: returns `null` (no notice).
+   - **`buildActivityMarkers(...)`:** Constructs markers using `MapMarkerBuilder.buildStopMarker`. In multi-day mode, applies distinct day badges (`N1`, `N2`) and day colors. In single-day mode, highlights active pin color with sequence number.
+   - **`dayColors` Palette:** 8 accessible colors to differentiate days on multi-day map displays.
+
+2. **`ItineraryMapPreviewCard` (`itinerary_map_preview_card.dart`):**
+   - Embedded widget within `ItineraryDetailScreen` sliver hierarchy below day selector chips.
+   - Title dynamically reflects active filter: *"Bản đồ lịch trình"* (all days) or *"Bản đồ Ngày X"*.
+   - Displays mapped points badge (*"X điểm"*) and "Toàn màn hình" action button to open full-screen map.
+   - Renders missing coordinates warning banner if unmapped activities exist.
+   - Layered map canvas with `AppMapView`, fallback coordinates, and empty/no-coordinates overlays.
+   - Debounced map background tap dismisses selected activity without conflicting with marker click handling.
+
+3. **`ItineraryMapScreen` (`itinerary_map_screen.dart`):**
+   - Full-screen interactive map screen with app bar displaying itinerary title and destination subtitle.
+   - **Recenter Camera Button:** App bar action invokes `_recenterCamera()`, dynamically fitting bounds (`CameraFit.coordinates`) or centering on single point.
+   - **Top Day Selector Chips Bar:** Horizontal scrolling filter chips (`Tất cả (N)`, `Ngày 1 (N)`, `Ngày 2 (N)`...) styled with day badge colors. Layered above map overlays to guarantee uninterrupted interaction.
+   - **Missing Coordinates Notice Pill:** Floating badge displaying missing-coordinate counts.
+   - **Marker Selection & Bottom Details Card:** Tapping a marker smoothly animates camera to target location (`_mapController.move(point, 15.5)`) and opens a floating bottom card displaying:
+     - Sequence badge (*"Điểm #X"*), day badge (*"Ngày Y"*).
+     - Activity name and custom location/destination name.
+     - Timing range (*"HH:mm - HH:mm"*) and formatted cost (*"X ₫"* or *"Miễn phí"*).
+     - Dismiss button (`Icons.close`).
+
+4. **Integration into `ItineraryDetailScreen` (`itinerary_detail_screen.dart`):**
+   - Inserted `ItineraryMapPreviewCard` directly into `CustomScrollView` between the day selector chips and the days timeline list.
+   - Connected `onOpenFullScreen` callback to navigate to `ItineraryMapScreen`, passing the active itinerary and the currently selected day number for seamless state continuity.
+
+### 76.3. Verification & Test Results
+
+1. **`itinerary_map_test.dart` (22 automated unit & widget tests):**
+   - Coordinate validation: valid coordinates, null/incomplete pairs, out-of-range bounds, NaN/infinity guards.
+   - Marker generation & sequence logic: stops extraction, all-days multi-day extraction, empty day handling, day badges, and sequence matching.
+   - Missing-coordinate statistics: correct calculation for partially mapped days, fully unmapped days, and empty days.
+   - `ItineraryMapPreviewCard` widget tests: title, point badge, missing notice, full-screen callback button, empty day overlay, no-coordinates overlay, dynamic day update clearing stale selection.
+   - `ItineraryMapScreen` full-screen widget tests: app bar, day selector chips, recenter action, missing notice pill, single-coordinate day camera centering, interactive marker tap displaying floating bottom activity card with complete details, close button dismissal.
+   - `ItineraryDetailScreen` integration tests: embedding `ItineraryMapPreviewCard`, day filter sync.
+   - Result: **22/22 tests passed**.
+
+2. **Full Mobile Test Suite (`flutter test`):**
+   - Result: **261/261 tests passed, 0 failures, 0 errors** across all test suites (time: ~33 s). Zero regressions.
+
+3. **Static Analysis (`flutter analyze`):**
+   - Result: **0 issues found** across all Phase 5 files and test suites.
+
+4. **Spring Boot Backend Test Suite (`mvnw test`):**
+   - Result: **131/131 tests passed, 0 failures, 0 errors, 0 skipped** across all 12 test classes (time: 38.35 s). Zero regressions.
+
+### 76.4. Phase Status & Next Steps
+- **Status:** **`PHASE 5 COMPLETE & VERIFIED`**.
+- **Scope Confirmation:** Zero Phase 6 or later work performed. Working tree changes left uncommitted for user review. Ready to proceed to Phase 6 (Per-Day Route Calculation & Navigation Deep Links) upon user instruction.
