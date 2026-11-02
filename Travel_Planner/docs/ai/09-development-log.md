@@ -3905,3 +3905,78 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 78.4. Phase Status & Next Steps
 - **Status:** **`PHASE 6 AUDITED, COMPLIANT & FULLY VERIFIED`**.
 - **Scope Confirmation:** Zero Phase 7+ work performed. Working tree changes left uncommitted for user review. Ready to proceed to Phase 7 (Flutter Web Admin Destination Management) upon user instruction.
+
+
+---
+
+## 79. Session 79 — Phase 7: Flutter Web Admin Destination Management (2026-11-02)
+
+### 79.1. Objectives & Scope
+- **Task:** Implement Phase 7 — Flutter Web Admin Destination Management — the final implementation phase of the map integration roadmap following `docs/ai/11-map-integration-audit-and-plan.md` (Section 15.7) and `AGENTS.md`.
+- **Core Requirements:**
+  1. *Admin Access & Navigation:* Restrict Destination Management strictly to authenticated users with `role: 'ADMIN'`. Non-admin users see an access denied notice. Follow Web layout, routing, and session expiration handling.
+  2. *Destination List:* Display catalog destinations (`name`, `address`, `description`, `coordinates`, `status` [ACTIVE/HIDDEN], `imageUrl`, actions). Filter by search keyword (name/address) and status (`ALL`, `ACTIVE`, `HIDDEN`).
+  3. *Create Destination:* Modal form with validation: name (required $\le 150$), address (required $\le 255$), description ($\le 2000$), imageUrl ($\le 500$), coordinates pair validation ($[-90, 90]$ and $[-180, 180]$), interactive mini-map pin drop, duplicate submission prevention (`isSubmitting`).
+  4. *Edit Destination:* Prepopulate existing destination values, preserve unchanged fields, same validation, refresh list.
+  5. *Hide Destination (Soft-Delete):* Use `DELETE /api/admin/destinations/{id}`. Confirmation dialog explaining it changes status to `HIDDEN`, does NOT physically delete records, and preserves existing activity foreign key references.
+  6. *Destination Detail & Map Location:* Display coordinates, address, and interactive map preview with marker and mandatory CARTO & OSM attribution.
+- **Strict Scope Boundaries:**
+  - Strictly Phase 7 only.
+  - Zero backend redesigns or new endpoints (reuses existing Phase 2 endpoints: `GET/POST/PUT/DELETE /api/admin/destinations`).
+  - No paid SDKs (Google Maps Platform, Mapbox SDKs strictly prohibited).
+  - No GPS permissions or live location tracking.
+  - No permanent/hard deletion of destinations.
+  - Zero commits, zero pushes, no branch switching. Working tree changes left uncommitted for user review.
+
+### 79.2. Implementation Details
+
+1. **Web Map Infrastructure & Dependencies:**
+   - Added `flutter_map: ^7.0.2` and `latlong2: ^0.9.1` to `Travel_Planner/frontend/web/pubspec.yaml`.
+   - Created `MapConstants` (`lib/core/constants/map_constants.dart`): Configured CARTO Basemaps Voyager (`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`), subdomains `['a', 'b', 'c', 'd']`, user-agent package name, mandatory attribution string (`© OpenStreetMap contributors, © CARTO`), and neutral Vietnam centroid fallback (`LatLng(14.0583, 108.2772)`, zoom 6.0).
+   - Created `WebMapView` (`lib/shared/widgets/web_map_view.dart`): Reusable interactive Flutter Web map widget with `FlutterMap`, `TileLayer` (with `retinaMode: RetinaMode.isHighDensity(context)`), `MarkerLayer`, attribution pill, and tap/pin-dropping support.
+   - Enhanced `ApiClient` (`lib/core/network/api_client.dart`): Added HTTP `delete(String path, {String? token})` method with 401 interception via `globalOnUnauthorized`.
+   - Extended `ApiConstants` (`lib/core/constants/api_constants.dart`): Added `adminDestinationsEndpoint` (`/api/admin/destinations`) and `adminDestinationDetailEndpoint(int id)`.
+
+2. **Destination Data Layer:**
+   - Created `Destination` model and DTOs (`lib/features/locations/data/models/destination_model.dart`): Supports `destinationId`, `id` getter, `name`, `address`, `description`, `imageUrl`, nullable `latitude` and `longitude`, `status`, `hasCoordinates`, `coordinate`, `formattedCoordinates`, `isActive`, `isHidden`, `CreateDestinationRequest`, and `UpdateDestinationRequest`.
+   - Created `DestinationRepository` (`lib/features/locations/data/destination_repository.dart`): Implemented `getAdminDestinations({keyword, status, token})`, `getAdminDestinationById(id, {token})`, `createDestination(request, {token})`, `updateDestination(id, request, {token})`, and `deleteDestination(id, {token})` with automatic token resolution from `AuthStorage`.
+
+3. **Admin Destination UI Components:**
+   - Created `DestinationFormDialog` (`lib/features/locations/presentation/widgets/destination_form_dialog.dart`): Modal dialog supporting both creation and editing. Includes full field validation, coordinate pair validation, coordinate bounding box checks ($[-90, 90]$ and $[-180, 180]$), interactive mini-map with click-to-pin, double-submission protection (`_isSubmitting`), and server validation error rendering.
+   - Created `HideDestinationDialog` (`lib/features/locations/presentation/widgets/hide_destination_dialog.dart`): Soft-delete confirmation dialog clearly educating the administrator that the action sets `status = HIDDEN`, retains database records, and preserves existing activity references intact.
+   - Created `AdminDestinationsScreen` (`lib/features/locations/presentation/screens/admin_destinations_screen.dart`):
+     - Role guard: non-admin users receive a clear "Truy cập bị từ chối" banner.
+     - Search & Status filter bar: debounced search on name/address, status dropdown (`Tất cả`, `Đang hoạt động (ACTIVE)`, `Đã ẩn (HIDDEN)`).
+     - Responsive dual-pane layout: Master list on left with destination items, coordinate chips, status badges, and action buttons; Detail & interactive map preview on right displaying destination details, coordinates, marker, and CARTO/OSM attribution.
+     - Refresh action, "+ Thêm điểm đến" modal trigger, edit flow, and soft-delete flow.
+   - Integrated Navigation in `lib/main.dart`: Added direct "Điểm đến" button and menu item for `ADMIN` users on the Web Portal placeholder screen and AppBar.
+
+### 79.3. Verification & Test Results
+
+1. **Flutter Web Unit & Widget Test Suite:**
+   - Created `Travel_Planner/frontend/web/test/admin_destination_test.dart` containing 15 comprehensive unit and widget tests:
+     - `Destination.fromJson` complete active destination with coordinates.
+     - `Destination.fromJson` null coordinates and HIDDEN status.
+     - `CreateDestinationRequest.toJson` payload serialization.
+     - `UpdateDestinationRequest.toJson` serialization.
+     - `DestinationRepository.getAdminDestinations` with query params and Bearer token.
+     - `DestinationRepository.createDestination` POST request verification.
+     - `DestinationRepository.updateDestination` PUT request verification.
+     - `DestinationRepository.deleteDestination` DELETE request verification.
+     - `DestinationRepository` API error propagation as `ApiException`.
+     - `HideDestinationDialog` soft-delete warning rendering, cancel, and confirm actions.
+     - `DestinationFormDialog` required field validation (Name and Address).
+     - `DestinationFormDialog` coordinate pair rule and range validation.
+     - `DestinationFormDialog` edit mode pre-population and submission.
+     - `AdminDestinationsScreen` non-admin role guard ("Truy cập bị từ chối").
+     - `AdminDestinationsScreen` admin view rendering, list, details, status chips, and CARTO/OSM map attribution.
+   - Full Web test suite: **30 / 30 tests passed, 0 failures** (`flutter test`).
+   - Web static analysis: **0 errors, 0 warnings** (`flutter analyze`).
+
+2. **Cross-Project Regression Verification:**
+   - **Backend:** **157 / 157 tests passed, 0 failures, 0 errors, 0 skipped** (`mvnw test`).
+   - **Flutter Mobile:** **281 / 281 tests passed, 0 failures, 0 errors** (`flutter test`).
+
+### 79.4. Phase Status & Roadmap Completion
+- **Status:** **`PHASE 7 IMPLEMENTATION COMPLETE & VERIFIED`**.
+- **Map Integration Roadmap Status:** All Phases (Phase 0 through Phase 7) are now 100% complete, fully tested, and strictly free-tier compliant.

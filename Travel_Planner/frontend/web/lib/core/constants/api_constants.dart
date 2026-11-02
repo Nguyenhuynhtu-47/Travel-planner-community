@@ -15,4 +15,6 @@ class ApiConstants {
   static const String meEndpoint = '/api/auth/me';
   static const String currentProfileEndpoint = '/api/user/profile';
   static const String healthEndpoint = '/api/health';
+  static const String adminDestinationsEndpoint = '/api/admin/destinations';
+  static String adminDestinationDetailEndpoint(int id) => '/api/admin/destinations/$id';
 }

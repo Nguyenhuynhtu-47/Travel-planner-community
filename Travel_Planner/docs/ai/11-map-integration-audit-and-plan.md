@@ -1218,13 +1218,22 @@ $$\text{Create Activity} \longrightarrow \text{Pin Location} \longrightarrow \te
   - Add "Chỉ đường" button launching native navigation apps via universal free URL deep link (`https://www.google.com/maps/dir/?api=1&...`).
 - **Acceptance Criteria:** Day routes connect stops; fallback handles quota exhaustion cleanly; `url_launcher` compiles without issues and launches native Google Maps intent with properly formatted origin/destination/travelmode coordinates.
 
-### Phase 7: Flutter Web Admin Destination Management
+### Phase 7: Flutter Web Admin Destination Management [COMPLETED]
 - **Objective:** Implement destination catalog management on Flutter Web Admin.
 - **Cost Category:** `FREE SOFTWARE`.
-- **Web Tasks:**
-  - Add `flutter_map` to `frontend/web/pubspec.yaml`.
-  - Create `admin_destinations_screen.dart` with destination list and map picker consuming `/api/admin/destinations`.
-- **Acceptance Criteria:** Admin can view, create, and verify shared destination coordinates on Flutter Web.
+- **Status:** Completed and fully tested in Session 79.
+- **Web Tasks Completed:**
+  - Added `flutter_map: ^7.0.2` and `latlong2: ^0.9.1` to `frontend/web/pubspec.yaml`.
+  - Created `map_constants.dart` with CARTO Basemaps Voyager and neutral Vietnam centroid fallback.
+  - Created reusable `WebMapView` with `retinaMode: RetinaMode.isHighDensity(context)`, markers, attribution pill, and click-to-pin.
+  - Extended `ApiClient` with HTTP `delete` and 401 interception.
+  - Implemented `Destination` model and `DestinationRepository` consuming `/api/admin/destinations`.
+  - Created `DestinationFormDialog` with full input validation, coordinate pair rules, $[-90, 90]$ and $[-180, 180]$ bounds, and interactive mini-map.
+  - Created `HideDestinationDialog` for soft-deletion (`status = HIDDEN`) preserving database records and itinerary references.
+  - Created `AdminDestinationsScreen` with `ADMIN` role guard, debounced search, status filter (`ALL`, `ACTIVE`, `HIDDEN`), and responsive master-detail layout.
+  - Integrated navigation into Web Portal header and actions.
+  - Added 15 comprehensive unit and widget tests in `test/admin_destination_test.dart` (30/30 total web tests passing, 0 analyze issues).
+- **Acceptance Criteria:** Admin can view, create, edit, soft-delete, and verify shared destination coordinates on Flutter Web with zero paid services.
 
 ---
 
@@ -1298,8 +1307,16 @@ $$\text{Create Activity} \longrightarrow \text{Pin Location} \longrightarrow \te
 5. **Universal External Navigation:** Turn-by-turn routing is delegated to native Google Maps / Apple Maps apps via standard free deep links.
 6. **Explicit Governance:** Introducing any paid service or commercial upgrade requires explicit human approval from the project owner.
 
-### Recommended Next Step:
-Proceed to **Phase 0 (Setup & Configuration)** followed by **Phase 1 (Activity Location Data Model & DTOs)**.
+### Map Integration Roadmap Status:
+All roadmap phases (Phase 0 through Phase 7) are now **100% completed, fully tested, and verified**:
+- **Phase 0:** Setup & Configuration (Free CARTO Basemaps & Flutter Map foundation)
+- **Phase 1:** Activity Location Data Model & Three-State DTOs
+- **Phase 2:** Backend Location Services (LocationIQ proxy, Caffeine caching, Bucket4j rate limiting, Admin Destination CRUD)
+- **Phase 3:** Reusable Free Flutter Map Infrastructure (`AppMapView`)
+- **Phase 4:** Activity Location Picker with Offline Pin-Drop Fallback
+- **Phase 5:** Itinerary Detail Map View & Day-by-Day Activity Markers
+- **Phase 6:** Per-Day Route Calculation & Navigation Deep Links (OpenRouteService, Haversine fallback, Google Maps intent)
+- **Phase 7:** Flutter Web Admin Destination Management (Role-guarded CRUD, interactive web map, soft-delete safety)
 
 ---
 *Report compiled, refined, and verified against the Travel Planner codebase. All terms and pricing verified as of October 2026.*
