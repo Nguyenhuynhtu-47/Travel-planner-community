@@ -3029,3 +3029,125 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
   - `Travel_Planner/docs/ai/09-development-log.md`
 - **Source Code Integrity:** Verified with `git status` that zero application code, dependencies, XML/YAML files, or database schemas were modified.
 - **Status:** **`READY FOR IMPLEMENTATION (PENDING PHASE 0 APPROVAL)`**. All planning, audit, and polish tasks are complete. Implementation remains halted awaiting explicit human approval.
+
+
+## 67. Session Entry: Map Integration Phase 0 — Free Map Environment Setup & Configuration (2026-11-02)
+
+### 67.1. Objective and Scope
+- **Objective:** Implement **Phase 0 — Free Map Environment Setup & Configuration** exactly as specified in the approved map integration plan (`docs/ai/11-map-integration-audit-and-plan.md`).
+- **Git Branch:** `map`.
+- **Target Subsystem:** Flutter Mobile (`Travel_Planner/frontend/mobile`).
+- **Strict Scope Boundaries:**
+  - Added only `flutter_map` and `latlong2` dependencies.
+  - Confined strictly to Phase 0 setup and base infrastructure; `url_launcher` was omitted (deferred to Phase 6).
+  - Zero modifications to backend source code, `pom.xml`, application properties, or database schemas.
+  - Zero modifications to web frontend or unrelated mobile screens.
+  - Zero geocoding, search, routing, caching, or rate limiting implementations.
+  - Zero location permission prompts or GPS tracking code introduced.
+
+### 67.2. Implementation Details
+1. **Dependency Management (`frontend/mobile/pubspec.yaml`):**
+   - Added `flutter_map: ^7.0.2` (MIT) and `latlong2: ^0.9.1` (Apache 2.0).
+   - Resolved dependencies cleanly with `flutter pub get` on Flutter 3.47.7 / Dart 3.13.5 with zero dependency conflicts.
+   - Updated `pubspec.lock`.
+
+2. **Centralized Map Constants (`frontend/mobile/lib/core/constants/map_constants.dart`):**
+   - Defined `tileUrlTemplate` defaulting to CARTO Basemaps Voyager (`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`) configurable via `--dart-define=MAP_TILE_URL_TEMPLATE`.
+   - Defined `tileAttribution` defaulting to `© OpenStreetMap contributors, © CARTO` configurable via `--dart-define=MAP_TILE_ATTRIBUTION`.
+   - Defined configurable application-wide fallback camera coordinates (`DEFAULT_MAP_LATITUDE: 16.0544`, `DEFAULT_MAP_LONGITUDE: 107.9843`, `DEFAULT_MAP_ZOOM: 6.0`) avoiding fixed city assumptions.
+   - Implemented double parsing from environment strings via `double.tryParse` with safe fallback defaults, adhering to Dart language specifications (where `double.fromEnvironment` is not part of `dart:core`).
+   - Exposed `fallbackCoordinates` helper getter returning `LatLng(fallbackLatitude, fallbackLongitude)`.
+   - Defined zoom bounds (`minZoom: 2.0`, `maxZoom: 19.0`), `defaultSubdomains: ['a', 'b', 'c', 'd']`, and `userAgentPackageName: 'com.travelplanner.mobile'`.
+
+3. **Tile Provider Configuration Decoupling (`frontend/mobile/lib/core/constants/map_tile_provider_config.dart`):**
+   - Created `MapTileProviderConfig` to isolate tile source specifications (endpoints, subdomains, headers, zoom bounds, attribution) from map UI widgets.
+   - Provided factory constructors:
+     - `MapTileProviderConfig.defaultProvider()`: loads defaults from `MapConstants`.
+     - `MapTileProviderConfig.carto({flavor})`: easily selects CARTO styles (`voyager`, `positron`, `dark_all`).
+     - `MapTileProviderConfig.openStreetMapDev()`: restricted to manual low-volume local development without subdomains.
+   - Encapsulated `buildTileLayer()` and `buildAttributionWidget()` logic, including mutable header mapping for `NetworkTileProvider` and automatic retina `{r}` placeholder handling (`retinaMode: urlTemplate.contains('{r}')`).
+   - Added `silenceExceptions` support to gracefully handle offline states and test environments without unhandled network exceptions.
+
+4. **Base Map Component (`frontend/mobile/lib/shared/widgets/app_base_map.dart`):**
+   - Created `AppBaseMap` wrapping `FlutterMap` with `tileProviderConfig`, `initialCenter` (defaulting to `MapConstants.fallbackCoordinates`), and `initialZoom` (defaulting to `MapConstants.fallbackZoom`).
+   - Configured `RichAttributionWidget` with `AttributionAlignment.bottomRight` and toggleable `showAttribution`.
+   - Included extensibility for child layers (`children: List<Widget>`) for upcoming marker and polyline phases.
+   - Verified 100% operation without requesting or requiring location permissions.
+
+5. **Phase 0 Smoke Tests (`frontend/mobile/test/map_smoke_test.dart`):**
+   - Implemented 10 comprehensive unit and widget tests:
+     - Verifies `MapConstants` fallback defaults and tile endpoint configuration.
+     - Verifies `MapTileProviderConfig` provider swapping and layer construction without UI widget changes.
+     - Verifies `AppBaseMap` initialization and rendering with fallback camera center and zoom.
+     - Verifies `AppBaseMap` custom camera coordinates, custom provider config, overlay child widgets, attribution toggle, and non-blocking operation without permissions.
+
+### 67.3. Quality & Verification
+- **`flutter pub get`:** Successfully resolved all 11 new transitive packages with 0 conflicts.
+- **`flutter analyze`:**
+  - Baseline issues: 1 info (`unnecessary_underscores` in `test/filter_bottom_sheet_test.dart:25:43`).
+  - Newly introduced issues: **0 warnings, 0 errors, 0 hints**.
+- **`flutter test`:**
+  - Ran `test/map_smoke_test.dart`: 10/10 passed in 0 seconds.
+  - Ran full mobile test suite: **178/178 tests passed** (168 baseline tests + 10 new smoke tests). Zero regressions.
+- **Git State:**
+  - Modified files: `pubspec.yaml`, `pubspec.lock`.
+  - Created files: `lib/core/constants/map_constants.dart`, `lib/core/constants/map_tile_provider_config.dart`, `lib/shared/widgets/app_base_map.dart`, `test/map_smoke_test.dart`.
+  - Zero commits or branch changes made.
+
+### 67.4. Phase Status
+- **Status:** **`PHASE 0 COMPLETE`**. Free map environment setup, constants, decoupled tile provider config, base map component, and smoke tests are fully verified.
+- **Next Step:** Await explicit approval to proceed to **Phase 1: Activity Location Data Support & Schema Evolution** (backend entity additive columns, coordinate bounds validation, request/response DTOs, and mobile model updates).
+
+
+## 68. Session Entry: Final Phase 0 Review — Neutral Fallback Camera & Mandatory Attribution Safety (2026-11-02)
+
+### 68.1. Objective and Scope
+- Conducted the final review of Phase 0 implementation against `docs/ai/11-map-integration-audit-and-plan.md` focusing exclusively on two critical items:
+  1. **Neutral Fallback Camera Coordinates:** Replaced legacy Da Nang coordinates (`16.0544, 107.9843`) with the neutral national geographic centroid of Vietnam (`14.0583, 108.2772`), fully aligning with the approved architectural principle of avoiding any single-city bias.
+  2. **Mandatory Tile Attribution Safety:** Strengthened `AppBaseMap` and `MapTileProviderConfig` to guarantee that legally required tile provider attribution (CARTO Basemaps and OpenStreetMap under ODbL) cannot be accidentally hidden or dropped during normal screen development.
+- **Strict Scope Boundaries:**
+  - Zero backend, database, API, or model changes.
+  - No new dependencies added (`url_launcher` remains deferred to Phase 6).
+  - No GPS permissions or location tracking introduced.
+  - Phase 1 and later phases remain unstarted.
+
+### 68.2. Implementation Details
+1. **Neutral Country Centroid Fallback (`MapConstants.dart`):**
+   - Replaced `16.0544, 107.9843` with the ISO/UN national geographic centroid of Vietnam: `14.0583° N, 108.2772° E` at zoom `6.0`.
+   - Exposed `neutralCountryCentroidLatitude` (14.0583), `neutralCountryCentroidLongitude` (108.2772), and `neutralCountryCentroidZoom` (6.0).
+   - Preserved full compile/run-time configurability via `--dart-define=DEFAULT_MAP_LATITUDE`, `--dart-define=DEFAULT_MAP_LONGITUDE`, and `--dart-define=DEFAULT_MAP_ZOOM`.
+   - Synchronized documentation snippet in `docs/ai/11-map-integration-audit-and-plan.md`.
+
+2. **Camera Priority Architecture in Base Map (`AppBaseMap.dart`):**
+   - Implemented three-tier camera hierarchy:
+     - **Priority 1 (User Current Location):** When GPS coordinates are acquired, caller supplies `initialCenter` (GPS point) and `initialZoom` (~14.0 street level).
+     - **Priority 2 (Contextual Coordinates / Bounds):** Added `initialCameraFit` parameter (`CameraFit`) taking precedence in `FlutterMap` to frame all active stops or destination areas.
+     - **Priority 3 (Neutral Configurable Fallback):** When neither `initialCameraFit` nor `initialCenter` is supplied, camera centers on `MapConstants.fallbackCoordinates` (`14.0583, 108.2772` at zoom `6.0`).
+   - Confirmed zero location permission prompts or background GPS polling.
+
+3. **Safe Mandatory Attribution Design (`MapTileProviderConfig.dart` & `AppBaseMap.dart`):**
+   - Centralized `requiresAttribution` (boolean) on `MapTileProviderConfig` (set to `true` for CARTO Basemaps and OpenStreetMap).
+   - Protected attribution in `AppBaseMap`: if `tileProviderConfig.requiresAttribution` is `true`, `showAttribution: false` does NOT hide attribution. Required attribution is safely preserved unless an alternative `customAttributionWidget` is explicitly supplied.
+   - For providers where `requiresAttribution: false` (e.g., in-house self-hosted private tiles), `showAttribution: false` successfully suppresses the attribution badge.
+   - Maintained `attributionAlignment` (e.g. `bottomLeft`) so screens with bottom-right floating action buttons can relocate the attribution badge without hiding it.
+   - Handled empty attribution strings gracefully with `const SizedBox.shrink()`.
+
+4. **Expanded Smoke Tests (`test/map_smoke_test.dart`):**
+   - Expanded test suite from 10 to 14 focused tests:
+     - Verified `MapConstants` fallback matches `14.0583, 108.2772` and zoom `6.0`.
+     - Verified Priority 1 explicit coordinates (`initialCenter`, `initialZoom`).
+     - Verified Priority 2 contextual itinerary bounds framing (`initialCameraFit`).
+     - Verified Priority 3 fallback to national centroid when coordinates are omitted.
+     - Verified safe attribution design: `showAttribution: false` does not hide required CARTO/OSM attribution.
+     - Verified custom provider `requiresAttribution: false` respects `showAttribution: false`.
+     - Verified `customAttributionWidget` overrides default badge for custom screen UI.
+     - Verified `AttributionAlignment.bottomLeft` badge repositioning.
+
+### 68.3. Verification Results
+- **`flutter analyze`:** Clean exit with 0 new issues (1 pre-existing info in `filter_bottom_sheet_test.dart`).
+- **`flutter test test/map_smoke_test.dart`:** 14/14 tests passed in < 1 second.
+- **`flutter test` (Full Suite):** 182/182 tests passed across the entire mobile test suite. Zero regressions.
+- **Git State:** Verified clean separation; only Phase 0 files modified/created. No commits or pushes made.
+
+### 68.4. Phase Status
+- **Status:** **`PHASE 0 FINALIZED & VERIFIED`**. Fallback camera coordinates are neutral and configurable; map attribution is legally protected against accidental omission.

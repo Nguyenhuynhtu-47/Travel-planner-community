@@ -1,4 +1,4 @@
-﻿# Map Integration Audit and Implementation Plan — Strictly Free Services & Cost-Controlled Architecture
+# Map Integration Audit and Implementation Plan — Strictly Free Services & Cost-Controlled Architecture
 
 ## 1. Executive Summary: Free-Only Strategy & Cost Boundaries
 
@@ -1120,9 +1120,13 @@ $$\text{Create Activity} \longrightarrow \text{Pin Location} \longrightarrow \te
         defaultValue: '© OpenStreetMap contributors, © CARTO',
       );
       // Configurable application-wide fallback coordinates (Priority 3 fallback when GPS & contextual coords are unavailable)
-      static const double fallbackLatitude = double.fromEnvironment('DEFAULT_MAP_LATITUDE', defaultValue: 16.0544);
-      static const double fallbackLongitude = double.fromEnvironment('DEFAULT_MAP_LONGITUDE', defaultValue: 107.9843);
-      static const double fallbackZoom = double.fromEnvironment('DEFAULT_MAP_ZOOM', defaultValue: 6.0);
+      // Defaults to the neutral national geographic centroid of Vietnam (zoom ~6.0) without assuming a fixed city
+      static const String _defaultLatEnv = String.fromEnvironment('DEFAULT_MAP_LATITUDE', defaultValue: '14.0583');
+      static const String _defaultLngEnv = String.fromEnvironment('DEFAULT_MAP_LONGITUDE', defaultValue: '108.2772');
+      static const String _defaultZoomEnv = String.fromEnvironment('DEFAULT_MAP_ZOOM', defaultValue: '6.0');
+      static double get fallbackLatitude => double.tryParse(_defaultLatEnv) ?? 14.0583;
+      static double get fallbackLongitude => double.tryParse(_defaultLngEnv) ?? 108.2772;
+      static double get fallbackZoom => double.tryParse(_defaultZoomEnv) ?? 6.0;
     }
     ```
   - Create a basic smoke test widget to verify that `flutter_map` initializes and renders on device/emulator without platform channel errors.
