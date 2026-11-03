@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobile/core/network/api_client.dart';
@@ -237,6 +238,33 @@ void main() {
       expect(markers.length, equals(2));
       expect(markers[0].point.latitude, equals(11.9431));
       expect(markers[1].point.latitude, equals(11.9404));
+    });
+
+    test('buildActivityMarkers applies radial offset when multiple stops have identical coordinates', () {
+      final stop1 = MappedActivityStop(
+        activity: testItinerary.days[0].activities[0],
+        day: testItinerary.days[0],
+        sequence: 1,
+        point: LatLng(16.0, 108.0),
+      );
+      final stop2 = MappedActivityStop(
+        activity: testItinerary.days[1].activities[0],
+        day: testItinerary.days[1],
+        sequence: 1,
+        point: LatLng(16.0, 108.0),
+      );
+
+      final markers = ItineraryMapHelper.buildActivityMarkers(
+        stops: [stop1, stop2],
+        isMultiDay: true,
+      );
+
+      expect(markers.length, equals(2));
+      // Stop points should be offset and not identically equal to each other so earlier days are not hidden
+      expect(markers[0].point, isNot(equals(markers[1].point)));
+      // Both markers should remain in the immediate vicinity (~25 meters)
+      expect((markers[0].point.latitude - 16.0).abs(), lessThan(0.0003));
+      expect((markers[1].point.latitude - 16.0).abs(), lessThan(0.0003));
     });
   });
 

@@ -1237,8 +1237,8 @@ $$\text{Create Activity} \longrightarrow \text{Pin Location} \longrightarrow \te
   - Display single marker pin when only 1 stop has coordinates (`INSUFFICIENT_WAYPOINTS`).
 - **Acceptance Criteria:** Changing day filters markers; camera animates to fit active day coordinates.
 
-### Phase 6: Per-Day Route Calculation & Free Navigation Deep Links
-- **Objective:** Calculate road routes between activities within an itinerary day, with automatic straight-line fallback and free external navigation.
+### Phase 6: Per-Day Route Calculation, Multi-Day Route Visualization & Free Navigation Deep Links
+- **Objective:** Calculate road routes between activities within each itinerary day and across the entire itinerary in "Tất cả" mode, with automatic straight-line fallback, in-memory caching, and free external navigation.
 - **Cost Category:** `FREE TIER` (OpenRouteService) + `FREE SOFTWARE` (Local Haversine & Google Maps URL deep links).
 - **Backend Tasks:**
   - Create `RouteService` and `RouteController` (`GET /api/itineraries/{id}/days/{dayId}/route`).
@@ -1250,8 +1250,16 @@ $$\text{Create Activity} \longrightarrow \text{Pin Location} \longrightarrow \te
 - **Mobile Tasks:**
   - Add `url_launcher: ^6.3.1` (BSD-3-Clause) to `frontend/mobile/pubspec.yaml` to launch external navigation intents.
   - Render solid polyline for `ACTUAL_ROAD` and dashed amber line for `ESTIMATED_INDICATIVE`.
+  - **Full Multi-Day Route Visualization Across All Days ("Tất cả" mode):**
+    - Concurrently fetch routes for each day with $\ge 2$ coordinates via `Future.wait`.
+    - Maintain an in-memory cache `Map<int, RouteResponse> _routesByDay` keyed by `dayNumber`, automatically cleared on travel mode switches.
+    - Render distinct, separate `Polyline` instances for each day using that day's theme color (`ItineraryMapHelper.getDayColor(dayNumber)`), matching the marker pins (`D1`, `D2`, etc.).
+    - Strictly prohibit drawing artificial straight lines between the end of Day $K$ and start of Day $K+1$.
+    - Aggregate total road distance and total duration across all days in floating route summary card.
+    - Handle per-day errors gracefully: if Day 1 fails, Day 2 still renders its polyline and all markers remain intact.
+    - Automatically fit camera bounds across all located activities and route geometry.
   - Add "Chỉ đường" button launching native navigation apps via universal free URL deep link (`https://www.google.com/maps/dir/?api=1&...`).
-- **Acceptance Criteria:** Day routes connect stops; fallback handles quota exhaustion cleanly; `url_launcher` compiles without issues and launches native Google Maps intent with properly formatted origin/destination/travelmode coordinates.
+- **Acceptance Criteria:** Day routes connect stops; All-days mode displays full journey across all days with day-specific colors and no artificial bridges; fallback handles quota exhaustion cleanly; `url_launcher` compiles without issues and launches native Google Maps intent with properly formatted origin/destination/travelmode coordinates.
 
 ### Phase 7: Flutter Web Admin Destination Management [COMPLETED]
 - **Objective:** Implement destination catalog management on Flutter Web Admin.
@@ -1352,6 +1360,50 @@ All roadmap phases (Phase 0 through Phase 7) are now **100% completed, fully tes
 - **Phase 5:** Itinerary Detail Map View & Day-by-Day Activity Markers
 - **Phase 6:** Per-Day Route Calculation & Navigation Deep Links (OpenRouteService, Haversine fallback, Google Maps intent)
 - **Phase 7:** Flutter Web Admin Destination Management (Role-guarded CRUD, interactive web map, soft-delete safety)
+
+---
+
+## 19. Multi-Day Route Visualization & Co-Located Coordinate Audit (Session 82)
+
+### 19.1 Observed Issues & Root Cause Analysis
+
+During real-device Android testing on multi-day itineraries (specifically target Itinerary 262: *"Hành Trình Di Sản Miền Trung: Đà Nẵng - Hội An 4N3Đ"*), four distinct issues were identified and audited:
+
+| Observed Problem | Symptoms | Root Cause |
+| :--- | :--- | :--- |
+| **A. Missing Road Polylines** | Neither All-Days nor single-day mode displayed connecting road lines; card showed text like *"Khoảng cách đường chi..."*. | When `OPENROUTESERVICE_API_KEY` is unset or empty, backend returns `status: "FALLBACK"` with empty road geometry (`[]`). Single-line truncation (`maxLines: 1`) on mobile viewports clipped fallback text. |
+| **B. Unchanged Markers Across Days** | Selecting Day 1, 2, 3, or 4 displayed markers at identical positions. | `DataSeeder.java` ignored `dayNum` when seeding activities for Đà Nẵng, assigning the exact same 3 destinations to every day. |
+| **C. Day 4 ("D4") Occlusion** | In "Tất cả" mode, only `D4` markers were visible on the map. | Because Days 1–4 had identical coordinates, Day 4 markers (rendered last in iteration order) painted directly on top of Days 1–3, occluding them completely. |
+| **D. Summary Card Clipping** | Distance and duration text clipped with ellipsis on 360–390dp devices. | Fixed-width and single-line constraints with horizontal action button left only ~178dp for two strings. |
+
+### 19.2 Solution Architecture & Implementation
+
+#### 1. Backend Seeder & Database Realism (`DataSeeder.java` & MySQL)
+- Expanded the destination catalog with 4 distinct real Đà Nẵng attractions:
+  - *Bãi Biển Mỹ Khê & Cầu Rồng* (`16.0611, 108.2280`)
+  - *Chợ Đêm Sơn Trà* (`16.0615, 108.2320`)
+  - *Danh Thắng Ngũ Hành Sơn* (`16.0042, 108.2635`)
+  - *Chợ Hàn Đà Nẵng* (`16.0682, 108.2246`)
+- Refactored `seedActivitiesForDay` to branch on `dayNum`, providing genuine, distinct activities and destinations across all 4 days.
+- Updated MySQL database records for Itinerary 262 (activities 19..30 across days 9..12) to match real geographic positions.
+
+#### 2. Co-Located Coordinate Jitter Algorithm (`ItineraryMapHelper.dart`)
+- To prevent complete marker occlusion if any future itinerary has activities at identical coordinates:
+  - In `buildActivityMarkers`, detect co-located coordinates ($N > 1$).
+  - For duplicate coordinates, apply a small deterministic radial offset:
+    $$\Delta \text{lat} = R \cdot \cos\left(\frac{2\pi \cdot k}{N}\right), \quad \Delta \text{lng} = \frac{R}{\cos(\text{lat}_{\text{rad}})} \cdot \sin\left(\frac{2\pi \cdot k}{N}\right)$$
+    where $R \approx 0.00018^\circ$ (~18–20 meters).
+  - Ensures all markers at the same address remain individually visible, labeled (`D1`, `D2`, etc.), and tappable.
+
+#### 3. Responsive Route Card & Multi-Day Fallback Handling (`ItineraryMapScreen.dart`)
+- Replaced `maxLines: 1` with `maxLines: 2` and flexible column wrapping across road and fallback route cards.
+- Supported All-Days fallback aggregation: sums `directDistanceMeters` across all days when external road routing is unconfigured or in fallback state.
+- Route card visibility logic checks `hasRoadOrFallback` to ensure fallback information is presented cleanly without truncation.
+
+### 19.3 Architecture Constraints Compliance
+- **Strict Free-First & Zero Paid Dependencies:** OpenRouteService remains free-tier optional; Haversine straight-line calculation operates entirely offline.
+- **No Artificial Cross-Day Lines:** Days remain strictly isolated in polyline rendering.
+- **No Unsanctioned Public Routing Abuse:** Public OSRM demo servers are never contacted as an unconfigured fallback.
 
 ---
 *Report compiled, refined, and verified against the Travel Planner codebase. All terms and pricing verified as of October 2026.*

@@ -11,6 +11,8 @@ Trong PowerShell, khai báo các biến trước khi khởi động backend:
 $env:CLOUDINARY_CLOUD_NAME="rk7uzrlv"
 $env:CLOUDINARY_API_KEY="959193589611582"
 $env:CLOUDINARY_API_SECRET="WQABx6A8CdWfEfWULvGdMtkOJmQ"
+$env:OPENROUTESERVICE_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjU5NjY0MjQ4MjFlOTQxYTlhNjhlY2MxMGQ2YjM2OTI5IiwiaCI6Im11cm11cjY0In0="
+
 cd Travel_Planner/backend
 .\mvnw.cmd spring-boot:run
 

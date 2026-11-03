@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
@@ -139,20 +141,49 @@ class ItineraryMapHelper {
   /// Builds a list of [Marker] objects for the given mapped stops using [MapMarkerBuilder].
   ///
   /// When [isMultiDay] is true, stops display day pill badges (`D1`, `D2`) and day-specific colors.
+  /// Overlapping/co-located stops from identical coordinates are offset in a small radial circle
+  /// so each day's marker remains visible, identifiable, and individually tappable.
   static List<Marker> buildActivityMarkers({
     required List<MappedActivityStop> stops,
     bool isMultiDay = false,
     ActivityDetail? selectedActivity,
     void Function(MappedActivityStop stop)? onStopTapped,
   }) {
+    // Count occurrences of identical (or near-identical) coordinates
+    final coordinateCounts = <String, int>{};
+    final coordinateIndices = <String, int>{};
+    for (final stop in stops) {
+      final key =
+          '${stop.point.latitude.toStringAsFixed(5)},${stop.point.longitude.toStringAsFixed(5)}';
+      coordinateCounts[key] = (coordinateCounts[key] ?? 0) + 1;
+    }
+
     return stops.map((stop) {
       final isSelected = selectedActivity?.activityId == stop.activity.activityId;
       final pinColor = isMultiDay
           ? getDayColor(stop.day.dayNumber)
           : AppColors.primary;
 
+      final key =
+          '${stop.point.latitude.toStringAsFixed(5)},${stop.point.longitude.toStringAsFixed(5)}';
+      final totalAtCoord = coordinateCounts[key] ?? 1;
+      final indexAtCoord = coordinateIndices[key] ?? 0;
+      coordinateIndices[key] = indexAtCoord + 1;
+
+      LatLng markerPoint = stop.point;
+      if (totalAtCoord > 1) {
+        // Offset multiple pins at identical coordinates in a small radial circle (~18m)
+        // so that co-located stops or multi-day return stops do not occlude earlier days
+        final angle = (2 * math.pi * indexAtCoord) / totalAtCoord;
+        const radiusDegrees = 0.00018; // ~20 meters
+        markerPoint = LatLng(
+          stop.point.latitude + radiusDegrees * 0.7 * math.sin(angle),
+          stop.point.longitude + radiusDegrees * math.cos(angle),
+        );
+      }
+
       return MapMarkerBuilder.buildStopMarker(
-        point: stop.point,
+        point: markerPoint,
         sequence: stop.sequence,
         dayBadge: isMultiDay ? 'D${stop.day.dayNumber}' : null,
         pinColor: isSelected ? const Color(0xFF1E293B) : pinColor,

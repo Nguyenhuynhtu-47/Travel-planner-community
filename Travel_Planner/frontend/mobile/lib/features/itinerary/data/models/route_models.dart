@@ -92,19 +92,23 @@ class RouteResponse {
   /// Formats road distance into user-friendly Vietnamese notation.
   String get formattedRoadDistance {
     if (totalDistanceMeters == null) return '';
-    return _formatDistance(totalDistanceMeters!);
+    return formatDistance(totalDistanceMeters!);
   }
 
   /// Formats straight-line Haversine distance into user-friendly Vietnamese notation.
   String get formattedDirectDistance {
     if (directDistanceMeters == null) return '';
-    return _formatDistance(directDistanceMeters!);
+    return formatDistance(directDistanceMeters!);
   }
 
   /// Formats estimated duration into user-friendly Vietnamese notation (hours and minutes).
   String get formattedDuration {
     if (totalDurationSeconds == null) return '';
-    final totalMinutes = (totalDurationSeconds! / 60.0).round();
+    return formatDuration(totalDurationSeconds!);
+  }
+
+  static String formatDuration(double totalDurationSeconds) {
+    final totalMinutes = (totalDurationSeconds / 60.0).round();
     if (totalMinutes < 1) return '< 1 phút';
     if (totalMinutes < 60) return '$totalMinutes phút';
     final hours = totalMinutes ~/ 60;
@@ -112,7 +116,7 @@ class RouteResponse {
     return mins == 0 ? '$hours giờ' : '$hours giờ $mins phút';
   }
 
-  static String _formatDistance(double meters) {
+  static String formatDistance(double meters) {
     if (meters < 1000) {
       return '${meters.round()} m';
     }

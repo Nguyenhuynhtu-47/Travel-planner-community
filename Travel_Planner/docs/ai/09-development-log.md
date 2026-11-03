@@ -4040,3 +4040,147 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 80.4. Status & Next Steps
 - **Status:** **`CARTO BASEMAP API KEY AUTHENTICATION FIXED & FULLY VERIFIED`**.
 - **Scope Confirmation:** Working tree changes left uncommitted for user review. No API keys committed to Git. Ready for local deployment and user testing.
+
+---
+
+## 81. Session 81 — Full Itinerary Route Visualization Across All Days (2026-11-03)
+
+### 81.1. Objectives & Scope
+- **Task:** Implement full itinerary route visualization across all days in the full-screen map screen (`ItineraryMapScreen`).
+- **Core Requirements:**
+  1. **All Days Mode ("Tất cả"):**
+     - Display all activity markers with coordinates across all days, ordered Day 1 $\rightarrow$ Day $N$ and in activity display sequence (`orderIndex` / `sequence`) within each day.
+     - Automatically query and render road routes for all eligible days ($\ge 2$ located stops) concurrently via `Future.wait`.
+     - Render separate, distinct `Polyline` instances per day styled with that day's distinct theme color (`ItineraryMapHelper.getDayColor(dayNumber)`), visually matching the day badges (`D1`, `D2`, etc.).
+     - Strictly avoid connecting the end of Day $K$ to the start of Day $K+1$ with artificial straight lines.
+     - Frame camera bounds (`_recenterCamera()`) to encapsulate all mapped activity stops and all road polyline points across all days.
+     - Display floating route summary card with aggregated road distance and total duration across all days, with travel mode toggles (`driving`, `walking`, `cycling`) and Google Maps deep link navigation.
+  2. **Single Day Mode (e.g., "Ngày 2"):**
+     - Display only markers and polylines belonging to that specific day.
+     - Hide all markers and polylines from other days.
+  3. **Missing Coordinates Handling:**
+     - Activities without valid coordinates are gracefully skipped from route calculation.
+     - Preserves the missing coordinates counter badge and empty-state overlays.
+  4. **Performance, In-Memory Caching & Fault Tolerance:**
+     - In-memory cache `Map<int, RouteResponse> _routesByDay` keyed by `dayNumber`. Switching tabs (e.g., "Tất cả" $\leftrightarrow$ "Ngày 2") serves routes directly from cache without duplicate network requests.
+     - Switching travel mode automatically purges the cache and recalculates routes for the active view.
+     - Per-day fault isolation: if one day fails (e.g., HTTP 500 or timeout), other days continue to render their polylines and all markers remain visible without crashing the map canvas.
+
+### 81.2. Implementation Details
+
+1. **Route Models Refinement (`route_models.dart`):**
+   - Refactored distance and duration formatters into public static helper methods:
+     - `RouteResponse.formatDistance(double meters)`: Formats meters ($< 1000\text{m}$ as `X m`, $< 10\text{km}$ as `X.X km`, $\ge 10\text{km}$ as `X km`).
+     - `RouteResponse.formatDuration(double totalDurationSeconds)`: Formats seconds into `< 1 phút`, `M phút`, `H giờ`, or `H giờ M phút`.
+   - Reused across single-day `RouteResponse` getters and multi-day aggregated totals.
+
+2. **Full-Screen Interactive Map (`itinerary_map_screen.dart`):**
+   - Replaced single `RouteResponse? _routeResponse` with `Map<int, RouteResponse> _routesByDay`, `Set<int> _loadingDayNumbers`, and `Map<int, String> _errorsByDay`.
+   - Implemented `_loadRouteForDay(int dayNumber)` and `_loadRoutesForAllDays()`:
+     - Detects days with $< 2$ valid stops and flags them as `INSUFFICIENT_WAYPOINTS` in cache to eliminate redundant network traffic.
+     - Concurrently fetches pending days using `Future.wait` with per-day `try-catch` isolation.
+   - Implemented `_onTravelModeChanged(String newMode)`:
+     - Clears cached routes and re-queries for the active view in the newly selected mode.
+   - Implemented `didUpdateWidget`:
+     - Listens for changes to `widget.itinerary` and re-synchronizes routes and markers.
+   - Multi-day and single-day polyline rendering:
+     - Single-day mode: Renders polyline for `_selectedDayNumber` with standard primary route blue (`#2563EB`).
+     - All-days mode: Loops through `itinerary.days` and creates separate `Polyline` widgets with `ItineraryMapHelper.getDayColor(day.dayNumber)`. Days are strictly decoupled without artificial cross-day line segments.
+   - Dynamic Floating Card & API Key Banner Positioning:
+     - Added `_isRouteCardVisible(stops)` to dynamically adjust `apiKeyBannerTopOffset` to prevent banner collisions.
+     - Multi-day route summary card displays aggregated distance, duration, travel mode switches, and launches native navigation.
+
+### 81.3. Verification & Test Results
+
+1. **Flutter Mobile Test Suite:**
+   - Updated `Travel_Planner/frontend/mobile/test/itinerary_route_test.dart`:
+     - Added test group `Multi-Day Route Visualization Across All Days Tests`:
+       - `All-days mode fetches routes for all days and renders separate polylines with day colors`: Verifies concurrent requests, 2 distinct polylines with Day 1 & Day 2 colors, 4 markers with `D1`/`D2` badges, and aggregated 7.0 km distance.
+       - `Switching from All-Days mode to Day 2 displays only Day 2 markers and polyline with cache hit`: Verifies 0 duplicate network calls, filtering of markers and polylines, and subsequent return to All-Days mode from cache.
+       - `Partial route error: Day 1 fails with HTTP 500, Day 2 succeeds -> Day 2 polyline still renders`: Verifies fault tolerance and partial success rendering.
+       - `Mode switching in All-Days mode clears cache and re-requests both days in new mode`: Verifies travel mode change re-fetches for all days.
+   - Mobile test suite: **303 / 303 tests passed, 0 failures** (`flutter test`).
+   - Mobile static analysis: **0 errors, 0 warnings** (`flutter analyze`).
+
+2. **Cross-Project Regression Verification:**
+   - **Flutter Web:** **39 / 39 tests passed, 0 failures** (`flutter test`).
+   - **Backend:** **157 / 157 tests passed, 0 failures, 0 errors, 0 skipped** (`mvnw test`).
+
+### 81.4. Status
+- **Status:** **`FULL ITINERARY ROUTE VISUALIZATION ACROSS ALL DAYS COMPLETED & FULLY VERIFIED`**.
+- **Scope Confirmation:** Working tree changes left uncommitted for user review. No commits, no pushes. Ready for local deployment and testing.
+
+---
+
+## 82. Session 82 — Audit & Fix: Multi-Day Route Visualization & Coordinate Co-Location (2026-11-03)
+
+### 82.1. Objectives & Real-Device Bug Investigation
+- **Context:** Real Android device testing revealed several issues in the full-screen itinerary map for multi-day itineraries (specifically target Itinerary 262: *"Hành Trình Di Sản Miền Trung: Đà Nẵng - Hội An 4N3Đ"*):
+  1. **Problem A: Missing Route Polylines & Text Truncation:** Polylines did not appear on map; route summary card displayed truncated strings (e.g. *"Khoảng cách đường chi..."*, *"Tuyến đường bộ tạm thời k..."*).
+  2. **Problem B: Identical Marker Coordinates Across Days:** Switching between Day 1, Day 2, Day 3, and Day 4 showed markers at the exact same geographic positions.
+  3. **Problem C: Day Labels Displayed as D4 on All Markers:** In the compact All-Days map view, all visible markers showed `D4` badges instead of representing Days 1 through 4.
+  4. **Problem D: Route Summary Card Overflow:** Mobile viewports (360–390dp) suffered from severe text truncation due to single-line constraints and mode switcher button layout.
+
+### 82.2. Root Cause Analysis
+1. **Data Seed Duplication (Problems B & C):**
+   - In `DataSeeder.java`, the activity generation method `seedActivitiesForDay` ignored the `dayNum` parameter when seeding activities for Đà Nẵng, repeatedly creating activities with destination IDs 12, 11, and 10 across all 4 days.
+   - Because all 4 days had identical coordinates, Day 4's markers (`D4`), which were painted last during canvas iteration, rendered directly on top of Days 1, 2, and 3, completely occluding them.
+2. **Missing Road Polylines vs Fallback State (Problem A):**
+   - The backend `RouteServiceImpl` returns `status: "FALLBACK"` and empty road geometry (`[]`) when `OPENROUTESERVICE_API_KEY` is not set or invalid.
+   - Architecture constraints strictly prohibit automated fallback to public OSRM demo servers (`router.project-osrm.org`) to protect against SLA violations and Terms-of-Use abuse.
+   - Flutter received empty road coordinates, rendering no polyline, while the fallback card text was truncated with single-line ellipsis (`maxLines: 1`).
+3. **Card Width & Text Clipping (Problem D):**
+   - On 360–390dp mobile screens, horizontal padding, mode switcher buttons, and the "Chỉ đường" action button left only ~178dp for distance and duration text. `maxLines: 1` forced ellipsis truncation on phrases exceeding ~25 characters.
+
+### 82.3. Implementation Details
+
+1. **Backend Seeder Refinement (`DataSeeder.java`):**
+   - Added 4 distinct destinations to `seedDestinations`:
+     - *Bãi Biển Mỹ Khê & Cầu Rồng* (`16.0611, 108.2280`)
+     - *Chợ Đêm Sơn Trà* (`16.0615, 108.2320`)
+     - *Danh Thắng Ngũ Hành Sơn* (`16.0042, 108.2635`)
+     - *Chợ Hàn Đà Nẵng* (`16.0682, 108.2246`)
+   - Updated `seedActivitiesForDay` for Đà Nẵng/Hội An to branch by `dayNum`:
+     - Day 1: Chùa Linh Ứng (dest 12), Biển Mỹ Khê, Chợ Đêm Sơn Trà.
+     - Day 2: Bà Nà Hills & Cầu Vàng (dest 11), Fantasy Park & Làng Pháp.
+     - Day 3: Rừng Dừa Bảy Mẫu (dest 10), Phố Cổ Hội An (dest 9), Thả hoa đăng Sông Hoài.
+     - Day 4: Ngũ Hành Sơn, Làng đá Non Nước, Chợ Hàn Đà Nẵng.
+   - Updated live database records for Itinerary 262 (activities 19..30 across days 9..12) via SQL migration to give each day genuine, distinct geographic locations.
+
+2. **Co-Located Coordinate Jitter Algorithm (`itinerary_map_helper.dart`):**
+   - Implemented co-located coordinate detection in `ItineraryMapHelper.buildActivityMarkers`.
+   - When multiple stops in an itinerary share the exact same coordinates ($N > 1$), an automatic small radial offset (~18m, $0.00018^\circ$) is applied:
+     - Earlier days (`D1`, `D2`, etc.) are never completely covered by later days (`D4`).
+     - Every stop remains individually visible, distinctly badged, and tappable.
+
+3. **Responsive Route Card & All-Days Fallback Support (`itinerary_map_screen.dart`):**
+   - Changed `maxLines: 1` to `maxLines: 2` with flexible wrapping across road and fallback route cards, preventing text clipping on mobile displays.
+   - Extended All-Days mode to aggregate fallback routes (`directDistanceMeters` sum) when external routing is unconfigured.
+   - Updated `_isRouteCardVisible` to check for `hasRoadOrFallback`, ensuring clear status explanation when external API key is absent.
+
+### 82.4. Verification & Test Results
+
+1. **Frontend Mobile Test Suite:**
+   - Updated `Travel_Planner/frontend/mobile/test/itinerary_map_test.dart`:
+     - Verified co-located coordinate detection and radial offset algorithm.
+     - Verified that stops with identical coordinates do not occlude each other and produce distinct marker positions.
+   - Updated `Travel_Planner/frontend/mobile/test/itinerary_route_test.dart`:
+     - Verified multi-line wrapping and fallback distance formatting in single-day and all-days modes.
+   - Ran `flutter test test/itinerary_map_test.dart test/itinerary_route_test.dart`: **48 / 48 tests passed**.
+   - Ran full mobile test suite: **305 / 305 tests passed, 0 failures** (`flutter test`).
+   - Mobile static analysis: **0 errors, 0 warnings** (`flutter analyze`).
+
+2. **Frontend Web Test Suite:**
+   - Ran full web test suite: **39 / 39 tests passed, 0 failures** (`flutter test`).
+   - Web static analysis: **0 errors, 0 warnings** (`flutter analyze`).
+
+3. **Backend Test Suite:**
+   - Ran `DataSeederTest`: **3 / 3 tests passed** (`mvnw test -Dtest=DataSeederTest`).
+   - Ran full backend test suite: **157 / 157 tests passed, 0 failures, 0 errors, 0 skipped** (`mvnw test`).
+
+### 82.5. Status & User Testing Instructions
+- **Status:** **`MULTI-DAY ROUTE VISUALIZATION & COORDINATE CO-LOCATION AUDIT AND FIXES COMPLETED & FULLY VERIFIED`**.
+- **Scope Confirmation:** All changes remain in the working directory uncommitted for user review. No secrets or keys committed to Git.
+- **Testing Instructions:**
+  - **With Road Polylines:** Launch backend with `OPENROUTESERVICE_API_KEY=<your_ors_key>` and run mobile app with `--dart-define=CARTO_API_KEY=<your_carto_key>`.
+  - **Without Routing Key (Fallback):** Launch backend normally without `OPENROUTESERVICE_API_KEY`. The app clearly displays direct distance and explains that road routing is unavailable without crashing, clipping, or hiding markers.

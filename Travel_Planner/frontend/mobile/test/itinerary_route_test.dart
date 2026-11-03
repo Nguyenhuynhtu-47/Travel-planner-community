@@ -14,6 +14,7 @@ import 'package:mobile/features/itinerary/data/models/itinerary_detail.dart';
 import 'package:mobile/features/itinerary/data/models/route_models.dart';
 import 'package:mobile/features/itinerary/data/route_repository.dart';
 import 'package:mobile/features/itinerary/presentation/screens/itinerary_map_screen.dart';
+import 'package:mobile/features/itinerary/presentation/widgets/itinerary_map_helper.dart';
 import 'package:mobile/features/itinerary/presentation/widgets/navigation_launcher_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -791,6 +792,414 @@ void main() {
       // Day 2 has only 1 stop -> should show 1 stop badge and clear the Day 1 road distance card
       expect(find.text('1 điểm dừng có tọa độ'), findsOneWidget);
       expect(find.textContaining('Khoảng cách đường bộ'), findsNothing);
+    });
+  });
+
+  group('Multi-Day Route Visualization Across All Days Tests', () {
+    final multiDayTestItinerary = ItineraryDetail(
+      itineraryId: 20,
+      title: 'Hành Trình Xuyên Suốt 2N1Đ',
+      description: 'Lịch trình có nhiều chặng mỗi ngày',
+      location: 'Đà Lạt',
+      totalDays: 2,
+      budget: 2000000.0,
+      viewCount: 50,
+      favoriteCount: 10,
+      ratingCount: 5,
+      averageRating: 5.0,
+      visibility: 'PUBLIC',
+      status: 'ACTIVE',
+      creator: const CreatorSummary(
+        userId: 1,
+        username: 'traveler',
+        fullName: 'Nguyễn Du Lịch',
+      ),
+      days: [
+        // Day 1: 2 stops
+        ItineraryDayDetail(
+          dayId: 201,
+          dayNumber: 1,
+          title: 'Ngày 1',
+          activities: [
+            const ActivityDetail(
+              activityId: 3001,
+              name: 'Điểm 1.1',
+              latitude: 11.9400,
+              longitude: 108.4300,
+              displayOrder: 1,
+            ),
+            const ActivityDetail(
+              activityId: 3002,
+              name: 'Điểm 1.2',
+              latitude: 11.9450,
+              longitude: 108.4350,
+              displayOrder: 2,
+            ),
+          ],
+        ),
+        // Day 2: 2 stops
+        ItineraryDayDetail(
+          dayId: 202,
+          dayNumber: 2,
+          title: 'Ngày 2',
+          activities: [
+            const ActivityDetail(
+              activityId: 4001,
+              name: 'Điểm 2.1',
+              latitude: 11.9500,
+              longitude: 108.4400,
+              displayOrder: 1,
+            ),
+            const ActivityDetail(
+              activityId: 4002,
+              name: 'Điểm 2.2',
+              latitude: 11.9550,
+              longitude: 108.4450,
+              displayOrder: 2,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    testWidgets('All-days mode fetches routes for all days and renders separate polylines with day colors', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final List<String> requestedUrls = [];
+
+      final mockClient = MockClient((request) async {
+        requestedUrls.add(request.url.toString());
+        final isDay1 = request.url.path.contains('/days/201/');
+
+        final responseBody = {
+          'itineraryId': 20,
+          'dayId': isDay1 ? 201 : 202,
+          'status': 'SUCCESS',
+          'routeType': 'ACTUAL_ROAD',
+          'mode': 'driving',
+          'totalDistanceMeters': isDay1 ? 3000.0 : 4000.0,
+          'totalDurationSeconds': isDay1 ? 300.0 : 400.0,
+          'directDistanceMeters': isDay1 ? 2000.0 : 3000.0,
+          'geometryCoordinates': isDay1
+              ? [
+                  [108.4300, 11.9400],
+                  [108.4350, 11.9450],
+                ]
+              : [
+                  [108.4400, 11.9500],
+                  [108.4450, 11.9550],
+                ],
+          'waypoints': [],
+        };
+        return http.Response(jsonEncode(responseBody), 200, headers: {
+          'content-type': 'application/json; charset=utf-8',
+        });
+      });
+
+      final apiClient = ApiClient(client: mockClient);
+      final routeRepo = RouteRepository(apiClient: apiClient);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ItineraryMapScreen(
+            itinerary: multiDayTestItinerary,
+            initialDayNumber: null, // "Tất cả" mode
+            routeRepository: routeRepo,
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // Verified requests were made for both days
+      expect(requestedUrls.any((u) => u.contains('/days/201/route')), isTrue);
+      expect(requestedUrls.any((u) => u.contains('/days/202/route')), isTrue);
+
+      // Aggregated road distance: 3.0 km + 4.0 km = 7.0 km
+      expect(find.textContaining('Khoảng cách đường bộ: 7.0 km'), findsOneWidget);
+      expect(find.textContaining('Thời gian di chuyển: 12 phút'), findsOneWidget);
+      expect(find.text('Chỉ đường'), findsOneWidget);
+
+      // Verify PolylineLayer contains 2 separate polylines with distinct day colors
+      final polylineLayerFinder = find.byType(PolylineLayer);
+      expect(polylineLayerFinder, findsOneWidget);
+      final polylineLayer = tester.widget<PolylineLayer>(polylineLayerFinder);
+      expect(polylineLayer.polylines.length, 2);
+
+      // Day 1 polyline color matches ItineraryMapHelper.getDayColor(1)
+      expect(polylineLayer.polylines[0].color, ItineraryMapHelper.getDayColor(1));
+      expect(polylineLayer.polylines[0].points.length, 2);
+      expect(polylineLayer.polylines[0].points[0], const LatLng(11.9400, 108.4300));
+
+      // Day 2 polyline color matches ItineraryMapHelper.getDayColor(2)
+      expect(polylineLayer.polylines[1].color, ItineraryMapHelper.getDayColor(2));
+      expect(polylineLayer.polylines[1].points.length, 2);
+      expect(polylineLayer.polylines[1].points[0], const LatLng(11.9500, 108.4400));
+
+      // Verify all 4 markers are present with day badges D1 and D2
+      expect(find.text('D1'), findsNWidgets(2));
+      expect(find.text('D2'), findsNWidgets(2));
+    });
+
+    testWidgets('Switching from All-Days mode to Day 2 displays only Day 2 markers and polyline with cache hit', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      var requestCount = 0;
+
+      final mockClient = MockClient((request) async {
+        requestCount++;
+        final isDay1 = request.url.path.contains('/days/201/');
+
+        final responseBody = {
+          'itineraryId': 20,
+          'dayId': isDay1 ? 201 : 202,
+          'status': 'SUCCESS',
+          'routeType': 'ACTUAL_ROAD',
+          'mode': 'driving',
+          'totalDistanceMeters': isDay1 ? 3000.0 : 4000.0,
+          'totalDurationSeconds': isDay1 ? 300.0 : 400.0,
+          'directDistanceMeters': 2000.0,
+          'geometryCoordinates': [
+            [108.4300, 11.9400],
+            [108.4350, 11.9450],
+          ],
+          'waypoints': [],
+        };
+        return http.Response(jsonEncode(responseBody), 200, headers: {
+          'content-type': 'application/json; charset=utf-8',
+        });
+      });
+
+      final apiClient = ApiClient(client: mockClient);
+      final routeRepo = RouteRepository(apiClient: apiClient);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ItineraryMapScreen(
+            itinerary: multiDayTestItinerary,
+            initialDayNumber: null, // "Tất cả" mode
+            routeRepository: routeRepo,
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(requestCount, 2); // Fetched Day 1 and Day 2
+
+      // Switch to Day 2
+      await tester.tap(find.text('Ngày 2 (2)'));
+      await tester.pumpAndSettle();
+
+      // No additional requests should be made (served from in-memory cache)
+      expect(requestCount, 2);
+
+      // In single day mode, day badges D1/D2 are omitted, showing sequence numbers
+      expect(find.text('D1'), findsNothing);
+      expect(find.text('D2'), findsNothing);
+
+      // Day 2 single-day road distance: 4.0 km
+      expect(find.textContaining('Khoảng cách đường bộ: 4.0 km'), findsOneWidget);
+
+      // Only 1 polyline rendered for Day 2
+      final polylineLayerFinder = find.byType(PolylineLayer);
+      final polylineLayer = tester.widget<PolylineLayer>(polylineLayerFinder);
+      expect(polylineLayer.polylines.length, 1);
+
+      // Switch back to "Tất cả"
+      await tester.tap(find.text('Tất cả (2)'));
+      await tester.pumpAndSettle();
+
+      // Still 0 new requests (both days served from cache)
+      expect(requestCount, 2);
+
+      // Both polylines restored
+      final restoredLayer = tester.widget<PolylineLayer>(polylineLayerFinder);
+      expect(restoredLayer.polylines.length, 2);
+      expect(find.textContaining('Khoảng cách đường bộ: 7.0 km'), findsOneWidget);
+    });
+
+    testWidgets('Partial route error: Day 1 fails with HTTP 500, Day 2 succeeds -> Day 2 polyline still renders', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockClient = MockClient((request) async {
+        final isDay1 = request.url.path.contains('/days/201/');
+
+        if (isDay1) {
+          return http.Response(
+            jsonEncode({'message': 'Internal routing engine error'}),
+            500,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+
+        final responseBody = {
+          'itineraryId': 20,
+          'dayId': 202,
+          'status': 'SUCCESS',
+          'routeType': 'ACTUAL_ROAD',
+          'mode': 'driving',
+          'totalDistanceMeters': 4000.0,
+          'totalDurationSeconds': 400.0,
+          'directDistanceMeters': 3000.0,
+          'geometryCoordinates': [
+            [108.4400, 11.9500],
+            [108.4450, 11.9550],
+          ],
+          'waypoints': [],
+        };
+        return http.Response(jsonEncode(responseBody), 200, headers: {
+          'content-type': 'application/json; charset=utf-8',
+        });
+      });
+
+      final apiClient = ApiClient(client: mockClient);
+      final routeRepo = RouteRepository(apiClient: apiClient);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ItineraryMapScreen(
+            itinerary: multiDayTestItinerary,
+            initialDayNumber: null, // "Tất cả"
+            routeRepository: routeRepo,
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // Day 2 polyline renders successfully
+      final polylineLayerFinder = find.byType(PolylineLayer);
+      expect(polylineLayerFinder, findsOneWidget);
+      final polylineLayer = tester.widget<PolylineLayer>(polylineLayerFinder);
+      expect(polylineLayer.polylines.length, 1);
+      expect(polylineLayer.polylines.first.color, ItineraryMapHelper.getDayColor(2));
+
+      // Markers for both days still render
+      expect(find.text('D1'), findsNWidgets(2));
+      expect(find.text('D2'), findsNWidgets(2));
+
+      // Successfully shows road distance for the loaded Day 2
+      expect(find.textContaining('Khoảng cách đường bộ: 4.0 km'), findsOneWidget);
+    });
+
+    testWidgets('Mode switching in All-Days mode clears cache and re-requests both days in new mode', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final List<String> requestedModes = [];
+
+      final mockClient = MockClient((request) async {
+        final mode = request.url.queryParameters['mode'] ?? '';
+        requestedModes.add(mode);
+        final isDay1 = request.url.path.contains('/days/201/');
+
+        final responseBody = {
+          'itineraryId': 20,
+          'dayId': isDay1 ? 201 : 202,
+          'status': 'SUCCESS',
+          'routeType': 'ACTUAL_ROAD',
+          'mode': mode,
+          'totalDistanceMeters': isDay1 ? 3000.0 : 4000.0,
+          'totalDurationSeconds': isDay1 ? 300.0 : 400.0,
+          'directDistanceMeters': 2000.0,
+          'geometryCoordinates': [
+            [108.4300, 11.9400],
+            [108.4350, 11.9450],
+          ],
+          'waypoints': [],
+        };
+        return http.Response(jsonEncode(responseBody), 200, headers: {
+          'content-type': 'application/json; charset=utf-8',
+        });
+      });
+
+      final apiClient = ApiClient(client: mockClient);
+      final routeRepo = RouteRepository(apiClient: apiClient);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ItineraryMapScreen(
+            itinerary: multiDayTestItinerary,
+            initialDayNumber: null,
+            routeRepository: routeRepo,
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(requestedModes.where((m) => m == 'driving').length, 2);
+
+      // Tap walking mode icon
+      await tester.tap(find.byTooltip('Đi bộ'));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(requestedModes.where((m) => m == 'walking').length, 2);
+    });
+
+    testWidgets('All-days mode handles fallback routes across all days without throwing or crashing', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockClient = MockClient((request) async {
+        final isDay1 = request.url.path.contains('/days/201/');
+        final responseBody = {
+          'itineraryId': 20,
+          'dayId': isDay1 ? 201 : 202,
+          'status': 'FALLBACK',
+          'routeType': 'ESTIMATED_INDICATIVE',
+          'mode': 'driving',
+          'totalDistanceMeters': null,
+          'totalDurationSeconds': null,
+          'directDistanceMeters': isDay1 ? 1500.0 : 2500.0,
+          'geometryCoordinates': [],
+          'waypoints': [],
+        };
+        return http.Response(jsonEncode(responseBody), 200, headers: {
+          'content-type': 'application/json; charset=utf-8',
+        });
+      });
+
+      final apiClient = ApiClient(client: mockClient);
+      final routeRepo = RouteRepository(apiClient: apiClient);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ItineraryMapScreen(
+            itinerary: multiDayTestItinerary,
+            initialDayNumber: null,
+            routeRepository: routeRepo,
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // No polylines drawn for fallback routes
+      final polylineLayerFinder = find.byType(PolylineLayer);
+      if (polylineLayerFinder.evaluate().isNotEmpty) {
+        final polylineLayer = tester.widget<PolylineLayer>(polylineLayerFinder);
+        expect(polylineLayer.polylines, isEmpty);
+      }
+
+      // Sum of direct distances (1500 + 2500 = 4000m = 4.0 km)
+      expect(find.textContaining('Khoảng cách đường chim bay (ước tính): 4.0 km'), findsOneWidget);
+      expect(find.text('Tuyến đường bộ tạm thời không khả dụng'), findsOneWidget);
     });
   });
 }
