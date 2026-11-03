@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/constants/map_constants.dart';
 import '../../core/constants/map_tile_provider_config.dart';
+import 'map_api_key_missing_banner.dart';
 
 /// Base reusable map widget for Flutter mobile.
 ///
@@ -84,6 +85,17 @@ class AppBaseMap extends StatelessWidget {
   /// attribution at [AttributionAlignment.bottomLeft] without hiding it.
   final AttributionAlignment attributionAlignment;
 
+  /// Whether to display a warning/instruction banner if the tile provider
+  /// mandates an API key (CARTO Basemaps) and none is configured.
+  final bool showApiKeyMissingBanner;
+
+  /// Top offset for positioning the missing API key guidance banner.
+  /// Allows screens with floating top bars (e.g. day selector) to avoid overlap.
+  final double apiKeyBannerTopOffset;
+
+  /// Optional custom banner widget replacing the default [MapApiKeyMissingBanner].
+  final Widget? customApiKeyMissingBanner;
+
   AppBaseMap({
     super.key,
     MapTileProviderConfig? tileProviderConfig,
@@ -100,6 +112,9 @@ class AppBaseMap extends StatelessWidget {
     this.customAttributionWidget,
     this.onAttributionTap,
     this.attributionAlignment = AttributionAlignment.bottomRight,
+    this.showApiKeyMissingBanner = true,
+    this.apiKeyBannerTopOffset = 12.0,
+    this.customApiKeyMissingBanner,
   }) : tileProviderConfig =
             tileProviderConfig ?? MapTileProviderConfig.defaultProvider();
 
@@ -124,7 +139,7 @@ class AppBaseMap extends StatelessWidget {
     final effectiveCenter = initialCenter ?? MapConstants.fallbackCoordinates;
     final effectiveZoom = initialZoom ?? MapConstants.fallbackZoom;
 
-    return FlutterMap(
+    final mapWidget = FlutterMap(
       mapController: mapController,
       options: MapOptions(
         initialCameraFit: initialCameraFit,
@@ -145,6 +160,22 @@ class AppBaseMap extends StatelessWidget {
         ...children,
         if (_shouldRenderAttribution)
           _buildAttributionLayer(),
+      ],
+    );
+
+    if (!showApiKeyMissingBanner || !tileProviderConfig.isApiKeyMissing) {
+      return mapWidget;
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(child: mapWidget),
+        Positioned(
+          top: apiKeyBannerTopOffset,
+          left: 0,
+          right: 0,
+          child: customApiKeyMissingBanner ?? const MapApiKeyMissingBanner(),
+        ),
       ],
     );
   }

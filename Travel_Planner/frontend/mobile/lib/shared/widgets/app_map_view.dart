@@ -9,6 +9,7 @@ import 'app_base_map.dart';
 export '../../core/constants/map_constants.dart';
 export '../../core/constants/map_tile_provider_config.dart';
 export 'app_base_map.dart';
+export 'map_api_key_missing_banner.dart';
 export 'map_marker_builder.dart';
 
 /// Reusable, memory-efficient Flutter map wrapper for mobile screens.
@@ -84,6 +85,16 @@ class AppMapView extends StatelessWidget {
   /// Alignment of the attribution badge on the map canvas.
   final AttributionAlignment attributionAlignment;
 
+  /// Whether to display a warning/instruction banner if the tile provider
+  /// mandates an API key (CARTO Basemaps) and none is configured.
+  final bool showApiKeyMissingBanner;
+
+  /// Top offset for positioning the missing API key guidance banner.
+  final double apiKeyBannerTopOffset;
+
+  /// Optional custom banner widget replacing the default [MapApiKeyMissingBanner].
+  final Widget? customApiKeyMissingBanner;
+
   AppMapView({
     super.key,
     MapTileProviderConfig? tileProviderConfig,
@@ -102,6 +113,9 @@ class AppMapView extends StatelessWidget {
     this.customAttributionWidget,
     this.onAttributionTap,
     this.attributionAlignment = AttributionAlignment.bottomRight,
+    this.showApiKeyMissingBanner = true,
+    this.apiKeyBannerTopOffset = 12.0,
+    this.customApiKeyMissingBanner,
   }) : tileProviderConfig =
             tileProviderConfig ?? MapTileProviderConfig.defaultProvider();
 
@@ -121,6 +135,9 @@ class AppMapView extends StatelessWidget {
       customAttributionWidget: customAttributionWidget,
       onAttributionTap: onAttributionTap,
       attributionAlignment: attributionAlignment,
+      showApiKeyMissingBanner: showApiKeyMissingBanner,
+      apiKeyBannerTopOffset: apiKeyBannerTopOffset,
+      customApiKeyMissingBanner: customApiKeyMissingBanner,
       children: [
         if (polylines != null && polylines!.isNotEmpty)
           PolylineLayer<Object>(polylines: polylines!),

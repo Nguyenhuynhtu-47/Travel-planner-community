@@ -302,6 +302,9 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
               initialCameraFit: initialCameraFit,
               markers: markers,
               polylines: polylines,
+              apiKeyBannerTopOffset: _selectedDayNumber != null
+                  ? (missingNotice != null ? 142.0 : 108.0)
+                  : (missingNotice != null ? 92.0 : 58.0),
               onTap: (_, _) {
                 final lastTap = _lastMarkerTappedAt;
                 if (lastTap != null &&

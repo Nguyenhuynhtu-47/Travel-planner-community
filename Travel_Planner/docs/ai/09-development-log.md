@@ -3980,3 +3980,63 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 ### 79.4. Phase Status & Roadmap Completion
 - **Status:** **`PHASE 7 IMPLEMENTATION COMPLETE & VERIFIED`**.
 - **Map Integration Roadmap Status:** All Phases (Phase 0 through Phase 7) are now 100% complete, fully tested, and strictly free-tier compliant.
+
+
+---
+
+## 80. Session 80 — CARTO Basemaps API Key Authentication & Diagnostics (2026-11-03)
+
+### 80.1. Objectives & Scope
+- **Task:** Diagnose and resolve the basemap tile rendering failure on Android and Flutter Web where markers render accurately but the background canvas shows a blank white screen with the diagonal watermark `TILES REQUIRED` / `API KEY REQUIRED`.
+- **Root Cause Identified:** CARTO Basemaps policy mandates an API key for all direct raster tile requests to `basemaps.cartocdn.com`. When the key is missing or unauthenticated, the CARTO CDN returns an HTTP 200 OK response with a 2,049-byte watermarked PNG tile (`ETag: "wm-da89c20e77c1-light"`). Because HTTP status 200 is returned, default network error callbacks do not trigger, silently rendering white watermarked tiles behind itinerary markers.
+- **Strict Scope Boundaries:**
+  - Decoupled Free-First Architecture strictly preserved: continue using `flutter_map` and CARTO Basemaps Voyager.
+  - Zero backend redesign or backend tile proxying.
+  - No paid SDKs (Google Maps SDK, Mapbox SDK prohibited).
+  - Strict distinction: CARTO Basemaps API Key is a public client token for tile streaming, completely isolated from Cloudinary credentials (`CLOUDINARY_API_KEY`/`SECRET` reserved strictly for Spring Boot backend photo signing).
+  - Zero commits, zero pushes. Working tree changes left uncommitted for user review.
+
+### 80.2. Implementation Details
+
+1. **Flutter Mobile Map Infrastructure:**
+   - Extended `MapConstants` (`lib/core/constants/map_constants.dart`): Added `cartoApiKey` (resolving `--dart-define=CARTO_API_KEY` with `--dart-define=MAP_API_KEY` fallback), `hasCartoApiKey`, `isCartoApiKeyMissing`, `appendApiKey(template, {apiKey})` query utility, and `effectiveTileUrlTemplate`.
+   - Updated `MapTileProviderConfig` (`lib/core/constants/map_tile_provider_config.dart`): Added `apiKey` and `requiresApiKey` properties; updated `defaultProvider()` and `carto()` factories to automatically inject `effectiveApiKey` and append `?key=<apiKey>`; added `isApiKeyMissing` and `effectiveUrlTemplate` getters; ensured `openStreetMapDev()` does not require keys.
+   - Created `MapApiKeyMissingBanner` (`lib/shared/widgets/map_api_key_missing_banner.dart`): Dismissible, compact warning banner using Amber design tokens (`AppColors.warning`), informing developers/users of the exact `--dart-define=CARTO_API_KEY=<key>` parameter and linking to free academic registration at `carto.com/basemaps/apikey`.
+   - Updated `AppBaseMap` (`lib/shared/widgets/app_base_map.dart`): Added `showApiKeyMissingBanner`, `apiKeyBannerTopOffset`, and `customApiKeyMissingBanner`. When `isApiKeyMissing` is true, renders `MapApiKeyMissingBanner` overlay above the map without modifying `flutter_map` internal layer indexing or blocking canvas interactions.
+   - Updated `AppMapView` (`lib/shared/widgets/app_map_view.dart`): Exposed missing key banner controls and exported `map_api_key_missing_banner.dart`.
+   - Adjusted `ItineraryMapScreen` (`lib/features/itinerary/presentation/screens/itinerary_map_screen.dart`): Configured `apiKeyBannerTopOffset` to position the notice beneath the floating day selector and missing coordinates chips.
+
+2. **Flutter Web Map Infrastructure:**
+   - Extended `MapConstants` (`lib/core/constants/map_constants.dart` in Web): Added `cartoApiKey`, `hasCartoApiKey`, `isCartoApiKeyMissing`, `appendApiKey`, and `effectiveTileUrlTemplate`.
+   - Updated `WebMapView` (`lib/shared/widgets/web_map_view.dart`): Wired `TileLayer` to use `MapConstants.effectiveTileUrlTemplate` and added dismissible `_buildApiKeyMissingBanner()` positioned cleanly without overlapping zoom controls.
+
+3. **Documentation Updates:**
+   - Updated `Travel_Planner/README.md`: Added startup guides with `--dart-define=CARTO_API_KEY=<your_carto_api_key>` for Android and Flutter Web; explicitly documented credential distinction from Cloudinary.
+   - Updated `Travel_Planner/docs/ai/11-map-integration-audit-and-plan.md`: Added Section 11.4 detailing CARTO API key enforcement, query parameter formatting, public client token security analysis, and rationale against backend tile proxying.
+
+### 80.3. Verification & Test Results
+
+1. **Flutter Mobile Test Suite:**
+   - Created `Travel_Planner/frontend/mobile/test/map_api_key_test.dart` containing 18 unit and widget tests:
+     - `MapConstants.appendApiKey` handles empty/null keys, appends `?key=`, appends `&key=` to existing query strings, replaces `{apiKey}` and `{key}` placeholders, avoids duplicate keys, and encodes special characters.
+     - `isCartoApiKeyMissing` reflects environment definition state.
+     - `MapTileProviderConfig` correctly flags missing keys and propagates explicit keys to `buildTileLayer()`.
+     - `AppBaseMap` and `AppMapView` render `MapApiKeyMissingBanner` when key is missing and permit clean dismissal.
+     - `showApiKeyMissingBanner: false` or valid keys suppress the warning banner.
+     - `openStreetMapDev` does not trigger missing key warnings.
+     - `apiKeyBannerTopOffset` positions banner without conflicting with top controls.
+   - Full Mobile test suite: **299 / 299 tests passed, 0 failures** (`flutter test`).
+   - Mobile static analysis: **0 errors, 0 warnings** (`flutter analyze`).
+
+2. **Flutter Web Test Suite:**
+   - Created `Travel_Planner/frontend/web/test/web_map_api_key_test.dart` containing 9 unit and widget tests covering Web `MapConstants` query parameter logic, `isCartoApiKeyMissing`, `WebMapView` banner display, banner dismissal, and non-blocking coexistence with markers and zoom controls.
+   - Updated `Travel_Planner/frontend/web/test/admin_destination_test.dart` to specify `find.textContaining('© CARTO')` for attribution matching.
+   - Full Web test suite: **39 / 39 tests passed, 0 failures** (`flutter test`).
+   - Web static analysis: **0 errors, 0 warnings** (`flutter analyze`).
+
+3. **Cross-Project Regression Verification:**
+   - **Backend:** **157 / 157 tests passed, 0 failures, 0 errors, 0 skipped** (`mvnw test`).
+
+### 80.4. Status & Next Steps
+- **Status:** **`CARTO BASEMAP API KEY AUTHENTICATION FIXED & FULLY VERIFIED`**.
+- **Scope Confirmation:** Working tree changes left uncommitted for user review. No API keys committed to Git. Ready for local deployment and user testing.

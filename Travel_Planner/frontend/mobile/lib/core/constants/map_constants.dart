@@ -31,6 +31,74 @@ class MapConstants {
     defaultValue: 'com.travelplanner.mobile',
   );
 
+  /// CARTO Basemaps API key for raster tile authentication.
+  /// Can be configured at compile/run time via `--dart-define=CARTO_API_KEY=<key>`
+  /// or `--dart-define=MAP_API_KEY=<key>`.
+  static const String cartoApiKey = String.fromEnvironment(
+    'CARTO_API_KEY',
+    defaultValue: String.fromEnvironment('MAP_API_KEY', defaultValue: ''),
+  );
+
+  /// Whether a CARTO Basemaps API key is configured.
+  static bool get hasCartoApiKey => cartoApiKey.trim().isNotEmpty;
+
+  /// Appends or substitutes an API key into a tile URL template.
+  ///
+  /// - If [template] contains `{apiKey}` or `{key}`, it replaces the placeholder with the URL-encoded [apiKey].
+  /// - If [apiKey] is non-empty and [template] does not yet specify a `key=` parameter:
+  ///   Appends `key=<apiKey>` with proper `?` or `&` query delimiter.
+  /// - If [apiKey] is null/empty or [template] already includes `key=`, returns [template] unchanged.
+  static String appendApiKey(String template, {String? apiKey}) {
+    final key = apiKey?.trim() ?? '';
+    if (key.isEmpty) {
+      return template;
+    }
+
+    final encodedKey = Uri.encodeQueryComponent(key);
+
+    if (template.contains('{apiKey}')) {
+      return template.replaceAll('{apiKey}', encodedKey);
+    }
+    if (template.contains('{key}')) {
+      return template.replaceAll('{key}', encodedKey);
+    }
+
+    // Check if key query parameter is already explicitly provided
+    if (template.contains('?key=') ||
+        template.contains('&key=') ||
+        template.contains('?apiKey=') ||
+        template.contains('&apiKey=')) {
+      return template;
+    }
+
+    final separator = template.contains('?') ? '&' : '?';
+    return '$template${separator}key=$encodedKey';
+  }
+
+  /// Returns the effective tile URL template with [cartoApiKey] applied if targeting CARTO.
+  static String get effectiveTileUrlTemplate {
+    if (tileUrlTemplate.contains('basemaps.cartocdn.com') ||
+        tileUrlTemplate.contains('{key}') ||
+        tileUrlTemplate.contains('{apiKey}')) {
+      return appendApiKey(tileUrlTemplate, apiKey: cartoApiKey);
+    }
+    return tileUrlTemplate;
+  }
+
+  /// Returns whether the effective tile configuration requires a CARTO API key
+  /// but none was supplied via environment variables.
+  static bool get isCartoApiKeyMissing {
+    final isCarto = tileUrlTemplate.contains('basemaps.cartocdn.com');
+    if (!isCarto) return false;
+    if (tileUrlTemplate.contains('?key=') ||
+        tileUrlTemplate.contains('&key=') ||
+        tileUrlTemplate.contains('?apiKey=') ||
+        tileUrlTemplate.contains('&apiKey=')) {
+      return false;
+    }
+    return !hasCartoApiKey;
+  }
+
   /// Neutral country-level geographic centroid of Vietnam (14.0583° N, 108.2772° E).
   /// Provides an unbiased, country-wide overview (zoom ~6.0) without assuming
   /// or favoring any specific city (Hanoi, Da Nang, Ho Chi Minh City).

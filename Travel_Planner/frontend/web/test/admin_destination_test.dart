@@ -659,7 +659,7 @@ void main() {
 
       // Map attribution visible in detail map panel
       expect(find.textContaining('OpenStreetMap contributors'), findsOneWidget);
-      expect(find.textContaining('CARTO'), findsOneWidget);
+      expect(find.textContaining('© CARTO'), findsOneWidget);
     });
   });
 }

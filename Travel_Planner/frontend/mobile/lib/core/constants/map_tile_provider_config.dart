@@ -47,6 +47,12 @@ class MapTileProviderConfig {
   /// Whether to suppress network tile fetch exceptions and render transparent/error tile fallback gracefully.
   final bool silenceExceptions;
 
+  /// Optional API key configured for tile fetching.
+  final String? apiKey;
+
+  /// Whether this tile provider requires an API key.
+  final bool requiresApiKey;
+
   const MapTileProviderConfig({
     required this.urlTemplate,
     required this.attribution,
@@ -59,14 +65,39 @@ class MapTileProviderConfig {
     this.headers,
     this.tileProvider,
     this.silenceExceptions = true,
+    this.apiKey,
+    this.requiresApiKey = false,
   });
+
+  /// Whether this tile provider requires an API key but none is configured.
+  bool get isApiKeyMissing {
+    if (!requiresApiKey) return false;
+    if (urlTemplate.contains('?key=') ||
+        urlTemplate.contains('&key=') ||
+        urlTemplate.contains('?apiKey=') ||
+        urlTemplate.contains('&apiKey=')) {
+      return false;
+    }
+    return apiKey == null || apiKey!.trim().isEmpty;
+  }
+
+  /// Returns the effective URL template with [apiKey] appended if necessary.
+  String get effectiveUrlTemplate =>
+      MapConstants.appendApiKey(urlTemplate, apiKey: apiKey);
 
   /// Creates a configuration using the application's default settings from [MapConstants] (CARTO Basemaps Voyager).
   factory MapTileProviderConfig.defaultProvider({
+    String? apiKey,
     bool silenceExceptions = true,
   }) {
+    final effectiveApiKey = apiKey ?? MapConstants.cartoApiKey;
+    final isCarto =
+        MapConstants.tileUrlTemplate.contains('basemaps.cartocdn.com');
     return MapTileProviderConfig(
-      urlTemplate: MapConstants.tileUrlTemplate,
+      urlTemplate: MapConstants.appendApiKey(
+        MapConstants.tileUrlTemplate,
+        apiKey: effectiveApiKey,
+      ),
       attribution: MapConstants.tileAttribution,
       requiresAttribution: true,
       subdomains: MapConstants.defaultSubdomains,
@@ -74,17 +105,22 @@ class MapTileProviderConfig {
       minZoom: MapConstants.minZoom,
       maxZoom: MapConstants.maxZoom,
       silenceExceptions: silenceExceptions,
+      apiKey: effectiveApiKey,
+      requiresApiKey: isCarto,
     );
   }
 
   /// Creates a CARTO Basemaps configuration for a specified flavor (`voyager`, `positron`, `dark_all`).
   factory MapTileProviderConfig.carto({
     String flavor = 'voyager',
+    String? apiKey,
     bool silenceExceptions = true,
   }) {
+    final effectiveApiKey = apiKey ?? MapConstants.cartoApiKey;
+    final baseUrl =
+        'https://{s}.basemaps.cartocdn.com/rastertiles/$flavor/{z}/{x}/{y}{r}.png';
     return MapTileProviderConfig(
-      urlTemplate:
-          'https://{s}.basemaps.cartocdn.com/rastertiles/$flavor/{z}/{x}/{y}{r}.png',
+      urlTemplate: MapConstants.appendApiKey(baseUrl, apiKey: effectiveApiKey),
       attribution: '© OpenStreetMap contributors, © CARTO',
       requiresAttribution: true,
       subdomains: const ['a', 'b', 'c', 'd'],
@@ -92,6 +128,8 @@ class MapTileProviderConfig {
       minZoom: MapConstants.minZoom,
       maxZoom: MapConstants.maxZoom,
       silenceExceptions: silenceExceptions,
+      apiKey: effectiveApiKey,
+      requiresApiKey: true,
     );
   }
 
@@ -109,6 +147,7 @@ class MapTileProviderConfig {
       minZoom: 2.0,
       maxZoom: 19.0,
       silenceExceptions: silenceExceptions,
+      requiresApiKey: false,
     );
   }
 
@@ -119,14 +158,15 @@ class MapTileProviderConfig {
     ImageProvider? errorImage,
     bool? retinaMode,
   }) {
+    final resolvedUrl = effectiveUrlTemplate;
     return TileLayer(
-      urlTemplate: urlTemplate,
+      urlTemplate: resolvedUrl,
       subdomains: subdomains,
       userAgentPackageName: userAgentPackageName,
       minZoom: minZoom,
       maxZoom: maxZoom,
       additionalOptions: additionalOptions,
-      retinaMode: retinaMode ?? urlTemplate.contains('{r}'),
+      retinaMode: retinaMode ?? resolvedUrl.contains('{r}'),
       tileProvider: tileProvider ??
           NetworkTileProvider(
             headers:

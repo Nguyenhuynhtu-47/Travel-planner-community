@@ -37,6 +37,7 @@ class WebMapView extends StatefulWidget {
 
 class _WebMapViewState extends State<WebMapView> {
   late final MapController _effectiveController;
+  bool _dismissApiKeyBanner = false;
 
   @override
   void initState() {
@@ -66,7 +67,7 @@ class _WebMapViewState extends State<WebMapView> {
           children: [
             // CARTO Basemaps Layer
             TileLayer(
-              urlTemplate: MapConstants.tileUrlTemplate,
+              urlTemplate: MapConstants.effectiveTileUrlTemplate,
               subdomains: MapConstants.defaultSubdomains,
               userAgentPackageName: MapConstants.userAgentPackageName,
               maxZoom: 19,
@@ -81,6 +82,15 @@ class _WebMapViewState extends State<WebMapView> {
               MarkerLayer(markers: widget.markers),
           ],
         ),
+
+        // 1.1 Missing API Key Guidance Banner
+        if (MapConstants.isCartoApiKeyMissing && !_dismissApiKeyBanner)
+          Positioned(
+            top: 12,
+            left: 12,
+            right: widget.showControls ? 64 : 12,
+            child: _buildApiKeyMissingBanner(),
+          ),
 
         // 2. Zoom & Recenter Controls
         if (widget.showControls)
@@ -150,6 +160,84 @@ class _WebMapViewState extends State<WebMapView> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildApiKeyMissingBanner() {
+    return Material(
+      elevation: 3,
+      shadowColor: Colors.black26,
+      color: const Color(0xFFFFFBEB),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(
+          color: Color(0xFFFDE68A),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Icon(
+                Icons.vpn_key_outlined,
+                size: 18,
+                color: Color(0xFFD97706),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Chưa cấu hình CARTO Basemaps API Key',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Bản đồ nền yêu cầu API Key. Khởi chạy với: --dart-define=CARTO_API_KEY=<key>',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF78350F),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Lấy key miễn phí tại carto.com/basemaps/apikey',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFFB45309),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.close,
+                size: 16,
+                color: Color(0xFF92400E),
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: 'Đóng thông báo',
+              onPressed: () {
+                setState(() => _dismissApiKeyBanner = true);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

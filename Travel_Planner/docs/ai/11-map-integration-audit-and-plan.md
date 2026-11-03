@@ -610,6 +610,41 @@ To ensure financial safety and maintain architectural integrity, the following s
    - For this academic capstone project running on a single server, in-memory Bucket4j provides zero-overhead, thread-safe rate limiting without external infrastructure dependencies.
    - **Horizontal Scaling Path:** If horizontal scaling is required in the future, Bucket4j provides a drop-in transition to Redis (`bucket4j-redis` / Lettuce), preserving identical token bucket logic while centralizing token state.
 
+### 11.4 CARTO Basemaps API Key Authentication & Client Key Security Evaluation
+
+#### 1. Policy Enforcement & Root Cause Analysis
+- **CARTO Basemap Requirement:** As enforced by CARTO on `basemaps.cartocdn.com`, all direct raster tile requests require an API key passed via query parameter (`?key=<apiKey>`).
+- **Failure Symptom:** Unauthenticated requests or requests with omitted/invalid keys return HTTP status `200 OK` with a 2,049-byte watermarked PNG tile (`ETag: "wm-da89c20e77c1-light"`) bearing the diagonal watermark *"TILES REQUIRED / API KEY REQUIRED"*. Because the CDN returns HTTP 200 with MIME type `image/png`, pure network error handlers do not trigger, resulting in a blank white canvas behind map markers.
+- **Quota Terms:** Free non-commercial/academic tier provides **5,000,000 monthly tile requests** (versus 1,000,000 for commercial usage). Academic capstone usage operates well within this boundary. Instant signup is available at [https://carto.com/basemaps/apikey](https://carto.com/basemaps/apikey).
+
+#### 2. Client-Side Decoupled Configuration
+- **Environment Parameter:** Configured via `--dart-define=CARTO_API_KEY=<key>` (with `--dart-define=MAP_API_KEY=<key>` accepted as fallback).
+- **Template Resolution:** Resolved automatically in `MapConstants.appendApiKey` and `effectiveTileUrlTemplate`:
+  - Standard raster tile endpoint: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=<apiKey>`.
+  - Automatically handles query parameter separators (`?` vs `&`), placeholder substitution (`{key}`, `{apiKey}`), duplicate parameter avoidance, and standard URL query encoding.
+- **Provider Decoupling:** `MapTileProviderConfig` abstracts tile delivery:
+  - `MapTileProviderConfig.defaultProvider()` & `carto()` propagate `apiKey` and set `requiresApiKey: true`.
+  - `MapTileProviderConfig.openStreetMapDev()` sets `requiresApiKey: false` and does not append keys or show warnings.
+
+#### 3. Client Key Security Evaluation & Architecture Decision
+- **Public Client Key Classification:** The CARTO Basemaps API key is architecturally classified as a **public client token** designed for direct browser and mobile app tile streaming, analogous to Mapbox public tokens (`pk.ey...`) and Google Maps JavaScript API keys.
+- **Security Assessment:**
+  - In Flutter mobile and web client architectures, any key transmitted in client HTTP requests is inspectable via network proxies or binary reverse-engineering.
+  - CARTO enforces rate limiting and quota boundaries (5M requests/month) upstream at their CDN edge without automatic credit-card billing linkages.
+  - For web deployments, HTTP `Referer` / origin restrictions can be applied directly in the CARTO dashboard.
+- **Prohibition of Backend Tile Proxy:**
+  - We strictly **reject proxying raster map tiles through the Spring Boot backend**.
+  - Streaming hundreds of concurrent image tiles through backend REST controllers would consume immense backend CPU, saturate thread pools, multiply network egress costs, and create severe latency bottlenecks.
+  - Direct client-to-CDN streaming with `--dart-define=CARTO_API_KEY` maintains the Decoupled Free-First Architecture.
+
+#### 4. Missing API Key UX & Graceful Degradation
+- When `CARTO_API_KEY` is not supplied, the app detects `isCartoApiKeyMissing = true`.
+- Instead of silently rendering blank watermarked tiles, both Mobile (`MapApiKeyMissingBanner` in `AppBaseMap` / `AppMapView`) and Web (`_buildApiKeyMissingBanner` in `WebMapView`) display a dismissible, non-intrusive warning card:
+  - Clearly explains: *"Chưa cấu hình CARTO Basemaps API Key"*.
+  - Provides the exact startup command: `--dart-define=CARTO_API_KEY=<your_key>`.
+  - Links to free registration at `carto.com/basemaps/apikey`.
+- Core map capabilities (destination markers, day badges, route polylines, camera recentering, activity popups, and click-to-pin coordinate selection) remain 100% operational whether the key is configured, missing, or dismissed.
+
 ---
 
 ## 12. Target Architecture & Decoupled Data Flow
