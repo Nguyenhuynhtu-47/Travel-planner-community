@@ -19,6 +19,8 @@ class ItineraryDetailNotifier extends ChangeNotifier {
     required this.itineraryId,
     this.initialSummary,
     ItineraryDetail? initialDetail,
+    bool? initialIsFavorited,
+    bool? initialIsSaved,
     ItineraryRepository? repository,
   }) : itineraryDetail =
            initialDetail ??
@@ -43,6 +45,8 @@ class ItineraryDetailNotifier extends ChangeNotifier {
                    createdAt: initialSummary.createdAt,
                    creator: initialSummary.creator,
                    days: const [],
+                   isFavorited: initialIsFavorited ?? false,
+                   isSaved: initialIsSaved ?? false,
                  )
                : null),
        isLoading = initialDetail == null,

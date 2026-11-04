@@ -24,6 +24,8 @@ import '../widgets/reorder_activities_dialog.dart';
 import '../widgets/itinerary_map_preview_card.dart';
 import 'edit_itinerary_screen.dart';
 import 'itinerary_map_screen.dart';
+import '../../../social/data/social_repository.dart';
+import '../../../social/data/models/social_state_update.dart';
 
 class ItineraryDetailScreen extends StatefulWidget {
   final int itineraryId;
@@ -31,9 +33,13 @@ class ItineraryDetailScreen extends StatefulWidget {
   final ItinerarySummary? initialSummary;
   final ItineraryDetail? initialDetail;
   final bool? isOwner;
+  final bool? initialIsFavorited;
+  final bool? initialIsSaved;
   final ItineraryDetailNotifier? notifier;
   final AuthNotifier? authNotifier;
   final ItineraryCrudRepository? crudRepository;
+  final SocialRepository? socialRepository;
+  final ValueChanged<SocialStateUpdate>? onSocialUpdate;
 
   const ItineraryDetailScreen({
     super.key,
@@ -41,10 +47,14 @@ class ItineraryDetailScreen extends StatefulWidget {
     this.token,
     this.initialSummary,
     this.initialDetail,
+    this.initialIsFavorited,
+    this.initialIsSaved,
     this.isOwner,
     this.notifier,
     this.authNotifier,
     this.crudRepository,
+    this.socialRepository,
+    this.onSocialUpdate,
   });
 
   @override
@@ -54,8 +64,19 @@ class ItineraryDetailScreen extends StatefulWidget {
 class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
   late final ItineraryDetailNotifier _notifier;
   late final ItineraryCrudRepository _crudRepository;
+  late final SocialRepository _socialRepository;
   bool _isDeleting = false;
   int? _selectedDayNumber;
+  bool? _userFavoritedOverride;
+  bool? _userSavedOverride;
+  int? _userRatingOverride;
+  bool _userRatingCleared = false;
+  double? _averageRatingOverride;
+  int? _ratingCountOverride;
+  int? _favoriteCountOverride;
+  bool _hasSocialChanges = false;
+  bool _isTogglingFavorite = false;
+  bool _isTogglingSave = false;
 
   String? get _effectiveToken => widget.token ?? widget.authNotifier?.token;
 
@@ -68,11 +89,29 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
           itineraryId: widget.itineraryId,
           initialSummary: widget.initialSummary,
           initialDetail: widget.initialDetail,
+          initialIsFavorited: widget.initialIsFavorited,
+          initialIsSaved: widget.initialIsSaved,
           repository: ItineraryRepository(
             apiClient: widget.crudRepository?.apiClient,
           ),
         );
     _crudRepository = widget.crudRepository ?? ItineraryCrudRepository();
+    _socialRepository = widget.socialRepository ?? SocialRepository();
+    if (widget.initialDetail != null) {
+      _userFavoritedOverride = widget.initialDetail!.isFavorited;
+      _userSavedOverride = widget.initialDetail!.isSaved;
+      _userRatingOverride = widget.initialDetail!.userRating;
+      _averageRatingOverride = widget.initialDetail!.averageRating;
+      _ratingCountOverride = widget.initialDetail!.ratingCount;
+      _favoriteCountOverride = widget.initialDetail!.favoriteCount;
+    } else {
+      if (widget.initialIsFavorited != null) {
+        _userFavoritedOverride = widget.initialIsFavorited;
+      }
+      if (widget.initialIsSaved != null) {
+        _userSavedOverride = widget.initialIsSaved;
+      }
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _notifier.loadDetail(token: _effectiveToken);
     });
@@ -446,6 +485,335 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     );
   }
 
+
+  SocialStateUpdate _buildSocialUpdate([ItineraryDetail? itinerary]) {
+    final detail = itinerary ?? _notifier.itineraryDetail;
+    return SocialStateUpdate(
+      itineraryId: widget.itineraryId,
+      isFavorited: _userFavoritedOverride ?? detail?.isFavorited,
+      isSaved: _userSavedOverride ?? detail?.isSaved,
+      userRating: _userRatingCleared ? null : (_userRatingOverride ?? detail?.userRating),
+      averageRating: _averageRatingOverride ?? detail?.averageRating,
+      ratingCount: _ratingCountOverride ?? detail?.ratingCount,
+      favoriteCount: _favoriteCountOverride ?? detail?.favoriteCount,
+    );
+  }
+
+  Future<void> _handleToggleSave(ItineraryDetail itinerary) async {
+    if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để lưu lịch trình.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final currentSaved = _userSavedOverride ?? itinerary.isSaved;
+    final nextSaved = !currentSaved;
+
+    setState(() {
+      _isTogglingSave = true;
+    });
+
+    try {
+      if (nextSaved) {
+        await _socialRepository.saveItinerary(itinerary.itineraryId, token: _effectiveToken);
+      } else {
+        await _socialRepository.removeSavedItinerary(itinerary.itineraryId, token: _effectiveToken);
+      }
+      setState(() {
+        _userSavedOverride = nextSaved;
+        _hasSocialChanges = true;
+      });
+      final update = _buildSocialUpdate(itinerary);
+      widget.onSocialUpdate?.call(update);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(nextSaved ? 'Đã lưu lịch trình' : 'Đã bỏ lưu lịch trình'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTogglingSave = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleToggleFavorite(ItineraryDetail itinerary, bool isOwner) async {
+    if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để lưu lịch trình yêu thích.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (isOwner) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bạn không thể tự yêu thích lịch trình của mình'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final currentFav = _userFavoritedOverride ?? itinerary.isFavorited;
+    final nextFav = !currentFav;
+    final currentCount = _favoriteCountOverride ?? itinerary.favoriteCount;
+    final nextCount = nextFav ? currentCount + 1 : (currentCount > 0 ? currentCount - 1 : 0);
+
+    setState(() {
+      _isTogglingFavorite = true;
+    });
+
+    try {
+      if (nextFav) {
+        await _socialRepository.addFavorite(itinerary.itineraryId, token: _effectiveToken);
+      } else {
+        await _socialRepository.removeFavorite(itinerary.itineraryId, token: _effectiveToken);
+      }
+      setState(() {
+        _userFavoritedOverride = nextFav;
+        _favoriteCountOverride = nextCount;
+        _hasSocialChanges = true;
+      });
+      final update = _buildSocialUpdate(itinerary);
+      widget.onSocialUpdate?.call(update);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTogglingFavorite = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openRatingDialog(ItineraryDetail itinerary, bool isOwner) async {
+    if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để đánh giá lịch trình.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (isOwner) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bạn không thể tự đánh giá lịch trình của mình'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final currentRating = _userRatingCleared ? null : (_userRatingOverride ?? itinerary.userRating);
+    final initialScore = currentRating ?? 5;
+    int selectedScore = initialScore;
+    final hasExistingRating = currentRating != null;
+
+    final result = await showDialog<int?>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              actionsOverflowButtonSpacing: 8,
+              actionsAlignment: MainAxisAlignment.end,
+              title: Text(
+                hasExistingRating ? 'Cập nhật đánh giá' : 'Đánh giá lịch trình',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Chọn số sao để đánh giá lịch trình này:',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(5, (index) {
+                          final starValue = index + 1;
+                          final isSelected = starValue <= selectedScore;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: '$starValue sao',
+                              icon: Icon(
+                                isSelected
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                color: Colors.amber,
+                                size: 36,
+                              ),
+                              onPressed: () {
+                                setDialogState(() {
+                                  selectedScore = starValue;
+                                });
+                              },
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '$selectedScore sao',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                if (hasExistingRating)
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(-1),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                    ),
+                    child: const Text('Xóa đánh giá'),
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(null),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                  ),
+                  child: const Text('Hủy'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(selectedScore),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Gửi'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    if (result == -1) {
+      try {
+        await _socialRepository.deleteRating(itinerary.itineraryId, token: _effectiveToken);
+        final currentCount = _ratingCountOverride ?? itinerary.ratingCount;
+        setState(() {
+          _userRatingOverride = null;
+          _userRatingCleared = true;
+          _ratingCountOverride = currentCount > 0 ? currentCount - 1 : 0;
+          _hasSocialChanges = true;
+        });
+        final update = _buildSocialUpdate(itinerary);
+        widget.onSocialUpdate?.call(update);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã xóa đánh giá')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    } else {
+      try {
+        final response = await _socialRepository.rateItinerary(
+          itinerary.itineraryId,
+          result,
+          token: _effectiveToken,
+        );
+        setState(() {
+          _userRatingOverride = result;
+          _userRatingCleared = false;
+          if (response['averageRating'] is num) {
+            _averageRatingOverride = (response['averageRating'] as num).toDouble();
+          }
+          if (response['ratingCount'] is num) {
+            _ratingCountOverride = (response['ratingCount'] as num).toInt();
+          }
+          _hasSocialChanges = true;
+        });
+        final update = _buildSocialUpdate(itinerary);
+        widget.onSocialUpdate?.call(update);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã gửi đánh giá thành công')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -476,48 +844,86 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                     currentUsername.toLowerCase() ==
                         creatorUsername.toLowerCase()));
 
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          appBar: AppBar(
-            title: const Text('Chi tiết lịch trình'),
+        final effectiveSaved = _userSavedOverride ?? itinerary?.isSaved ?? false;
+        final effectiveFavorited = _userFavoritedOverride ?? itinerary?.isFavorited ?? false;
+
+        return PopScope(
+          canPop: true,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop && _hasSocialChanges) {
+              widget.onSocialUpdate?.call(_buildSocialUpdate(itinerary));
+            }
+          },
+          child: Scaffold(
             backgroundColor: AppColors.background,
-            foregroundColor: AppColors.textPrimary,
-            surfaceTintColor: Colors.transparent,
-            actions: [
-              if (isOwner && itinerary != null) ...[
-                if (_isDeleting)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  )
-                else ...[
+            appBar: AppBar(
+              title: const Text('Chi tiết lịch trình'),
+              backgroundColor: AppColors.background,
+              foregroundColor: AppColors.textPrimary,
+              surfaceTintColor: Colors.transparent,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Quay lại',
+                onPressed: () {
+                  Navigator.of(context).pop(_hasSocialChanges ? _buildSocialUpdate(itinerary) : null);
+                },
+              ),
+              actions: [
+                if (itinerary != null) ...[
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    tooltip: 'Chỉnh sửa lịch trình',
-                    onPressed: () => _handleEdit(itinerary),
+                    icon: Icon(
+                      effectiveSaved ? Icons.bookmark : Icons.bookmark_border_rounded,
+                      color: effectiveSaved ? AppColors.savedActive : AppColors.textPrimary,
+                    ),
+                    tooltip: effectiveSaved ? 'Bỏ lưu' : 'Lưu lịch trình',
+                    onPressed: _isTogglingSave ? null : () => _handleToggleSave(itinerary),
                   ),
                   IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.error,
+                    icon: Icon(
+                      effectiveFavorited ? Icons.favorite : Icons.favorite_border_rounded,
+                      color: effectiveFavorited ? Colors.redAccent : AppColors.textPrimary,
                     ),
-                    tooltip: 'Xóa lịch trình',
-                    onPressed: () => _handleDelete(itinerary),
+                    tooltip: effectiveFavorited ? 'Bỏ yêu thích' : 'Yêu thích',
+                    onPressed: _isTogglingFavorite
+                        ? null
+                        : () => _handleToggleFavorite(itinerary, isOwner),
                   ),
                 ],
+                if (isOwner && itinerary != null) ...[
+                  if (_isDeleting)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Chỉnh sửa lịch trình',
+                      onPressed: () => _handleEdit(itinerary),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.error,
+                      ),
+                      tooltip: 'Xóa lịch trình',
+                      onPressed: () => _handleDelete(itinerary),
+                    ),
+                  ],
+                ],
               ],
-            ],
+            ),
+            body: _buildBody(itinerary, isOwner),
           ),
-          body: _buildBody(itinerary, isOwner),
         );
       },
     );
@@ -633,7 +1039,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
             ),
 
           // 1. Compact Header
-          SliverToBoxAdapter(child: _buildOverview(itinerary)),
+          SliverToBoxAdapter(child: _buildOverview(itinerary, isOwner)),
 
           // 2. Day Section Header
           SliverToBoxAdapter(
@@ -811,14 +1217,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   ),
                 ),
               ),
-            if (itinerary.status == 'ACTIVE' && itinerary.visibility == 'PUBLIC')
-              SliverToBoxAdapter(
-                child: ItineraryCommentsSection(
-                  itineraryId: itinerary.itineraryId,
-                  token: _effectiveToken,
-                  authNotifier: widget.authNotifier,
-                ),
+          ],
+          if ((itinerary.status == 'ACTIVE' || itinerary.status == 'PUBLISHED') &&
+              itinerary.visibility == 'PUBLIC') ...[
+            SliverToBoxAdapter(
+              child: ItineraryCommentsSection(
+                itineraryId: itinerary.itineraryId,
+                token: _effectiveToken,
+                authNotifier: widget.authNotifier,
               ),
+            ),
+            SliverToBoxAdapter(
+              child: _buildRatingSection(itinerary, isOwner),
+            ),
           ],
         ],
       ),
@@ -877,7 +1288,295 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     );
   }
 
-  Widget _buildOverview(ItineraryDetail itinerary) {
+
+  Widget _buildRatingSection(ItineraryDetail itinerary, bool isOwner) {
+    final effectiveUserRating =
+        _userRatingCleared ? null : (_userRatingOverride ?? itinerary.userRating);
+    final effectiveAverageRating =
+        _averageRatingOverride ?? itinerary.averageRating;
+    final effectiveRatingCount =
+        _ratingCountOverride ?? itinerary.ratingCount;
+    final hasUserRating = effectiveUserRating != null;
+    final isGuest =
+        widget.authNotifier != null && !widget.authNotifier!.isAuthenticated;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Title
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Đánh giá ($effectiveRatingCount)',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (!isOwner && !isGuest)
+                TextButton.icon(
+                  onPressed: () => _openRatingDialog(itinerary, isOwner),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  icon: Icon(
+                    hasUserRating
+                        ? Icons.edit_outlined
+                        : Icons.star_outline_rounded,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                  label: Text(
+                    hasUserRating ? 'Sửa đánh giá' : 'Đánh giá ngay',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Rating Summary Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSoft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.hairline),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Average rating score (large)
+                    Text(
+                      effectiveRatingCount > 0
+                          ? effectiveAverageRating.toStringAsFixed(1)
+                          : '0.0',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Stars display
+                          Row(
+                            children: List.generate(5, (index) {
+                              final starThreshold = index + 1;
+                              final isFilled = effectiveRatingCount > 0 &&
+                                  (effectiveAverageRating >= starThreshold ||
+                                      (effectiveAverageRating >=
+                                          starThreshold - 0.25));
+                              final isHalf = effectiveRatingCount > 0 &&
+                                  !isFilled &&
+                                  effectiveAverageRating >=
+                                      starThreshold - 0.75;
+                              return Icon(
+                                isFilled
+                                    ? Icons.star_rounded
+                                    : (isHalf
+                                        ? Icons.star_half_rounded
+                                        : Icons.star_outline_rounded),
+                                color: Colors.amber,
+                                size: 20,
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            effectiveRatingCount > 0
+                                ? '$effectiveRatingCount lượt đánh giá'
+                                : 'Chưa có lượt đánh giá nào',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Divider and user rating status
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: AppColors.hairline),
+                const SizedBox(height: 12),
+
+                // Status row based on viewer role and user rating state
+                if (isOwner)
+                  Row(
+                    children: const [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Bạn là người tạo lịch trình này (không thể tự đánh giá)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else if (isGuest)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text(
+                        'Đăng nhập để đánh giá lịch trình này',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _openRatingDialog(itinerary, isOwner),
+                        child: const Text('Đánh giá'),
+                      ),
+                    ],
+                  )
+                else if (hasUserRating)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Đánh giá của bạn: ',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: List.generate(5, (index) {
+                                return Icon(
+                                  index < effectiveUserRating
+                                      ? Icons.star_rounded
+                                      : Icons.star_outline_rounded,
+                                  color: Colors.amber,
+                                  size: 18,
+                                );
+                              }),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '($effectiveUserRating sao)',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => _openRatingDialog(itinerary, isOwner),
+                        borderRadius: BorderRadius.circular(4),
+                        child: const Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          child: Text(
+                            'Chỉnh sửa',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text(
+                        'Bạn đã trải nghiệm lịch trình này chưa?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          minimumSize: Size.zero,
+                          side: const BorderSide(color: AppColors.primary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => _openRatingDialog(itinerary, isOwner),
+                        icon: const Icon(
+                          Icons.star_outline_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        label: const Text(
+                          'Đánh giá',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverview(ItineraryDetail itinerary, bool isOwner) {
     final imageUrl = itinerary.coverImage?.trim();
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
@@ -935,11 +1634,6 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
               ),
               if (itinerary.theme != null && itinerary.theme!.trim().isNotEmpty)
                 _meta(Icons.category_outlined, itinerary.theme!.trim()),
-              if (itinerary.ratingCount > 0)
-                _meta(
-                  Icons.star_outline_rounded,
-                  '${itinerary.averageRating.toStringAsFixed(1)} (${itinerary.ratingCount})',
-                ),
               _meta(Icons.payments_outlined, _formatBudget(itinerary.budget)),
             ],
           ),

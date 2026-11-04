@@ -17,7 +17,7 @@ import 'package:mobile/features/itinerary/presentation/screens/create_itinerary_
 import 'package:mobile/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:mobile/features/profile/data/profile_repository.dart';
 import 'package:mobile/features/profile/presentation/screens/profile_screen.dart';
-import 'package:mobile/features/saved_itineraries/presentation/screens/saved_itineraries_screen.dart';
+import 'package:mobile/features/collection/presentation/screens/collection_screen.dart';
 import 'package:mobile/features/social/presentation/screens/community_screen.dart';
 import 'package:mobile/shared/navigation/main_navigation_shell.dart';
 
@@ -95,6 +95,20 @@ void main() {
           201,
           headers: {'content-type': 'application/json'},
         );
+      } else if (request.url.path.contains('/api/user/saved-itineraries') ||
+          request.url.path.contains('/api/user/favorites')) {
+        return http.Response(
+          jsonEncode({
+            'content': [],
+            'pageNumber': 0,
+            'pageSize': 10,
+            'totalElements': 0,
+            'totalPages': 0,
+            'last': true,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
       } else if (request.url.path.contains('/api/user/profile')) {
         return http.Response(
           jsonEncode({
@@ -167,14 +181,14 @@ void main() {
         expect(bottomNav.items[0].label, equals('Khám phá'));
         expect(bottomNav.items[1].label, equals('Cộng đồng'));
         expect(bottomNav.items[2].label, equals('Tạo lịch trình'));
-        expect(bottomNav.items[3].label, equals('Đã lưu'));
+        expect(bottomNav.items[3].label, equals('Bộ sưu tập'));
         expect(bottomNav.items[4].label, equals('Hồ sơ'));
 
         // Verify correct icons
         expect(find.byIcon(Icons.explore), findsOneWidget); // selected
         expect(find.byIcon(Icons.group_outlined), findsOneWidget);
         expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
-        expect(find.byIcon(Icons.bookmark_outline), findsOneWidget);
+        expect(find.byIcon(Icons.collections_bookmark_outlined), findsOneWidget);
         expect(find.byIcon(Icons.person_outline), findsOneWidget);
       },
     );
@@ -218,16 +232,18 @@ void main() {
         expect(find.byType(CreateItineraryScreen), findsOneWidget);
         expect(find.text('Tiêu đề lịch trình *'), findsOneWidget);
 
-        // 3. Tap Saved Itineraries (Index 3)
-        await tester.tap(find.byIcon(Icons.bookmark_outline));
+        // 3. Tap Collection (Index 3)
+        await tester.tap(find.byIcon(Icons.collections_bookmark_outlined));
         await tester.pumpAndSettle();
 
         bottomNav = tester.widget<BottomNavigationBar>(
           find.byType(BottomNavigationBar),
         );
         expect(bottomNav.currentIndex, equals(3));
-        expect(find.byType(SavedItinerariesScreen), findsOneWidget);
-        expect(find.text('Lịch trình đã lưu'), findsWidgets);
+        expect(find.byType(CollectionScreen), findsOneWidget);
+        expect(find.text('Bộ sưu tập'), findsWidgets);
+        expect(find.text('Đã lưu'), findsOneWidget);
+        expect(find.text('Yêu thích'), findsOneWidget);
 
         // 4. Tap Profile (Index 4)
         await tester.tap(find.byIcon(Icons.person_outline));
@@ -392,12 +408,12 @@ void main() {
     );
 
     testWidgets(
-      'Notification bell in SavedItineraries top-right opens NotificationsScreen',
+      'Notification bell in Collection top-right opens NotificationsScreen',
       (tester) async {
         await tester.pumpWidget(buildTestShell(initialIndex: 3));
         await tester.pumpAndSettle();
 
-        expect(find.byType(SavedItinerariesScreen), findsOneWidget);
+        expect(find.byType(CollectionScreen), findsOneWidget);
         final bellFinder = find.widgetWithIcon(
           IconButton,
           Icons.notifications_outlined,
@@ -488,7 +504,7 @@ void main() {
       for (final icon in [
         Icons.group_outlined,
         Icons.add_circle_outline,
-        Icons.bookmark_outline,
+        Icons.collections_bookmark_outlined,
         Icons.person_outline,
         Icons.explore_outlined,
       ]) {

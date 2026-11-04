@@ -8,14 +8,16 @@ import '../../features/itinerary/data/itinerary_crud_repository.dart';
 import '../../features/itinerary/presentation/screens/create_itinerary_screen.dart';
 import '../../features/profile/data/profile_repository.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
-import '../../features/saved_itineraries/presentation/screens/saved_itineraries_screen.dart';
+import '../../features/collection/presentation/screens/collection_screen.dart';
+import '../../features/collection/presentation/collection_notifier.dart';
+import '../../features/collection/data/collection_repository.dart';
 import '../../features/social/presentation/screens/community_screen.dart';
 
 /// Main navigation shell containing the 5 bottom navigation destinations:
 /// 1. Khám phá (Explore / Home) - Default
 /// 2. Cộng đồng (Community)
 /// 3. Tạo lịch trình (Create itinerary) - Center
-/// 4. Đã lưu (Saved itineraries)
+/// 4. Bộ sưu tập (Collections / Saved & Favorites)
 /// 5. Hồ sơ cá nhân (Personal profile)
 class MainNavigationShell extends StatefulWidget {
   final AuthNotifier authNotifier;
@@ -23,6 +25,8 @@ class MainNavigationShell extends StatefulWidget {
   final ExploreNotifier? exploreNotifier;
   final ItineraryCrudRepository? itineraryRepository;
   final ProfileRepository? profileRepository;
+  final CollectionNotifier? collectionNotifier;
+  final CollectionRepository? collectionRepository;
 
   const MainNavigationShell({
     super.key,
@@ -31,6 +35,8 @@ class MainNavigationShell extends StatefulWidget {
     this.exploreNotifier,
     this.itineraryRepository,
     this.profileRepository,
+    this.collectionNotifier,
+    this.collectionRepository,
   });
 
   @override
@@ -75,7 +81,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               });
             },
           ),
-          const SavedItinerariesScreen(),
+          CollectionScreen(
+            authNotifier: widget.authNotifier,
+            notifier: widget.collectionNotifier,
+            repository: widget.collectionRepository,
+          ),
           ProfileScreen(
             authNotifier: widget.authNotifier,
             repository: widget.profileRepository,
@@ -120,10 +130,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               tooltip: 'Tạo lịch trình',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.bookmark_outline),
-              activeIcon: Icon(Icons.bookmark),
-              label: 'Đã lưu',
-              tooltip: 'Đã lưu',
+              icon: Icon(Icons.collections_bookmark_outlined),
+              activeIcon: Icon(Icons.collections_bookmark),
+              label: 'Bộ sưu tập',
+              tooltip: 'Bộ sưu tập',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

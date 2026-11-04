@@ -54,4 +54,7 @@ class AppColors {
   static const Color success = Color(0xFF10B981); // Emerald 500
   static const Color warning = Color(0xFFF59E0B); // Amber 500
   static const Color info = Color(0xFF3B82F6); // Blue 500
+
+  // Social & Interaction Tokens
+  static const Color savedActive = Color(0xFFF59E0B); // Amber 500 - Gold/Yellow Saved Bookmark Accent
 }

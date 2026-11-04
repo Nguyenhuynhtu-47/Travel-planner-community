@@ -88,4 +88,42 @@ class ItinerarySummary {
       creator: parsedCreator,
     );
   }
+
+  ItinerarySummary copyWith({
+    int? itineraryId,
+    String? title,
+    String? description,
+    String? location,
+    String? coverImage,
+    int? totalDays,
+    double? budget,
+    String? theme,
+    String? visibility,
+    String? status,
+    int? viewCount,
+    int? favoriteCount,
+    int? ratingCount,
+    double? averageRating,
+    DateTime? createdAt,
+    CreatorSummary? creator,
+  }) {
+    return ItinerarySummary(
+      itineraryId: itineraryId ?? this.itineraryId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      location: location ?? this.location,
+      coverImage: coverImage ?? this.coverImage,
+      totalDays: totalDays ?? this.totalDays,
+      budget: budget ?? this.budget,
+      theme: theme ?? this.theme,
+      visibility: visibility ?? this.visibility,
+      status: status ?? this.status,
+      viewCount: viewCount ?? this.viewCount,
+      favoriteCount: favoriteCount ?? this.favoriteCount,
+      ratingCount: ratingCount ?? this.ratingCount,
+      averageRating: averageRating ?? this.averageRating,
+      createdAt: createdAt ?? this.createdAt,
+      creator: creator ?? this.creator,
+    );
+  }
 }

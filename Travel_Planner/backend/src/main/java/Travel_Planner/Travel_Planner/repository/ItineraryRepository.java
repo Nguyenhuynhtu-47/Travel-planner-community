@@ -36,4 +36,20 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, 
     @Modifying
     @Query("update Itinerary i set i.commentCount = i.commentCount + 1 where i.itineraryId = :itineraryId")
     int incrementCommentCount(@Param("itineraryId") Integer itineraryId);
+
+    @Modifying
+    @Query("update Itinerary i set i.ratingCount = i.ratingCount + 1 where i.itineraryId = :itineraryId")
+    int incrementRatingCount(@Param("itineraryId") Integer itineraryId);
+
+    @Modifying
+    @Query("update Itinerary i set i.ratingCount = i.ratingCount - 1 where i.itineraryId = :itineraryId and i.ratingCount > 0")
+    int decrementRatingCount(@Param("itineraryId") Integer itineraryId);
+
+    @Modifying
+    @Query("update Itinerary i set i.favoriteCount = i.favoriteCount + 1 where i.itineraryId = :itineraryId")
+    int incrementFavoriteCount(@Param("itineraryId") Integer itineraryId);
+
+    @Modifying
+    @Query("update Itinerary i set i.favoriteCount = i.favoriteCount - 1 where i.itineraryId = :itineraryId and i.favoriteCount > 0")
+    int decrementFavoriteCount(@Param("itineraryId") Integer itineraryId);
 }

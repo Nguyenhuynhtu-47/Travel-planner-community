@@ -22,7 +22,7 @@ void main() {
                   context,
                   currentFilter: initialFilter ?? const ExploreFilter(),
                   currentSort: initialSort,
-                  onApply: onApply ?? (_, __) {},
+                  onApply: onApply ?? (_, _) {},
                 );
               },
               child: const Text('Open Filters'),

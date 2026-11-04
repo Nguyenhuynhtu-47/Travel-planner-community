@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RatingRepository extends JpaRepository<Rating, Integer> {
@@ -15,5 +16,14 @@ public interface RatingRepository extends JpaRepository<Rating, Integer> {
     List<Object[]> findAverageRatingsByItineraryIds(@Param("itineraryIds") List<Integer> itineraryIds);
 
     boolean existsByUser_UserIdAndItinerary_ItineraryId(Integer userId, Integer itineraryId);
-}
 
+    Optional<Rating> findByUser_UserIdAndItinerary_ItineraryId(Integer userId, Integer itineraryId);
+
+    @Query("SELECT AVG(r.score) FROM Rating r WHERE r.itinerary.itineraryId = :itineraryId")
+    Double findAverageRatingByItineraryId(@Param("itineraryId") Integer itineraryId);
+
+    @Query("SELECT r.score, COUNT(r) FROM Rating r WHERE r.itinerary.itineraryId = :itineraryId GROUP BY r.score")
+    List<Object[]> countStarDistributionByItineraryId(@Param("itineraryId") Integer itineraryId);
+
+    long countByItinerary_ItineraryId(Integer itineraryId);
+}

@@ -54,7 +54,7 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
         if (widget.authNotifier != null) widget.authNotifier!,
       ]),
       builder: (context, _) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

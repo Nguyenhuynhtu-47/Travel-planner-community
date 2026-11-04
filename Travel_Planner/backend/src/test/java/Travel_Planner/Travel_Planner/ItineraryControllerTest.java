@@ -644,4 +644,64 @@ class ItineraryControllerTest {
                 .andExpect(jsonPath("$.content[0].itineraryId").value(recTrip.getItineraryId()))
                 .andExpect(jsonPath("$.content[0].title").value("Other Nghỉ dưỡng Trip"));
     }
+
+    @Test
+    @DisplayName("24. Detail endpoint for authenticated user includes isFavorited, isSaved, and userRating")
+    void testGetItineraryDetail_WhenAuthenticated_IncludesContextualFlags() throws Exception {
+        User otherUser = userRepository.save(User.builder()
+                .username("author_detail")
+                .password(passwordEncoder.encode("Password123!"))
+                .email("author_detail@example.com")
+                .fullName("Author Detail")
+                .role(Role.USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+
+        Itinerary trip = createItinerary("Detailed Public Trip", "Da Nang", "Nghỉ dưỡng", "Desc",
+                new BigDecimal("2000000.00"), 3, Visibility.PUBLIC, ItineraryStatus.ACTIVE, otherUser);
+
+        favoriteRepository.save(Travel_Planner.Travel_Planner.model.Favorite.builder()
+                .user(activeUser)
+                .itinerary(trip)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        savedItineraryRepository.save(Travel_Planner.Travel_Planner.model.SavedItinerary.builder()
+                .user(activeUser)
+                .itinerary(trip)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        ratingRepository.save(Travel_Planner.Travel_Planner.model.Rating.builder()
+                .user(activeUser)
+                .itinerary(trip)
+                .score(5)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build());
+
+        String token = "Bearer " + jwtTokenProvider.generateToken(activeUser);
+
+        mockMvc.perform(get("/api/itineraries/" + trip.getItineraryId())
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itineraryId").value(trip.getItineraryId()))
+                .andExpect(jsonPath("$.isFavorited").value(true))
+                .andExpect(jsonPath("$.isSaved").value(true))
+                .andExpect(jsonPath("$.userRating").value(5));
+    }
+
+    @Test
+    @DisplayName("25. Detail endpoint for anonymous user returns default false and null contextual flags")
+    void testGetItineraryDetail_WhenAnonymous_ContextualFlagsAreDefault() throws Exception {
+        Itinerary trip = createItinerary("Anonymous Detail Trip", "Nha Trang", "Nghỉ dưỡng", "Desc",
+                new BigDecimal("3000000.00"), 3, Visibility.PUBLIC, ItineraryStatus.ACTIVE, activeUser);
+
+        mockMvc.perform(get("/api/itineraries/" + trip.getItineraryId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itineraryId").value(trip.getItineraryId()))
+                .andExpect(jsonPath("$.isFavorited").value(false))
+                .andExpect(jsonPath("$.isSaved").value(false))
+                .andExpect(jsonPath("$.userRating").value(nullValue()));
+    }
 }

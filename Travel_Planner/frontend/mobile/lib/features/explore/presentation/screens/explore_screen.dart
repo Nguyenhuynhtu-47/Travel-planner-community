@@ -1,3 +1,4 @@
+import '../../../social/data/models/social_state_update.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -53,6 +54,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     _scrollController.addListener(_onScroll);
 
+    widget.authNotifier.addListener(_onAuthChanged);
+
     // Initial load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _exploreNotifier.loadInitialItineraries(token: widget.authNotifier.token);
@@ -61,12 +64,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   void dispose() {
+    widget.authNotifier.removeListener(_onAuthChanged);
     _searchController.dispose();
     _scrollController.dispose();
     if (widget.exploreNotifier == null) {
       _exploreNotifier.dispose();
     }
     super.dispose();
+  }
+
+  void _onAuthChanged() {
+    _exploreNotifier.loadUserFavorites(token: widget.authNotifier.token);
   }
 
   void _onScroll() {
@@ -102,13 +110,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _navigateToDetail(ItinerarySummary itinerary) async {
+    final isFav = _exploreNotifier.isFavorited(itinerary.itineraryId);
     final result = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute<dynamic>(
         builder: (_) => ItineraryDetailScreen(
           itineraryId: itinerary.itineraryId,
           initialSummary: itinerary,
+          initialIsFavorited: isFav,
           token: widget.authNotifier.token,
           authNotifier: widget.authNotifier,
+          onSocialUpdate: (update) {
+            _exploreNotifier.applySocialUpdate(update);
+          },
           notifier: widget.itineraryDetailNotifierFactory?.call(
             itinerary.itineraryId,
             widget.authNotifier.token,
@@ -116,12 +129,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
         ),
       ),
     );
-    if (result == true && mounted) {
+    if (result is SocialStateUpdate && mounted) {
+      _exploreNotifier.applySocialUpdate(result);
+    } else if (result == true && mounted) {
       _exploreNotifier.refreshAll(token: widget.authNotifier.token);
     }
   }
 
-  void _handleFavoriteTap(ItinerarySummary itinerary) {
+  Future<void> _handleFavoriteTap(ItinerarySummary itinerary) async {
     if (!widget.authNotifier.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -136,13 +151,52 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
       );
-    } else {
+      return;
+    }
+
+    final currentUsername = widget.authNotifier.currentUser?['username']?.toString().trim();
+    final currentUserId = widget.authNotifier.currentUser?['userId'] is num
+        ? (widget.authNotifier.currentUser!['userId'] as num).toInt()
+        : int.tryParse(widget.authNotifier.currentUser?['userId']?.toString() ?? '');
+    final isOwner = (currentUserId != null && itinerary.creator?.userId == currentUserId) ||
+        (currentUsername != null &&
+            itinerary.creator?.username != null &&
+            itinerary.creator!.username.toLowerCase() == currentUsername.toLowerCase());
+
+    if (isOwner) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã lưu "${itinerary.title}" vào danh sách yêu thích.'),
-          duration: const Duration(seconds: 2),
+        const SnackBar(
+          content: Text('Bạn không thể tự yêu thích lịch trình của mình'),
+          duration: Duration(seconds: 2),
         ),
       );
+      return;
+    }
+
+    if (_exploreNotifier.isFavoriteLoading(itinerary.itineraryId)) return;
+
+    try {
+      final nextFav = await _exploreNotifier.toggleFavorite(
+        itineraryId: itinerary.itineraryId,
+        token: widget.authNotifier.token,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -516,6 +570,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           final itinerary = itineraries[index];
           return ItineraryCard(
             itinerary: itinerary,
+            isFavorited: _exploreNotifier.isFavorited(itinerary.itineraryId),
             onFavoriteTap: () => _handleFavoriteTap(itinerary),
             onTap: () => _navigateToDetail(itinerary),
           );
@@ -686,6 +741,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 final itin = items[index];
                 return FeaturedItineraryCard(
                   itinerary: itin,
+                  isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   onTap: () => _navigateToDetail(itin),
                   onFavoriteTap: () => _handleFavoriteTap(itin),
                 );
@@ -770,6 +826,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 final itin = items[index];
                 return CompactItineraryCard(
                   itinerary: itin,
+                  isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   highlight: CompactCardHighlight.theme,
                   onTap: () => _navigateToDetail(itin),
                   onFavoriteTap: () => _handleFavoriteTap(itin),
@@ -816,6 +873,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 final itin = items[index];
                 return CompactItineraryCard(
                   itinerary: itin,
+                  isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   highlight: CompactCardHighlight.rating,
                   onTap: () => _navigateToDetail(itin),
                   onFavoriteTap: () => _handleFavoriteTap(itin),
@@ -862,6 +920,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 final itin = items[index];
                 return CompactItineraryCard(
                   itinerary: itin,
+                  isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   highlight: CompactCardHighlight.popular,
                   onTap: () => _navigateToDetail(itin),
                   onFavoriteTap: () => _handleFavoriteTap(itin),
@@ -904,6 +963,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               children: items.map((itin) {
                 return ItineraryCard(
                   itinerary: itin,
+                  isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   onTap: () => _navigateToDetail(itin),
                   onFavoriteTap: () => _handleFavoriteTap(itin),
                 );
