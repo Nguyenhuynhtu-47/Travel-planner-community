@@ -35,4 +35,15 @@ class ApiConstants {
   static const String locationsEndpoint = '/api/locations';
   static const String locationSearchEndpoint = '/api/locations/search';
   static const String locationReverseGeocodeEndpoint = '/api/locations/reverse-geocode';
+  static const String savedItinerariesEndpoint = '/api/user/saved-itineraries';
+  static const String userFavoritesEndpoint = '/api/user/favorites';
+
+  static String itinerarySaveEndpoint(int itineraryId) =>
+      '/api/itineraries/$itineraryId/save';
+  static String itineraryFavoritesEndpoint(int itineraryId) =>
+      '/api/itineraries/$itineraryId/favorites';
+  static String itineraryRatingsEndpoint(int itineraryId) =>
+      '/api/itineraries/$itineraryId/ratings';
+  static String itineraryUserRatingEndpoint(int itineraryId) =>
+      '/api/itineraries/$itineraryId/ratings/me';
 }

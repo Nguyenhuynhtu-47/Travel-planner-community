@@ -377,6 +377,22 @@ public class ItineraryServiceImpl implements ItineraryService {
                     .build();
         }
 
+        Boolean isFavorited = false;
+        Boolean isSaved = false;
+        Integer userRating = null;
+
+        if (currentUsername != null) {
+            Optional<User> currentUserOpt = userRepository.findByUsername(currentUsername);
+            if (currentUserOpt.isPresent()) {
+                Integer currentUserId = currentUserOpt.get().getUserId();
+                isFavorited = favoriteRepository.existsByUser_UserIdAndItinerary_ItineraryId(currentUserId, id);
+                isSaved = savedItineraryRepository.existsByUser_UserIdAndItinerary_ItineraryId(currentUserId, id);
+                userRating = ratingRepository.findByUser_UserIdAndItinerary_ItineraryId(currentUserId, id)
+                        .map(Rating::getScore)
+                        .orElse(null);
+            }
+        }
+
         return ItineraryDetailResponse.builder()
                 .itineraryId(itinerary.getItineraryId())
                 .title(itinerary.getTitle())
@@ -394,6 +410,9 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .commentCount(itinerary.getCommentCount())
                 .reuseCount(itinerary.getReuseCount())
                 .averageRating(avgRating)
+                .isFavorited(isFavorited)
+                .isSaved(isSaved)
+                .userRating(userRating)
                 .createdAt(itinerary.getCreatedAt())
                 .updatedAt(itinerary.getUpdatedAt())
                 .creator(creator)
@@ -549,6 +568,9 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .commentCount(0)
                 .reuseCount(0)
                 .averageRating(0.0)
+                .isFavorited(false)
+                .isSaved(false)
+                .userRating(null)
                 .createdAt(itinerary.getCreatedAt())
                 .updatedAt(itinerary.getUpdatedAt())
                 .creator(creator)

@@ -7,12 +7,22 @@ class ItineraryCard extends StatelessWidget {
   final ItinerarySummary itinerary;
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteTap;
+  final bool isFavorited;
+  final Widget? topTrailingWidget;
+  final IconData? actionIcon;
+  final Color? actionIconColor;
+  final VoidCallback? onActionTap;
 
   const ItineraryCard({
     super.key,
     required this.itinerary,
     this.onTap,
     this.onFavoriteTap,
+    this.isFavorited = false,
+    this.topTrailingWidget,
+    this.actionIcon,
+    this.actionIconColor,
+    this.onActionTap,
   });
 
   String _formatBudget(double budget) {
@@ -143,11 +153,18 @@ class ItineraryCard extends StatelessWidget {
                     ),
                   ),
 
-                // Favorite Heart Button
+                // Action / Favorite Button
                 Positioned(
                   top: 8,
                   right: 8,
-                  child: _FavoriteHeartButton(onTap: onFavoriteTap),
+                  child: topTrailingWidget ??
+                      (actionIcon != null
+                          ? _CustomCardActionButton(
+                              icon: actionIcon!,
+                              iconColor: actionIconColor,
+                              onTap: onActionTap,
+                            )
+                          : _FavoriteHeartButton(onTap: onFavoriteTap, isFavorited: isFavorited)),
                 ),
               ],
             ),
@@ -343,8 +360,12 @@ class ItineraryCard extends StatelessWidget {
 
 class _FavoriteHeartButton extends StatefulWidget {
   final VoidCallback? onTap;
+  final bool isFavorited;
 
-  const _FavoriteHeartButton({this.onTap});
+  const _FavoriteHeartButton({
+    this.onTap,
+    this.isFavorited = false,
+  });
 
   @override
   State<_FavoriteHeartButton> createState() => _FavoriteHeartButtonState();
@@ -385,10 +406,75 @@ class _FavoriteHeartButtonState extends State<_FavoriteHeartButton> {
               color: Colors.black.withAlpha(50),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.favorite_border_rounded,
+            child: Icon(
+              widget.isFavorited
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
               size: 20,
-              color: Colors.white,
+              color: widget.isFavorited ? Colors.redAccent : Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+class _CustomCardActionButton extends StatefulWidget {
+  final IconData icon;
+  final Color? iconColor;
+  final VoidCallback? onTap;
+
+  const _CustomCardActionButton({
+    required this.icon,
+    this.iconColor,
+    this.onTap,
+  });
+
+  @override
+  State<_CustomCardActionButton> createState() => _CustomCardActionButtonState();
+}
+
+class _CustomCardActionButtonState extends State<_CustomCardActionButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final disableMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: widget.onTap,
+        onTapDown: (_) {
+          if (!disableMotion) setState(() => _pressed = true);
+        },
+        onTapUp: (_) {
+          if (!disableMotion) setState(() => _pressed = false);
+        },
+        onTapCancel: () {
+          if (!disableMotion) setState(() => _pressed = false);
+        },
+        customBorder: const CircleBorder(),
+        child: AnimatedScale(
+          scale: _pressed ? 0.88 : 1.0,
+          duration: disableMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(50),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              widget.icon,
+              size: 20,
+              color: widget.iconColor ?? Colors.white,
             ),
           ),
         ),

@@ -20,6 +20,9 @@ class ItineraryDetail {
   final DateTime? updatedAt;
   final CreatorSummary? creator;
   final List<ItineraryDayDetail> days;
+  final bool isFavorited;
+  final bool isSaved;
+  final int? userRating;
 
   const ItineraryDetail({
     required this.itineraryId,
@@ -40,6 +43,9 @@ class ItineraryDetail {
     this.updatedAt,
     this.creator,
     required this.days,
+    this.isFavorited = false,
+    this.isSaved = false,
+    this.userRating,
   });
 
   factory ItineraryDetail.fromJson(Map<String, dynamic> json) {
@@ -110,6 +116,60 @@ class ItineraryDetail {
       updatedAt: parsedUpdatedAt,
       creator: parsedCreator,
       days: daysList,
+      isFavorited: json['isFavorited'] == true,
+      isSaved: json['isSaved'] == true,
+      userRating: json['userRating'] is num
+          ? (json['userRating'] as num).toInt()
+          : (int.tryParse(json['userRating']?.toString() ?? '')),
+    );
+  }
+
+  ItineraryDetail copyWith({
+    int? itineraryId,
+    String? title,
+    String? description,
+    String? location,
+    String? coverImage,
+    int? totalDays,
+    double? budget,
+    String? theme,
+    int? viewCount,
+    int? favoriteCount,
+    int? ratingCount,
+    double? averageRating,
+    String? visibility,
+    String? status,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    CreatorSummary? creator,
+    List<ItineraryDayDetail>? days,
+    bool? isFavorited,
+    bool? isSaved,
+    int? userRating,
+    bool clearUserRating = false,
+  }) {
+    return ItineraryDetail(
+      itineraryId: itineraryId ?? this.itineraryId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      location: location ?? this.location,
+      coverImage: coverImage ?? this.coverImage,
+      totalDays: totalDays ?? this.totalDays,
+      budget: budget ?? this.budget,
+      theme: theme ?? this.theme,
+      viewCount: viewCount ?? this.viewCount,
+      favoriteCount: favoriteCount ?? this.favoriteCount,
+      ratingCount: ratingCount ?? this.ratingCount,
+      averageRating: averageRating ?? this.averageRating,
+      visibility: visibility ?? this.visibility,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      creator: creator ?? this.creator,
+      days: days ?? this.days,
+      isFavorited: isFavorited ?? this.isFavorited,
+      isSaved: isSaved ?? this.isSaved,
+      userRating: clearUserRating ? null : (userRating ?? this.userRating),
     );
   }
 }

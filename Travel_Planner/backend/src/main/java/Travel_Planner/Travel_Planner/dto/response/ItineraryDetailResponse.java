@@ -32,6 +32,9 @@ public class ItineraryDetailResponse {
     private Integer commentCount;
     private Integer reuseCount;
     private Double averageRating;
+    private Boolean isFavorited;
+    private Boolean isSaved;
+    private Integer userRating;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private CreatorSummaryResponse creator;

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../core/network/api_exception.dart';
 import '../data/explore_repository.dart';
 import '../data/models/itinerary_summary.dart';
+import '../../social/data/social_repository.dart';
+import '../../collection/data/collection_repository.dart';
+import '../../social/data/models/social_state_update.dart';
 
 enum ExploreStatus { initial, loading, success, error }
 
@@ -131,6 +134,10 @@ class ExploreNotifier extends ChangeNotifier {
   SectionState<ItinerarySummary> _popularSection = const SectionState();
   SectionState<ItinerarySummary> _recentSection = const SectionState();
 
+  // Favorited itinerary IDs for active user
+  final Set<int> _favoritedItineraryIds = {};
+  final Set<int> _inFlightFavoriteIds = {};
+
   ExploreNotifier({ExploreRepository? repository})
     : _repository = repository ?? ExploreRepository();
 
@@ -156,6 +163,10 @@ class ExploreNotifier extends ChangeNotifier {
   SectionState<ItinerarySummary> get topRatedSection => _topRatedSection;
   SectionState<ItinerarySummary> get popularSection => _popularSection;
   SectionState<ItinerarySummary> get recentSection => _recentSection;
+
+  Set<int> get favoritedItineraryIds => Set.unmodifiable(_favoritedItineraryIds);
+  bool isFavorited(int itineraryId) => _favoritedItineraryIds.contains(itineraryId);
+  bool isFavoriteLoading(int itineraryId) => _inFlightFavoriteIds.contains(itineraryId);
 
   bool get isSearchOrFilterActive =>
       _searchKeyword.isNotEmpty || !_filter.isEmpty || _isViewingAll;
@@ -206,6 +217,7 @@ class ExploreNotifier extends ChangeNotifier {
       _loadTopRatedSection(token: token),
       _loadPopularSection(token: token),
       _loadRecentSection(token: token),
+      loadUserFavorites(token: token),
     ]);
   }
 
@@ -540,5 +552,176 @@ class ExploreNotifier extends ChangeNotifier {
   void retry({String? token}) {
     fetchItineraries(resetPage: _itineraries.isEmpty, token: token);
     loadHomeSections(token: token);
+  }
+
+  Future<void> loadUserFavorites({
+    String? token,
+    CollectionRepository? collectionRepository,
+  }) async {
+    if (token == null || token.isEmpty) {
+      if (_favoritedItineraryIds.isNotEmpty) {
+        _favoritedItineraryIds.clear();
+        notifyListeners();
+      }
+      return;
+    }
+
+    final repo = collectionRepository ?? CollectionRepository();
+    try {
+      final page = await repo.getFavoriteItineraries(
+        page: 0,
+        size: 100,
+        token: token,
+      );
+      _favoritedItineraryIds.clear();
+      for (final item in page.content) {
+        _favoritedItineraryIds.add(item.itineraryId);
+      }
+      notifyListeners();
+    } catch (_) {
+      // Non-blocking: retain existing favorites
+    }
+  }
+
+  Future<bool> toggleFavorite({
+    required int itineraryId,
+    required String? token,
+    SocialRepository? socialRepository,
+  }) async {
+    if (_inFlightFavoriteIds.contains(itineraryId)) {
+      return isFavorited(itineraryId);
+    }
+    _inFlightFavoriteIds.add(itineraryId);
+
+    final wasFavorited = _favoritedItineraryIds.contains(itineraryId);
+    final nextFavorited = !wasFavorited;
+
+    // Optimistic update
+    if (nextFavorited) {
+      _favoritedItineraryIds.add(itineraryId);
+      _updateItemFavoriteCount(itineraryId, 1);
+    } else {
+      _favoritedItineraryIds.remove(itineraryId);
+      _updateItemFavoriteCount(itineraryId, -1);
+    }
+    notifyListeners();
+
+    final repo = socialRepository ?? SocialRepository();
+    try {
+      if (nextFavorited) {
+        await repo.addFavorite(itineraryId, token: token);
+      } else {
+        await repo.removeFavorite(itineraryId, token: token);
+      }
+      return nextFavorited;
+    } catch (e) {
+      // Rollback optimistic update on error
+      if (nextFavorited) {
+        _favoritedItineraryIds.remove(itineraryId);
+        _updateItemFavoriteCount(itineraryId, -1);
+      } else {
+        _favoritedItineraryIds.add(itineraryId);
+        _updateItemFavoriteCount(itineraryId, 1);
+      }
+      notifyListeners();
+      rethrow;
+    } finally {
+      _inFlightFavoriteIds.remove(itineraryId);
+      notifyListeners();
+    }
+  }
+
+  void _updateItemFavoriteCount(int itineraryId, int delta) {
+    ItinerarySummary updateSummary(ItinerarySummary item) {
+      if (item.itineraryId != itineraryId) return item;
+      final newCount = (item.favoriteCount + delta).clamp(0, 999999);
+      return item.copyWith(favoriteCount: newCount);
+    }
+
+    _itineraries = _itineraries.map(updateSummary).toList();
+    if (_featuredSection.items.isNotEmpty) {
+      _featuredSection = _featuredSection.copyWith(
+        items: _featuredSection.items.map(updateSummary).toList(),
+      );
+    }
+    if (_recommendedSection.items.isNotEmpty) {
+      _recommendedSection = _recommendedSection.copyWith(
+        items: _recommendedSection.items.map(updateSummary).toList(),
+      );
+    }
+    if (_topRatedSection.items.isNotEmpty) {
+      _topRatedSection = _topRatedSection.copyWith(
+        items: _topRatedSection.items.map(updateSummary).toList(),
+      );
+    }
+    if (_popularSection.items.isNotEmpty) {
+      _popularSection = _popularSection.copyWith(
+        items: _popularSection.items.map(updateSummary).toList(),
+      );
+    }
+    if (_recentSection.items.isNotEmpty) {
+      _recentSection = _recentSection.copyWith(
+        items: _recentSection.items.map(updateSummary).toList(),
+      );
+    }
+  }
+
+  void applySocialUpdate(SocialStateUpdate update) {
+    bool changed = false;
+
+    if (update.isFavorited != null) {
+      if (update.isFavorited == true && !_favoritedItineraryIds.contains(update.itineraryId)) {
+        _favoritedItineraryIds.add(update.itineraryId);
+        _updateItemFavoriteCount(update.itineraryId, 1);
+        changed = true;
+      } else if (update.isFavorited == false && _favoritedItineraryIds.contains(update.itineraryId)) {
+        _favoritedItineraryIds.remove(update.itineraryId);
+        _updateItemFavoriteCount(update.itineraryId, -1);
+        changed = true;
+      }
+    }
+
+    if (update.favoriteCount != null || update.averageRating != null || update.ratingCount != null) {
+      ItinerarySummary syncItem(ItinerarySummary item) {
+        if (item.itineraryId != update.itineraryId) return item;
+        changed = true;
+        return item.copyWith(
+          favoriteCount: update.favoriteCount ?? item.favoriteCount,
+          averageRating: update.averageRating ?? item.averageRating,
+          ratingCount: update.ratingCount ?? item.ratingCount,
+        );
+      }
+
+      _itineraries = _itineraries.map(syncItem).toList();
+      if (_featuredSection.items.isNotEmpty) {
+        _featuredSection = _featuredSection.copyWith(
+          items: _featuredSection.items.map(syncItem).toList(),
+        );
+      }
+      if (_recommendedSection.items.isNotEmpty) {
+        _recommendedSection = _recommendedSection.copyWith(
+          items: _recommendedSection.items.map(syncItem).toList(),
+        );
+      }
+      if (_topRatedSection.items.isNotEmpty) {
+        _topRatedSection = _topRatedSection.copyWith(
+          items: _topRatedSection.items.map(syncItem).toList(),
+        );
+      }
+      if (_popularSection.items.isNotEmpty) {
+        _popularSection = _popularSection.copyWith(
+          items: _popularSection.items.map(syncItem).toList(),
+        );
+      }
+      if (_recentSection.items.isNotEmpty) {
+        _recentSection = _recentSection.copyWith(
+          items: _recentSection.items.map(syncItem).toList(),
+        );
+      }
+    }
+
+    if (changed) {
+      notifyListeners();
+    }
   }
 }
