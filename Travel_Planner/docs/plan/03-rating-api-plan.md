@@ -3,8 +3,10 @@
 **Document Reference:** `plan/03-rating-api-plan.md`  
 **Location:** `Travel_Planner/docs/plan/03-rating-api-plan.md`  
 **Creation Date:** 2026-11-04  
+**Last Updated:** 2026-11-04 (Final Polish: 10 New vs 1 Existing Endpoint, Atomic Counter Transactionality, Idempotency & Rebase Conflict Protocol)  
 **Author / Technical Lead:** Senior Software Architect & Technical Lead  
 **Assignee:** Member 1 (Rating API Full-Stack Slice)  
+**Active Working Branch:** `develop` (Changes currently in Working Tree, uncommitted and unpushed)  
 **Scope:** Backend Vertical Slice (Repository ➔ DTO ➔ Service ➔ Controller ➔ Tests ➔ Detail Integration)  
 **Parent Plan:** [`plan/02-backend-social-interaction-plan.md`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/02-backend-social-interaction-plan.md)  
 **Target Milestone:** Phase 2 Task P2-R1  
@@ -21,17 +23,27 @@
 5. Enforce strict **Self-Rating Prohibition**: prevent authors from rating their own itineraries (`400 Bad Request`).
 6. Guarantee **Concurrency & Data Integrity**: handle concurrent duplicate submissions gracefully via database unique constraints and atomic queries.
 7. Integrate contextual rating data (`userRating`, `ratingCount`, `averageRating`) into `ItineraryDetailResponse`.
+8. **Endpoint Architecture Breakdown (10 NEW vs 1 EXISTING):**
+   - This plan implements **4 NEW REST endpoints** for Rating (out of 10 new endpoints across the entire Social Interaction feature):
+     1. `POST /api/itineraries/{itineraryId}/ratings` (Create or update rating)
+     2. `GET /api/itineraries/{itineraryId}/ratings/me` (Current user's rating)
+     3. `GET /api/itineraries/{itineraryId}/ratings` (Public aggregate rating summary & star distribution)
+     4. `DELETE /api/itineraries/{itineraryId}/ratings` (Delete own rating)
+   - The **1 EXISTING endpoint** (`GET /api/itineraries/{id}`) in `ItineraryController.java` is enriched with `userRating` (alongside `isFavorited` and `isSaved`) during Phase 6 / Joint Phase 9.
 
-### 1.2 Scope
-- **IN SCOPE:**
+### 1.2 Scope & Test Status Delineation
+- **AUDITED REPOSITORY BASELINE (Session 83 Live Test Execution):**
+  - **157 / 157 Backend tests passing** (`mvnw.cmd test` in 44.8s). Regression guard.
+  - *Note: In Sessions 84 and 85, no automated test commands were re-run because no application source code was modified.*
+- **IN SCOPE (PLANNED TASKS FOR MEMBER 1):**
   - `RatingRepository` query extensions.
   - Atomic counter operations in `ItineraryRepository` (`incrementRatingCount`, `decrementRatingCount`).
   - Request/Response DTOs (`RateItineraryRequest`, `RatingResponse`, `RatingSummaryResponse`, `UserRatingStatusResponse`).
   - `RatingService` interface and `RatingServiceImpl` implementation.
   - `RatingController` REST endpoints under `/api/itineraries/{itineraryId}/ratings`.
   - Spring Security whitelist for public rating summary.
-  - Comprehensive unit, integration, and concurrency tests (`RatingControllerTest`).
-  - Integration of `userRating` field into `ItineraryDetailResponse` and `ItineraryServiceImpl`.
+  - **Planned Automated Tests:** 15 test cases in `RatingControllerTest` (to be implemented in Phase 5).
+  - Integration of `userRating` field into `ItineraryDetailResponse` and `ItineraryServiceImpl` (during Joint Phase 9).
 - **EXPLICITLY OUT OF SCOPE:**
   - Favorite and Saved Itinerary APIs (handled independently by Member 2 in Plan 04).
   - Frontend Mobile/Web UI widgets (handled in subsequent sprint tasks).
@@ -196,13 +208,21 @@ All endpoints use JSON and are prefixed with `/api/itineraries/{itineraryId}/rat
 
 ---
 
-## 5. Business Rules
+## 5. Business Rules & Concurrency Control
 
 1. **Self-Rating Blocked:** Authors cannot rate their own itinerary. Returns `HTTP 400 Bad Request` with `"Bạn không thể tự đánh giá lịch trình của chính mình"`.
-2. **Score Range:** Strictly integers from 1 to 5.
-3. **Upsert Idempotency:** Submitting a rating when one already exists updates the existing score without creating a duplicate record or altering `ratingCount`.
-4. **Availability & Obfuscation:** Itineraries that are `PRIVATE` (to non-owners), `DELETED`, `HIDDEN`, or authored by a `BANNED` user return `404 Not Found` (`"Không tìm thấy lịch trình"`), preventing resource existence probing.
-5. **Concurrency Safety:** If two identical rating requests from the same user execute in parallel, the second triggers `DataIntegrityViolationException` on `uk_rating_user_itinerary`. The service catches this and falls back to updating the score without double-incrementing `ratingCount`.
+2. **Score Range:** Strictly integers from 1 to 5 (`@Min(1)`, `@Max(5)`).
+3. **Atomic Counter Execution Conditions:**
+   - `incrementRatingCount`: Executed **STRICTLY ONCE** upon physical insertion of a new `Rating` entity.
+   - **Re-Rating (Score Update):** When a user submits a new rating for an already-rated itinerary, the service updates `score` and `updatedAt`, but **MUST NOT** execute `incrementRatingCount`.
+   - `decrementRatingCount`: Executed **STRICTLY ONCE** upon physical deletion of an existing `Rating` entity.
+4. **Transactional Boundary & Rollback Consistency:**
+   - All mutating methods in `RatingServiceImpl` are annotated with `@Transactional(rollbackFor = Exception.class)`.
+   - Because `ratingRepository.save(...)` and `itineraryRepository.incrementRatingCount(...)` execute within the same database transaction, any runtime exception or database error automatically triggers a **full rollback** of both the entity mutation and the counter update, guaranteeing zero counter drift.
+5. **Availability & Obfuscation:** Itineraries that are `PRIVATE` (to non-owners), `DELETED`, `HIDDEN`, or authored by a `BANNED` user return `404 Not Found` (`"Không tìm thấy lịch trình"`), preventing resource existence probing.
+6. **Concurrency Safety & Idempotent Fallback:**
+   - Under concurrent duplicate requests from the same user, MySQL composite constraint `uk_rating_user_itinerary` prevents duplicate rows and throws Spring's `DataIntegrityViolationException`.
+   - The service layer wraps insertion in a try-catch block catching `DataIntegrityViolationException`, retrieves the existing record, and updates the score without double-incrementing `ratingCount`.
 
 ---
 
@@ -302,25 +322,57 @@ Integration test suite `RatingControllerTest` must cover:
 
 ## 9. Dependencies & Shared File Coordination
 
-### 9.1 Shared File Rules:
-- **`ItineraryRepository.java`:** Member 1 appends `incrementRatingCount` and `decrementRatingCount`. Member 2 appends `incrementFavoriteCount` and `decrementFavoriteCount`. Both developers should place their methods at the very bottom of the interface to avoid merge conflicts.
-- **`SecurityConfig.java`:** Only Member 1 edits this file (Member 2's endpoints all require authentication and are already covered by `.anyRequest().authenticated()`).
-- **`ItineraryDetailResponse.java` & `ItineraryServiceImpl.java`:** DO NOT modify during Phase 1–5. Keep in Phase 6 as a joint integration step.
+### 9.1 Shared File Ownership Matrix & Git Protocol
+> [!CAUTION]
+> **Git Conflict Reality & Ownership:** Appending lines to the bottom of the same file on two diverging feature branches causes Git merge conflicts (`<<<<<<< HEAD ... ======= ... >>>>>>>`). Appending methods to the bottom does NOT guarantee clean merges. Ownership and branch sequencing are defined as follows:
+
+| File Path | Owner | Permitted Editors | Phase 1–5 Rule | Joint Integration Rule |
+| :--- | :--- | :--- | :--- | :--- |
+| `SecurityConfig.java` | **Member 1** | Member 1 ONLY | Member 1 whitelists `GET /api/itineraries/{id:[0-9]+}/ratings`. Member 2 touches 0 lines. | Frozen |
+| `ItineraryRepository.java` | **Member 1** | Member 1 first, then Member 2 | Member 1 adds `incrementRatingCount`, `decrementRatingCount` on `feature/rating-api` and merges to `develop` first. Member 2 rebases after PR merge. | Verified Clean |
+| `ItineraryDetailResponse.java` | **Member 2** | Member 2 (Joint Lead) | **FROZEN**. Member 1 does not touch this file during Phase 1–5. | Joint branch `feature/social-integration` adds `userRating`, `isFavorited`, `isSaved`. |
+| `ItineraryServiceImpl.java` | **Member 2** | Member 2 (Joint Lead) | **FROZEN**. Member 1 does not touch `getItineraryDetail()` during Phase 1–5. | Joint branch populates contextual fields. |
+
+### 9.2 Branch Handover Protocol & Git Rebase Flow
+1. **Member 1 Branch (`feature/rating-api`):**
+   - Implements Rating Repository, DTOs, Service, Controller, and `RatingControllerTest` (15 planned test cases).
+   - Modifies `SecurityConfig.java` and `ItineraryRepository.java`.
+   - Opens PR to `develop`. Upon green CI, **merges first** into `develop`.
+2. **Member 2 Rebase & Conflict Resolution Flow:**
+   - Member 2 fetches `origin` and rebases `feature/favorite-saved-api` onto `origin/develop`:
+     ```powershell
+     git fetch origin
+     git checkout feature/favorite-saved-api
+     git rebase origin/develop
+     ```
+   - In case Git pauses with a merge conflict in `ItineraryRepository.java`:
+     1. Member 2 inspects `git status` to identify conflicting markers.
+     2. Resolves conflict manually by preserving **BOTH** Member 1's rating counter queries and Member 2's favorite counter queries.
+     3. Stages the file: `git add backend/src/main/java/Travel_Planner/Travel_Planner/repository/ItineraryRepository.java`.
+     4. Continues rebase: `git rebase --continue` (DO NOT commit).
+   - Member 2 runs local regression verification (`./mvnw.cmd test` ensuring 157 baseline + new tests pass) before pushing with `--force-with-lease` and merging second into `develop`.
+3. **Joint Integration (Phase 6 / Joint Phase 9):**
+   - Member 2 cuts `feature/social-integration` from `develop`.
+   - Both members verify contextual detail enrichment and run full regression tests.
 
 ---
 
-## 10. Integration Requirements
+## 10. Integration Requirements (Phase 6 / Joint Phase 9)
 
-During Phase 6, after `RatingControllerTest` passes:
-1. Coordinate with Member 2 to open `ItineraryDetailResponse.java`.
-2. Ensure both `userRating` (Member 1) and `isFavorited`, `isSaved` (Member 2) are present.
-3. In `ItineraryServiceImpl.getItineraryDetail()`, if `currentUsername != null`, resolve `userRating`:
+After both `feature/rating-api` and `feature/favorite-saved-api` pass independent tests and merge to `develop`:
+1. On `feature/social-integration`, open `ItineraryDetailResponse.java` and declare:
+   ```java
+   private Boolean isFavorited;
+   private Boolean isSaved;
+   private Integer userRating;
+   ```
+2. In `ItineraryServiceImpl.getItineraryDetail()`, if `currentUsername != null`, resolve `userRating`:
    ```java
    Integer userRating = ratingRepository.findByUser_UserIdAndItinerary_ItineraryId(user.getUserId(), id)
            .map(Rating::getScore)
            .orElse(null);
    ```
-4. Verify existing `ItineraryControllerTest` continues to pass.
+3. Verify existing `ItineraryControllerTest` continues to pass.
 
 ---
 

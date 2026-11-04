@@ -4252,3 +4252,126 @@ Note: `Travel_Planner/docs/ai/12-project-progress-audit.md` already existed (Vie
 - `POST/DELETE /api/user/saved-itineraries/{id}` + `GET /api/user/saved-itineraries` paginated
 
 See `docs/ai/12-project-status-and-next-steps.md` for full roadmap.
+
+
+---
+
+## 84. Session 84: Comprehensive Planning for Backend Social Interaction APIs & Mobile Bottom Navigation Refinement
+
+- **Date:** 2026-11-04
+- **Author / Lead:** Senior Software Architect, Technical Lead & Project Auditor
+- **Active Git Branch:** `develop` (Changes currently in Working Tree, uncommitted and unpushed)
+- **Status:** Architectural Plans Formally Refined & Synchronized (No Application Source Code Modified)
+- **Scope:** Technical Specifications, API Contract Formalization, Immutable Pagination, Cross-Screen State Synchronization, Git Ownership & Branch Sequencing Matrix
+
+### 84.1. Context & Objectives
+
+Following the comprehensive audit in Session 83, detailed planning was conducted to prepare for the implementation of the Social Interaction feature set (Rating, Favorite, Saved Itineraries) and resolve the mobile navigation structure for saved and favorite content.
+
+To facilitate parallel development between two engineers without merge friction, the architecture was formally decomposed into two independent implementation specifications under `Travel_Planner/docs/plan/`.
+
+### 84.2. Codebase & Architectural Reality Verification
+
+1. **Active Branch Verification:**
+   - Ran `git branch -a` and verified active branch is `develop`. Changes reside strictly in the local working tree without commit or push.
+
+2. **Test Baseline vs Planned Tests Delineation:**
+   - **Audited Baseline:** 501 / 501 automated tests passing (Backend: 157, Mobile: 305, Web: 39) verified during the Session 83 live audit.
+   - *Note on Test Execution:* In Sessions 84 and 85, automated test suites were NOT re-run because work was strictly restricted to specification, planning, and architectural documents without touching application source code.
+   - **Planned Tests (Not Yet Implemented):**
+     - Backend: `RatingControllerTest` (15 planned test cases), `FavoriteControllerTest` (13 planned test cases), `SavedItineraryControllerTest` (12 planned test cases).
+     - Mobile: `collection_screen_test.dart` (12 planned widget test cases), and updates to `bottom_navigation_test.dart`.
+
+3. **Mobile Bottom Navigation Shell (`main_navigation_shell.dart`):**
+   - Verified that the mobile client uses an `IndexedStack` with 5 fixed destinations:
+     1. `Khám phá` (Explore - Index 0)
+     2. `Cộng đồng` (Community - Index 1)
+     3. `Tạo lịch trình` (Create Itinerary - Index 2, center action)
+     4. `Đã lưu` (Saved - Index 3, placeholder rendering `AppEmptyState`)
+     5. `Hồ sơ cá nhân` (Profile - Index 4, full user profile and settings)
+   - Verified that existing widget test `bottom_navigation_test.dart` (501 lines) asserts 5 icon-only destinations with accessibility tooltips and labels.
+
+4. **Community Tab Reality (`CommunityScreen.dart`, `Follow.java`, `FollowRepository.java`):**
+   - Audited the current implementation of Community features:
+     - **Database / Backend:** JPA Entity `Follow.java` and `FollowRepository.java` exist with follower/following list and count queries. Seed data exists in `DataSeeder.java`. However, there are **no service interfaces, no service implementations, and no REST controllers** for user follow or community feed.
+     - **Mobile UI:** `CommunityScreen.dart` renders `AppEmptyState` indicating the feature is under development.
+     - **Specification:** `Travel_Planner_Function_Specification.md` Section 10 marks activity feed, follow notifications, and link sharing as *"Cần xác nhận"*.
+   - **Architectural Policy:** Tab 2 remains in bottom navigation. Community features are strictly **NOT** implemented or expanded in this phase to prevent scope creep. Formulated 4 explicit questions for the course instructor regarding activity feed, follow notifications, creator discovery, and user moderation.
+
+5. **Data Model Compatibility:**
+   - Verified that `explore/presentation/widgets/itinerary_card.dart` accepts `ItinerarySummary`.
+   - Verified that both `GET /api/user/saved-itineraries` and `GET /api/user/favorites` return `PageResponse<ItinerarySummaryResponse>`.
+   - The Flutter `ItinerarySummary` model matches `ItinerarySummaryResponse` fields 1:1 (`itineraryId`, `title`, `location`, `totalDays`, `budget`, `ratingCount`, `averageRating`, `coverImage`, `creator`), allowing direct reuse of `ItineraryCard`.
+
+### 84.3. Navigation & Mobile UI Resolution: "Bộ sưu tập" (Collection)
+
+1. **5-Tab Navigation Preserved:**
+   - Tab 4 adjusted from **"Đã lưu"** to **"Bộ sưu tập"** (`Icons.collections_bookmark_outlined` / `Icons.collections_bookmark`).
+   - Tab 5 (**"Cá nhân" / Profile**) remains strictly dedicated to user identity, personal information, avatar upload, password/profile edit, and app settings. It is NOT cluttered with social saved/favorited feeds.
+   - No 6th navigation tab is introduced.
+2. **Collection Screen Architecture (`CollectionScreen.dart`):**
+   - Top AppBar: Title `"Bộ sưu tập"`, notification bell leading to `NotificationsScreen`.
+   - Below AppBar: SegmentedControl / TabBar with two sub-tabs:
+     - **"Đã lưu" (Bookmark):** Lists itineraries bookmarked via `POST /api/itineraries/{id}/save`.
+     - **"Yêu thích" (Heart):** Lists itineraries favorited via `POST /api/itineraries/{id}/favorites`.
+   - **State Isolation:** `CollectionNotifier` manages `savedState` and `favoriteState` independently.
+   - **Scroll Retention:** Independent scroll positions retained using `PageStorageKey('collection_saved_list')` and `PageStorageKey('collection_favorite_list')`.
+   - **Pagination & Duplicate Prevention:** Scroll threshold listener (`pixels >= maxScrollExtent - 200`), loading guards (`!isLoadingMore && hasMore && !isInitialLoading`), and deduplication by `itineraryId` on append.
+   - **Direct Card Actions:** Unbookmark and unfavorite actions update local list **strictly after API returns 200 OK**.
+   - **SnackBar Policy:** Informational SnackBar shown after deletion with **NO Undo button** (the backend does not have an undo/restore API).
+
+### 84.4. Developer Task Allocation & Plan Decomposition
+
+| Plan Document | Assignee | Scope | Key Deliverables |
+| :--- | :--- | :--- | :--- |
+| **`plan/02-backend-social-interaction-plan.md`** | Architect / Tech Lead | Master Social Architecture & Coordination | System context, business rules, silent filtering, concurrency specifications, file boundaries. |
+| **`plan/03-rating-api-plan.md`** | **Member 1** | Rating API Backend Vertical Slice | `RatingRepository`, `RateItineraryRequest`, `RatingResponse`, `RatingService/Impl`, `RatingController`, `SecurityConfig` (public GET), `RatingControllerTest` (15 tests), self-rating blocked (`400`), SQL `AVG()`. |
+| **`plan/04-favorite-saved-api-plan.md`** | **Member 2** | Favorite & Saved Backend + Mobile UI Integration Lead | `FavoriteRepository`, `SavedItineraryRepository`, atomic count queries, `FavoriteService/Impl`, `SavedItineraryService/Impl`, `FavoriteController`, `SavedItineraryController` (strictly 3 endpoints), `FavoriteControllerTest` (11 tests), `SavedItineraryControllerTest` (12 tests), `CollectionRepository`, `CollectionNotifier`, `CollectionScreen`, `collection_screen_test.dart`, updating Tab 4 in `MainNavigationShell.dart` and `bottom_navigation_test.dart`. |
+| **Phase 9 Joint Integration** | **Member 1 + Member 2** | Contextual Detail Enrichment | Coordinate to add `isFavorited`, `isSaved`, and `userRating` to `ItineraryDetailResponse.java` and `ItineraryServiceImpl.java`. |
+
+### 84.5. Shared File Management Protocol
+
+To prevent Git merge conflicts between Member 1 and Member 2:
+1. `SecurityConfig.java`: Sole Owner: Member 1. Member 2 touches 0 lines.
+2. `ItineraryRepository.java`: Owner: Member 1. Member 1 commits rating atomic queries on `feature/rating-api` and merges to `develop` FIRST. Member 2 rebases `feature/favorite-saved-api` onto `origin/develop` before adding favorite atomic queries.
+3. `ItineraryDetailResponse.java` & `ItineraryServiceImpl.java`: FROZEN during individual phases. Handled exclusively on `feature/social-integration` during Phase 9 led by Member 2.
+4. `ProfileScreen.dart` & `CommunityScreen.dart`: FROZEN. Untouched by both members.
+
+
+
+### 84.6. Five Final Technical Decisions Formalized
+
+Following the final review round, five key technical specifications were codified across all three plans:
+
+1. **Multi-Platform Back Navigation with `SocialStateUpdate`:**
+   - Evaluated navigation behaviors across AppBar Back button, Android system back (including Android 14+ predictive back gesture), and iOS interactive edge-swipe gesture (`CupertinoPageRoute`).
+   - Identified that `PopScope(canPop: false)` disables native iOS edge-swipe gestures. Solution: configure `PopScope(canPop: true)`, maintain `_latestSocialUpdate` in state, and invoke an `onSocialUpdate` notification callback when `didPop == true`. Documented a 5-point verification matrix.
+2. **Atomic Counter Update Conditions & Rollback Integrity:**
+   - Atomic counter increments/decrements are executed **STRICTLY ONCE** upon physical row creation/deletion.
+   - Re-rating (updating score on an existing `Rating` row) **MUST NOT** execute `incrementRatingCount`.
+   - All mutations run under `@Transactional(rollbackFor = Exception.class)`, guaranteeing full rollback of both row mutations and atomic counter increments/decrements upon error, eliminating counter drift.
+3. **Idempotency of POST Favorite and Saved:**
+   - Backed by database composite unique constraints `uk_favorite_user_itinerary` and `uk_saved_user_itinerary`.
+   - Calling POST when the record already exists returns `HTTP 200 OK` directly without double-incrementing.
+   - Concurrent race conditions catch Spring's `DataIntegrityViolationException` and return `HTTP 200 OK` safely.
+4. **Endpoint Categorization (10 NEW vs 1 EXISTING Enriched):**
+   - Explicitly delineated **10 NEW REST endpoints** (4 Rating, 3 Favorite, 3 Saved) implemented in Phases 1–8.
+   - Redundant standalone `GET .../favorites/status` eliminated from scope (reducing `FavoriteControllerTest` from 13 to 11 test cases).
+   - Contextual flags (`isFavorited`, `isSaved`, `userRating`) are added to the **1 EXISTING endpoint** `GET /api/itineraries/{id}` in `ItineraryController.java` during Phase 9 Joint Integration.
+5. **Realistic Git Rebase Conflict Handling on `ItineraryRepository.java`:**
+   - Replaced naive claims of zero merge conflicts with an explicit conflict resolution protocol:
+     - `git fetch origin`
+     - `git checkout feature/favorite-saved-api`
+     - `git rebase origin/develop`
+     - Inspect `git status` on pause, resolve conflict markers in `ItineraryRepository.java` manually (preserving both rating and favorite queries), stage with `git add`, and continue rebase with `git rebase --continue`.
+     - Run `./mvnw.cmd test` locally to verify 0 regressions across the 157 baseline tests before pushing with `--force-with-lease`.
+
+### 84.7. Integrity Verification
+
+- **Code Modifications:** Zero lines of Java, Dart, SQL, or application configuration modified during this session.
+- **Test Baseline Integrity:** 501 automated tests remain untouched and passing as verified in Session 83 baseline (Backend: 157/157, Mobile: 305/305, Web: 39/39). No test commands were re-run in Session 84 as source code was not modified.
+- **Deliverables Completed:**
+  - `Travel_Planner/docs/plan/02-backend-social-interaction-plan.md` (Updated & Finalized)
+  - `Travel_Planner/docs/plan/03-rating-api-plan.md` (Updated & Finalized)
+  - `Travel_Planner/docs/plan/04-favorite-saved-api-plan.md` (Updated & Finalized)
+  - `Travel_Planner/docs/ai/09-development-log.md` (Session 84 Updated)

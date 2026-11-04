@@ -3,10 +3,13 @@
 **Document Reference:** `plan/02-backend-social-interaction-plan.md`  
 **Location:** `Travel_Planner/docs/plan/02-backend-social-interaction-plan.md`  
 **Creation Date:** 2026-11-04  
-**Last Updated:** 2026-11-04 (User Business Decisions Confirmed & Incorporated)  
+**Last Updated:** 2026-11-04 (Final Polish: 10 New vs 1 Existing Endpoint, Atomic Counter Transactionality, Idempotency Edge Cases, Multi-Platform Back Interception & Git Conflict Handling)  
 **Author / Technical Lead:** Senior Software Architect, Technical Lead & Project Auditor  
-**Scope:** Backend Only (Spring Boot 4.1.1, Spring Security, Spring Data JPA, MySQL 8)  
-**Status:** Approved for Implementation (Awaiting Final Go-Ahead)  
+**Active Working Branch:** `develop` (Changes currently in Working Tree, uncommitted and unpushed)  
+**Scope:** Master Backend & Integration Architecture (Spring Boot 4.1.1, Spring Security, Spring Data JPA, MySQL 8)  
+**Status:** Approved & Decomposed into Sub-Plans:
+- **Plan 01 (Member 1):** [`docs/plan/03-rating-api-plan.md`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/03-rating-api-plan.md) — Rating API & Dynamic Aggregate Engine
+- **Plan 02 (Member 2):** [`docs/plan/04-favorite-saved-api-plan.md`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/04-favorite-saved-api-plan.md) — Favorite & Saved Itinerary APIs + Mobile "Bộ sưu tập" UI Integration
 **Parent Roadmap Tasks:** P2-R1, P2-F1, P2-SA1 (defined in [`12-project-status-and-next-steps.md`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/ai/12-project-status-and-next-steps.md))  
 
 ---
@@ -20,11 +23,13 @@
 - **Web Admin Portal:** Flutter Web.
 - **Communication:** RESTful JSON API with stateless JWT Bearer token authentication.
 
-### 1.2 Current Implementation State (Audited 2026-11-04)
-A comprehensive audit conducted on 2026-11-04 confirmed that **501 / 501 automated tests are passing (100% green)** across the repository:
+### 1.2 Current Implementation State (Session 83 Audit Baseline)
+A comprehensive audit conducted in Session 83 (2026-11-04) confirmed that **501 / 501 automated tests are passing (100% green)** across the repository:
 - **Backend:** 157 / 157 passing (`mvnw.cmd test` in 44.8s).
 - **Mobile:** 305 / 305 passing (`flutter test` in 43.0s).
 - **Web:** 39 / 39 passing (`flutter test` in 14.0s).
+
+*(Note: In Sessions 84 and 85, automated tests were not re-run as work was strictly limited to architecture, specification design, and planning documentation without modifying application source code).*
 
 The core engine is complete and verified:
 - JWT Authentication & RBAC (`/api/auth/*`).
@@ -40,9 +45,33 @@ The core engine is complete and verified:
 Although the database tables and JPA entities for social interactions were created early in the project lifecycle:
 1. **`Rating.java` & `RatingRepository.java`** exist in code, but there is **no `RatingController` or `RatingService`**. Users cannot rate or view their own rating.
 2. **`Favorite.java` & `FavoriteRepository.java`** exist in code, but there is **no `FavoriteController` or `FavoriteService`**. Users cannot like/favorite itineraries.
-3. **`SavedItinerary.java` & `SavedItineraryRepository.java`** exist in code, but there is **no `SavedItineraryController` or `SavedItineraryService`**. The Mobile app's "Đã Lưu" tab (`SavedItinerariesScreen`) is currently a dead-end placeholder (`AppEmptyState`).
+3. **`SavedItinerary.java` & `SavedItineraryRepository.java`** exist in code, but there is **no `SavedItineraryController` or `SavedItineraryService`**. The Mobile app's 4th tab (currently named "Đã lưu", being adjusted to "Bộ sưu tập" / Collection) is currently a dead-end placeholder (`AppEmptyState`). Tab 5 (Hồ sơ cá nhân / Profile) remains dedicated strictly to user profile management. Tab 2 (Cộng đồng) is also currently a placeholder (`AppEmptyState`), while `Follow.java` and `FollowRepository.java` exist in the backend without service or controller layers.
 4. **Counter Drift Risk:** In `Itinerary.java`, `ratingCount` and `favoriteCount` are populated only during initial seed data execution (`DataSeeder.java`). There is no operational API to increment, decrement, or synchronize these counters upon live user interactions.
 5. **Contextual State Missing:** `GET /api/itineraries/{id}` returns `ItineraryDetailResponse` with aggregate counts, but **does not return whether the authenticated user has favorited, saved, or rated the itinerary**, requiring clients to either guess or make multiple speculative requests.
+
+### 1.4 Plan Decomposition Architecture
+To enable two software engineers to execute backend and mobile integration in parallel without blocking or merge collisions, this master plan is divided into two operational specifications:
+1. **Plan 01 — Rating API ([`plan/03-rating-api-plan.md`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/03-rating-api-plan.md)):** Assigned to **Member 1**. Focuses on the Rating vertical backend slice, SQL dynamic aggregate engine, upsert rating flow, and author self-rating blocking.
+2. **Plan 02 — Favorite & Saved APIs + Mobile Collection UI ([`plan/04-favorite-saved-api-plan.md`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/04-favorite-saved-api-plan.md)):** Assigned to **Member 2**. Focuses on Favorite & Saved backend slices, atomic counts, silent filtering, and leading the Flutter Mobile "Bộ sưu tập" UI implementation across the 5-tab navigation shell.
+
+### 1.5 Mobile Bottom Navigation & Community Status Audit
+
+#### Bottom Navigation Structure (5 Destinations Maintained):
+1. **Khám phá (Explore - Index 0):** Default landing screen.
+2. **Cộng đồng (Community - Index 1):** Retained in navigation; currently renders `AppEmptyState`.
+3. **Tạo lịch trình (Create Itinerary - Index 2):** Center action button leading to creation flow.
+4. **Bộ sưu tập (Collection - Index 3):** Adjusted from "Đã lưu"; houses two sub-tabs ("Đã lưu" and "Yêu thích") with independent state, scroll retention, and pagination.
+5. **Hồ sơ / Cá nhân (Profile - Index 4):** Retained completely intact for user profile management (info, avatar, edit profile, logout, my itineraries). Not modified.
+
+#### Community Scope Reality & Questions for Course Instructor:
+- **Current Code Reality:** `Follow.java` and `FollowRepository.java` exist in backend with seed data in `DataSeeder.java`. Mobile `CommunityScreen.dart` renders `AppEmptyState`. There are NO backend services or controllers for follow/social feed.
+- **Specification Reality:** `Travel_Planner_Function_Specification.md` Section 10 marks activity feed, follow notifications, and link sharing as *"Cần xác nhận"*.
+- **Policy:** Tab 2 remains in bottom navigation. Community features are strictly **NOT** implemented in this phase.
+- **Open Questions for Instructor:**
+  1. Does Version 1.0 require an interactive activity feed (following users' recent itineraries/ratings), or only following/follower lists?
+  2. Should following a user trigger an in-app or push notification?
+  3. Is there a creator discovery / recommendation carousel planned for the Community screen?
+  4. Does Community require user reporting or moderation features?
 
 ---
 
@@ -171,6 +200,30 @@ CREATE TABLE saved_itineraries (
 ## 5. API Specification
 
 All endpoints return JSON responses adhering to the established schema and HTTP status conventions.
+
+### 5.0 Endpoint Architectural Scope: 10 NEW vs 1 EXISTING Enriched Endpoint
+
+To eliminate ambiguity across backend, mobile client, and QA teams, the complete Social Interaction feature scope is strictly partitioned into:
+
+1. **10 NEW REST Endpoints (Built from Scratch in Phases 1–8):**
+   - **Rating Endpoints (4 New — Member 1):**
+     1. `POST /api/itineraries/{itineraryId}/ratings` (Create or update rating)
+     2. `GET /api/itineraries/{itineraryId}/ratings/me` (Current user's rating)
+     3. `GET /api/itineraries/{itineraryId}/ratings` (Public aggregate rating summary & star distribution)
+     4. `DELETE /api/itineraries/{itineraryId}/ratings` (Delete own rating)
+   - **Favorite Endpoints (3 New — Member 2):**
+     5. `GET /api/user/favorites` (Paginated list of current user's favorited itineraries)
+     6. `POST /api/itineraries/{itineraryId}/favorites` (Favorite an itinerary)
+     7. `DELETE /api/itineraries/{itineraryId}/favorites` (Unfavorite an itinerary)
+     *(Note: Standalone status endpoint `GET /favorites/status` is eliminated as redundant).*
+   - **Saved Itinerary Endpoints (3 New — Member 2):**
+     8. `GET /api/user/saved-itineraries` (Paginated list of current user's saved itineraries)
+     9. `POST /api/itineraries/{itineraryId}/save` (Save / bookmark an itinerary)
+     10. `DELETE /api/itineraries/{itineraryId}/save` (Unsave / remove bookmark)
+2. **1 EXISTING REST Endpoint Enriched (Phase 9 Joint Integration):**
+   - `GET /api/itineraries/{id}` (Existing endpoint implemented in `ItineraryController.java` and `ItineraryServiceImpl.java`): Enriched to return `isFavorited: Boolean`, `isSaved: Boolean`, and `userRating: Integer` (nullable) when accessed by an authenticated user (defaults to `false`/`false`/`null` for anonymous guests).
+
+---
 
 ### 5.1 Rating API (`/api/itineraries/{itineraryId}/ratings`)
 
@@ -305,25 +358,15 @@ All endpoints return JSON responses adhering to the established schema and HTTP 
   }
   ```
 
-#### 3. Check Favorite Status
-- **Method & Endpoint:** `GET /api/itineraries/{itineraryId}/favorites/status`
-- **Permission:** Authenticated User.
-- **Response Body (`FavoriteResponse`):**
-  ```json
-  {
-    "itineraryId": 1,
-    "favorited": true,
-    "favoriteCount": 24
-  }
-  ```
-
-#### 4. List User's Favorited Itineraries
+#### 3. List User's Favorited Itineraries
 - **Method & Endpoint:** `GET /api/user/favorites`
 - **Permission:** Authenticated User.
 - **Query Parameters:**
   - `page` (int, optional, default `0`).
   - `size` (int, optional, default `10`, max `50`).
 - **Response Body:** `PageResponse<ItinerarySummaryResponse>` (silently filters out itineraries that are deleted, hidden, or private).
+
+*(Note: Standalone status endpoint `GET /favorites/status` is eliminated from scope as redundant; contextual favorite status `isFavorited` is delivered natively via `ItineraryDetailResponse`).*
 
 ---
 
@@ -335,7 +378,7 @@ In accordance with user confirmation, the Saved Itinerary functionality is expos
 - **Method & Endpoint:** `POST /api/itineraries/{itineraryId}/save`
 - **Permission:** Authenticated User.
 - **Business Behavior:**
-  - **Self-Save Policy:** Authors **ARE PERMITTED** to save their own itineraries. This allows users to bookmark their own flagship itineraries for quick access alongside community guides.
+  - **Self-Save Policy:** Authors **ARE PERMITTED** to save their own itineraries, **provided the itinerary is currently `ACTIVE` and `PUBLIC`**. If an author attempts to save their own `PRIVATE` or `HIDDEN` itinerary, the request is rejected with `400 Bad Request` (`"Chỉ có thể lưu các lịch trình đang ở trạng thái công khai (PUBLIC). Vui lòng công khai lịch trình trước khi lưu vào Bộ sưu tập."`). (Drafts and private itineraries are managed under Tab 5 Profile ➔ "Lịch trình của tôi"). If another user attempts to save a private itinerary, return `404 Not Found`.
   - Idempotent. If already saved, returns `200 OK` with existing `saveId`. If newly saved, inserts into `saved_itineraries` and returns `201 Created`.
 - **Response Body (`SavedItineraryResponse`):**
   ```json
@@ -347,8 +390,9 @@ In accordance with user confirmation, the Saved Itinerary functionality is expos
   }
   ```
 - **Error Responses:**
+  - `400 Bad Request`: Author attempts to save own private/hidden itinerary.
   - `401 Unauthorized`: Token missing or expired.
-  - `404 Not Found`: Itinerary not found, or is not public/active (unless author owns it).
+  - `404 Not Found`: Itinerary not found or inaccessible private itinerary.
 
 #### 2. Remove Saved Itinerary (Unbookmark)
 - **Method & Endpoint:** `DELETE /api/itineraries/{itineraryId}/save`
@@ -364,7 +408,7 @@ In accordance with user confirmation, the Saved Itinerary functionality is expos
   }
   ```
 
-#### 3. Get User's Saved Itineraries (Mobile "Đã Lưu" tab)
+#### 3. Get User's Saved Itineraries (Mobile "Bộ sưu tập" Tab — Sub-view "Đã lưu")
 - **Method & Endpoint:** `GET /api/user/saved-itineraries`
 - **Permission:** Authenticated User.
 - **Query Parameters:**
@@ -443,6 +487,7 @@ private Itinerary getPublicActiveItinerary(Integer itineraryId) {
 *Security Justification:* Returning `404 Not Found` (rather than `403 Forbidden`) when an itinerary is private or authored by a banned account prevents malicious users from probing for the existence of private itineraries via brute-force ID guessing.
 
 ### 6.4 Concurrency Control & Atomic Counter Synchronization
+
 To prevent lost updates, race conditions, and counter drift under concurrent requests:
 
 #### 1. Atomic JPQL Counter Queries
@@ -465,19 +510,80 @@ int incrementRatingCount(@Param("itineraryId") Integer itineraryId);
 int decrementRatingCount(@Param("itineraryId") Integer itineraryId);
 ```
 
-#### 2. Handling Concurrent Duplicate Requests
-If a client sends two concurrent requests for the same user and itinerary:
-- **Favorite Concurrency:**
-  - Request 1 inserts row `(user_id, itinerary_id)`, executes `incrementFavoriteCount`, commits.
-  - Request 2 attempts insertion, triggering MySQL `uk_favorite_user_itinerary` and throwing Spring's `DataIntegrityViolationException`.
-  - Service catches `DataIntegrityViolationException`, queries the existing record, and returns `FavoriteResponse(favorited=true, favoriteCount)` without double-incrementing.
-- **Rating Concurrency:**
-  - Request 1 inserts row `(user_id, itinerary_id)`, executes `incrementRatingCount`, commits.
-  - Request 2 catches `DataIntegrityViolationException` and falls back to update logic (updates `score`, does NOT increment counter).
-- **Saved Itinerary Concurrency:**
-  - Request 2 catches `DataIntegrityViolationException` and returns existing `SavedItineraryResponse(saved=true)`.
+#### 2. Atomic Counter Execution Conditions & Rollback Integrity
+To guarantee zero counter drift over the application lifecycle:
+1. **Physical Mutation Condition:**
+   - `incrementRatingCount`: Executed **STRICTLY ONCE** upon physical insertion of a new `Rating` row. When a user re-rates (submits a new score for an existing rating), the service updates `score` and `updatedAt`, but **MUST NOT** execute `incrementRatingCount`.
+   - `decrementRatingCount`: Executed **STRICTLY ONCE** upon physical deletion of an existing `Rating` row (`DELETE`).
+   - `incrementFavoriteCount`: Executed **STRICTLY ONCE** upon physical insertion of a new `Favorite` row. If the record already exists (or concurrent duplicate is caught), **NO increment** is executed.
+   - `decrementFavoriteCount`: Executed **STRICTLY ONCE** upon physical deletion of an existing `Favorite` row. If no record was found, **NO decrement** is executed.
+2. **Transactional Boundary & Rollback Guarantee:**
+   - Every service mutation method is annotated with `@Transactional(rollbackFor = Exception.class)`.
+   - Because entity modifications (`ratingRepository.save(...)`) and atomic counter updates (`itineraryRepository.increment...(...)`) execute within the **same database transaction**, any subsequent runtime exception or database error automatically triggers a **full rollback** of both the row mutation and the atomic counter update. Counter drift cannot occur due to partial failures.
+
+#### 3. Idempotency & Handling Concurrent Duplicate Requests
+All mutating endpoints are strictly idempotent and resilient against parallel duplicate requests (e.g. user double-tapping a button or mobile network retry storms):
+- **Favorite Concurrency (`POST /api/itineraries/{id}/favorites`):**
+  - Unique constraint `uk_favorite_user_itinerary` on `(user_id, itinerary_id)` guards the database.
+  - Normal Case (Already favorited): Service checks `findByUser_UserIdAndItinerary_ItineraryId`. If present, returns existing state with `HTTP 200 OK` (no increment).
+  - Race Condition: Two concurrent requests arrive simultaneously. Request 1 inserts row and executes `incrementFavoriteCount`. Request 2 attempts insertion and triggers MySQL unique constraint violation, translated by Spring into `DataIntegrityViolationException`.
+  - Service wraps insertion in try-catch: catches `DataIntegrityViolationException`, queries the freshly committed record, and returns `HTTP 200 OK` (`FavoriteResponse(favorited=true, favoriteCount)`) **WITHOUT** executing a second increment.
+- **Rating Concurrency (`POST /api/itineraries/{id}/ratings`):**
+  - Normal Case (Re-rating): Service checks `findByUser_UserIdAndItinerary_ItineraryId`. If present, updates `score` and returns `HTTP 200 OK` (no increment).
+  - Race Condition: Two first-time ratings execute concurrently. Request 1 inserts and increments. Request 2 catches `DataIntegrityViolationException` and falls back to update logic: updates `score` and returns `HTTP 200 OK` without double-incrementing `ratingCount`.
+- **Saved Itinerary Concurrency (`POST /api/itineraries/{id}/save`):**
+  - Normal Case (Already saved): If existing `SavedItinerary` is found, returns existing state with `HTTP 200 OK`.
+  - Race Condition: Request 2 catches `DataIntegrityViolationException` and returns existing `SavedItineraryResponse(saved=true)` with `HTTP 200 OK`.
 
 This guarantees **100% thread safety, zero counter drift, and absolute idempotency**.
+
+---
+
+### 6.5 Cross-Screen State Synchronization & Multi-Platform Back Navigation (`SocialStateUpdate`)
+
+When users navigate between the Collection / Explore feeds and the Itinerary Detail screen, state changes (favorite toggle, rating updates) must synchronize cleanly without requiring a full network refetch of the entire list.
+
+#### 1. Contract Definition
+```dart
+class SocialStateUpdate {
+  final int itineraryId;
+  final bool? isFavorited; // null = unchanged, true = favorited, false = unfavorited
+  final bool? isSaved;     // null = unchanged, true = saved, false = unsaved
+  final int? favoriteCount;
+  final double? averageRating;
+  final int? ratingCount;
+  final int? userRating;
+
+  const SocialStateUpdate({
+    required this.itineraryId,
+    this.isFavorited,
+    this.isSaved,
+    this.favoriteCount,
+    this.averageRating,
+    this.ratingCount,
+    this.userRating,
+  });
+}
+```
+
+#### 2. Multi-Platform Back Interception & Limitations
+Do **NOT** assume Flutter's `PopScope` handles back navigation identically across Android and iOS out-of-the-box. The implementation must explicitly account for platform differences:
+- **AppBar Back Button (Universal):**
+  - Explicitly executes `Navigator.of(context).pop(_latestSocialUpdate)`.
+  - 100% reliable across all platforms.
+- **Android System Back & Predictive Back (Android 14+):**
+  - Handled by `PopScope(canPop: true, onPopInvokedWithResult: (didPop, result) { ... })`.
+  - In Android predictive back, the pop gesture can be completed or cancelled mid-gesture. `didPop` is `true` only when the user finishes the gesture.
+  - If `result` is null (because the system pop didn't pass a return argument), the screen coordinates with `CollectionNotifier` or passes `_latestSocialUpdate` via a registered callback/coordinator before the route is destroyed.
+- **iOS Interactive Edge-Swipe Gesture (`CupertinoPageRoute`):**
+  - **Critical Limitation:** Setting `PopScope(canPop: false)` disables the native iOS interactive edge-swipe gesture entirely, ruining native iOS user feel.
+  - **Engineered Solution:** Always set `PopScope(canPop: true)`. Maintain `_latestSocialUpdate` inside the detail screen state. When edge-swipe completes (`didPop == true`), trigger an `onSocialUpdate?.call(_latestSocialUpdate)` notification callback to parent listeners, ensuring state sync occurs regardless of whether `Navigator.pop(result)` was directly called.
+- **Verification Matrix:**
+  1. Test AppBar back button on Android & iOS.
+  2. Test Android hardware/software back button.
+  3. Test Android 14+ predictive back swipe (both completed and cancelled gestures).
+  4. Test iOS edge-swipe pop (both completed swipe and cancelled swipe where user drags halfway and releases back).
+  5. Test backgrounding app while on detail screen and returning before back navigation.
 
 ---
 
@@ -607,18 +713,61 @@ Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/
 └── SavedItineraryControllerTest.java
 ```
 
-### 8.2 Existing Files to Modify (6 files)
+### 8.2 Existing Files to Modify & Shared Files Ownership Matrix
 
-```text
-Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/
-├── dto/response/ItineraryDetailResponse.java   (Add isFavorited, isSaved, userRating fields)
-├── repository/ItineraryRepository.java          (Add atomic increment/decrement counter queries)
-├── repository/RatingRepository.java             (Add user lookup and single itinerary AVG query)
-├── repository/FavoriteRepository.java           (Add paginated user favorites query)
-├── repository/SavedItineraryRepository.java      (Add filtered paginated saved query)
-├── security/SecurityConfig.java                 (Whitelist GET ratings endpoint)
-└── service/impl/ItineraryServiceImpl.java       (Populate contextual flags in getItineraryDetail)
-```
+> [!CAUTION]
+> **Git Conflict Reality & Ownership:** Appending lines to the bottom of the same file on two diverging feature branches WILL cause Git merge conflicts (`<<<<<<< HEAD ... ======= ... >>>>>>>`). Do NOT assume appending methods to the end avoids conflicts. Ownership, permitted editors, branch sequencing, and handover protocols must be strictly delineated as follows:
+
+| File Path | Owner | Permitted Editors | Independent Phases (Phases 1–8) | Joint Phase 9 |
+| :--- | :--- | :--- | :--- | :--- |
+| `SecurityConfig.java` | **Member 1** | Member 1 ONLY | Member 1 whitelists public rating summary. Member 2 touches 0 lines. | Frozen |
+| `ItineraryRepository.java` | **Member 1** | Member 1 first, then Member 2 | Member 1 commits rating atomic queries on `feature/rating-api` and merges to `develop` first. Member 2 rebases `feature/favorite-saved-api` onto `develop` before adding favorite queries. | Verified Clean |
+| `ItineraryDetailResponse.java` | **Member 2** | Member 2 (Joint Lead) | **FROZEN**. Neither member edits during individual feature slices. | Member 2 enriches `isFavorited`, `isSaved`, `userRating`. |
+| `ItineraryServiceImpl.java` | **Member 2** | Member 2 (Joint Lead) | **FROZEN**. Neither member edits `getItineraryDetail()` during individual feature slices. | Member 2 enriches contextual fields in coordination with Member 1. |
+| `ProfileScreen.dart` | N/A | NONE | **FROZEN**. Profile remains strictly personal identity and account management. | Frozen |
+| `CommunityScreen.dart` | N/A | NONE | **FROZEN**. Community remains placeholder pending formal instructor specification. | Frozen |
+
+### 8.3 Git Branch Sequencing & Handover Protocol
+
+1. **Member 1 Branch (`feature/rating-api`):**
+   - Implements Rating Repository, DTOs, Service, Controller, and `RatingControllerTest` (15 planned test cases).
+   - Adds atomic rating count queries to `ItineraryRepository.java`.
+   - Modifies `SecurityConfig.java`.
+   - Opens PR to `develop`. Upon green CI, **merges first** into `develop`.
+2. **Member 2 Branch (`feature/favorite-saved-api`):**
+   - Implements Favorite and Saved Repositories, DTOs, Services, Controllers, and backend integration tests (25 planned test cases).
+   - Implements Mobile `CollectionScreen`, immutable `CollectionNotifier`, cross-screen synchronization, and widget tests.
+   - **Rebase & Conflict Resolution Protocol:**
+     Rebasing does NOT magically guarantee 0% conflicts if both branches modify `ItineraryRepository.java`. Member 2 must execute the following structured protocol:
+     ```powershell
+     git fetch origin
+     git checkout feature/favorite-saved-api
+     git rebase origin/develop
+     ```
+     - **If Git pauses with a merge conflict in `ItineraryRepository.java`:**
+       1. Run `git status` to identify unmerged paths.
+       2. Open `backend/.../repository/ItineraryRepository.java` and locate conflict markers (`<<<<<<< HEAD ... ======= ... >>>>>>>`).
+       3. Manually resolve the conflict by preserving **BOTH** Member 1's rating count queries (`incrementRatingCount`, `decrementRatingCount`) and Member 2's favorite count queries (`incrementFavoriteCount`, `decrementFavoriteCount`).
+       4. Stage the resolved file:
+          ```powershell
+          git add backend/src/main/java/Travel_Planner/Travel_Planner/repository/ItineraryRepository.java
+          ```
+       5. Resume the rebase (do NOT commit):
+          ```powershell
+          git rebase --continue
+          ```
+     - **Local Regression Verification:**
+       Before pushing or opening a Pull Request, Member 2 MUST run the full backend test suite locally:
+       ```powershell
+       ./mvnw.cmd test
+       ```
+       Verify that all 157 baseline tests + new tests pass (0 failures, 0 errors).
+     - Push and open PR: `git push origin feature/favorite-saved-api --force-with-lease`. Upon green CI, **merges second** into `develop`.
+3. **Joint Integration Branch (`feature/social-integration`):**
+   - Cut from `develop` by Member 2 (Integration Lead).
+   - Adds `isFavorited`, `isSaved`, `userRating` to `ItineraryDetailResponse.java` and populates them in `ItineraryServiceImpl.java`.
+   - Runs full regression test suite (157 backend + 305 mobile + 39 web baseline tests + 40 new backend tests + 12 new mobile widget tests).
+   - Opens final PR to `develop`.
 
 ---
 
@@ -651,12 +800,10 @@ Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/
 5. `addFavorite_DeletedItinerary_Returns404`: Deleted itinerary returns 404.
 6. `removeFavorite_Success_Returns200AndDecrementsCounter`: Removes favorite and decrements counter.
 7. `removeFavorite_NotFavorited_Returns200Idempotent`: Removing non-existent favorite returns 200 without negative count.
-8. `getFavoriteStatus_Favorited_ReturnsTrue`: Returns `favorited: true`.
-9. `getFavoriteStatus_NotFavorited_ReturnsFalse`: Returns `favorited: false`.
-10. `getUserFavorites_Success_ReturnsPaginatedList`: Returns list of favorited itineraries sorted by `createdAt DESC`.
-11. `getUserFavorites_ExcludesDeletedItineraries`: Does not include itineraries deleted since being favorited.
-12. `favorite_Unauthenticated_Returns401`: Anonymous request returns 401.
-13. `concurrentFavorite_HandledIdempotentlyWithoutCounterDrift`: Two concurrent favorite calls yield count=1 and single record.
+8. `getUserFavorites_Success_ReturnsPaginatedList`: Returns list of favorited itineraries sorted by `createdAt DESC`.
+9. `getUserFavorites_ExcludesDeletedItineraries`: Does not include itineraries deleted since being favorited.
+10. `favorite_Unauthenticated_Returns401`: Anonymous request returns 401.
+11. `concurrentFavorite_HandledIdempotentlyWithoutCounterDrift`: Two concurrent favorite calls yield count=1 and single record.
 
 #### Saved Itineraries Test Cases (`SavedItineraryControllerTest`):
 1. `saveItinerary_Success_Returns201`: User saves an itinerary via `POST /api/itineraries/{id}/save`; record created.
@@ -785,7 +932,7 @@ Use this checklist during implementation to track progress step-by-step:
   - [ ] Update `SecurityConfig.java` to permit public access to `GET /api/itineraries/{id:[0-9]+}/ratings`.
 - [ ] **Phase 5: Automated Tests & Verification**
   - [ ] Create `RatingControllerTest.java` with 15 test cases.
-  - [ ] Create `FavoriteControllerTest.java` with 13 test cases.
+  - [ ] Create `FavoriteControllerTest.java` with 11 test cases.
   - [ ] Create `SavedItineraryControllerTest.java` with 12 test cases.
   - [ ] Update `ItineraryControllerTest.java` to assert contextual flags.
   - [ ] Run full test suite: `./mvnw.cmd test` (Target: 197+ tests passing, 0 failures).
