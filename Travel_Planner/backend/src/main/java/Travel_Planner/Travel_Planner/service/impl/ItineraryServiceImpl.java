@@ -708,21 +708,11 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         validateTimes(request.getStartTime(), request.getEndTime());
 
-        Destination destination = null;
-        if (request.getDestinationId() != null) {
-            destination = destinationRepository.findById(request.getDestinationId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Địa điểm không tồn tại"));
-            if (destination.getStatus() != DestinationStatus.ACTIVE) {
-                throw new BadRequestException("Địa điểm này hiện không khả dụng");
-            }
-        }
-
         List<Activity> existing = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(dayId);
         int nextOrder = existing.isEmpty() ? 1 : existing.get(existing.size() - 1).getDisplayOrder() + 1;
 
         Activity activity = Activity.builder()
                 .itineraryDay(day)
-                .destination(destination)
                 .name(request.getName().trim())
                 .description(request.getDescription() != null ? request.getDescription().trim() : null)
                 .startTime(request.getStartTime())
@@ -730,6 +720,10 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .cost(request.getCost() != null ? request.getCost() : BigDecimal.ZERO)
                 .displayOrder(nextOrder)
                 .build();
+
+        applyLocation(activity, request.getDestinationId(), request.getCustomLocationName(),
+                request.getCustomAddress(), request.getLatitude(), request.getLongitude(),
+                request.getPlaceId(), request.getLocationProvider());
 
         activity = activityRepository.save(activity);
         return mapToActivityResponse(activity);
@@ -751,23 +745,17 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         validateTimes(request.getStartTime(), request.getEndTime());
 
-        Destination destination = null;
-        if (request.getDestinationId() != null) {
-            destination = destinationRepository.findById(request.getDestinationId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Địa điểm không tồn tại"));
-            if (destination.getStatus() != DestinationStatus.ACTIVE) {
-                throw new BadRequestException("Địa điểm này hiện không khả dụng");
-            }
-        }
-
         activity.setName(request.getName().trim());
         activity.setDescription(request.getDescription() != null ? request.getDescription().trim() : null);
-        activity.setDestination(destination);
         activity.setStartTime(request.getStartTime());
         activity.setEndTime(request.getEndTime());
         if (request.getCost() != null) {
             activity.setCost(request.getCost());
         }
+
+        applyLocation(activity, request.getDestinationId(), request.getCustomLocationName(),
+                request.getCustomAddress(), request.getLatitude(), request.getLongitude(),
+                request.getPlaceId(), request.getLocationProvider());
 
         activity = activityRepository.save(activity);
         return mapToActivityResponse(activity);
@@ -914,6 +902,113 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .cost(activity.getCost())
                 .displayOrder(activity.getDisplayOrder())
                 .destination(destinationResponse)
+                .customLocationName(activity.getCustomLocationName())
+                .customAddress(activity.getCustomAddress())
+                .latitude(activity.getLatitude())
+                .longitude(activity.getLongitude())
+                .placeId(activity.getPlaceId())
+                .locationProvider(activity.getLocationProvider())
                 .build();
+    }
+
+    private static final BigDecimal MIN_LATITUDE = new BigDecimal("-90.0");
+    private static final BigDecimal MAX_LATITUDE = new BigDecimal("90.0");
+    private static final BigDecimal MIN_LONGITUDE = new BigDecimal("-180.0");
+    private static final BigDecimal MAX_LONGITUDE = new BigDecimal("180.0");
+
+    private void applyLocation(Activity activity,
+                               Integer destinationId,
+                               String customLocationName,
+                               String customAddress,
+                               BigDecimal latitude,
+                               BigDecimal longitude,
+                               String placeId,
+                               String locationProvider) {
+        String trimmedName = trimToNull(customLocationName);
+        String trimmedAddress = trimToNull(customAddress);
+        String trimmedPlaceId = trimToNull(placeId);
+        String trimmedProvider = trimToNull(locationProvider);
+
+        boolean hasCoordinates = latitude != null || longitude != null;
+        boolean hasAnyCustomField = hasCoordinates || trimmedName != null || trimmedAddress != null
+                || trimmedPlaceId != null || trimmedProvider != null;
+
+        // 1. Mutual exclusivity between Catalog Destination and Custom Location
+        if (destinationId != null && hasAnyCustomField) {
+            throw new BadRequestException("Không thể đồng thời chỉ định địa điểm từ danh mục và tọa độ tùy chỉnh");
+        }
+
+        // State 1: Catalog Destination (destinationId != null, all custom fields cleared)
+        if (destinationId != null) {
+            Destination destination = destinationRepository.findById(destinationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Địa điểm không tồn tại"));
+            if (destination.getStatus() != DestinationStatus.ACTIVE) {
+                throw new BadRequestException("Địa điểm này hiện không khả dụng");
+            }
+            activity.setDestination(destination);
+            activity.setCustomLocationName(null);
+            activity.setCustomAddress(null);
+            activity.setLatitude(null);
+            activity.setLongitude(null);
+            activity.setPlaceId(null);
+            activity.setLocationProvider(null);
+            return;
+        }
+
+        // State 2: Custom Location (destinationId == null, latitude and longitude mandatory)
+        if (hasAnyCustomField) {
+            // Atomic coordinate pair validation
+            if (latitude == null || longitude == null) {
+                if ((latitude == null && longitude != null) || (latitude != null && longitude == null)) {
+                    throw new BadRequestException("Tọa độ latitude và longitude phải được cung cấp đồng thời");
+                }
+                throw new BadRequestException("Tọa độ latitude và longitude là bắt buộc khi sử dụng địa điểm tùy chỉnh");
+            }
+
+            // Coordinate bounds validation
+            if (latitude.compareTo(MIN_LATITUDE) < 0 || latitude.compareTo(MAX_LATITUDE) > 0) {
+                throw new BadRequestException("Tọa độ vĩ độ (latitude) phải nằm trong khoảng từ -90.0 đến 90.0");
+            }
+            if (longitude.compareTo(MIN_LONGITUDE) < 0 || longitude.compareTo(MAX_LONGITUDE) > 0) {
+                throw new BadRequestException("Tọa độ kinh độ (longitude) phải nằm trong khoảng từ -180.0 đến 180.0");
+            }
+
+            if (trimmedName != null && trimmedName.length() > 150) {
+                throw new BadRequestException("Tên địa điểm tùy chỉnh tối đa 150 ký tự");
+            }
+            if (trimmedAddress != null && trimmedAddress.length() > 255) {
+                throw new BadRequestException("Địa chỉ tùy chỉnh tối đa 255 ký tự");
+            }
+            if (trimmedPlaceId != null && trimmedPlaceId.length() > 100) {
+                throw new BadRequestException("Mã địa điểm (placeId) tối đa 100 ký tự");
+            }
+            if (trimmedProvider != null && trimmedProvider.length() > 30) {
+                throw new BadRequestException("Nhà cung cấp vị trí tối đa 30 ký tự");
+            }
+
+            activity.setDestination(null);
+            activity.setCustomLocationName(trimmedName);
+            activity.setCustomAddress(trimmedAddress);
+            activity.setLatitude(latitude);
+            activity.setLongitude(longitude);
+            activity.setPlaceId(trimmedPlaceId);
+            activity.setLocationProvider(trimmedProvider);
+            return;
+        }
+
+        // State 3: No Location (destinationId == null && all custom fields null)
+        activity.setDestination(null);
+        activity.setCustomLocationName(null);
+        activity.setCustomAddress(null);
+        activity.setLatitude(null);
+        activity.setLongitude(null);
+        activity.setPlaceId(null);
+        activity.setLocationProvider(null);
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

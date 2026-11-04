@@ -5,6 +5,12 @@ class UpdateActivityRequest {
   final String? startTime;
   final String? endTime;
   final double? cost;
+  final String? customLocationName;
+  final String? customAddress;
+  final double? latitude;
+  final double? longitude;
+  final String? placeId;
+  final String? locationProvider;
 
   const UpdateActivityRequest({
     required this.name,
@@ -13,6 +19,12 @@ class UpdateActivityRequest {
     this.startTime,
     this.endTime,
     this.cost,
+    this.customLocationName,
+    this.customAddress,
+    this.latitude,
+    this.longitude,
+    this.placeId,
+    this.locationProvider,
   });
 
   Map<String, dynamic> toJson() {
@@ -29,6 +41,23 @@ class UpdateActivityRequest {
           ? _ensureSeconds(endTime!.trim())
           : null,
       'cost': cost ?? 0.0,
+      'customLocationName':
+          (customLocationName != null && customLocationName!.trim().isNotEmpty)
+              ? customLocationName!.trim()
+              : null,
+      'customAddress':
+          (customAddress != null && customAddress!.trim().isNotEmpty)
+              ? customAddress!.trim()
+              : null,
+      'latitude': latitude,
+      'longitude': longitude,
+      'placeId': (placeId != null && placeId!.trim().isNotEmpty)
+          ? placeId!.trim()
+          : null,
+      'locationProvider':
+          (locationProvider != null && locationProvider!.trim().isNotEmpty)
+              ? locationProvider!.trim()
+              : null,
     };
   }
 

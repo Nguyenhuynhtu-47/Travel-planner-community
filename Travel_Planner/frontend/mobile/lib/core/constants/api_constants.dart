@@ -32,4 +32,7 @@ class ApiConstants {
   static const String destinationsEndpoint = '/api/destinations';
   static const String healthEndpoint = '/api/health';
   static const String imageUploadEndpoint = '/api/media/images';
+  static const String locationsEndpoint = '/api/locations';
+  static const String locationSearchEndpoint = '/api/locations/search';
+  static const String locationReverseGeocodeEndpoint = '/api/locations/reverse-geocode';
 }

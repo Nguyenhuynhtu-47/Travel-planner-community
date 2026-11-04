@@ -10,6 +10,12 @@ class ActivityDetail {
   final double? estimatedCost;
   final int displayOrder;
   final DestinationSummary? destination;
+  final String? customLocationName;
+  final String? customAddress;
+  final double? latitude;
+  final double? longitude;
+  final String? placeId;
+  final String? locationProvider;
 
   const ActivityDetail({
     required this.activityId,
@@ -21,6 +27,12 @@ class ActivityDetail {
     this.estimatedCost,
     required this.displayOrder,
     this.destination,
+    this.customLocationName,
+    this.customAddress,
+    this.latitude,
+    this.longitude,
+    this.placeId,
+    this.locationProvider,
   });
 
   factory ActivityDetail.fromJson(Map<String, dynamic> json) {
@@ -45,6 +57,16 @@ class ActivityDetail {
       destination: rawDest is Map
           ? DestinationSummary.fromJson(Map<String, dynamic>.from(rawDest))
           : null,
+      customLocationName: json['customLocationName']?.toString(),
+      customAddress: json['customAddress']?.toString(),
+      latitude: json['latitude'] is num
+          ? (json['latitude'] as num).toDouble()
+          : num.tryParse(json['latitude']?.toString() ?? '')?.toDouble(),
+      longitude: json['longitude'] is num
+          ? (json['longitude'] as num).toDouble()
+          : num.tryParse(json['longitude']?.toString() ?? '')?.toDouble(),
+      placeId: json['placeId']?.toString(),
+      locationProvider: json['locationProvider']?.toString(),
     );
   }
 
@@ -69,4 +91,20 @@ class ActivityDetail {
     }
     return null;
   }
+
+  /// Whether the activity has coordinates from either a catalog destination or custom location.
+  bool get hasCoordinates =>
+      effectiveLatitude != null && effectiveLongitude != null;
+
+  /// Effective latitude: catalog destination coordinates take precedence if present, else custom coordinates.
+  double? get effectiveLatitude => destination?.latitude ?? latitude;
+
+  /// Effective longitude: catalog destination coordinates take precedence if present, else custom coordinates.
+  double? get effectiveLongitude => destination?.longitude ?? longitude;
+
+  /// Effective display location name: catalog destination name if present, else custom location name.
+  String? get effectiveLocationName => destination?.name ?? customLocationName;
+
+  /// Effective display address: catalog destination address if present, else custom address.
+  String? get effectiveAddress => destination?.address ?? customAddress;
 }

@@ -431,6 +431,42 @@ public class DataSeeder implements CommandLineRunner {
                         .status(DestinationStatus.ACTIVE)
                         .build(),
                 Destination.builder()
+                        .name("Bãi Biển Mỹ Khê & Cầu Rồng")
+                        .address("Võ Nguyên Giáp, Phước Mỹ, Sơn Trà, TP. Đà Nẵng")
+                        .description("Bãi biển cát trắng mịn tuyệt đẹp và cây cầu biểu tượng có khả năng phun lửa, phun nước vào cuối tuần.")
+                        .imageUrl("https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800&q=80")
+                        .latitude(new BigDecimal("16.0611000"))
+                        .longitude(new BigDecimal("108.2280000"))
+                        .status(DestinationStatus.ACTIVE)
+                        .build(),
+                Destination.builder()
+                        .name("Chợ Đêm Sơn Trà")
+                        .address("Mai Hắc Đế, An Hải Trung, Sơn Trà, TP. Đà Nẵng")
+                        .description("Khu chợ đêm sầm uất với các gian hàng ẩm thực đặc sản miền Trung, hải sản nướng và đồ lưu niệm.")
+                        .imageUrl("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80")
+                        .latitude(new BigDecimal("16.0615000"))
+                        .longitude(new BigDecimal("108.2320000"))
+                        .status(DestinationStatus.ACTIVE)
+                        .build(),
+                Destination.builder()
+                        .name("Danh Thắng Ngũ Hành Sơn")
+                        .address("Hòa Hải, Ngũ Hành Sơn, TP. Đà Nẵng")
+                        .description("Quần thể 5 ngọn núi đá vôi với hệ thống hang động huyền ảo, chùa chiền cổ kính và làng nghề điêu khắc đá Non Nước.")
+                        .imageUrl("https://images.unsplash.com/photo-1569154941061-e231b4725ef1?w=800&q=80")
+                        .latitude(new BigDecimal("16.0042000"))
+                        .longitude(new BigDecimal("108.2635000"))
+                        .status(DestinationStatus.ACTIVE)
+                        .build(),
+                Destination.builder()
+                        .name("Chợ Hàn Đà Nẵng")
+                        .address("119 Trần Phú, Hải Châu 1, Hải Châu, TP. Đà Nẵng")
+                        .description("Khu chợ truyền thống nổi tiếng trung tâm Đà Nẵng, thiên đường mua sắm hải sản khô, chả bò và quà lưu niệm.")
+                        .imageUrl("https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&q=80")
+                        .latitude(new BigDecimal("16.0682000"))
+                        .longitude(new BigDecimal("108.2246000"))
+                        .status(DestinationStatus.ACTIVE)
+                        .build(),
+                Destination.builder()
                         .name("Khu bảo tồn thiên nhiên Đang Cải Tạo (Tạm Đóng)")
                         .address("Phong Nha, Bố Trạch, Quảng Bình")
                         .description("Khu vực đang tạm thời bảo tồn và cải tạo sinh thái, không mở cửa cho du khách tự do thăm quan.")
@@ -889,22 +925,60 @@ public class DataSeeder implements CommandLineRunner {
                     LocalTime.of(13, 30), LocalTime.of(17, 0), new BigDecimal("850000.00"),
                     destinationMap.getOrDefault("Đỉnh Fansipan - Nóc Nhà Đông Dương", defaultDest));
         } else if (location.contains("Đà Nẵng") || location.contains("Hội An")) {
-            Destination targetDest1 = destinationMap.getOrDefault("Bà Nà Hills & Cầu Vàng", defaultDest);
-            Destination targetDest2 = destinationMap.getOrDefault("Phố Cổ Hội An", defaultDest);
-            Destination targetDest3 = destinationMap.getOrDefault("Bán Đảo Sơn Trà & Chùa Linh Ứng", defaultDest);
+            Destination baNa = destinationMap.getOrDefault("Bà Nà Hills & Cầu Vàng", defaultDest);
+            Destination sonTra = destinationMap.getOrDefault("Bán Đảo Sơn Trà & Chùa Linh Ứng", defaultDest);
+            Destination myKhe = destinationMap.getOrDefault("Bãi Biển Mỹ Khê & Cầu Rồng", sonTra);
+            Destination choDem = destinationMap.getOrDefault("Chợ Đêm Sơn Trà", sonTra);
+            Destination hoiAn = destinationMap.getOrDefault("Phố Cổ Hội An", defaultDest);
+            Destination bayMau = destinationMap.getOrDefault("Rừng Dừa Bảy Mẫu", hoiAn);
+            Destination nguHanhSon = destinationMap.getOrDefault("Danh Thắng Ngũ Hành Sơn", defaultDest);
+            Destination choHan = destinationMap.getOrDefault("Chợ Hàn Đà Nẵng", defaultDest);
 
-            saveActivityIfNotExists(day, 1, "Khám phá Cầu Vàng và Làng Pháp Bà Nà Hills",
-                    "Trải nghiệm cáp treo đạt kỷ lục thế giới và dạo bước trên Cầu Vàng mây phủ.",
-                    LocalTime.of(8, 0), LocalTime.of(12, 30), new BigDecimal("950000.00"),
-                    targetDest1);
-            saveActivityIfNotExists(day, 2, "Viếng Chùa Linh Ứng Sơn Trà",
-                    "Chiêm bái tượng Phật Bà Quan Âm cao 67m hướng nhìn trọn vịnh Đà Nẵng tuyệt mỹ.",
-                    LocalTime.of(14, 0), LocalTime.of(16, 0), new BigDecimal("0.00"),
-                    targetDest3);
-            saveActivityIfNotExists(day, 3, "Thả đèn hoa đăng Phố Cổ Hội An",
-                    "Ngồi thuyền gỗ trên sông Hoài, thả hoa đăng nguyện ước và ăn cao lầu Bà Bé.",
-                    LocalTime.of(17, 30), LocalTime.of(21, 0), new BigDecimal("250000.00"),
-                    targetDest2);
+            if (dayNum == 1) {
+                saveActivityIfNotExists(day, 1, "Viếng Chùa Linh Ứng Sơn Trà",
+                        "Chiêm bái tượng Phật Bà Quan Âm cao 67m hướng nhìn trọn vịnh Đà Nẵng tuyệt mỹ.",
+                        LocalTime.of(8, 0), LocalTime.of(10, 30), new BigDecimal("0.00"),
+                        sonTra);
+                saveActivityIfNotExists(day, 2, "Tắm biển & thư giãn Bãi Biển Mỹ Khê",
+                        "Tận hưởng làn nước trong xanh và bờ cát trắng mịn của một trong những bãi biển đẹp nhất hành tinh.",
+                        LocalTime.of(14, 30), LocalTime.of(17, 0), new BigDecimal("50000.00"),
+                        myKhe);
+                saveActivityIfNotExists(day, 3, "Check-in Cầu Rồng & dạo Chợ Đêm Sơn Trà",
+                        "Xem Cầu Rồng phun lửa, phun nước và thưởng thức ẩm thực hải sản đường phố phong phú.",
+                        LocalTime.of(18, 30), LocalTime.of(21, 30), new BigDecimal("250000.00"),
+                        choDem);
+            } else if (dayNum == 2) {
+                saveActivityIfNotExists(day, 1, "Khám phá Cầu Vàng và Làng Pháp Bà Nà Hills",
+                        "Trải nghiệm cáp treo đạt kỷ lục thế giới và dạo bước trên Cầu Vàng mây phủ.",
+                        LocalTime.of(8, 0), LocalTime.of(13, 0), new BigDecimal("950000.00"),
+                        baNa);
+                saveActivityIfNotExists(day, 2, "Vui chơi Fantasy Park & Vườn Hoa Le Jardin",
+                        "Khám phá công viên giải trí trong nhà lớn nhất Việt Nam và ngắm vườn hoa phong cách Pháp rực rỡ.",
+                        LocalTime.of(13, 30), LocalTime.of(16, 30), new BigDecimal("100000.00"),
+                        baNa);
+            } else if (dayNum == 3) {
+                saveActivityIfNotExists(day, 1, "Chèo thuyền thúng Rừng Dừa Bảy Mẫu",
+                        "Trải nghiệm cảm giác xoay thuyền thúng điệu nghệ và câu cua giữa rừng dừa nước bạt ngàn.",
+                        LocalTime.of(8, 30), LocalTime.of(11, 30), new BigDecimal("150000.00"),
+                        bayMau);
+                saveActivityIfNotExists(day, 2, "Dạo Phố Cổ Hội An & thưởng thức Cao Lầu",
+                        "Dạo bước trên những con ngõ rêu phong, thăm Chùa Cầu và thưởng thức tô cao lầu gia truyền.",
+                        LocalTime.of(14, 30), LocalTime.of(17, 30), new BigDecimal("120000.00"),
+                        hoiAn);
+                saveActivityIfNotExists(day, 3, "Thả đèn hoa đăng lung linh trên Sông Hoài",
+                        "Ngồi thuyền gỗ trên sông Hoài, thả hoa đăng nguyện ước trong đêm phố Hội lung linh ánh sáng.",
+                        LocalTime.of(18, 0), LocalTime.of(21, 0), new BigDecimal("200000.00"),
+                        hoiAn);
+            } else {
+                saveActivityIfNotExists(day, 1, "Khám phá Danh Thắng Ngũ Hành Sơn & Động Huyền Không",
+                        "Chinh phục ngọn Thủy Sơn, khám phá Động Huyền Không kỳ vĩ và viếng Chùa Linh Ứng Non Nước.",
+                        LocalTime.of(8, 0), LocalTime.of(11, 30), new BigDecimal("40000.00"),
+                        nguHanhSon);
+                saveActivityIfNotExists(day, 2, "Mua sắm đặc sản Đà Nẵng tại Chợ Hàn",
+                        "Mua chả bò, mực rim me, bánh khô mè làm quà và thưởng thức ẩm thực chợ truyền thống.",
+                        LocalTime.of(14, 0), LocalTime.of(17, 0), new BigDecimal("300000.00"),
+                        choHan);
+            }
         } else if (location.contains("Đà Lạt")) {
             Destination xh = destinationMap.getOrDefault("Hồ Xuân Hương & Quảng Trường Lâm Viên", defaultDest);
             Destination cd = destinationMap.getOrDefault("Đồi Chè Cầu Đất", defaultDest);

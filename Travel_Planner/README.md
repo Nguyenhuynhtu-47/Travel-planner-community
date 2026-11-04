@@ -11,6 +11,8 @@ Trong PowerShell, khai báo các biến trước khi khởi động backend:
 $env:CLOUDINARY_CLOUD_NAME="rk7uzrlv"
 $env:CLOUDINARY_API_KEY="959193589611582"
 $env:CLOUDINARY_API_SECRET="WQABx6A8CdWfEfWULvGdMtkOJmQ"
+$env:OPENROUTESERVICE_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjU5NjY0MjQ4MjFlOTQxYTlhNjhlY2MxMGQ2YjM2OTI5IiwiaCI6Im11cm11cjY0In0="
+
 cd Travel_Planner/backend
 .\mvnw.cmd spring-boot:run
 
@@ -49,6 +51,17 @@ Chấp nhận JPEG, PNG hoặc WebP tối đa 5 MiB; response chứa secureUrl.
 
 ---
 
+### Cấu hình CARTO Basemaps API Key (Bản đồ nền)
+
+CARTO Basemaps yêu cầu API Key đối với các request tải raster tile (`basemaps.cartocdn.com`). Khi thiếu API Key, server CARTO trả về ảnh nền trắng kèm watermark `API KEY REQUIRED` / `TILES REQUIRED`.
+
+- **Đăng ký API Key miễn phí:** Truy cập [https://carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) để nhận API Key miễn phí (5.000.000 lượt request/tháng cho mục đích phi thương mại/học tập).
+- **Cách truyền API Key:** Sử dụng tham số `--dart-define=CARTO_API_KEY=<your_api_key>` khi khởi chạy Flutter Mobile hoặc Flutter Web.
+- **Phân biệt Credential:** CARTO API Key là public client key phục vụ tải tile bản đồ, **hoàn toàn độc lập** với Cloudinary credentials (`CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` dùng riêng cho backend Spring Boot ký upload ảnh). Tuyệt đối không dùng nhầm credential giữa các dịch vụ.
+- **Cơ chế khi thiếu API Key:** Ứng dụng hiển thị thông báo hướng dẫn cấu hình rõ ràng, các marker địa điểm, tuyến đường, tương tác kéo/phóng to thu nhỏ vẫn hoạt động bình thường mà không bị gián đoạn.
+
+---
+
 ### 2. Khởi chạy Frontend Web (Flutter Web)
 
 1. Mở cửa sổ dòng lệnh mới và chuyển vào thư mục `frontend/web`:
@@ -65,7 +78,7 @@ Chấp nhận JPEG, PNG hoặc WebP tối đa 5 MiB; response chứa secureUrl.
 
 3. Chạy ứng dụng trên trình duyệt Chrome tại cổng **`8081`**:
    ```powershell
-   flutter run -d chrome --web-port=8081
+   flutter run -d chrome --web-port=8081 --dart-define=CARTO_API_KEY=<your_carto_api_key>
    ```
 
 ---
@@ -86,7 +99,7 @@ Chấp nhận JPEG, PNG hoặc WebP tối đa 5 MiB; response chứa secureUrl.
 
 3. Khởi chạy trên máy ảo Android hoặc thiết bị thật:
    ```powershell
-   flutter run
+   flutter run --dart-define=CARTO_API_KEY=<your_carto_api_key>
    ```
 
 > **Lưu ý về kết nối API trên Mobile**:
@@ -102,10 +115,12 @@ adb reverse tcp:8080 tcp:8080 hoặc  & "$env:LOCALAPPDATA\Android\Sdk\platform-
 ```
 
 ```powershell
-flutter run -d RFCW8105T0H --dart-define=API_BASE_URL=http://localhost:8080
+flutter run -d RFCW8105T0H --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=CARTO_API_KEY=cb1_50v4_1_dae5edd4bc34213361f4c15b
 ```
 
 Hoặc
-flutter run -d guirtwmvobovzpl7 --dart-define=API_BASE_URL=http://localhost:8080
+```powershell
+flutter run -d guirtwmvobovzpl7 --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=CARTO_API_KEY=cb1_50v4_1_dae5edd4bc34213361f4c15b
+```
 
 ---

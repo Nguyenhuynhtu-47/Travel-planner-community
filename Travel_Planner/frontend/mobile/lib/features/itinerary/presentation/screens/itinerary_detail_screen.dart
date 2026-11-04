@@ -21,7 +21,9 @@ import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../comments/presentation/widgets/itinerary_comments_section.dart';
 import '../../data/models/reorder_activity_item.dart';
 import '../widgets/reorder_activities_dialog.dart';
+import '../widgets/itinerary_map_preview_card.dart';
 import 'edit_itinerary_screen.dart';
+import 'itinerary_map_screen.dart';
 
 class ItineraryDetailScreen extends StatefulWidget {
   final int itineraryId;
@@ -432,6 +434,18 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     }
   }
 
+  void _openFullScreenMap(ItineraryDetail itinerary) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ItineraryMapScreen(
+          itinerary: itinerary,
+          initialDayNumber: _selectedDayNumber,
+          token: _effectiveToken,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -673,6 +687,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
           // 3. Compact Horizontal Day Selector
           if (itinerary.days.isNotEmpty)
             SliverToBoxAdapter(child: _buildDaySelector(itinerary)),
+
+          // 3.1. Embedded Itinerary Map Preview Card
+          if (itinerary.days.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                child: ItineraryMapPreviewCard(
+                  itinerary: itinerary,
+                  selectedDayNumber: _selectedDayNumber,
+                  onOpenFullScreen: () => _openFullScreenMap(itinerary),
+                ),
+              ),
+            ),
 
           // 4. Days Content
           if (itinerary.days.isEmpty)

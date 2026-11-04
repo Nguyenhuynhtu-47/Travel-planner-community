@@ -231,7 +231,7 @@ class ActivityTimelineItem extends StatelessWidget {
                     ),
                   ],
 
-                  // Destination card
+                  // Destination card (Catalog Destination)
                   if (activity.destination != null) ...[
                     const SizedBox(height: 8),
                     Container(
@@ -303,6 +303,77 @@ class ActivityTimelineItem extends StatelessWidget {
                                     ),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (activity.customLocationName != null ||
+                      activity.latitude != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceSoft,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.hairlineSoft),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.pin_drop,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  activity.customLocationName ??
+                                      'Vị trí đã ghim',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (activity.customAddress != null &&
+                                    activity.customAddress!.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    activity.customAddress!.trim(),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ] else if (activity.latitude != null &&
+                                    activity.longitude != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${activity.latitude!.toStringAsFixed(4)}, ${activity.longitude!.toStringAsFixed(4)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary,
+                                    ),
                                   ),
                                 ],
                               ],

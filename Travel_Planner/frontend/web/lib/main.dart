@@ -4,6 +4,7 @@ import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/locations/presentation/screens/admin_destinations_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
 
 void main() {
@@ -92,6 +93,22 @@ class WebPlaceholderScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Travel Planner Web Portal'),
         actions: [
+          if (role.toString().toUpperCase() == 'ADMIN')
+            TextButton.icon(
+              icon: const Icon(Icons.place_outlined, size: 18),
+              label: const Text('Điểm đến'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                textStyle: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AdminDestinationsScreen(authNotifier: authNotifier),
+                  ),
+                );
+              },
+            ),
           PopupMenuButton<String>(
             tooltip: 'Tài khoản',
             onSelected: (value) {
@@ -101,10 +118,27 @@ class WebPlaceholderScreen extends StatelessWidget {
                     builder: (_) => ProfileScreen(authNotifier: authNotifier),
                   ),
                 );
+              } else if (value == 'destinations') {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AdminDestinationsScreen(authNotifier: authNotifier),
+                  ),
+                );
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem<String>(
+            itemBuilder: (context) => [
+              if (role.toString().toUpperCase() == 'ADMIN')
+                const PopupMenuItem<String>(
+                  value: 'destinations',
+                  child: Row(
+                    children: [
+                      Icon(Icons.place_outlined),
+                      SizedBox(width: 8),
+                      Text('Quản lý điểm đến'),
+                    ],
+                  ),
+                ),
+              const PopupMenuItem<String>(
                 value: 'profile',
                 child: Row(
                   children: [
@@ -200,6 +234,25 @@ class WebPlaceholderScreen extends StatelessWidget {
                         height: 1.5,
                       ),
                     ),
+                    if (role.toString().toUpperCase() == 'ADMIN') ...[
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.place_outlined),
+                        label: const Text('Quản lý Điểm đến (Destinations)'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(260, 44),
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => AdminDestinationsScreen(authNotifier: authNotifier),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 28),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.logout),
