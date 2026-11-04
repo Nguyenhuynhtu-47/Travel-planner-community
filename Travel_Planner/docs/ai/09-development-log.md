@@ -4184,3 +4184,71 @@ Investigated and resolved a UI issue in the daily activity reordering feature of
 - **Testing Instructions:**
   - **With Road Polylines:** Launch backend with `OPENROUTESERVICE_API_KEY=<your_ors_key>` and run mobile app with `--dart-define=CARTO_API_KEY=<your_carto_key>`.
   - **Without Routing Key (Fallback):** Launch backend normally without `OPENROUTESERVICE_API_KEY`. The app clearly displays direct distance and explains that road routing is unavailable without crashing, clipping, or hiding markers.
+
+
+---
+
+## Session 83 — Comprehensive Project Audit & Next-Step Planning
+
+**Date:** 2026-11-04  
+**Branch:** `develop` (HEAD: `7d86338 docs: add project progress audit documentation`)  
+**Type:** Read-only audit. No source code, schema, or Git commits modified.
+
+### 83.1. Audit Scope
+
+Full project audit across backend (Spring Boot), mobile (Flutter), web (Flutter Web), map integration, and testing layers. Source code inspected directly; documentation claims were verified against actual code, not accepted at face value.
+
+### 83.2. Verified Test Execution Results
+
+| Component | Command | Result |
+|:---|:---|:---|
+| Backend | `mvnw.cmd test` (live run) | **157 / 157 PASS** — 44.8s, 0 failures |
+| Mobile | `flutter test` (live run) | **305 / 305 PASS** — 43s, 0 failures |
+| Web | `flutter test` (live run) | **39 / 39 PASS** — 14s, 0 failures (CARTO tile 400s are expected in CI without an API key) |
+| **Total** | | **501 / 501 PASS** |
+
+### 83.3. Confirmed Completed Modules (Source Code Verified)
+
+The following modules were verified as fully implemented and passing tests:
+1. JWT Authentication & Authorization (register, login, me, 401 interception)
+2. User Profile (view, edit, avatar upload via Cloudinary)
+3. Explore & Search (keyword, theme, budget, days, rating, pagination, recommendations, section-based discovery UI)
+4. Itinerary CRUD (create, read, edit, soft-delete, cover image, ownership)
+5. Itinerary Days & Activities (add/edit/delete days + activities, two-pass reorder algorithm)
+6. Destination Catalog (public read + Admin CRUD with `AdminDestinationController`)
+7. Map Integration — full stack (flutter_map + CARTO tiles, LocationIQ geocoding proxy, ORS routing proxy, in-memory route cache, Haversine fallback, radial jitter, navigation deep-links, `ItineraryMapScreen`, `ItineraryMapPreviewCard`)
+8. Activity Location Picking (`LocationPickerSheet`, `ActivityFormDialog` with catalog + online search + pin on map; `Activity` entity has `latitude`, `longitude`, `customLocationName`, `customAddress`, `placeId`, `locationProvider` columns)
+9. Image Upload (Cloudinary SHA-1 signed backend, mobile + web)
+10. Comments (read + create, paginated, `CommentsNotifier`, `ItineraryCommentsSection`)
+11. Web Admin Destination Management (`AdminDestinationsScreen` with map, `DestinationFormDialog`)
+
+### 83.4. Confirmed Not Implemented (Source Code Verified)
+
+The following have database entities and repositories but **no Controller/Service/UI**:
+- Rating API (`RatingController`, `RatingServiceImpl` — missing; `Rating` entity exists)
+- Favorite API (`FavoriteController`, `FavoriteServiceImpl` — missing; `Favorite` entity exists)
+- Saved Itineraries API + UI (entity exists; `SavedItinerariesScreen` is empty state)
+- Clone/Personalize Itinerary API (schema supports it via `original_itinerary_id`; no API)
+- Follow/Social Graph API + Community UI (`CommunityScreen` is empty state)
+- Notifications (placeholder screen only)
+- Web Admin Dashboard, User Management, Itinerary Moderation
+
+### 83.5. Security Issue Identified
+
+Cloudinary API Secret and OpenRouteService API key are exposed as plain text in `Travel_Planner/README.md` lines 11–14. These should be treated as compromised and rotated.
+
+### 83.6. Documentation Created
+
+- `Travel_Planner/docs/ai/12-project-status-and-next-steps.md` — comprehensive English-language project status document with feature classification, gap analysis, security findings, development roadmap (Phases 1–5, 20+ tasks with IDs), dependency graph, and recommended next task.
+
+Note: `Travel_Planner/docs/ai/12-project-progress-audit.md` already existed (Vietnamese language, written on the `map` branch). The new `12-project-status-and-next-steps.md` file is a separate, additional document and does not overwrite the existing audit.
+
+### 83.7. Recommended Next Steps
+
+**Immediate (Priority 1):** Rotate and remove credentials from README.md (P1-S1).  
+**Next (Priority 2):** Implement the three backend social interaction APIs as a cohesive task:
+- `POST/DELETE /api/itineraries/{id}/ratings` + GET aggregate in itinerary detail
+- `POST/DELETE /api/itineraries/{id}/favorites` with counter update  
+- `POST/DELETE /api/user/saved-itineraries/{id}` + `GET /api/user/saved-itineraries` paginated
+
+See `docs/ai/12-project-status-and-next-steps.md` for full roadmap.
