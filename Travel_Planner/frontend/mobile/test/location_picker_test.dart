@@ -958,4 +958,161 @@ void main() {
       },
     );
   });
+
+  group('Phase 4 - Dynamic Destination Context Resolution & POI Query Formatting', () {
+    test('LocationSearchResult isCityOrAdministrative correctly identifies regions vs POIs', () {
+      const cityResult = LocationSearchResult(
+        placeId: '1',
+        name: 'Đà Lạt',
+        formattedAddress: 'Đà Lạt, Lâm Đồng',
+        type: 'city',
+        category: 'place',
+      );
+      expect(cityResult.isCityOrAdministrative, isTrue);
+
+      const adminResult = LocationSearchResult(
+        placeId: '2',
+        name: 'Quận 1',
+        formattedAddress: 'Quận 1, TP. Hồ Chí Minh',
+        type: 'administrative',
+        category: 'boundary',
+      );
+      expect(adminResult.isCityOrAdministrative, isTrue);
+
+      const poiResult = LocationSearchResult(
+        placeId: '3',
+        name: 'Cà phê Tùng',
+        formattedAddress: 'Khu Hoà Bình, Phường 1, Đà Lạt',
+        type: 'cafe',
+        category: 'amenity',
+      );
+      expect(poiResult.isCityOrAdministrative, isFalse);
+    });
+
+    test('formatQueryWithContext preserves POI queries containing district or ward qualifiers', () {
+      const city = 'Thành phố Hồ Chí Minh';
+      // Queries specifying district / ward should not have city string appended to prevent over-constraining POIs
+      expect(
+        LocationPickerSheet.formatQueryWithContext('tiệm bánh Quận 1', city),
+        'tiệm bánh Quận 1',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('quán cafe quan 3', city),
+        'quán cafe quan 3',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('nhà thuốc phường Bến Nghé', city),
+        'nhà thuốc phường Bến Nghé',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('siêu thị huyện Củ Chi', city),
+        'siêu thị huyện Củ Chi',
+      );
+    });
+
+    test('formatQueryWithContext preserves POI queries containing spatial prepositions or commas', () {
+      const city = 'Thành phố Hồ Chí Minh';
+      expect(
+        LocationPickerSheet.formatQueryWithContext('quán cà phê gần Bến Thành', city),
+        'quán cà phê gần Bến Thành',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('tiệm bánh ở Nhà Thờ Đức Bà', city),
+        'tiệm bánh ở Nhà Thờ Đức Bà',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('bệnh viện tại Nguyễn Trãi', city),
+        'bệnh viện tại Nguyễn Trãi',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('Highlands Coffee, Lê Lợi', city),
+        'Highlands Coffee, Lê Lợi',
+      );
+    });
+
+    test('formatQueryWithContext appends city context for bare POI searches', () {
+      const city = 'Thành phố Hồ Chí Minh';
+      expect(
+        LocationPickerSheet.formatQueryWithContext('tiệm bánh', city),
+        'tiệm bánh, Thành phố Hồ Chí Minh',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('quán cà phê', city),
+        'quán cà phê, Thành phố Hồ Chí Minh',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('Starbucks', city),
+        'Starbucks, Thành phố Hồ Chí Minh',
+      );
+    });
+
+    test('formatQueryWithContext preserves administrative and province queries without appending context', () {
+      const city = 'An Giang';
+      expect(
+        LocationPickerSheet.formatQueryWithContext('Lâm Đồng', city),
+        'Lâm Đồng',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('tỉnh Lâm Đồng', city),
+        'tỉnh Lâm Đồng',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('Đà Lạt', city),
+        'Đà Lạt',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('Quận 1', city),
+        'Quận 1',
+      );
+      expect(
+        LocationPickerSheet.formatQueryWithContext('Hà Nội', city),
+        'Hà Nội',
+      );
+    });
+
+    test('formatQueryWithContext does not duplicate context if query already includes it', () {
+      expect(
+        LocationPickerSheet.formatQueryWithContext('tiệm bánh Hồ Chí Minh', 'Thành phố Hồ Chí Minh'),
+        'tiệm bánh Hồ Chí Minh',
+      );
+    });
+
+    testWidgets(
+      'LocationPickerSheet uses formatQueryWithContext when searching with locationContext',
+      (tester) async {
+        final fakeRepo = FakeLocationRepository(
+          searchResultsToReturn: [
+            const LocationSearchResult(
+              placeId: 'dalat-cafe-1',
+              name: 'Cà phê Tùng',
+              formattedAddress: 'Khu Hoà Bình, Đà Lạt',
+              latitude: 11.9404,
+              longitude: 108.4583,
+              type: 'cafe',
+              category: 'amenity',
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: LocationPickerSheet(
+                repository: fakeRepo,
+                locationContext: 'Đà Lạt',
+              ),
+            ),
+          ),
+        );
+
+        await tester.enterText(find.byType(TextField).first, 'quán cà phê');
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pumpAndSettle();
+
+        expect(fakeRepo.searchCallCount, 1);
+        expect(fakeRepo.lastSearchQuery, 'quán cà phê, Đà Lạt');
+        expect(find.text('Cà phê Tùng'), findsWidgets);
+      },
+    );
+  });
 }

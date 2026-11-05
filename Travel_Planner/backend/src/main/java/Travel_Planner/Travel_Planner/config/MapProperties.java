@@ -21,6 +21,10 @@ public class MapProperties {
         private int timeoutMs = 3000;
         private String baseUrl = "https://us1.locationiq.com/v1";
         private boolean nearbyEnabled = false;
+        private String language = "vi";
+        private String hereApiKey = "";
+        private String hereBaseUrl = "https://geocode.search.hereapi.com/v1";
+        private String hereDiscoverBaseUrl = "https://discover.search.hereapi.com/v1";
     }
 
     @Getter

@@ -1,22 +1,32 @@
 package Travel_Planner.Travel_Planner.service.impl;
 
+import Travel_Planner.Travel_Planner.dto.location.GeographicTargetArea;
+import Travel_Planner.Travel_Planner.dto.location.ParsedLocationQuery;
+import Travel_Planner.Travel_Planner.dto.location.SearchIntent;
 import Travel_Planner.Travel_Planner.dto.response.LocationSearchResultResponse;
+import Travel_Planner.Travel_Planner.exception.AppException;
 import Travel_Planner.Travel_Planner.exception.BadRequestException;
 import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
 import Travel_Planner.Travel_Planner.service.GeocodingProvider;
+import Travel_Planner.Travel_Planner.service.GeographicFilterService;
+import Travel_Planner.Travel_Planner.service.LocationRankingService;
 import Travel_Planner.Travel_Planner.service.LocationService;
+import Travel_Planner.Travel_Planner.service.QueryUnderstandingService;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class LocationServiceImpl implements LocationService {
@@ -46,10 +56,53 @@ public class LocationServiceImpl implements LocationService {
             .expireAfterWrite(Duration.ofHours(24))
             .build();
 
-    private final GeocodingProvider geocodingProvider;
+    private final GeocodingProvider primaryProvider;
+    private final HereGeocodingProvider hereGeocodingProvider;
+    private final LocationRankingService locationRankingService;
+    private final QueryUnderstandingService queryUnderstandingService;
+    private final GeographicFilterService geographicFilterService;
+
+    @Autowired
+    public LocationServiceImpl(
+            LocationIqGeocodingProvider locationIqProvider,
+            HereGeocodingProvider hereGeocodingProvider,
+            LocationRankingService locationRankingService,
+            QueryUnderstandingService queryUnderstandingService,
+            GeographicFilterService geographicFilterService) {
+        this.primaryProvider = locationIqProvider;
+        this.hereGeocodingProvider = hereGeocodingProvider;
+        this.locationRankingService = locationRankingService;
+        this.queryUnderstandingService = queryUnderstandingService;
+        this.geographicFilterService = geographicFilterService;
+    }
 
     public LocationServiceImpl(GeocodingProvider geocodingProvider) {
-        this.geocodingProvider = geocodingProvider;
+        this.primaryProvider = geocodingProvider;
+        this.hereGeocodingProvider = null;
+        this.locationRankingService = new LocationRankingServiceImpl();
+        this.queryUnderstandingService = new QueryUnderstandingServiceImpl();
+        this.geographicFilterService = new GeographicFilterServiceImpl();
+    }
+
+    public LocationServiceImpl(GeocodingProvider geocodingProvider, LocationRankingService locationRankingService) {
+        this.primaryProvider = geocodingProvider;
+        this.hereGeocodingProvider = null;
+        this.locationRankingService = locationRankingService;
+        this.queryUnderstandingService = new QueryUnderstandingServiceImpl();
+        this.geographicFilterService = new GeographicFilterServiceImpl();
+    }
+
+    public LocationServiceImpl(
+            GeocodingProvider primaryProvider,
+            HereGeocodingProvider hereGeocodingProvider,
+            LocationRankingService locationRankingService,
+            QueryUnderstandingService queryUnderstandingService,
+            GeographicFilterService geographicFilterService) {
+        this.primaryProvider = primaryProvider;
+        this.hereGeocodingProvider = hereGeocodingProvider;
+        this.locationRankingService = locationRankingService;
+        this.queryUnderstandingService = queryUnderstandingService;
+        this.geographicFilterService = geographicFilterService;
     }
 
     @Override
@@ -91,18 +144,261 @@ public class LocationServiceImpl implements LocationService {
             return cached;
         }
 
-        logger.debug("Location search cache MISS for key: {}. Calling provider: {}", cacheKey, geocodingProvider.getProviderName());
-        List<LocationSearchResultResponse> results = geocodingProvider.search(trimmed, effectiveLimit, normalizedLat, normalizedLon);
-        if (results == null) {
-            results = Collections.emptyList();
+        logger.debug("Location search cache MISS for key: {}. Parsing query understanding", cacheKey);
+        ParsedLocationQuery parsed = queryUnderstandingService.parseQuery(trimmed);
+        int fetchLimit = Math.min(effectiveLimit * 2, 20);
+        List<LocationSearchResultResponse> results;
+
+        // Two-Stage Search: Query has explicit target area and POI search intent
+        if (parsed.hasExplicitLocation() && parsed.getSearchIntent() == SearchIntent.POI_IN_LOCATION) {
+            logger.debug("Executing Two-Stage Search for keyword='{}', location='{}'",
+                    parsed.getSearchKeyword(), parsed.getLocationQuery());
+
+            GeographicTargetArea targetArea = resolveTargetArea(parsed.getLocationQuery());
+            if (targetArea != null) {
+                List<LocationSearchResultResponse> rawCandidates = new ArrayList<>();
+                int radiusMeters = (int) (targetArea.getMaxRadiusKm() * 1000);
+
+                // Stage B.1: Primary search bounded inside target area
+                try {
+                    List<LocationSearchResultResponse> inArea = primaryProvider.searchInArea(
+                            parsed.getSearchKeyword(), fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
+                            targetArea.getBoundingBox(), radiusMeters);
+                    if (inArea != null) {
+                        rawCandidates.addAll(inArea);
+                    }
+                } catch (Exception ex) {
+                    logger.debug("Primary searchInArea error: {}", ex.getMessage());
+                }
+
+                // Stage B.2: Root keyword fallback if candidate list is sparse and keyword is multi-word
+                if (rawCandidates.size() < 2 && parsed.getSearchKeyword().contains(" ")) {
+                    String rootWord = parsed.getSearchKeyword().split("\\s+")[0].trim();
+                    if (rootWord.length() >= 3) {
+                        try {
+                            List<LocationSearchResultResponse> rootResults = primaryProvider.searchInArea(
+                                    rootWord, fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
+                                    targetArea.getBoundingBox(), radiusMeters);
+                            if (rootResults != null) {
+                                rawCandidates.addAll(rootResults);
+                            }
+                        } catch (Exception ex) {
+                            logger.debug("Primary root word searchInArea error: {}", ex.getMessage());
+                        }
+                    }
+                }
+
+                // Stage B.3: If candidate list is still sparse (< 2) and intent is FOOD, try generic food fallback in area
+                if (rawCandidates.size() < 2 && "FOOD".equalsIgnoreCase(parsed.getPlaceCategory())) {
+                    try {
+                        List<LocationSearchResultResponse> foodFallbacks = primaryProvider.searchInArea(
+                                "quán ăn", fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
+                                targetArea.getBoundingBox(), radiusMeters);
+                        if (foodFallbacks != null) {
+                            rawCandidates.addAll(foodFallbacks);
+                        }
+                    } catch (Exception ex) {
+                        logger.debug("Primary food fallback searchInArea error: {}", ex.getMessage());
+                    }
+                }
+
+                // Stage B.4: Combined search (keyword + location) biased to target coordinates
+                try {
+                    List<LocationSearchResultResponse> combined = primaryProvider.search(
+                            parsed.getSearchKeyword() + " " + parsed.getLocationQuery(),
+                            fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon());
+                    if (combined != null) {
+                        rawCandidates.addAll(combined);
+                    }
+                } catch (Exception ex) {
+                    logger.debug("Primary combined search error: {}", ex.getMessage());
+                }
+
+                // Stage B.4: Secondary HERE provider search in area if configured
+                if (hereGeocodingProvider != null && hereGeocodingProvider.isConfigured()) {
+                    try {
+                        List<LocationSearchResultResponse> hereResults = hereGeocodingProvider.searchInArea(
+                                parsed.getSearchKeyword(), fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
+                                targetArea.getBoundingBox(), radiusMeters);
+                        if (hereResults != null) {
+                            rawCandidates.addAll(hereResults);
+                        }
+                    } catch (Exception ex) {
+                        logger.debug("HERE searchInArea error: {}", ex.getMessage());
+                    }
+                }
+
+                // Stage B.5: Filter out incompatible commercial types if intent is FOOD
+                if ("FOOD".equalsIgnoreCase(parsed.getPlaceCategory())) {
+                    rawCandidates.removeIf(this::isIncompatibleFoodCandidate);
+                }
+
+                // Stage B.6: Strict Geographic Filtering
+                List<LocationSearchResultResponse> filtered = geographicFilterService.filter(rawCandidates, targetArea);
+
+                if (!filtered.isEmpty()) {
+                    results = locationRankingService.rankAndDeduplicate(
+                            trimmed,
+                            filtered,
+                            targetArea.getCenterLat(),
+                            targetArea.getCenterLon(),
+                            effectiveLimit
+                    );
+                } else {
+                    // Safe Fallback: return the target locality itself so the map camera navigates to the requested region
+                    // without exposing out-of-bounds cross-province false positives.
+                    LocationSearchResultResponse localityFallback = LocationSearchResultResponse.builder()
+                            .placeId("locality_" + System.currentTimeMillis())
+                            .name(targetArea.getQueryName() + " (Khu vực)")
+                            .formattedAddress(targetArea.getResolvedName())
+                            .latitude(targetArea.getCenterLat())
+                            .longitude(targetArea.getCenterLon())
+                            .category("locality")
+                            .type("locality")
+                            .importance(1.0)
+                            .boundingBox(targetArea.getBoundingBox())
+                            .provider(primaryProvider.getProviderName())
+                            .isLocalityFallback(true)
+                            .build();
+                    results = List.of(localityFallback);
+                }
+            } else {
+                results = executeStandardSearch(trimmed, fetchLimit, effectiveLimit, normalizedLat, normalizedLon);
+            }
+        } else {
+            results = executeStandardSearch(trimmed, fetchLimit, effectiveLimit, normalizedLat, normalizedLon);
         }
 
-        // Cache results only if the provider is configured (avoids caching unconfigured empty lists across server reconfigs)
-        if (geocodingProvider.isConfigured()) {
+        // Cache results if at least one provider is configured
+        if ((primaryProvider != null && primaryProvider.isConfigured())
+                || (hereGeocodingProvider != null && hereGeocodingProvider.isConfigured())) {
             searchCache.put(cacheKey, results);
         }
 
         return results;
+    }
+
+    private List<LocationSearchResultResponse> executeStandardSearch(
+            String query, int fetchLimit, int effectiveLimit, Double normalizedLat, Double normalizedLon) {
+        List<LocationSearchResultResponse> rawResults = new ArrayList<>();
+
+        // 1. Primary provider search (LocationIQ)
+        try {
+            List<LocationSearchResultResponse> primaryResults = primaryProvider.search(query, fetchLimit, normalizedLat, normalizedLon);
+            if (primaryResults != null) {
+                rawResults.addAll(primaryResults);
+            }
+        } catch (AppException ex) {
+            if (hereGeocodingProvider == null || !hereGeocodingProvider.isConfigured()) {
+                throw ex;
+            }
+            logger.warn("Primary geocoding provider failed, falling back to secondary: {}", ex.getMessage());
+        }
+
+        // 2. Secondary provider search (HERE) if configured
+        if (hereGeocodingProvider != null && hereGeocodingProvider.isConfigured()) {
+            try {
+                List<LocationSearchResultResponse> hereResults = hereGeocodingProvider.search(query, fetchLimit, normalizedLat, normalizedLon);
+                if (hereResults != null) {
+                    rawResults.addAll(hereResults);
+                }
+            } catch (Exception ex) {
+                logger.warn("HERE geocoding provider search error: {}", ex.getMessage());
+            }
+        }
+
+        // 3. Semantic Ranking & Deduplication
+        return locationRankingService.rankAndDeduplicate(
+                query,
+                rawResults,
+                normalizedLat,
+                normalizedLon,
+                effectiveLimit
+        );
+    }
+
+    private GeographicTargetArea resolveTargetArea(String locationQuery) {
+        if (locationQuery == null || locationQuery.isBlank()) {
+            return null;
+        }
+
+        try {
+            List<LocationSearchResultResponse> locResults = primaryProvider.search(locationQuery, 3, null, null);
+            if ((locResults == null || locResults.isEmpty()) && hereGeocodingProvider != null && hereGeocodingProvider.isConfigured()) {
+                locResults = hereGeocodingProvider.search(locationQuery, 3, null, null);
+            }
+            if (locResults == null || locResults.isEmpty()) {
+                return null;
+            }
+
+            LocationSearchResultResponse top = locResults.get(0);
+            List<Double> bbox = top.getBoundingBox();
+            double centerLat = top.getLatitude();
+            double centerLon = top.getLongitude();
+
+            double calculatedRadius = 15.0;
+            if (bbox != null && bbox.size() == 4) {
+                double d1 = GeographicFilterServiceImpl.haversineDistanceKm(centerLat, centerLon, bbox.get(0), bbox.get(2));
+                double d2 = GeographicFilterServiceImpl.haversineDistanceKm(centerLat, centerLon, bbox.get(0), bbox.get(3));
+                double d3 = GeographicFilterServiceImpl.haversineDistanceKm(centerLat, centerLon, bbox.get(1), bbox.get(2));
+                double d4 = GeographicFilterServiceImpl.haversineDistanceKm(centerLat, centerLon, bbox.get(1), bbox.get(3));
+                double maxD = Math.max(Math.max(d1, d2), Math.max(d3, d4));
+                calculatedRadius = Math.max(maxD, 8.0);
+            } else {
+                String type = top.getType() != null ? top.getType().toLowerCase(Locale.ROOT) : "";
+                if (type.contains("district") || type.contains("quận") || type.contains("huyện")) {
+                    calculatedRadius = 8.0;
+                } else if (type.contains("water") || type.contains("lake") || type.contains("park")) {
+                    calculatedRadius = 3.5;
+                } else {
+                    calculatedRadius = 15.0;
+                }
+            }
+
+            String state = extractProvince(top.getFormattedAddress());
+
+            return GeographicTargetArea.builder()
+                    .queryName(locationQuery)
+                    .resolvedName(top.getFormattedAddress())
+                    .centerLat(centerLat)
+                    .centerLon(centerLon)
+                    .boundingBox(bbox)
+                    .maxRadiusKm(calculatedRadius)
+                    .targetType(top.getType())
+                    .stateOrProvince(state)
+                    .build();
+        } catch (Exception ex) {
+            logger.warn("Error resolving geographic target area for '{}': {}", locationQuery, ex.getMessage());
+            return null;
+        }
+    }
+
+    private static final Set<String> INCOMPATIBLE_FOOD_TYPES = Set.of(
+            "mobile_phone", "electronics", "car", "car_repair", "clothes",
+            "motorcycle", "laundry", "optician", "beauty", "hairdresser",
+            "florist", "furniture", "hardware", "atm", "bank", "fuel", "gas"
+    );
+
+    private boolean isIncompatibleFoodCandidate(LocationSearchResultResponse candidate) {
+        if (candidate == null) return false;
+        String type = candidate.getType() != null ? candidate.getType().toLowerCase(Locale.ROOT) : "";
+        String cat = candidate.getCategory() != null ? candidate.getCategory().toLowerCase(Locale.ROOT) : "";
+        return INCOMPATIBLE_FOOD_TYPES.contains(type) || "telecommunication".equals(cat);
+    }
+
+    private String extractProvince(String formattedAddress) {
+        if (formattedAddress == null) {
+            return null;
+        }
+        String[] parts = formattedAddress.split(",");
+        for (int i = parts.length - 1; i >= 0; i--) {
+            String p = parts[i].trim();
+            String lower = p.toLowerCase(Locale.ROOT);
+            if (lower.contains("tỉnh") || lower.contains("thành phố") || lower.contains("tp.") || lower.contains("tp ")) {
+                return p;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -130,13 +426,16 @@ public class LocationServiceImpl implements LocationService {
             return cached;
         }
 
-        logger.debug("Location reverse geocode cache MISS for key: {}. Calling provider: {}", cacheKey, geocodingProvider.getProviderName());
-        LocationSearchResultResponse result = geocodingProvider.reverseGeocode(roundedLat, roundedLon);
+        logger.debug("Location reverse geocode cache MISS for key: {}. Calling provider: {}", cacheKey, primaryProvider.getProviderName());
+        LocationSearchResultResponse result = primaryProvider.reverseGeocode(roundedLat, roundedLon);
+        if (result == null && hereGeocodingProvider != null && hereGeocodingProvider.isConfigured()) {
+            result = hereGeocodingProvider.reverseGeocode(roundedLat, roundedLon);
+        }
         if (result == null) {
             throw new ResourceNotFoundException("Không tìm thấy thông tin địa điểm tại tọa độ đã chọn");
         }
 
-        if (geocodingProvider.isConfigured()) {
+        if (primaryProvider.isConfigured() || (hereGeocodingProvider != null && hereGeocodingProvider.isConfigured())) {
             reverseCache.put(cacheKey, result);
         }
         return result;
@@ -168,9 +467,9 @@ public class LocationServiceImpl implements LocationService {
         String key = String.format(Locale.ROOT, "nearby:%s:%.4f:%.4f:%d:%d", normalizedCategory, lat, lon, effectiveRadius, effectiveLimit);
         List<LocationSearchResultResponse> cached = nearbyCache.getIfPresent(key);
         if (cached != null) return cached;
-        List<LocationSearchResultResponse> result = geocodingProvider.searchNearby(lat, lon, normalizedCategory, effectiveRadius, effectiveLimit);
+        List<LocationSearchResultResponse> result = primaryProvider.searchNearby(lat, lon, normalizedCategory, effectiveRadius, effectiveLimit);
         if (result == null) result = Collections.emptyList();
-        if (geocodingProvider.isConfigured()) nearbyCache.put(key, result);
+        if (primaryProvider.isConfigured()) nearbyCache.put(key, result);
         return result;
     }
 

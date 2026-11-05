@@ -140,6 +140,47 @@ class LocationPickerSheet extends StatefulWidget {
     token: token,
   );
 
+  static String formatQueryWithContext(String query, String? locationContext) {
+    final context = locationContext?.trim();
+    if (context == null || context.isEmpty) return query;
+    final lowerQuery = query.toLowerCase();
+
+    // Do not append context if query already includes full or stripped context (e.g. "Hồ Chí Minh")
+    final strippedContext = context
+        .replaceAll(RegExp(r'^(thành phố|tp\.?|tỉnh)\s+', caseSensitive: false), '')
+        .trim();
+    if (lowerQuery.contains(context.toLowerCase()) ||
+        (strippedContext.isNotEmpty &&
+            lowerQuery.contains(strippedContext.toLowerCase()))) {
+      return query;
+    }
+
+    // Do not append city context if the user already specified a district, ward, province,
+    // preposition (e.g. "gần", "ở", "tại"), comma, or an explicit known city/province.
+    final hasRegionalIndicator = lowerQuery.contains(',') ||
+        RegExp(
+          r'(^|[^\p{L}\p{N}])(tỉnh|tinh|thành phố|thanh pho|tp\.?|quận|quan|huyện|huyen|thị xã|thi xa|thị trấn|thi tran|phường|phuong|xã|xa|đảo|dao|gần|gan|tại|tai|ở|o)([^\p{L}\p{N}]|$)',
+          caseSensitive: false,
+          unicode: true,
+        ).hasMatch(lowerQuery) ||
+        RegExp(
+          r'(^|[^\p{L}\p{N}])(da lat|đà lạt|vung tau|vũng tàu|ha noi|hà nội|sai gon|sài gòn|ho chi minh|hồ chí minh|da nang|đà nẵng|nha trang|hue|huế|can tho|cần thơ|hai phong|hải phòng|long xuyen|long xuyên|phu quoc|phú quốc|hoi an|hội an|quy nhon|quy nhơn|phan thiet|phan thiết|vinh|ha long|hạ long|sa pa|sapa|lam dong|lâm đồng|an giang|dong nai|đồng nai|binh duong|bình dương|ba ria|bà rịa|bac giang|bắc giang|bac kan|bắc kạn|bac lieu|bạc liêu|bac ninh|bắc ninh|ben tre|bến tre|binh dinh|bình định|binh phuoc|bình phước|binh thuan|bình thuận|ca mau|cà mau|cao bang|cao bằng|dak lak|đắk lắk|dak nong|đắk nông|dien bien|điện biên|dong thap|đồng tháp|gia lai|ha giang|hà giang|ha nam|hà nam|ha tinh|hà tĩnh|hai duong|hải dương|hau giang|hậu giang|hoa binh|hòa bình|hung yen|hưng yên|khanh hoa|khánh hòa|kien giang|kiên giang|kon tum|lai chau|lai châu|lang son|lạng sơn|lao cai|lào cai|long an|nam dinh|nam định|nghe an|nghệ an|ninh binh|ninh bình|ninh thuan|ninh thuận|phu tho|phú thọ|phu yen|phú yên|quang binh|quảng bình|quang nam|quảng nam|quang ngai|quảng ngãi|quang ninh|quảng ninh|quang tri|quảng trị|soc trang|sóc trăng|son la|sơn la|tay ninh|tây ninh|thai binh|thái bình|thai nguyen|thái nguyên|thanh hoa|thanh hóa|thua thien hue|thừa thiên huế|tien giang|tiền giang|tra vinh|trà vinh|tuyen quang|tuyên quang|vinh long|vĩnh long|vinh phuc|vĩnh phúc|yen bai|yên bái)([^\p{L}\p{N}]|$)',
+          caseSensitive: false,
+          unicode: true,
+        ).hasMatch(lowerQuery);
+    if (hasRegionalIndicator) {
+      return query;
+    }
+
+    final availableContextLength = 100 - query.length - 2;
+    if (availableContextLength <= 0) return query;
+    final boundedContext = context.length > availableContextLength
+        ? context.substring(0, availableContextLength).trim()
+        : context;
+    if (boundedContext.isEmpty) return query;
+    return '$query, $boundedContext';
+  }
+
   @override
   State<LocationPickerSheet> createState() => _LocationPickerSheetState();
 }
@@ -175,9 +216,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     _repository = widget.repository ?? LocationRepository();
     _mapController = MapController();
     _searchController = TextEditingController();
-    _viewportCenter =
-        widget.initialCenter ??
-        LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
 
     if (widget.initialCenter != null) {
       _selectedPoint = widget.initialCenter;
@@ -187,6 +225,10 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       _selectedAddress = widget.initialAddress;
       _selectedPlaceId = widget.initialPlaceId;
       _selectedProvider = widget.initialProvider ?? 'MANUAL_PIN';
+      _viewportCenter = widget.initialCenter!;
+    } else {
+      _viewportCenter =
+          LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
     }
   }
 
@@ -257,18 +299,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     });
   }
 
-  String _queryWithLocationContext(String query) {
-    final context = widget.locationContext?.trim();
-    if (context == null || context.isEmpty) return query;
-    if (query.toLowerCase().contains(context.toLowerCase())) return query;
-    final availableContextLength = 100 - query.length - 2;
-    if (availableContextLength <= 0) return query;
-    final boundedContext = context.length > availableContextLength
-        ? context.substring(0, availableContextLength).trim()
-        : context;
-    if (boundedContext.isEmpty) return query;
-    return '$query, $boundedContext';
-  }
+  String _queryWithLocationContext(String query) =>
+      LocationPickerSheet.formatQueryWithContext(query, widget.locationContext);
 
   Future<void> _searchNearby(String category) async {
     _debounceTimer?.cancel();
@@ -359,7 +391,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       _viewportCenter = point;
     });
 
-    _mapController.move(point, 15.0);
+    final zoom = result.isCityOrAdministrative ? 12.0 : 15.5;
+    _mapController.move(point, zoom);
   }
 
   Future<void> _handleMapTap(LatLng point) async {
@@ -476,8 +509,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     final bottomInset = mediaQuery.viewInsets.bottom;
     final sheetHeight = mediaQuery.size.height * 0.90;
 
-    final initialCenter =
-        widget.initialCenter ??
+    final initialCenter = widget.initialCenter ??
         LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
     final initialZoom = widget.initialCenter != null
         ? 15.0
@@ -785,25 +817,59 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                               itemBuilder: (context, index) {
                                                 final item =
                                                     _searchResults[index];
+                                                final isArea = item.isLocalityFallback || item.isCityOrAdministrative;
                                                 return ListTile(
                                                   dense: true,
-                                                  leading: const Icon(
-                                                    Icons.place_outlined,
+                                                  leading: Icon(
+                                                    isArea
+                                                        ? Icons.location_city_outlined
+                                                        : Icons.place_outlined,
                                                     color: AppColors.primary,
                                                     size: 20,
                                                   ),
-                                                  title: Text(
-                                                    item.name,
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color:
-                                                          AppColors.textPrimary,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
+                                                  title: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          item.name,
+                                                          style: const TextStyle(
+                                                            fontSize: 13,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color:
+                                                                AppColors.textPrimary,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow:
+                                                              TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                      if (isArea) ...[
+                                                        const SizedBox(width: 6),
+                                                        Container(
+                                                          padding: const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 2,
+                                                          ),
+                                                          decoration: BoxDecoration(
+                                                            color: AppColors.surfaceSoft,
+                                                            borderRadius: BorderRadius.circular(4),
+                                                            border: Border.all(
+                                                              color: AppColors.hairlineSoft,
+                                                              width: 0.5,
+                                                            ),
+                                                          ),
+                                                          child: Text(
+                                                            item.isLocalityFallback ? 'Khu vực' : 'Địa danh',
+                                                            style: const TextStyle(
+                                                              fontSize: 10,
+                                                              fontWeight: FontWeight.w500,
+                                                              color: AppColors.textSecondary,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
                                                   ),
                                                   subtitle:
                                                       item
