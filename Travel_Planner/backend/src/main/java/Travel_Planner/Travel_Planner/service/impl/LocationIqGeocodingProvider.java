@@ -85,7 +85,8 @@ public class LocationIqGeocodingProvider implements GeocodingProvider {
                 .queryParam("limit", limit)
                 .queryParam("countrycodes", "vn")
                 .queryParam("format", "json")
-                .queryParam("accept-language", "vi,en");
+                // Autocomplete accepts a single supported language code; user queries may still be Vietnamese.
+                .queryParam("accept-language", "en");
 
         if (latitude != null && longitude != null) {
             uriBuilder.queryParam("lat", latitude);
@@ -139,6 +140,47 @@ public class LocationIqGeocodingProvider implements GeocodingProvider {
         } catch (Exception ex) {
             logger.warn("Unexpected error calling LocationIQ search: {}", ex.getMessage());
             throw new AppException("Không thể xử lý yêu cầu tìm kiếm vị trí.", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category,
+                                                            int radiusMeters, int limit) {
+        if (!isConfigured() || !mapProperties.getGeocoding().isNearbyEnabled()) {
+            throw new AppException("Tìm địa điểm quanh đây hiện chưa được bật.", HttpStatus.SERVICE_UNAVAILABLE);
+        }
+        String tag = switch (category) {
+            case "ATTRACTION" -> "tourism:*,historic:*,leisure:park";
+            case "FOOD" -> "amenity:restaurant,amenity:fast_food,amenity:food_court";
+            case "CAFE" -> "amenity:cafe";
+            case "STAY" -> "tourism:hotel,tourism:guest_house,tourism:hostel";
+            default -> "all";
+        };
+        String baseUrl = mapProperties.getGeocoding().getBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) baseUrl = "https://us1.locationiq.com/v1";
+        URI uri = UriComponentsBuilder.fromUriString(baseUrl).path("/nearby")
+                .queryParam("key", mapProperties.getGeocoding().getApiKey().trim())
+                .queryParam("lat", latitude).queryParam("lon", longitude)
+                .queryParam("tag", tag).queryParam("radius", radiusMeters)
+                .queryParam("limit", limit).queryParam("dedupe", 1).queryParam("format", "json")
+                .queryParam("accept-language", "vi,en").build().encode().toUri();
+        try {
+            JsonNode response = restClient.get().uri(uri).retrieve().body(JsonNode.class);
+            if (response == null || !response.isArray()) return Collections.emptyList();
+            List<LocationSearchResultResponse> results = new ArrayList<>();
+            for (JsonNode item : response) {
+                LocationSearchResultResponse parsed = parseLocationItem(item);
+                if (parsed != null) results.add(parsed);
+            }
+            return results;
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode() == HttpStatus.NOT_FOUND) return Collections.emptyList();
+            if (ex.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                throw new RateLimitExceededException("Dịch vụ gợi ý địa điểm tạm thời đạt giới hạn lượt gọi.");
+            }
+            throw new AppException("Dịch vụ gợi ý địa điểm tạm thời không khả dụng.", HttpStatus.BAD_GATEWAY);
+        } catch (ResourceAccessException ex) {
+            throw new AppException("Dịch vụ gợi ý địa điểm không phản hồi kịp thời.", HttpStatus.GATEWAY_TIMEOUT);
         }
     }
 
@@ -238,8 +280,12 @@ public class LocationIqGeocodingProvider implements GeocodingProvider {
 
         String formattedAddress = displayName != null && !displayName.isBlank() ? displayName.trim() : name;
 
-        double lat = node.path("lat").asDouble(0.0);
-        double lon = node.path("lon").asDouble(0.0);
+        double lat = parseCoordinate(node.path("lat"));
+        double lon = parseCoordinate(node.path("lon"));
+        if (!Double.isFinite(lat) || !Double.isFinite(lon)
+                || lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0) {
+            return null;
+        }
 
         String category = node.path("class").asText(null);
         if (category == null || category.isBlank()) {
@@ -255,5 +301,16 @@ public class LocationIqGeocodingProvider implements GeocodingProvider {
                 .category(category)
                 .provider(PROVIDER_NAME)
                 .build();
+    }
+
+    private double parseCoordinate(JsonNode value) {
+        if (value == null || value.isMissingNode() || value.isNull()) {
+            return Double.NaN;
+        }
+        try {
+            return Double.parseDouble(value.asText());
+        } catch (NumberFormatException ex) {
+            return Double.NaN;
+        }
     }
 }

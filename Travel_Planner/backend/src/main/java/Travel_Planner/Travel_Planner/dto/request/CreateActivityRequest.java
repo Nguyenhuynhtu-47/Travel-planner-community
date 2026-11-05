@@ -48,6 +48,9 @@ public class CreateActivityRequest {
     @Size(max = 30, message = "Nhà cung cấp vị trí tối đa 30 ký tự")
     private String locationProvider;
 
+    @Size(max = 500, message = "Đường dẫn ảnh tối đa 500 ký tự")
+    private String imageUrl;
+
     private LocalTime startTime;
 
     private LocalTime endTime;

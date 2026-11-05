@@ -295,6 +295,34 @@ class ActivityLocationTest {
         assertNull(saved.getLongitude());
     }
 
+    @Test
+    @DisplayName("Activity cover image is returned and preserved by legacy update payloads")
+    void activityImage_createAndLegacyUpdate_preservesImage() throws Exception {
+        String coverUrl = "https://res.cloudinary.com/test/image/upload/v1/activity-cover.jpg";
+        CreateActivityRequest request = CreateActivityRequest.builder()
+                .name("Ghé quán cà phê")
+                .imageUrl(coverUrl)
+                .build();
+
+        String response = mockMvc.perform(post("/api/itineraries/{itineraryId}/days/{dayId}/activities",
+                        testItinerary.getItineraryId(), testDay.getDayId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrl").value(coverUrl))
+                .andReturn().getResponse().getContentAsString();
+        int activityId = objectMapper.readTree(response).get("activityId").asInt();
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
+                        testItinerary.getItineraryId(), testDay.getDayId(), activityId)
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Cập nhật tên\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").value(coverUrl));
+    }
+
     // ==========================================
     // 2. INVALID COMBINATIONS & BOUNDS
     // ==========================================

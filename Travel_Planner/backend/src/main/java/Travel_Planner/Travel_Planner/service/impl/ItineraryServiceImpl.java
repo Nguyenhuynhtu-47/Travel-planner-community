@@ -746,6 +746,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         applyLocation(activity, request.getDestinationId(), request.getCustomLocationName(),
                 request.getCustomAddress(), request.getLatitude(), request.getLongitude(),
                 request.getPlaceId(), request.getLocationProvider());
+        activity.setImageUrl(validateActivityImageUrl(request.getImageUrl()));
 
         activity = activityRepository.save(activity);
         return mapToActivityResponse(activity);
@@ -778,6 +779,9 @@ public class ItineraryServiceImpl implements ItineraryService {
         applyLocation(activity, request.getDestinationId(), request.getCustomLocationName(),
                 request.getCustomAddress(), request.getLatitude(), request.getLongitude(),
                 request.getPlaceId(), request.getLocationProvider());
+        if (request.getImageUrl() != null) {
+            activity.setImageUrl(validateActivityImageUrl(request.getImageUrl()));
+        }
 
         activity = activityRepository.save(activity);
         return mapToActivityResponse(activity);
@@ -930,6 +934,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .longitude(activity.getLongitude())
                 .placeId(activity.getPlaceId())
                 .locationProvider(activity.getLocationProvider())
+                .imageUrl(activity.getImageUrl())
                 .build();
     }
 
@@ -964,7 +969,9 @@ public class ItineraryServiceImpl implements ItineraryService {
         if (destinationId != null) {
             Destination destination = destinationRepository.findById(destinationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Địa điểm không tồn tại"));
-            if (destination.getStatus() != DestinationStatus.ACTIVE) {
+            if (destination.getStatus() != DestinationStatus.ACTIVE
+                    && !destination.getDestinationId().equals(activity.getDestination() == null
+                        ? null : activity.getDestination().getDestinationId())) {
                 throw new BadRequestException("Địa điểm này hiện không khả dụng");
             }
             activity.setDestination(destination);
@@ -1032,5 +1039,23 @@ public class ItineraryServiceImpl implements ItineraryService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String validateActivityImageUrl(String value) {
+        String imageUrl = trimToNull(value);
+        if (imageUrl == null) return null;
+        if (imageUrl.length() > 500) throw new BadRequestException("Đường dẫn ảnh tối đa 500 ký tự");
+        try {
+            java.net.URI uri = java.net.URI.create(imageUrl);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                    || !"res.cloudinary.com".equalsIgnoreCase(uri.getHost())
+                    || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
+                    || !uri.getPath().contains("/image/upload/")) {
+                throw new BadRequestException("Ảnh hoạt động phải được tải lên hệ thống lưu trữ ảnh của ứng dụng");
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Đường dẫn ảnh hoạt động không hợp lệ");
+        }
+        return imageUrl;
     }
 }

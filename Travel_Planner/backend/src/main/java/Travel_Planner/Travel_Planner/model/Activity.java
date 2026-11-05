@@ -76,6 +76,9 @@ public class Activity {
     @Column(name = "location_provider", length = 30)
     private String locationProvider;
 
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
     @Column(name = "start_time")
     private LocalTime startTime;
 

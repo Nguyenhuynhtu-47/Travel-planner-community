@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -263,6 +264,11 @@ public class LocationServiceTest {
                 }
 
                 @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
+                    return Collections.emptyList();
+                }
+
+                @Override
                 public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {
                     return null;
                 }
@@ -305,6 +311,11 @@ public class LocationServiceTest {
 
                 @Override
                 public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
                     return Collections.emptyList();
                 }
 
@@ -359,6 +370,11 @@ public class LocationServiceTest {
                 }
 
                 @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
+                    return Collections.emptyList();
+                }
+
+                @Override
                 public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {
                     callCount.incrementAndGet();
                     passedCoords[0] = latitude;
@@ -406,6 +422,11 @@ public class LocationServiceTest {
 
                 @Override
                 public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
                     return Collections.emptyList();
                 }
 
@@ -613,6 +634,42 @@ public class LocationServiceTest {
 
             LocationSearchResultResponse reverse = provider.reverseGeocode(11.94, 108.43);
             assertNull(reverse);
+        }
+
+        @Test
+        @DisplayName("Nearby is explicitly disabled until the provider feature flag is enabled")
+        void provider_nearbyDisabled_returnsServiceUnavailable() {
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(RestClient.builder(), props);
+            AppException ex = assertThrows(AppException.class,
+                    () -> provider.searchNearby(21.0, 105.0, "ALL", 5000, 10));
+            assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatus());
+        }
+
+        @Test
+        @DisplayName("Search parser drops missing coordinates but preserves valid zero coordinates")
+        void provider_searchCoordinates_missingDroppedZeroPreserved() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+            server.expect(requestTo(allOf(
+                            containsString("/v1/autocomplete"),
+                            containsString("countrycodes=vn"),
+                            containsString("accept-language=en"))))
+                    .andRespond(withSuccess("""
+                            [
+                              {"place_id":"bad","display_name":"No coordinates"},
+                              {"osm_type":"node","osm_id":1,"display_name":"Zero Point","lat":"0","lon":"0"}
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+            List<LocationSearchResultResponse> results = provider.search("point", 10, null, null);
+            assertEquals(1, results.size());
+            assertEquals(0.0, results.get(0).getLatitude());
+            assertEquals(0.0, results.get(0).getLongitude());
+            server.verify();
         }
 
         @Test

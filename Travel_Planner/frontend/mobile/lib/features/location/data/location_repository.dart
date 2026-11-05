@@ -7,7 +7,7 @@ class LocationRepository {
   final ApiClient _apiClient;
 
   LocationRepository({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient();
 
   /// Search places and autocomplete locations by query.
   ///
@@ -50,6 +50,35 @@ class LocationRepository {
     return const [];
   }
 
+  /// Finds nearby points of interest around the current map viewport.
+  Future<List<LocationSearchResult>> searchNearby({
+    required double latitude,
+    required double longitude,
+    String category = 'ALL',
+    int radiusMeters = 5000,
+    int limit = 20,
+    String? token,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.locationNearbyEndpoint,
+      queryParameters: {
+        'latitude': latitude,
+        'longitude': longitude,
+        'category': category,
+        'radiusMeters': radiusMeters,
+        'limit': limit,
+      },
+      token: token,
+    );
+    if (response is List) {
+      return response
+          .whereType<Map<String, dynamic>>()
+          .map(LocationSearchResult.fromJson)
+          .toList();
+    }
+    return const [];
+  }
+
   /// Reverse geocodes coordinates (latitude, longitude) to place information.
   ///
   /// Returns `null` if the coordinate does not resolve to an address (HTTP 404).
@@ -84,4 +113,3 @@ class LocationRepository {
     }
   }
 }
-

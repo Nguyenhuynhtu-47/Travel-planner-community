@@ -29,6 +29,9 @@ class ActivityTimelineItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeFormatted = activity.timeRangeFormatted;
+    final activityImageUrl = activity.imageUrl?.trim().isNotEmpty == true
+        ? activity.imageUrl!.trim()
+        : activity.destination?.imageUrl;
 
     return IntrinsicHeight(
       child: Row(
@@ -243,14 +246,12 @@ class ActivityTimelineItem extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          if (activity.destination!.imageUrl != null &&
-                              activity.destination!.imageUrl!
-                                  .trim()
-                                  .isNotEmpty) ...[
+                          if (activityImageUrl != null &&
+                              activityImageUrl.trim().isNotEmpty) ...[
                             ClipRRect(
                               borderRadius: BorderRadius.circular(6),
                               child: Image.network(
-                                activity.destination!.imageUrl!.trim(),
+                                activityImageUrl.trim(),
                                 width: 56,
                                 height: 56,
                                 fit: BoxFit.cover,
@@ -323,20 +324,21 @@ class ActivityTimelineItem extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight,
+                          if (activityImageUrl != null &&
+                              activityImageUrl.trim().isNotEmpty)
+                            ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                            ),
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.pin_drop,
-                              size: 18,
-                              color: AppColors.primary,
-                            ),
-                          ),
+                              child: Image.network(
+                                activityImageUrl.trim(),
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    _destinationPlaceholder(),
+                              ),
+                            )
+                          else
+                            _customLocationPlaceholder(),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(
@@ -354,7 +356,9 @@ class ActivityTimelineItem extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 if (activity.customAddress != null &&
-                                    activity.customAddress!.trim().isNotEmpty) ...[
+                                    activity.customAddress!
+                                        .trim()
+                                        .isNotEmpty) ...[
                                   const SizedBox(height: 2),
                                   Text(
                                     activity.customAddress!.trim(),
@@ -401,5 +405,16 @@ class ActivityTimelineItem extends StatelessWidget {
     ),
     alignment: Alignment.center,
     child: const Icon(Icons.place, size: 18, color: AppColors.primary),
+  );
+
+  Widget _customLocationPlaceholder() => Container(
+    width: 40,
+    height: 40,
+    decoration: BoxDecoration(
+      color: AppColors.primaryLight,
+      borderRadius: BorderRadius.circular(6),
+    ),
+    alignment: Alignment.center,
+    child: const Icon(Icons.pin_drop, size: 18, color: AppColors.primary),
   );
 }

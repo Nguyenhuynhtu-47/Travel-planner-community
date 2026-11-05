@@ -79,6 +79,19 @@ public class LocationController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/nearby")
+    public ResponseEntity<List<LocationSearchResultResponse>> nearby(
+            @RequestParam Double latitude,
+            @RequestParam Double longitude,
+            @RequestParam(defaultValue = "ALL") String category,
+            @RequestParam(required = false) Integer radiusMeters,
+            @RequestParam(required = false) Integer limit,
+            HttpServletRequest request,
+            Authentication authentication) {
+        enforceRateLimit(request, authentication);
+        return ResponseEntity.ok(locationService.searchNearby(latitude, longitude, category, radiusMeters, limit));
+    }
+
     private void enforceRateLimit(HttpServletRequest request, Authentication authentication) {
         boolean isAuthenticated = authentication != null && authentication.isAuthenticated()
                 && !(authentication instanceof AnonymousAuthenticationToken);

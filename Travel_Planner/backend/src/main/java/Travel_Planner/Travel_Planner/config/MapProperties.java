@@ -20,6 +20,7 @@ public class MapProperties {
         private String apiKey = "";
         private int timeoutMs = 3000;
         private String baseUrl = "https://us1.locationiq.com/v1";
+        private boolean nearbyEnabled = false;
     }
 
     @Getter

@@ -106,6 +106,29 @@ void main() {
       });
 
       test(
+        'Activity image URL is optional on create and explicit on update',
+        () {
+          const url =
+              'https://res.cloudinary.com/demo/image/upload/activity.jpg';
+          final createJson = CreateActivityRequest(
+            name: 'Tham quan',
+            imageUrl: url,
+          ).toJson();
+          expect(createJson['imageUrl'], url);
+
+          final keepImageJson = UpdateActivityRequest(name: 'Sửa tên').toJson();
+          expect(keepImageJson.containsKey('imageUrl'), isTrue);
+          expect(keepImageJson['imageUrl'], isNull);
+
+          final clearImageJson = UpdateActivityRequest(
+            name: 'Sửa tên',
+            imageUrl: '',
+          ).toJson();
+          expect(clearImageJson['imageUrl'], '');
+        },
+      );
+
+      test(
         'UpdateActivityRequest preserves null values for cleared fields',
         () {
           final request = UpdateActivityRequest(

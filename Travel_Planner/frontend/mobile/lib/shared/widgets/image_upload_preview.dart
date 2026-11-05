@@ -9,7 +9,8 @@ class ImageUploadPreview extends StatelessWidget {
   final String? imageUrl;
   final bool circular;
   final String buttonLabel;
-  final VoidCallback onPick;
+  final double height;
+  final VoidCallback? onPick;
 
   const ImageUploadPreview({
     super.key,
@@ -18,6 +19,7 @@ class ImageUploadPreview extends StatelessWidget {
     required this.onPick,
     this.circular = false,
     this.buttonLabel = 'Chọn ảnh',
+    this.height = 168,
   });
 
   Widget _placeholder() => Container(
@@ -55,7 +57,7 @@ class ImageUploadPreview extends StatelessWidget {
         ? SizedBox(width: 96, height: 96, child: ClipOval(child: _image()))
         : SizedBox(
             width: double.infinity,
-            height: 168,
+            height: height,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: _image(),

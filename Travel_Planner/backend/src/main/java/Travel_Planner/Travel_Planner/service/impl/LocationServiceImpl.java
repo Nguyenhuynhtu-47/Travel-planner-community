@@ -41,6 +41,10 @@ public class LocationServiceImpl implements LocationService {
             .maximumSize(500)
             .expireAfterWrite(Duration.ofHours(24))
             .build();
+    private final Cache<String, List<LocationSearchResultResponse>> nearbyCache = Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(Duration.ofHours(24))
+            .build();
 
     private final GeocodingProvider geocodingProvider;
 
@@ -138,9 +142,42 @@ public class LocationServiceImpl implements LocationService {
         return result;
     }
 
+    @Override
+    public List<LocationSearchResultResponse> searchNearby(Double latitude, Double longitude, String category,
+                                                            Integer radiusMeters, Integer limit) {
+        if (latitude == null || longitude == null || !Double.isFinite(latitude) || !Double.isFinite(longitude)
+                || latitude < MIN_LATITUDE || latitude > MAX_LATITUDE
+                || longitude < MIN_LONGITUDE || longitude > MAX_LONGITUDE) {
+            throw new BadRequestException("Vui lòng chọn tọa độ hợp lệ trên bản đồ");
+        }
+        int effectiveRadius = radiusMeters == null ? 2000 : radiusMeters;
+        int effectiveLimit = limit == null ? DEFAULT_LIMIT : limit;
+        if (effectiveRadius < 100 || effectiveRadius > 10000) {
+            throw new BadRequestException("Bán kính tìm kiếm phải từ 100 đến 10000 mét");
+        }
+        if (effectiveLimit < 1 || effectiveLimit > MAX_LIMIT) {
+            throw new BadRequestException("Số lượng kết quả phải từ 1 đến " + MAX_LIMIT);
+        }
+        String normalizedCategory = category == null || category.isBlank()
+                ? "ALL" : category.trim().toUpperCase(Locale.ROOT);
+        if (!List.of("ALL", "ATTRACTION", "FOOD", "CAFE", "STAY").contains(normalizedCategory)) {
+            throw new BadRequestException("Loại địa điểm không được hỗ trợ");
+        }
+        double lat = BigDecimal.valueOf(latitude).setScale(4, RoundingMode.HALF_UP).doubleValue();
+        double lon = BigDecimal.valueOf(longitude).setScale(4, RoundingMode.HALF_UP).doubleValue();
+        String key = String.format(Locale.ROOT, "nearby:%s:%.4f:%.4f:%d:%d", normalizedCategory, lat, lon, effectiveRadius, effectiveLimit);
+        List<LocationSearchResultResponse> cached = nearbyCache.getIfPresent(key);
+        if (cached != null) return cached;
+        List<LocationSearchResultResponse> result = geocodingProvider.searchNearby(lat, lon, normalizedCategory, effectiveRadius, effectiveLimit);
+        if (result == null) result = Collections.emptyList();
+        if (geocodingProvider.isConfigured()) nearbyCache.put(key, result);
+        return result;
+    }
+
     public void clearCaches() {
         searchCache.invalidateAll();
         reverseCache.invalidateAll();
+        nearbyCache.invalidateAll();
     }
 
     public long getSearchCacheSize() {

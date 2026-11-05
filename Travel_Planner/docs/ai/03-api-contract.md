@@ -251,6 +251,14 @@ Current inventory of API endpoints:
   - Renumbers remaining days contiguously (`dayNumber = 1..totalDays`) to prevent unique key collisions.
   - Response: `200 OK` with `{"message": "Đã xóa ngày thành công"}`.
 
+### 10.5a. Location Search and Nearby Discovery
+- `GET /api/locations/search?query=...&limit=10&latitude=...&longitude=...` returns the existing LocationIQ autocomplete array. Query length is 2–100 characters and limit is 1–20. Viewport coordinates are optional search context, not a selection.
+- Activity location search appends the itinerary's `location` to the typed query when available (within the 100-character limit); the LocationIQ adapter restricts autocomplete results to Vietnam (`countrycodes=vn`). The city text biases relevance but does not create a strict administrative boundary.
+- `GET /api/locations/nearby?latitude=...&longitude=...&category=ALL&radiusMeters=2000&limit=10` returns nearby points of interest. Supported categories: `ALL`, `ATTRACTION`, `FOOD`, `CAFE`, `STAY`; radius is 100–10,000 metres and limit is 1–20.
+- Nearby discovery is opt-in through `LOCATIONIQ_NEARBY_ENABLED` (default `false`) and requires the existing LocationIQ API key. Disabled/unconfigured requests return HTTP 503; upstream quota exhaustion returns HTTP 429. No paid-provider fallback is performed.
+- Both endpoints use application rate limiting and server-side caching. Invalid upstream coordinates are discarded; valid zero coordinates remain valid.
+- `GET /api/locations/reverse-geocode?latitude=...&longitude=...` supplies descriptive address information for a manual pin. The pin retains its coordinates and does not inherit an identity from the reverse-geocoded nearby place.
+
 ### 10.6. Activity Management & Safe Reordering
 - **Add Activity:** `POST /api/itineraries/{id}/days/{dayId}/activities`
   - Body (`CreateActivityRequest`):
@@ -261,14 +269,17 @@ Current inventory of API endpoints:
       "startTime": "09:00:00",
       "endTime": "10:30:00",
       "cost": 0,
-      "destinationId": 1
+      "destinationId": 1,
+      "imageUrl": "https://res.cloudinary.com/<cloud>/image/upload/<asset>"
     }
     ```
   - `destinationId` is optional (nullable) for activities without specific POIs (rest, free time).
+  - `imageUrl` is optional and limited to HTTPS Cloudinary delivery URLs. Mobile uploads through the existing authenticated image endpoint and saves its returned URL; catalog image is the display fallback when this field is empty.
   - Automatically assigned `displayOrder = maxOrder + 1`.
   - Response: `201 Created` with `ActivityResponse`.
 - **Update Activity:** `PUT /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
-  - Body (`UpdateActivityRequest`): updates name, description, start/end time, cost, destinationId.
+  - Body (`UpdateActivityRequest`): updates name, description, start/end time, cost, location and optional `imageUrl`.
+  - Omitted/null `imageUrl` preserves the current activity image for older clients; an empty string clears it.
   - Response: `200 OK` with `ActivityResponse`.
 - **Delete Activity:** `DELETE /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
   - Deletes activity and renumbers subsequent activities contiguously.

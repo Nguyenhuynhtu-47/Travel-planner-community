@@ -29,12 +29,26 @@ class CustomLocationResult {
   });
 
   factory CustomLocationResult.fromSearchResult(LocationSearchResult result) {
+    if (!result.hasCoordinates ||
+        !result.latitude!.isFinite ||
+        !result.longitude!.isFinite ||
+        result.latitude! < -90 ||
+        result.latitude! > 90 ||
+        result.longitude! < -180 ||
+        result.longitude! > 180) {
+      throw ArgumentError.value(
+        result,
+        'result',
+        'Location result needs valid coordinates',
+      );
+    }
     return CustomLocationResult(
       locationName: result.name.isNotEmpty ? result.name : 'Vị trí đã ghim',
-      address:
-          result.formattedAddress.isNotEmpty ? result.formattedAddress : null,
-      latitude: result.latitude ?? 0.0,
-      longitude: result.longitude ?? 0.0,
+      address: result.formattedAddress.isNotEmpty
+          ? result.formattedAddress
+          : null,
+      latitude: result.latitude!,
+      longitude: result.longitude!,
       placeId: result.placeId.isNotEmpty ? result.placeId : null,
       locationProvider: result.provider ?? 'LOCATION_IQ',
     );
@@ -57,6 +71,7 @@ Future<CustomLocationResult?> showLocationPickerSheet(
   String? initialAddress,
   String? initialPlaceId,
   String? initialProvider,
+  String? locationContext,
   String? token,
 }) {
   return showModalBottomSheet<CustomLocationResult>(
@@ -72,6 +87,7 @@ Future<CustomLocationResult?> showLocationPickerSheet(
       initialAddress: initialAddress,
       initialPlaceId: initialPlaceId,
       initialProvider: initialProvider,
+      locationContext: locationContext,
       token: token,
     ),
   );
@@ -86,6 +102,7 @@ class LocationPickerSheet extends StatefulWidget {
   final String? initialAddress;
   final String? initialPlaceId;
   final String? initialProvider;
+  final String? locationContext;
   final String? token;
 
   const LocationPickerSheet({
@@ -96,6 +113,7 @@ class LocationPickerSheet extends StatefulWidget {
     this.initialAddress,
     this.initialPlaceId,
     this.initialProvider,
+    this.locationContext,
     this.token,
   });
 
@@ -108,6 +126,7 @@ class LocationPickerSheet extends StatefulWidget {
     String? initialAddress,
     String? initialPlaceId,
     String? initialProvider,
+    String? locationContext,
     String? token,
   }) => showLocationPickerSheet(
     context,
@@ -117,6 +136,7 @@ class LocationPickerSheet extends StatefulWidget {
     initialAddress: initialAddress,
     initialPlaceId: initialPlaceId,
     initialProvider: initialProvider,
+    locationContext: locationContext,
     token: token,
   );
 
@@ -144,6 +164,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   String? _selectedPlaceId;
   String? _selectedProvider;
   bool _isReverseGeocoding = false;
+  late LatLng _viewportCenter;
+  String _nearbyCategory = 'ALL';
 
   static const String fallbackLocationName = 'Vị trí đã ghim';
 
@@ -153,6 +175,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     _repository = widget.repository ?? LocationRepository();
     _mapController = MapController();
     _searchController = TextEditingController();
+    _viewportCenter =
+        widget.initialCenter ??
+        LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
 
     if (widget.initialCenter != null) {
       _selectedPoint = widget.initialCenter;
@@ -175,6 +200,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
 
   void _onSearchChanged(String text) {
     _debounceTimer?.cancel();
+    final requestId = ++_searchRequestId;
     final query = text.trim();
 
     if (query.length < 2) {
@@ -194,10 +220,11 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     });
 
     _debounceTimer = Timer(const Duration(milliseconds: 400), () async {
-      final requestId = ++_searchRequestId;
       try {
         final results = await _repository.searchLocations(
-          query,
+          _queryWithLocationContext(query),
+          latitude: _viewportCenter.latitude,
+          longitude: _viewportCenter.longitude,
           token: widget.token,
         );
 
@@ -217,9 +244,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
           _searchResults = [];
           _searchError = e.statusCode == 429
               ? 'Đã vượt quá giới hạn tìm kiếm, vui lòng thử lại sau.'
-              : (e.message.isNotEmpty
-                  ? e.message
-                  : 'Lỗi tìm kiếm địa điểm');
+              : (e.message.isNotEmpty ? e.message : 'Lỗi tìm kiếm địa điểm');
         });
       } catch (_) {
         if (!mounted || requestId != _searchRequestId) return;
@@ -232,14 +257,95 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     });
   }
 
+  String _queryWithLocationContext(String query) {
+    final context = widget.locationContext?.trim();
+    if (context == null || context.isEmpty) return query;
+    if (query.toLowerCase().contains(context.toLowerCase())) return query;
+    final availableContextLength = 100 - query.length - 2;
+    if (availableContextLength <= 0) return query;
+    final boundedContext = context.length > availableContextLength
+        ? context.substring(0, availableContextLength).trim()
+        : context;
+    if (boundedContext.isEmpty) return query;
+    return '$query, $boundedContext';
+  }
+
+  Future<void> _searchNearby(String category) async {
+    _debounceTimer?.cancel();
+    final requestId = ++_searchRequestId;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _nearbyCategory = category;
+      _isSearching = true;
+      _searchError = null;
+      _searchResults = [];
+      _showSearchResults = true;
+    });
+    try {
+      final results = await _repository.searchNearby(
+        latitude: _viewportCenter.latitude,
+        longitude: _viewportCenter.longitude,
+        category: category,
+        token: widget.token,
+      );
+      if (!mounted || requestId != _searchRequestId) return;
+      setState(() {
+        _isSearching = false;
+        _searchResults = results;
+        if (results.isEmpty) _searchError = 'Chưa tìm thấy địa điểm quanh đây';
+      });
+    } on ApiException catch (e) {
+      if (!mounted || requestId != _searchRequestId) return;
+      setState(() {
+        _isSearching = false;
+        _searchError = e.statusCode == 429
+            ? 'Đã vượt quá giới hạn tìm kiếm, vui lòng thử lại sau.'
+            : (e.message.isNotEmpty
+                  ? e.message
+                  : 'Không thể tìm địa điểm quanh đây');
+      });
+    } catch (_) {
+      if (!mounted || requestId != _searchRequestId) return;
+      setState(() {
+        _isSearching = false;
+        _searchError = 'Không thể kết nối máy chủ tìm kiếm.';
+      });
+    }
+  }
+
   void _selectSearchResult(LocationSearchResult result) {
     FocusScope.of(context).unfocus();
+    _debounceTimer?.cancel();
+    ++_searchRequestId;
+    ++_reverseGeocodeRequestId;
     final point = result.hasCoordinates
         ? LatLng(result.latitude!, result.longitude!)
         : null;
 
+    if (point == null ||
+        !point.latitude.isFinite ||
+        !point.longitude.isFinite ||
+        point.latitude < -90 ||
+        point.latitude > 90 ||
+        point.longitude < -180 ||
+        point.longitude > 180) {
+      setState(() {
+        _showSearchResults = true;
+        _searchResults = [];
+        _searchError =
+            'Địa điểm này chưa có tọa độ hợp lệ. Hãy ghim vị trí trên bản đồ.';
+        _selectedPoint = null;
+        _selectedName = null;
+        _selectedAddress = null;
+        _selectedPlaceId = null;
+        _selectedProvider = null;
+      });
+      return;
+    }
+
     setState(() {
       _showSearchResults = false;
+      _isSearching = false;
       _searchController.text = result.name;
       _selectedName = result.name.isNotEmpty
           ? result.name
@@ -249,23 +355,23 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
           : null;
       _selectedPlaceId = result.placeId.isNotEmpty ? result.placeId : null;
       _selectedProvider = result.provider ?? 'LOCATION_IQ';
-      if (point != null) {
-        _selectedPoint = point;
-      }
+      _selectedPoint = point;
+      _viewportCenter = point;
     });
 
-    if (point != null) {
-      _mapController.move(point, 15.0);
-    }
+    _mapController.move(point, 15.0);
   }
 
   Future<void> _handleMapTap(LatLng point) async {
     FocusScope.of(context).unfocus();
+    _debounceTimer?.cancel();
+    ++_searchRequestId;
     final requestId = ++_reverseGeocodeRequestId;
 
     setState(() {
       _showSearchResults = false;
       _selectedPoint = point;
+      _viewportCenter = point;
       _selectedName = fallbackLocationName;
       _selectedAddress = null;
       _selectedPlaceId = null;
@@ -285,14 +391,11 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       setState(() {
         _isReverseGeocoding = false;
         if (result != null) {
-          _selectedName = result.name.isNotEmpty
-              ? result.name
-              : fallbackLocationName;
           _selectedAddress = result.formattedAddress.isNotEmpty
               ? result.formattedAddress
               : null;
-          _selectedPlaceId = result.placeId.isNotEmpty ? result.placeId : null;
-          _selectedProvider = result.provider ?? 'LOCATION_IQ';
+          // Reverse geocoding is descriptive only; it must not turn a manual pin
+          // into a provider place with an identity at a different coordinate.
         }
       });
     } catch (_) {
@@ -336,9 +439,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
             ),
             onPressed: () {
               final trimmed = controller.text.trim();
-              Navigator.of(dialogCtx).pop(
-                trimmed.isNotEmpty ? trimmed : fallbackLocationName,
-              );
+              Navigator.of(dialogCtx)
+                  .pop(trimmed.isNotEmpty ? trimmed : fallbackLocationName);
             },
             child: const Text('Lưu'),
           ),
@@ -374,7 +476,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     final bottomInset = mediaQuery.viewInsets.bottom;
     final sheetHeight = mediaQuery.size.height * 0.90;
 
-    final initialCenter = widget.initialCenter ??
+    final initialCenter =
+        widget.initialCenter ??
         LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
     final initialZoom = widget.initialCenter != null
         ? 15.0
@@ -482,6 +585,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                         initialCenter: initialCenter,
                         initialZoom: initialZoom,
                         onTap: (_, point) => _handleMapTap(point),
+                        onPositionChanged: (camera, hasGesture) {
+                          if (hasGesture) _viewportCenter = camera.center;
+                        },
                         markers: [
                           if (_selectedPoint != null)
                             MapMarkerBuilder.buildPinMarker(
@@ -536,24 +642,64 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                         ),
                                       )
                                     : (_searchController.text.isNotEmpty
-                                        ? IconButton(
-                                            icon: const Icon(
-                                              Icons.clear,
-                                              size: 18,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                            onPressed: () {
-                                              _searchController.clear();
-                                              _onSearchChanged('');
-                                            },
-                                          )
-                                        : null),
+                                          ? IconButton(
+                                              icon: const Icon(
+                                                Icons.clear,
+                                                size: 18,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                              onPressed: () {
+                                                _searchController.clear();
+                                                _onSearchChanged('');
+                                              },
+                                            )
+                                          : null),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 12,
                                 ),
                                 border: InputBorder.none,
                               ),
+                            ),
+                          ),
+
+                          // Explicit Nearby search avoids requests while the map pans.
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children:
+                                  [
+                                        ('ALL', 'Gần đây'),
+                                        ('ATTRACTION', 'Tham quan'),
+                                        ('FOOD', 'Ăn uống'),
+                                        ('CAFE', 'Cà phê'),
+                                        ('STAY', 'Lưu trú'),
+                                      ]
+                                      .map(
+                                        (item) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 6,
+                                            top: 6,
+                                          ),
+                                          child: ActionChip(
+                                            label: Text(
+                                              item.$2,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            backgroundColor:
+                                                _nearbyCategory == item.$1
+                                                ? AppColors.primaryLight
+                                                : AppColors.surface,
+                                            onPressed: () =>
+                                                _searchNearby(item.$1),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
                             ),
                           ),
 
@@ -581,9 +727,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                                 height: 16,
                                                 child:
                                                     CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: AppColors.primary,
-                                                ),
+                                                      strokeWidth: 2,
+                                                      color: AppColors.primary,
+                                                    ),
                                               ),
                                               SizedBox(width: 10),
                                               Text(
@@ -599,83 +745,87 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                         ),
                                       )
                                     : (_searchError != null &&
-                                            _searchResults.isEmpty
-                                        ? Padding(
-                                            padding: const EdgeInsets.all(16),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.info_outline,
-                                                  size: 18,
-                                                  color: AppColors.muted,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    _searchError!,
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppColors
-                                                          .textSecondary,
+                                              _searchResults.isEmpty
+                                          ? Padding(
+                                              padding: const EdgeInsets.all(16),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.info_outline,
+                                                    size: 18,
+                                                    color: AppColors.muted,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      _searchError!,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: AppColors
+                                                            .textSecondary,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          )
-                                        : ListView.separated(
-                                            shrinkWrap: true,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 4,
-                                            ),
-                                            itemCount: _searchResults.length,
-                                            separatorBuilder: (_, _) =>
-                                                const Divider(
-                                              height: 1,
-                                              color: AppColors.hairlineSoft,
-                                            ),
-                                            itemBuilder: (context, index) {
-                                              final item =
-                                                  _searchResults[index];
-                                              return ListTile(
-                                                dense: true,
-                                                leading: const Icon(
-                                                  Icons.place_outlined,
-                                                  color: AppColors.primary,
-                                                  size: 20,
-                                                ),
-                                                title: Text(
-                                                  item.name,
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w600,
-                                                    color:
-                                                        AppColors.textPrimary,
+                                                ],
+                                              ),
+                                            )
+                                          : ListView.separated(
+                                              shrinkWrap: true,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 4,
                                                   ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                                subtitle: item
-                                                        .formattedAddress
-                                                        .isNotEmpty
-                                                    ? Text(
-                                                        item.formattedAddress,
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color: AppColors
-                                                              .textSecondary,
-                                                        ),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      )
-                                                    : null,
-                                                onTap: () =>
-                                                    _selectSearchResult(item),
-                                              );
-                                            },
-                                          )),
+                                              itemCount: _searchResults.length,
+                                              separatorBuilder: (_, _) =>
+                                                  const Divider(
+                                                    height: 1,
+                                                    color:
+                                                        AppColors.hairlineSoft,
+                                                  ),
+                                              itemBuilder: (context, index) {
+                                                final item =
+                                                    _searchResults[index];
+                                                return ListTile(
+                                                  dense: true,
+                                                  leading: const Icon(
+                                                    Icons.place_outlined,
+                                                    color: AppColors.primary,
+                                                    size: 20,
+                                                  ),
+                                                  title: Text(
+                                                    item.name,
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color:
+                                                          AppColors.textPrimary,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  subtitle:
+                                                      item
+                                                          .formattedAddress
+                                                          .isNotEmpty
+                                                      ? Text(
+                                                          item.formattedAddress,
+                                                          style: const TextStyle(
+                                                            fontSize: 11,
+                                                            color: AppColors
+                                                                .textSecondary,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        )
+                                                      : null,
+                                                  onTap: () =>
+                                                      _selectSearchResult(item),
+                                                );
+                                              },
+                                            )),
                               ),
                             ),
                           ],
