@@ -12,6 +12,7 @@ import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/create_itinerary_request.dart';
+import '../widgets/itinerary_location_search_field.dart';
 import 'itinerary_detail_screen.dart';
 
 class CreateItineraryScreen extends StatefulWidget {
@@ -261,11 +262,9 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
               const SizedBox(height: 16),
 
               // Destination / Location
-              AppTextField(
-                label: 'Điểm đến / Địa điểm *',
-                hint: 'Ví dụ: Đà Lạt, Lâm Đồng',
+              ItineraryLocationSearchField(
                 controller: _locationController,
-                textInputAction: TextInputAction.next,
+                token: widget.authNotifier.token,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Điểm đến không được để trống';

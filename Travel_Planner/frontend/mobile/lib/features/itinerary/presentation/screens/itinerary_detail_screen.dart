@@ -299,7 +299,6 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       dayId: day.dayId,
       dayNumber: day.dayNumber,
       dayTitle: day.title,
-      locationContext: itinerary.location,
       authNotifier: widget.authNotifier!,
       repository: _crudRepository,
     );
@@ -328,7 +327,6 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       dayId: day.dayId,
       dayNumber: day.dayNumber,
       dayTitle: day.title,
-      locationContext: itinerary.location,
       initialActivity: activity,
       authNotifier: widget.authNotifier!,
       repository: _crudRepository,

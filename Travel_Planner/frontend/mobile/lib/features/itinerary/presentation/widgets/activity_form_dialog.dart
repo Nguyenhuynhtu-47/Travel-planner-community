@@ -24,7 +24,6 @@ Future<bool?> showActivityFormDialog(
   required int dayId,
   required int dayNumber,
   String? dayTitle,
-  String? locationContext,
   ActivityDetail? initialActivity,
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
@@ -41,7 +40,6 @@ Future<bool?> showActivityFormDialog(
       dayId: dayId,
       dayNumber: dayNumber,
       dayTitle: dayTitle,
-      locationContext: locationContext,
       initialActivity: initialActivity,
       authNotifier: authNotifier,
       repository: repository,
@@ -57,7 +55,6 @@ Future<bool?> showActivityFormBottomSheet(
   required int dayId,
   required int dayNumber,
   String? dayTitle,
-  String? locationContext,
   ActivityDetail? initialActivity,
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
@@ -68,7 +65,6 @@ Future<bool?> showActivityFormBottomSheet(
   dayId: dayId,
   dayNumber: dayNumber,
   dayTitle: dayTitle,
-  locationContext: locationContext,
   initialActivity: initialActivity,
   authNotifier: authNotifier,
   repository: repository,
@@ -80,7 +76,6 @@ class ActivityFormBottomSheet extends StatefulWidget {
   final int dayId;
   final int dayNumber;
   final String? dayTitle;
-  final String? locationContext;
   final ActivityDetail? initialActivity;
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository repository;
@@ -92,7 +87,6 @@ class ActivityFormBottomSheet extends StatefulWidget {
     required this.dayId,
     required this.dayNumber,
     this.dayTitle,
-    this.locationContext,
     this.initialActivity,
     required this.authNotifier,
     required this.repository,
@@ -132,6 +126,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   double? _longitude;
   String? _placeId;
   String? _locationProvider;
+  String? _lastAutoFilledActivityName;
 
   bool get _isEditing => widget.initialActivity != null;
 
@@ -205,7 +200,6 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
       initialAddress: _customAddress,
       initialPlaceId: _placeId,
       initialProvider: _locationProvider,
-      locationContext: widget.locationContext,
       token: widget.authNotifier.token,
     );
 
@@ -213,8 +207,12 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
       setState(() {
         _selectedDestinationId =
             null; // Mutually exclusive: clears catalog destination
-        if (_nameController.text.trim().isEmpty) {
+        final currentName = _nameController.text.trim();
+        final previousAutoName = _lastAutoFilledActivityName;
+        if (result.locationProvider != 'MANUAL_PIN' &&
+            (currentName.isEmpty || currentName == previousAutoName)) {
           _nameController.text = result.locationName;
+          _lastAutoFilledActivityName = result.locationName;
         }
         _customLocationName = result.locationName;
         _customAddress = result.address;

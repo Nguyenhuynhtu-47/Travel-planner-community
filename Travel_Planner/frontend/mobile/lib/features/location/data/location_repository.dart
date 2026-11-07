@@ -16,9 +16,9 @@ class LocationRepository {
   Future<List<LocationSearchResult>> searchLocations(
     String query, {
     int? limit,
-    double? latitude,
-    double? longitude,
     String? token,
+    String mode = 'SUGGEST',
+    String? sessionId,
   }) async {
     final trimmed = query.trim();
     if (trimmed.length < 2) {
@@ -27,11 +27,9 @@ class LocationRepository {
 
     final queryParameters = <String, dynamic>{
       'query': trimmed,
+      'mode': mode,
+      'sessionId': ?sessionId,
       if (limit != null && limit >= 1 && limit <= 20) 'limit': limit,
-      if (latitude != null && latitude >= -90.0 && latitude <= 90.0)
-        'latitude': latitude,
-      if (longitude != null && longitude >= -180.0 && longitude <= 180.0)
-        'longitude': longitude,
     };
 
     final response = await _apiClient.get(
@@ -50,33 +48,20 @@ class LocationRepository {
     return const [];
   }
 
-  /// Finds nearby points of interest around the current map viewport.
-  Future<List<LocationSearchResult>> searchNearby({
-    required double latitude,
-    required double longitude,
-    String category = 'ALL',
-    int radiusMeters = 5000,
-    int limit = 20,
+  Future<LocationSearchResult?> resolveTomTomPlace({
+    required String type,
+    required String id,
+    String? sessionId,
     String? token,
   }) async {
     final response = await _apiClient.get(
-      ApiConstants.locationNearbyEndpoint,
-      queryParameters: {
-        'latitude': latitude,
-        'longitude': longitude,
-        'category': category,
-        'radiusMeters': radiusMeters,
-        'limit': limit,
-      },
+      ApiConstants.locationTomTomDetailsEndpoint,
+      queryParameters: {'type': type, 'id': id, 'sessionId': ?sessionId},
       token: token,
     );
-    if (response is List) {
-      return response
-          .whereType<Map<String, dynamic>>()
-          .map(LocationSearchResult.fromJson)
-          .toList();
-    }
-    return const [];
+    return response is Map<String, dynamic>
+        ? LocationSearchResult.fromJson(response)
+        : null;
   }
 
   /// Reverse geocodes coordinates (latitude, longitude) to place information.

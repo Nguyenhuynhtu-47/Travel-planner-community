@@ -10,6 +10,10 @@ class LocationSearchResult {
   final List<double>? boundingBox;
   final String? provider;
   final bool isLocalityFallback;
+  final String? providerId;
+  final String? providerType;
+  final bool requiresDetails;
+  final String? sessionId;
 
   const LocationSearchResult({
     required this.placeId,
@@ -23,6 +27,10 @@ class LocationSearchResult {
     this.boundingBox,
     this.provider,
     this.isLocalityFallback = false,
+    this.providerId,
+    this.providerType,
+    this.requiresDetails = false,
+    this.sessionId,
   });
 
   bool get hasCoordinates => latitude != null && longitude != null;
@@ -57,23 +65,24 @@ class LocationSearchResult {
     return LocationSearchResult(
       placeId: (json['placeId'] ?? json['place_id'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
-      formattedAddress: (json['formattedAddress'] ??
-              json['formatted_address'] ??
-              json['display_name'] ??
-              '')
-          .toString(),
+      formattedAddress:
+          (json['formattedAddress'] ??
+                  json['formatted_address'] ??
+                  json['display_name'] ??
+                  '')
+              .toString(),
       latitude: json['latitude'] != null
           ? (json['latitude'] as num).toDouble()
           : (json['lat'] != null
-              ? double.tryParse(json['lat'].toString())
-              : null),
+                ? double.tryParse(json['lat'].toString())
+                : null),
       longitude: json['longitude'] != null
           ? (json['longitude'] as num).toDouble()
           : (json['lon'] != null
-              ? double.tryParse(json['lon'].toString())
-              : (json['lng'] != null
-                  ? double.tryParse(json['lng'].toString())
-                  : null)),
+                ? double.tryParse(json['lon'].toString())
+                : (json['lng'] != null
+                      ? double.tryParse(json['lng'].toString())
+                      : null)),
       category: json['category']?.toString(),
       type: json['type']?.toString(),
       importance: json['importance'] != null
@@ -81,7 +90,12 @@ class LocationSearchResult {
           : null,
       boundingBox: parsedBoundingBox,
       provider: json['provider']?.toString(),
-      isLocalityFallback: json['isLocalityFallback'] == true ||
+      providerId: json['providerId']?.toString(),
+      providerType: json['providerType']?.toString(),
+      requiresDetails: json['requiresDetails'] == true,
+      sessionId: json['sessionId']?.toString(),
+      isLocalityFallback:
+          json['isLocalityFallback'] == true ||
           (json['category'] == 'locality' && json['type'] == 'locality'),
     );
   }
@@ -99,6 +113,10 @@ class LocationSearchResult {
       if (boundingBox != null) 'boundingBox': boundingBox,
       if (provider != null) 'provider': provider,
       if (isLocalityFallback) 'isLocalityFallback': isLocalityFallback,
+      if (providerId != null) 'providerId': providerId,
+      if (providerType != null) 'providerType': providerType,
+      if (requiresDetails) 'requiresDetails': requiresDetails,
+      if (sessionId != null) 'sessionId': sessionId,
     };
   }
 
@@ -114,6 +132,10 @@ class LocationSearchResult {
     List<double>? boundingBox,
     String? provider,
     bool? isLocalityFallback,
+    String? providerId,
+    String? providerType,
+    bool? requiresDetails,
+    String? sessionId,
   }) {
     return LocationSearchResult(
       placeId: placeId ?? this.placeId,
@@ -127,6 +149,10 @@ class LocationSearchResult {
       boundingBox: boundingBox ?? this.boundingBox,
       provider: provider ?? this.provider,
       isLocalityFallback: isLocalityFallback ?? this.isLocalityFallback,
+      providerId: providerId ?? this.providerId,
+      providerType: providerType ?? this.providerType,
+      requiresDetails: requiresDetails ?? this.requiresDetails,
+      sessionId: sessionId ?? this.sessionId,
     );
   }
 
@@ -146,19 +172,18 @@ class LocationSearchResult {
 
   @override
   int get hashCode => Object.hash(
-        placeId,
-        name,
-        formattedAddress,
-        latitude,
-        longitude,
-        category,
-        provider,
-        isLocalityFallback,
-      );
+    placeId,
+    name,
+    formattedAddress,
+    latitude,
+    longitude,
+    category,
+    provider,
+    isLocalityFallback,
+  );
 
   @override
   String toString() {
     return 'LocationSearchResult(placeId: $placeId, name: $name, formattedAddress: $formattedAddress, latitude: $latitude, longitude: $longitude, category: $category, provider: $provider, isLocalityFallback: $isLocalityFallback)';
   }
 }
-

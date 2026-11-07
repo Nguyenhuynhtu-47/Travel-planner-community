@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -71,7 +72,6 @@ Future<CustomLocationResult?> showLocationPickerSheet(
   String? initialAddress,
   String? initialPlaceId,
   String? initialProvider,
-  String? locationContext,
   String? token,
 }) {
   return showModalBottomSheet<CustomLocationResult>(
@@ -87,7 +87,6 @@ Future<CustomLocationResult?> showLocationPickerSheet(
       initialAddress: initialAddress,
       initialPlaceId: initialPlaceId,
       initialProvider: initialProvider,
-      locationContext: locationContext,
       token: token,
     ),
   );
@@ -102,7 +101,6 @@ class LocationPickerSheet extends StatefulWidget {
   final String? initialAddress;
   final String? initialPlaceId;
   final String? initialProvider;
-  final String? locationContext;
   final String? token;
 
   const LocationPickerSheet({
@@ -113,7 +111,6 @@ class LocationPickerSheet extends StatefulWidget {
     this.initialAddress,
     this.initialPlaceId,
     this.initialProvider,
-    this.locationContext,
     this.token,
   });
 
@@ -126,7 +123,6 @@ class LocationPickerSheet extends StatefulWidget {
     String? initialAddress,
     String? initialPlaceId,
     String? initialProvider,
-    String? locationContext,
     String? token,
   }) => showLocationPickerSheet(
     context,
@@ -136,50 +132,8 @@ class LocationPickerSheet extends StatefulWidget {
     initialAddress: initialAddress,
     initialPlaceId: initialPlaceId,
     initialProvider: initialProvider,
-    locationContext: locationContext,
     token: token,
   );
-
-  static String formatQueryWithContext(String query, String? locationContext) {
-    final context = locationContext?.trim();
-    if (context == null || context.isEmpty) return query;
-    final lowerQuery = query.toLowerCase();
-
-    // Do not append context if query already includes full or stripped context (e.g. "Hồ Chí Minh")
-    final strippedContext = context
-        .replaceAll(RegExp(r'^(thành phố|tp\.?|tỉnh)\s+', caseSensitive: false), '')
-        .trim();
-    if (lowerQuery.contains(context.toLowerCase()) ||
-        (strippedContext.isNotEmpty &&
-            lowerQuery.contains(strippedContext.toLowerCase()))) {
-      return query;
-    }
-
-    // Do not append city context if the user already specified a district, ward, province,
-    // preposition (e.g. "gần", "ở", "tại"), comma, or an explicit known city/province.
-    final hasRegionalIndicator = lowerQuery.contains(',') ||
-        RegExp(
-          r'(^|[^\p{L}\p{N}])(tỉnh|tinh|thành phố|thanh pho|tp\.?|quận|quan|huyện|huyen|thị xã|thi xa|thị trấn|thi tran|phường|phuong|xã|xa|đảo|dao|gần|gan|tại|tai|ở|o)([^\p{L}\p{N}]|$)',
-          caseSensitive: false,
-          unicode: true,
-        ).hasMatch(lowerQuery) ||
-        RegExp(
-          r'(^|[^\p{L}\p{N}])(da lat|đà lạt|vung tau|vũng tàu|ha noi|hà nội|sai gon|sài gòn|ho chi minh|hồ chí minh|da nang|đà nẵng|nha trang|hue|huế|can tho|cần thơ|hai phong|hải phòng|long xuyen|long xuyên|phu quoc|phú quốc|hoi an|hội an|quy nhon|quy nhơn|phan thiet|phan thiết|vinh|ha long|hạ long|sa pa|sapa|lam dong|lâm đồng|an giang|dong nai|đồng nai|binh duong|bình dương|ba ria|bà rịa|bac giang|bắc giang|bac kan|bắc kạn|bac lieu|bạc liêu|bac ninh|bắc ninh|ben tre|bến tre|binh dinh|bình định|binh phuoc|bình phước|binh thuan|bình thuận|ca mau|cà mau|cao bang|cao bằng|dak lak|đắk lắk|dak nong|đắk nông|dien bien|điện biên|dong thap|đồng tháp|gia lai|ha giang|hà giang|ha nam|hà nam|ha tinh|hà tĩnh|hai duong|hải dương|hau giang|hậu giang|hoa binh|hòa bình|hung yen|hưng yên|khanh hoa|khánh hòa|kien giang|kiên giang|kon tum|lai chau|lai châu|lang son|lạng sơn|lao cai|lào cai|long an|nam dinh|nam định|nghe an|nghệ an|ninh binh|ninh bình|ninh thuan|ninh thuận|phu tho|phú thọ|phu yen|phú yên|quang binh|quảng bình|quang nam|quảng nam|quang ngai|quảng ngãi|quang ninh|quảng ninh|quang tri|quảng trị|soc trang|sóc trăng|son la|sơn la|tay ninh|tây ninh|thai binh|thái bình|thai nguyen|thái nguyên|thanh hoa|thanh hóa|thua thien hue|thừa thiên huế|tien giang|tiền giang|tra vinh|trà vinh|tuyen quang|tuyên quang|vinh long|vĩnh long|vinh phuc|vĩnh phúc|yen bai|yên bái)([^\p{L}\p{N}]|$)',
-          caseSensitive: false,
-          unicode: true,
-        ).hasMatch(lowerQuery);
-    if (hasRegionalIndicator) {
-      return query;
-    }
-
-    final availableContextLength = 100 - query.length - 2;
-    if (availableContextLength <= 0) return query;
-    final boundedContext = context.length > availableContextLength
-        ? context.substring(0, availableContextLength).trim()
-        : context;
-    if (boundedContext.isEmpty) return query;
-    return '$query, $boundedContext';
-  }
 
   @override
   State<LocationPickerSheet> createState() => _LocationPickerSheetState();
@@ -205,8 +159,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   String? _selectedPlaceId;
   String? _selectedProvider;
   bool _isReverseGeocoding = false;
-  late LatLng _viewportCenter;
-  String _nearbyCategory = 'ALL';
+  late final String _searchSessionId;
 
   static const String fallbackLocationName = 'Vị trí đã ghim';
 
@@ -216,6 +169,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     _repository = widget.repository ?? LocationRepository();
     _mapController = MapController();
     _searchController = TextEditingController();
+    _searchSessionId = _newTomTomSessionId();
 
     if (widget.initialCenter != null) {
       _selectedPoint = widget.initialCenter;
@@ -225,10 +179,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       _selectedAddress = widget.initialAddress;
       _selectedPlaceId = widget.initialPlaceId;
       _selectedProvider = widget.initialProvider ?? 'MANUAL_PIN';
-      _viewportCenter = widget.initialCenter!;
-    } else {
-      _viewportCenter =
-          LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
     }
   }
 
@@ -264,10 +214,10 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     _debounceTimer = Timer(const Duration(milliseconds: 400), () async {
       try {
         final results = await _repository.searchLocations(
-          _queryWithLocationContext(query),
-          latitude: _viewportCenter.latitude,
-          longitude: _viewportCenter.longitude,
+          query,
+          mode: 'SUGGEST',
           token: widget.token,
+          sessionId: _searchSessionId,
         );
 
         if (!mounted || requestId != _searchRequestId) return;
@@ -299,57 +249,127 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     });
   }
 
-  String _queryWithLocationContext(String query) =>
-      LocationPickerSheet.formatQueryWithContext(query, widget.locationContext);
-
-  Future<void> _searchNearby(String category) async {
+  Future<void> _submitSearch(String text) async {
+    final query = text.trim();
+    if (query.length < 2) return;
     _debounceTimer?.cancel();
     final requestId = ++_searchRequestId;
-    FocusScope.of(context).unfocus();
     setState(() {
-      _nearbyCategory = category;
       _isSearching = true;
       _searchError = null;
-      _searchResults = [];
       _showSearchResults = true;
     });
     try {
-      final results = await _repository.searchNearby(
-        latitude: _viewportCenter.latitude,
-        longitude: _viewportCenter.longitude,
-        category: category,
+      final results = await _repository.searchLocations(
+        query,
+        mode: 'SEARCH',
         token: widget.token,
+        sessionId: _searchSessionId,
       );
       if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _isSearching = false;
         _searchResults = results;
-        if (results.isEmpty) _searchError = 'Chưa tìm thấy địa điểm quanh đây';
+        _searchError = results.isEmpty
+            ? 'Không tìm thấy địa điểm phù hợp'
+            : null;
       });
     } on ApiException catch (e) {
       if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _isSearching = false;
-        _searchError = e.statusCode == 429
-            ? 'Đã vượt quá giới hạn tìm kiếm, vui lòng thử lại sau.'
-            : (e.message.isNotEmpty
-                  ? e.message
-                  : 'Không thể tìm địa điểm quanh đây');
+        _searchResults = [];
+        _searchError = e.message;
       });
     } catch (_) {
       if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _isSearching = false;
+        _searchResults = [];
         _searchError = 'Không thể kết nối máy chủ tìm kiếm.';
       });
     }
   }
 
-  void _selectSearchResult(LocationSearchResult result) {
+  String _newTomTomSessionId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
+  Future<void> _selectSearchResult(LocationSearchResult result) async {
     FocusScope.of(context).unfocus();
     _debounceTimer?.cancel();
-    ++_searchRequestId;
+    final requestId = ++_searchRequestId;
     ++_reverseGeocodeRequestId;
+    if (result.type == 'discoverAction' ||
+        result.providerType == 'discoverAction') {
+      setState(() {
+        _isSearching = true;
+        _searchError = null;
+      });
+      try {
+        final results = await _repository.searchLocations(
+          _searchController.text.trim(),
+          mode: 'SEARCH',
+          sessionId: result.sessionId ?? _searchSessionId,
+          token: widget.token,
+        );
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchResults = results;
+          _showSearchResults = true;
+          _searchError = results.isEmpty
+              ? 'Không tìm thấy địa điểm phù hợp'
+              : null;
+        });
+      } on ApiException catch (e) {
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchError = e.message;
+        });
+      }
+      return;
+    }
+    if (result.requiresDetails &&
+        result.provider == 'TOMTOM' &&
+        result.providerId != null &&
+        result.providerType != null) {
+      setState(() {
+        _isSearching = true;
+        _searchError = null;
+      });
+      try {
+        result =
+            await _repository.resolveTomTomPlace(
+              type: result.providerType!,
+              id: result.providerId!,
+              sessionId: result.sessionId ?? _searchSessionId,
+              token: widget.token,
+            ) ??
+            result;
+      } on ApiException catch (e) {
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchError = e.message;
+        });
+        return;
+      } catch (_) {
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchError = 'Không thể lấy tọa độ địa điểm từ TomTom.';
+        });
+        return;
+      }
+      if (!mounted || requestId != _searchRequestId) return;
+    }
     final point = result.hasCoordinates
         ? LatLng(result.latitude!, result.longitude!)
         : null;
@@ -388,7 +408,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       _selectedPlaceId = result.placeId.isNotEmpty ? result.placeId : null;
       _selectedProvider = result.provider ?? 'LOCATION_IQ';
       _selectedPoint = point;
-      _viewportCenter = point;
     });
 
     final zoom = result.isCityOrAdministrative ? 12.0 : 15.5;
@@ -404,7 +423,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     setState(() {
       _showSearchResults = false;
       _selectedPoint = point;
-      _viewportCenter = point;
       _selectedName = fallbackLocationName;
       _selectedAddress = null;
       _selectedPlaceId = null;
@@ -509,7 +527,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     final bottomInset = mediaQuery.viewInsets.bottom;
     final sheetHeight = mediaQuery.size.height * 0.90;
 
-    final initialCenter = widget.initialCenter ??
+    final initialCenter =
+        widget.initialCenter ??
         LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
     final initialZoom = widget.initialCenter != null
         ? 15.0
@@ -617,9 +636,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                         initialCenter: initialCenter,
                         initialZoom: initialZoom,
                         onTap: (_, point) => _handleMapTap(point),
-                        onPositionChanged: (camera, hasGesture) {
-                          if (hasGesture) _viewportCenter = camera.center;
-                        },
                         markers: [
                           if (_selectedPoint != null)
                             MapMarkerBuilder.buildPinMarker(
@@ -649,6 +665,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                             child: TextField(
                               controller: _searchController,
                               onChanged: _onSearchChanged,
+                              onSubmitted: _submitSearch,
+                              textInputAction: TextInputAction.search,
                               decoration: InputDecoration(
                                 hintText:
                                     'Tìm kiếm địa điểm (tối thiểu 2 ký tự)...',
@@ -692,46 +710,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                 ),
                                 border: InputBorder.none,
                               ),
-                            ),
-                          ),
-
-                          // Explicit Nearby search avoids requests while the map pans.
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children:
-                                  [
-                                        ('ALL', 'Gần đây'),
-                                        ('ATTRACTION', 'Tham quan'),
-                                        ('FOOD', 'Ăn uống'),
-                                        ('CAFE', 'Cà phê'),
-                                        ('STAY', 'Lưu trú'),
-                                      ]
-                                      .map(
-                                        (item) => Padding(
-                                          padding: const EdgeInsets.only(
-                                            right: 6,
-                                            top: 6,
-                                          ),
-                                          child: ActionChip(
-                                            label: Text(
-                                              item.$2,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                            backgroundColor:
-                                                _nearbyCategory == item.$1
-                                                ? AppColors.primaryLight
-                                                : AppColors.surface,
-                                            onPressed: () =>
-                                                _searchNearby(item.$1),
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
                             ),
                           ),
 
@@ -817,12 +795,15 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                               itemBuilder: (context, index) {
                                                 final item =
                                                     _searchResults[index];
-                                                final isArea = item.isLocalityFallback || item.isCityOrAdministrative;
+                                                final isArea =
+                                                    item.isLocalityFallback ||
+                                                    item.isCityOrAdministrative;
                                                 return ListTile(
                                                   dense: true,
                                                   leading: Icon(
                                                     isArea
-                                                        ? Icons.location_city_outlined
+                                                        ? Icons
+                                                              .location_city_outlined
                                                         : Icons.place_outlined,
                                                     color: AppColors.primary,
                                                     size: 20,
@@ -836,35 +817,48 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                                             fontSize: 13,
                                                             fontWeight:
                                                                 FontWeight.w600,
-                                                            color:
-                                                                AppColors.textPrimary,
+                                                            color: AppColors
+                                                                .textPrimary,
                                                           ),
                                                           maxLines: 1,
-                                                          overflow:
-                                                              TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
                                                       ),
                                                       if (isArea) ...[
-                                                        const SizedBox(width: 6),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
                                                         Container(
-                                                          padding: const EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 2,
-                                                          ),
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 6,
+                                                                vertical: 2,
+                                                              ),
                                                           decoration: BoxDecoration(
-                                                            color: AppColors.surfaceSoft,
-                                                            borderRadius: BorderRadius.circular(4),
+                                                            color: AppColors
+                                                                .surfaceSoft,
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  4,
+                                                                ),
                                                             border: Border.all(
-                                                              color: AppColors.hairlineSoft,
+                                                              color: AppColors
+                                                                  .hairlineSoft,
                                                               width: 0.5,
                                                             ),
                                                           ),
                                                           child: Text(
-                                                            item.isLocalityFallback ? 'Khu vực' : 'Địa danh',
+                                                            item.isLocalityFallback
+                                                                ? 'Khu vực'
+                                                                : 'Địa danh',
                                                             style: const TextStyle(
                                                               fontSize: 10,
-                                                              fontWeight: FontWeight.w500,
-                                                              color: AppColors.textSecondary,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                              color: AppColors
+                                                                  .textSecondary,
                                                             ),
                                                           ),
                                                         ),

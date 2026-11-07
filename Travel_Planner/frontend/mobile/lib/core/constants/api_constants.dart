@@ -35,9 +35,10 @@ class ApiConstants {
   static const String imageUploadEndpoint = '/api/media/images';
   static const String locationsEndpoint = '/api/locations';
   static const String locationSearchEndpoint = '/api/locations/search';
-  static const String locationNearbyEndpoint = '/api/locations/nearby';
   static const String locationReverseGeocodeEndpoint =
       '/api/locations/reverse-geocode';
+  static const String locationTomTomDetailsEndpoint =
+      '/api/locations/providers/tomtom/details';
   static const String savedItinerariesEndpoint = '/api/user/saved-itineraries';
   static const String userFavoritesEndpoint = '/api/user/favorites';
 
