@@ -135,7 +135,9 @@ public class LocationIqGeocodingProvider implements GeocodingProvider {
                     .queryParam("limit", limit)
                     .queryParam("countrycodes", "vn")
                     .queryParam("format", "json")
-                    .queryParam("accept-language", lang);
+                    // LocationIQ Autocomplete only accepts one supported 2-letter language code;
+                    // Vietnamese is not currently supported by this endpoint.
+                    .queryParam("accept-language", "en");
 
             if (latitude != null && longitude != null) {
                 autoUriBuilder.queryParam("lat", latitude);
@@ -284,7 +286,8 @@ public class LocationIqGeocodingProvider implements GeocodingProvider {
                 .queryParam("limit", limit)
                 .queryParam("countrycodes", "vn")
                 .queryParam("format", "json")
-                .queryParam("accept-language", lang)
+                // Keep Autocomplete valid; /search continues to use the configured language.
+                .queryParam("accept-language", "en")
                 .queryParam("viewbox", viewbox)
                 .queryParam("bounded", 1);
         try {

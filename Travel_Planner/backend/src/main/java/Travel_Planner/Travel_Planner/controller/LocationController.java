@@ -42,22 +42,23 @@ public class LocationController {
             @RequestParam(name = "query", required = false) String queryParam,
             @RequestParam(name = "q", required = false) String qParam,
             @RequestParam(name = "limit", required = false) Integer limit,
-            @RequestParam(name = "latitude", required = false) Double latitude,
-            @RequestParam(name = "lat", required = false) Double lat,
-            @RequestParam(name = "longitude", required = false) Double longitude,
-            @RequestParam(name = "lon", required = false) Double lon,
-            @RequestParam(name = "lng", required = false) Double lng,
+            @RequestParam(name = "mode", defaultValue = "SUGGEST") String mode,
+            @RequestParam(name = "sessionId", required = false) String sessionId,
             HttpServletRequest request,
             Authentication authentication) {
 
         enforceRateLimit(request, authentication);
 
         String query = queryParam != null ? queryParam : qParam;
-        Double effectiveLat = latitude != null ? latitude : lat;
-        Double effectiveLon = longitude != null ? longitude : (lon != null ? lon : lng);
-
-        List<LocationSearchResultResponse> results = locationService.searchLocations(query, limit, effectiveLat, effectiveLon);
+        List<LocationSearchResultResponse> results = locationService.searchLocationsUnified(query, limit, mode, sessionId);
         return ResponseEntity.ok(results);
+    }
+
+    @GetMapping("/providers/tomtom/details")
+    public ResponseEntity<LocationSearchResultResponse> tomTomDetails(@RequestParam String type, @RequestParam String id,
+            @RequestParam(required = false) String sessionId, HttpServletRequest request, Authentication authentication) {
+        enforceRateLimit(request, authentication);
+        return ResponseEntity.ok(locationService.resolveTomTomPlace(type, id, sessionId));
     }
 
     @GetMapping("/reverse-geocode")

@@ -23,5 +23,9 @@ public class LocationSearchResultResponse {
     private List<Double> boundingBox;
     private String provider;
     private Boolean isLocalityFallback;
+    private String providerId;
+    private String providerType;
+    private Boolean requiresDetails;
+    private String sessionId;
 }
 

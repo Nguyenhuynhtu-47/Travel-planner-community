@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 public class MapProperties {
     private Geocoding geocoding = new Geocoding();
     private Routing routing = new Routing();
+    private TomTom tomtom = new TomTom();
 
     @Getter
     @Setter
@@ -25,6 +26,15 @@ public class MapProperties {
         private String hereApiKey = "";
         private String hereBaseUrl = "https://geocode.search.hereapi.com/v1";
         private String hereDiscoverBaseUrl = "https://discover.search.hereapi.com/v1";
+    }
+
+    @Getter
+    @Setter
+    public static class TomTom {
+        private boolean enabled = false;
+        private String apiKey = "";
+        private int timeoutMs = 4000;
+        private String baseUrl = "https://api.tomtom.com/maps/orbis";
     }
 
     @Getter

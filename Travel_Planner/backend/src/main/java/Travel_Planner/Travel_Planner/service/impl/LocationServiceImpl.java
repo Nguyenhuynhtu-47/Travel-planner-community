@@ -61,6 +61,7 @@ public class LocationServiceImpl implements LocationService {
     private final LocationRankingService locationRankingService;
     private final QueryUnderstandingService queryUnderstandingService;
     private final GeographicFilterService geographicFilterService;
+    private final TomTomPlacesProvider tomTomProvider;
 
     @Autowired
     public LocationServiceImpl(
@@ -68,12 +69,14 @@ public class LocationServiceImpl implements LocationService {
             HereGeocodingProvider hereGeocodingProvider,
             LocationRankingService locationRankingService,
             QueryUnderstandingService queryUnderstandingService,
-            GeographicFilterService geographicFilterService) {
+            GeographicFilterService geographicFilterService,
+            TomTomPlacesProvider tomTomProvider) {
         this.primaryProvider = locationIqProvider;
         this.hereGeocodingProvider = hereGeocodingProvider;
         this.locationRankingService = locationRankingService;
         this.queryUnderstandingService = queryUnderstandingService;
         this.geographicFilterService = geographicFilterService;
+        this.tomTomProvider = tomTomProvider;
     }
 
     public LocationServiceImpl(GeocodingProvider geocodingProvider) {
@@ -82,6 +85,7 @@ public class LocationServiceImpl implements LocationService {
         this.locationRankingService = new LocationRankingServiceImpl();
         this.queryUnderstandingService = new QueryUnderstandingServiceImpl();
         this.geographicFilterService = new GeographicFilterServiceImpl();
+        this.tomTomProvider = null;
     }
 
     public LocationServiceImpl(GeocodingProvider geocodingProvider, LocationRankingService locationRankingService) {
@@ -90,6 +94,7 @@ public class LocationServiceImpl implements LocationService {
         this.locationRankingService = locationRankingService;
         this.queryUnderstandingService = new QueryUnderstandingServiceImpl();
         this.geographicFilterService = new GeographicFilterServiceImpl();
+        this.tomTomProvider = null;
     }
 
     public LocationServiceImpl(
@@ -103,10 +108,44 @@ public class LocationServiceImpl implements LocationService {
         this.locationRankingService = locationRankingService;
         this.queryUnderstandingService = queryUnderstandingService;
         this.geographicFilterService = geographicFilterService;
+        this.tomTomProvider = null;
     }
 
     @Override
     public List<LocationSearchResultResponse> searchLocations(String query, Integer limit, Double latitude, Double longitude) {
+        return searchLocations(query, limit, latitude, longitude, "LOCATION_IQ", null);
+    }
+
+    /** Unified client entry point. Provider choice is server configuration; client geo-bias is intentionally ignored. */
+    @Override
+    public List<LocationSearchResultResponse> searchLocationsUnified(String query, Integer limit, String mode, String sessionId) {
+        String normalizedMode = mode == null ? "SUGGEST" : mode.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("SUGGEST", "SEARCH").contains(normalizedMode)) {
+            throw new BadRequestException("Chế độ tìm kiếm địa điểm không hợp lệ");
+        }
+        if (tomTomProvider != null && tomTomProvider.isEnabled()) {
+            String trimmed = query == null ? "" : query.trim();
+            int resultLimit = limit == null ? DEFAULT_LIMIT : limit;
+            if (trimmed.length() < 2 || trimmed.length() > 100) throw new BadRequestException("Từ khóa tìm kiếm phải có từ 2 đến 100 ký tự");
+            if (resultLimit < 1 || resultLimit > MAX_LIMIT) throw new BadRequestException("Số lượng kết quả (limit) phải từ 1 đến " + MAX_LIMIT);
+            return "SEARCH".equals(normalizedMode)
+                    ? tomTomProvider.discover(trimmed, null, null, null, sessionId)
+                    : tomTomProvider.suggest(trimmed, resultLimit, null, null, sessionId);
+        }
+        return searchLocations(query, limit, (Double) null, (Double) null, "LOCATION_IQ", sessionId);
+    }
+
+    @Override
+    public List<LocationSearchResultResponse> searchLocations(String query, Integer limit, Double latitude, Double longitude, String provider, String sessionId) {
+        if ("TOMTOM".equalsIgnoreCase(provider)) {
+            if (tomTomProvider == null || !tomTomProvider.isEnabled()) throw new AppException("Tìm kiếm TomTom chưa được bật trên máy chủ", org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE);
+            String trimmedQuery = query == null ? "" : query.trim();
+            if (trimmedQuery.length() < 2 || trimmedQuery.length() > 100) throw new BadRequestException("Từ khóa tìm kiếm phải có từ 2 đến 100 ký tự");
+            int resultLimit = limit == null ? DEFAULT_LIMIT : limit;
+            if (resultLimit < 1 || resultLimit > MAX_LIMIT) throw new BadRequestException("Số lượng kết quả (limit) phải từ 1 đến " + MAX_LIMIT);
+            validateOptionalCoordinates(latitude, longitude);
+            return tomTomProvider.suggest(trimmedQuery, resultLimit, latitude, longitude, sessionId);
+        }
         if (query == null || query.isBlank()) {
             throw new BadRequestException("Từ khóa tìm kiếm không được để trống");
         }
@@ -399,6 +438,23 @@ public class LocationServiceImpl implements LocationService {
             }
         }
         return null;
+    }
+
+    @Override
+    public LocationSearchResultResponse resolveTomTomPlace(String type, String id, String sessionId) {
+        if (tomTomProvider == null || !tomTomProvider.isEnabled()) throw new AppException("Tìm kiếm TomTom chưa được bật trên máy chủ", org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE);
+        return tomTomProvider.details(type, id, sessionId);
+    }
+
+    private void validateOptionalCoordinates(Double latitude, Double longitude) {
+        if ((latitude == null) != (longitude == null)) {
+            throw new BadRequestException("Tọa độ tìm kiếm không hợp lệ");
+        }
+        if (latitude != null && (!Double.isFinite(latitude) || !Double.isFinite(longitude)
+                || latitude < MIN_LATITUDE || latitude > MAX_LATITUDE
+                || longitude < MIN_LONGITUDE || longitude > MAX_LONGITUDE)) {
+            throw new BadRequestException("Tọa độ tìm kiếm không hợp lệ");
+        }
     }
 
     @Override
