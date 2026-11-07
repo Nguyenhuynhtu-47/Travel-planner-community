@@ -193,9 +193,9 @@ void main() {
         final results = await repo.searchLocations(
           '  Dinh Bảo Đại  ',
           limit: 5,
-          latitude: 11.94,
-          longitude: 108.44,
           token: 'test_token_123',
+          mode: 'SUGGEST',
+          sessionId: '123e4567-e89b-42d3-a456-426614174000',
         );
 
         expect(results.length, 2);
@@ -205,53 +205,88 @@ void main() {
         expect(capturedUri?.path, '/api/locations/search');
         expect(capturedUri?.queryParameters['query'], 'Dinh Bảo Đại');
         expect(capturedUri?.queryParameters['limit'], '5');
-        expect(capturedUri?.queryParameters['latitude'], '11.94');
-        expect(capturedUri?.queryParameters['longitude'], '108.44');
+        expect(capturedUri?.queryParameters['mode'], 'SUGGEST');
+        expect(capturedUri?.queryParameters.containsKey('latitude'), isFalse);
+        expect(capturedUri?.queryParameters.containsKey('longitude'), isFalse);
+        expect(capturedUri?.queryParameters.containsKey('provider'), isFalse);
+        expect(
+          capturedUri?.queryParameters['sessionId'],
+          '123e4567-e89b-42d3-a456-426614174000',
+        );
         expect(capturedHeaders?['authorization'], 'Bearer test_token_123');
       },
     );
 
-    test(
-      'searchNearby sends viewport, category and radius then parses results',
-      () async {
-        Uri? capturedUri;
-        final mockClient = MockClient((request) async {
-          capturedUri = request.url;
-          return http.Response(
-            jsonEncode([
-              {
-                'placeId': 'osm_node_12',
-                'name': 'Bảo tàng',
-                'formattedAddress': 'Hà Nội',
-                'latitude': 21.0,
-                'longitude': 105.8,
-                'provider': 'LOCATION_IQ',
-              },
-            ]),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        });
-        final repo = LocationRepository(
-          apiClient: ApiClient(client: mockClient),
+    test('resolveTomTomPlace requests selected place details', () async {
+      Uri? capturedUri;
+      final mockClient = MockClient((request) async {
+        capturedUri = request.url;
+        return http.Response(
+          jsonEncode({
+            'placeId': 'pois:poi-1',
+            'name': 'Bàu Trắng',
+            'formattedAddress': 'Bình Thuận, Việt Nam',
+            'latitude': 11.05,
+            'longitude': 108.43,
+            'provider': 'TOMTOM',
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
         );
+      });
+      final repo = LocationRepository(apiClient: ApiClient(client: mockClient));
 
-        final results = await repo.searchNearby(
-          latitude: 21.0,
-          longitude: 105.8,
-          category: 'ATTRACTION',
-          radiusMeters: 3000,
-          token: 'token',
+      final result = await repo.resolveTomTomPlace(
+        type: 'pois',
+        id: 'poi-1',
+        sessionId: '123e4567-e89b-42d3-a456-426614174000',
+      );
+
+      expect(capturedUri?.path, '/api/locations/providers/tomtom/details');
+      expect(capturedUri?.queryParameters['type'], 'pois');
+      expect(capturedUri?.queryParameters['id'], 'poi-1');
+      expect(result?.latitude, 11.05);
+      expect(result?.longitude, 108.43);
+    });
+
+    test('full search uses the unified location search endpoint', () async {
+      Uri? capturedUri;
+      final mockClient = MockClient((request) async {
+        capturedUri = request.url;
+        return http.Response(
+          jsonEncode([
+            {
+              'placeId': 'pois:poi-1',
+              'name': 'KICA',
+              'formattedAddress': 'Đà Lạt',
+              'latitude': 11.94,
+              'longitude': 108.44,
+              'provider': 'TOMTOM',
+            },
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
         );
+      });
+      final repo = LocationRepository(apiClient: ApiClient(client: mockClient));
 
-        expect(results.single.name, 'Bảo tàng');
-        expect(capturedUri?.path, '/api/locations/nearby');
-        expect(capturedUri?.queryParameters['latitude'], '21.0');
-        expect(capturedUri?.queryParameters['longitude'], '105.8');
-        expect(capturedUri?.queryParameters['category'], 'ATTRACTION');
-        expect(capturedUri?.queryParameters['radiusMeters'], '3000');
-      },
-    );
+      final results = await repo.searchLocations(
+        'Hồ Hoàn Kiếm',
+        mode: 'SEARCH',
+        sessionId: '123e4567-e89b-42d3-a456-426614174000',
+      );
+
+      expect(capturedUri?.path, '/api/locations/search');
+      expect(capturedUri?.queryParameters['query'], 'Hồ Hoàn Kiếm');
+      expect(capturedUri?.queryParameters['mode'], 'SEARCH');
+      expect(capturedUri?.queryParameters.containsKey('latitude'), isFalse);
+      expect(capturedUri?.queryParameters.containsKey('longitude'), isFalse);
+      expect(
+        capturedUri?.queryParameters['sessionId'],
+        '123e4567-e89b-42d3-a456-426614174000',
+      );
+      expect(results.single.name, 'KICA');
+    });
 
     test(
       'searchLocations throws ApiException on HTTP 429 Too Many Requests',

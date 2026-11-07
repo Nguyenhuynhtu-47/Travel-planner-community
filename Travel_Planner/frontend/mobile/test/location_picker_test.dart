@@ -21,6 +21,11 @@ class FakeLocationRepository extends LocationRepository {
   ApiException? exceptionToThrow;
   int searchCallCount = 0;
   String? lastSearchQuery;
+  String? lastSearchMode;
+  LocationSearchResult? tomTomDetailsResult;
+  int tomTomDetailsCallCount = 0;
+  String? lastTomTomDetailsType;
+  String? lastTomTomDetailsId;
   int reverseGeocodeCallCount = 0;
   double? lastReverseLat;
   double? lastReverseLng;
@@ -29,22 +34,37 @@ class FakeLocationRepository extends LocationRepository {
     this.searchResultsToReturn = const [],
     this.reverseGeocodeResultToReturn,
     this.exceptionToThrow,
+    this.tomTomDetailsResult,
   });
 
   @override
   Future<List<LocationSearchResult>> searchLocations(
     String query, {
     int? limit,
-    double? latitude,
-    double? longitude,
     String? token,
+    String mode = 'SUGGEST',
+    String? sessionId,
   }) async {
     searchCallCount++;
     lastSearchQuery = query;
+    lastSearchMode = mode;
     if (exceptionToThrow != null) {
       throw exceptionToThrow!;
     }
     return searchResultsToReturn;
+  }
+
+  @override
+  Future<LocationSearchResult?> resolveTomTomPlace({
+    required String type,
+    required String id,
+    String? sessionId,
+    String? token,
+  }) async {
+    tomTomDetailsCallCount++;
+    lastTomTomDetailsType = type;
+    lastTomTomDetailsId = id;
+    return tomTomDetailsResult;
   }
 
   @override
@@ -289,6 +309,85 @@ void main() {
       expect(fakeRepo.searchCallCount, 0);
     });
 
+    testWidgets('Search provider stays hidden behind one suggestion flow', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeRepo = FakeLocationRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
+        ),
+      );
+
+      expect(find.text('Tham quan'), findsNothing);
+      await tester.enterText(find.byType(TextField).first, 'Kica');
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pumpAndSettle();
+      expect(fakeRepo.lastSearchMode, 'SUGGEST');
+      expect(find.text('Tìm thêm trên TomTom'), findsNothing);
+      expect(find.text('Dùng LocationIQ'), findsNothing);
+    });
+
+    testWidgets('TomTom suggestion resolves Details before selection', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeRepo = FakeLocationRepository(
+        searchResultsToReturn: [
+          const LocationSearchResult(
+            placeId: 'pois:poi-1',
+            name: 'Bàu Trắng',
+            formattedAddress: 'Bình Thuận, Việt Nam',
+            provider: 'TOMTOM',
+            providerId: 'poi-1',
+            providerType: 'pois',
+            requiresDetails: true,
+          ),
+        ],
+        tomTomDetailsResult: const LocationSearchResult(
+          placeId: 'pois:poi-1',
+          name: 'Bàu Trắng',
+          formattedAddress: 'Bắc Bình, Bình Thuận, Việt Nam',
+          latitude: 11.05,
+          longitude: 108.43,
+          provider: 'TOMTOM',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
+        ),
+      );
+      await tester.enterText(find.byType(TextField).first, 'Bàu Trắng');
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bàu Trắng').last);
+      await tester.pumpAndSettle();
+
+      expect(fakeRepo.tomTomDetailsCallCount, 1);
+      expect(fakeRepo.lastTomTomDetailsType, 'pois');
+      expect(fakeRepo.lastTomTomDetailsId, 'poi-1');
+      expect(find.text('Bắc Bình, Bình Thuận, Việt Nam'), findsOneWidget);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+    });
+
     testWidgets(
       'Debounced search query calls searchLocations and displays results',
       (tester) async {
@@ -311,12 +410,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
-            home: Scaffold(
-              body: LocationPickerSheet(
-                repository: fakeRepo,
-                locationContext: 'Hà Nội',
-              ),
-            ),
+            home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
           ),
         );
 
@@ -326,7 +420,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(fakeRepo.searchCallCount, 1);
-        expect(fakeRepo.lastSearchQuery, 'Hồ Hoàn Kiếm, Hà Nội');
+        expect(fakeRepo.lastSearchQuery, 'Hồ Hoàn Kiếm');
         expect(find.text('Hồ Hoàn Kiếm'), findsWidgets);
         expect(find.text('Hoàn Kiếm, Hà Nội'), findsOneWidget);
 
@@ -959,7 +1053,7 @@ void main() {
     );
   });
 
-  group('Phase 4 - Dynamic Destination Context Resolution & POI Query Formatting', () {
+  group('Phase 4 - Location Result Types', () {
     test('LocationSearchResult isCityOrAdministrative correctly identifies regions vs POIs', () {
       const cityResult = LocationSearchResult(
         placeId: '1',
@@ -988,131 +1082,5 @@ void main() {
       );
       expect(poiResult.isCityOrAdministrative, isFalse);
     });
-
-    test('formatQueryWithContext preserves POI queries containing district or ward qualifiers', () {
-      const city = 'Thành phố Hồ Chí Minh';
-      // Queries specifying district / ward should not have city string appended to prevent over-constraining POIs
-      expect(
-        LocationPickerSheet.formatQueryWithContext('tiệm bánh Quận 1', city),
-        'tiệm bánh Quận 1',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('quán cafe quan 3', city),
-        'quán cafe quan 3',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('nhà thuốc phường Bến Nghé', city),
-        'nhà thuốc phường Bến Nghé',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('siêu thị huyện Củ Chi', city),
-        'siêu thị huyện Củ Chi',
-      );
-    });
-
-    test('formatQueryWithContext preserves POI queries containing spatial prepositions or commas', () {
-      const city = 'Thành phố Hồ Chí Minh';
-      expect(
-        LocationPickerSheet.formatQueryWithContext('quán cà phê gần Bến Thành', city),
-        'quán cà phê gần Bến Thành',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('tiệm bánh ở Nhà Thờ Đức Bà', city),
-        'tiệm bánh ở Nhà Thờ Đức Bà',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('bệnh viện tại Nguyễn Trãi', city),
-        'bệnh viện tại Nguyễn Trãi',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('Highlands Coffee, Lê Lợi', city),
-        'Highlands Coffee, Lê Lợi',
-      );
-    });
-
-    test('formatQueryWithContext appends city context for bare POI searches', () {
-      const city = 'Thành phố Hồ Chí Minh';
-      expect(
-        LocationPickerSheet.formatQueryWithContext('tiệm bánh', city),
-        'tiệm bánh, Thành phố Hồ Chí Minh',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('quán cà phê', city),
-        'quán cà phê, Thành phố Hồ Chí Minh',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('Starbucks', city),
-        'Starbucks, Thành phố Hồ Chí Minh',
-      );
-    });
-
-    test('formatQueryWithContext preserves administrative and province queries without appending context', () {
-      const city = 'An Giang';
-      expect(
-        LocationPickerSheet.formatQueryWithContext('Lâm Đồng', city),
-        'Lâm Đồng',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('tỉnh Lâm Đồng', city),
-        'tỉnh Lâm Đồng',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('Đà Lạt', city),
-        'Đà Lạt',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('Quận 1', city),
-        'Quận 1',
-      );
-      expect(
-        LocationPickerSheet.formatQueryWithContext('Hà Nội', city),
-        'Hà Nội',
-      );
-    });
-
-    test('formatQueryWithContext does not duplicate context if query already includes it', () {
-      expect(
-        LocationPickerSheet.formatQueryWithContext('tiệm bánh Hồ Chí Minh', 'Thành phố Hồ Chí Minh'),
-        'tiệm bánh Hồ Chí Minh',
-      );
-    });
-
-    testWidgets(
-      'LocationPickerSheet uses formatQueryWithContext when searching with locationContext',
-      (tester) async {
-        final fakeRepo = FakeLocationRepository(
-          searchResultsToReturn: [
-            const LocationSearchResult(
-              placeId: 'dalat-cafe-1',
-              name: 'Cà phê Tùng',
-              formattedAddress: 'Khu Hoà Bình, Đà Lạt',
-              latitude: 11.9404,
-              longitude: 108.4583,
-              type: 'cafe',
-              category: 'amenity',
-            ),
-          ],
-        );
-
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: LocationPickerSheet(
-                repository: fakeRepo,
-                locationContext: 'Đà Lạt',
-              ),
-            ),
-          ),
-        );
-
-        await tester.enterText(find.byType(TextField).first, 'quán cà phê');
-        await tester.pump(const Duration(milliseconds: 450));
-        await tester.pumpAndSettle();
-
-        expect(fakeRepo.searchCallCount, 1);
-        expect(fakeRepo.lastSearchQuery, 'quán cà phê, Đà Lạt');
-        expect(find.text('Cà phê Tùng'), findsWidgets);
-      },
-    );
   });
 }
