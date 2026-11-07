@@ -157,21 +157,19 @@ public class LocationServiceTest {
         }
 
         @Test
-        @DisplayName("Search with out-of-bounds latitude/longitude throws BadRequestException")
-        void search_outOfBoundsCoordinates_badRequest() throws Exception {
+        @DisplayName("Search ignores client-supplied map coordinates and keeps query independent")
+        void search_clientCoordinatesIgnored_ok() throws Exception {
             mockMvc.perform(get("/api/locations/search")
                             .param("query", "Hồ Gươm")
                             .param("latitude", "95.0")
                             .param("longitude", "105.8"))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value(containsString("latitude")));
+                    .andExpect(status().isOk());
 
             mockMvc.perform(get("/api/locations/search")
                             .param("query", "Hồ Gươm")
                             .param("latitude", "21.0")
                             .param("longitude", "190.0"))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value(containsString("longitude")));
+                    .andExpect(status().isOk());
         }
 
         @Test
