@@ -1,114 +1,52 @@
-# 02. Kế hoạch frontend và ảnh hoạt động
+# Flutter picker và Activity — kế hoạch refactor
 
-Trạng thái: MVP mobile/backend đang được triển khai theo các mục tương ứng. LocationIQ search giới hạn Việt Nam và nhận ngữ cảnh `itinerary.location`; nearby có filter và ảnh upload Cloudinary đã nối. Phần tìm kiếm catalog + online hợp nhất, assetId/ownership và tích hợp map tổng vào ngày vẫn là công việc tiếp theo. Không tạo thêm ứng dụng web mới hoặc đưa React vào dự án Flutter.
+## Hiện trạng đã xác minh
 
-## 1. Danh sách file cần tác động
+Picker là `LocationPickerSheet`: một ô input, map `AppMapView`/CARTO, marker, result list, manual pin, Hủy/Xác nhận. Refactor đã gỡ repository client method nearby và không còn nearby/category chips. Backend nearby route/provider còn legacy nhưng không được picker gọi.
 
-| Khu vực | File hiện có | Thay đổi dự kiến |
-|---|---|---|
-| Model search | features/location/data/models/location_search_result.dart | Giữ legacy; thêm model suggestion/envelope riêng |
-| Repository | features/location/data/location_repository.dart | Thêm suggestions/discover, context, lỗi một phần |
-| Picker | features/location/presentation/widgets/location_picker_sheet.dart | Search thống nhất, category, context, state đúng |
-| Form | features/itinerary/presentation/widgets/activity_form_dialog.dart | Chọn địa điểm là thao tác chính; tên gợi ý; ảnh |
-| Request activity | features/itinerary/data/models/create_activity_request.dart và update_activity_request.dart | Trường ảnh với absent/null rõ ràng |
-| Response activity | features/itinerary/data/models/activity_detail.dart | resolvedLocation, locationSource, coverImage |
-| API ghi | features/itinerary/data/itinerary_crud_repository.dart | Truyền contract mới, tương thích legacy |
-| Timeline | features/itinerary/presentation/widgets/activity_timeline_item.dart | Thumbnail hoạt động dùng chung các nguồn |
-| Map | features/itinerary/presentation/screens/itinerary_map_screen.dart | Thêm địa điểm vào ngày, chọn activity, refresh đúng |
-| Helper | itinerary_map_helper.dart; itinerary_map_preview_card.dart | Chung quy tắc vị trí, tọa độ thật và marker |
-| Ảnh | shared/services/image_picker_service.dart; shared/widgets/image_upload_preview.dart | Tái sử dụng chọn/preview, nối assetId |
-| Tile | core/constants/map_tile_provider_config.dart; map_constants.dart; shared/widgets/app_base_map.dart | Chỉ đổi cấu hình nếu nhà cung cấp được chốt |
-| Web admin | frontend/web/lib/features/locations và shared/widgets/web_map_view.dart | Kiểm tra tương thích, attribution và hidden catalog |
+Picker đã bỏ provider toggle, query context và viewport coordinates. Gõ gửi nguyên văn query theo `mode=SUGGEST`; submit keyboard hoặc discoverAction gửi `mode=SEARCH`. Di chuyển map không làm thay đổi search request.
 
-Các đường dẫn không có prefix thuộc frontend/mobile/lib/. Chỉ tách widget/controller mới khi giúp giảm độ lớn của picker/form hiện tại; tránh xây một kiến trúc state management mới cho một tính năng.
+Trước refactor, Activity form nhận `locationContext` từ itinerary detail và chỉ auto-fill title nếu trống. Hiện form không nhận context; nếu title vẫn đúng giá trị đã tự điền từ POI A thì chọn POI B cập nhật title, còn title người dùng sửa tay được giữ nguyên. Manual map tap clear placeId/provider/name POI cũ và giữ tọa độ tap; reverse chỉ bổ sung địa chỉ. DB save nằm trong `ItineraryCrudRepository` và schema hiện tại.
 
-## 2. State của picker
+`ItineraryLocationSearchField` là autocomplete cho chuỗi itinerary.location (không phải activity POI). Field vẫn gợi ý text điểm đến nhưng đã bỏ nút đổi provider và gọi cùng unified search API; dữ liệu điểm đến không truyền sang Activity picker.
 
-Tách tối thiểu:
+## Luồng UI đích
 
-- viewportCenter: nơi camera nhìn, không phải lựa chọn.
-- query và category: nội dung tìm.
-- searchState: idle/loading/data/empty/partial/error.
-- selectedLocation: một đối tượng nguyên khối gồm source, tên, địa chỉ, cặp tọa độ, ID.
-- selectionRevision: thay đổi khi chọn item/ghim/xóa/đóng.
-- searchRevision: thay đổi ngay khi text/filter/context thay đổi.
-- imageDraft: file mới, asset đã upload, ảnh tự động hoặc NONE.
+1. Mở picker dùng activity tọa độ đã lưu làm camera ban đầu nếu có; nếu không thì vị trí fallback theo thiết kế. Camera không trở thành search parameter.
+2. Một ô query nguyên văn. Debounce 400–500 ms/min 2 ký tự gọi `GET /api/locations/search` mode Suggest. Provider không xuất hiện trong UI. Tạo UUID session một lần trong picker.
+3. Submit bàn phím hoặc nút search gọi mode Search; TomTom dùng Discover. Nếu Suggest trả discoverAction và người dùng chọn, query cũng được gửi mode Search.
+4. Một danh sách response theo thứ tự backend; loading/empty/error/retry rõ ràng; không auto-select. Generation/request ID giữ lại để response cũ không ghi đè.
+5. Chọn result có coords: validate finite/range, cập nhật location object nguyên tử, marker và camera. Result TomTom cần Details thì chỉ fetch sau tap chọn; Discover có coords không fetch Details lại.
+6. Chạm map tạo MANUAL_PIN ở đúng tọa độ tap, clear POI name/address/id/provider. Reverse-geocode chỉ gợi ý địa chỉ, không thay coordinate; tên cho pin nhập được.
+7. Hủy không đổi form. Xác nhận trả `CustomLocationResult` với name/address/coords/placeId/provider hợp lệ.
+8. Form Activity: nếu title trống hoặc vẫn đúng giá trị auto-fill lần trước, chọn POI mới cập nhật title. Nếu đã chỉnh khác thì không ghi đè. Manual pin không auto-fill tên POI. Save vẫn qua API activity hiện tại, không phát sinh request provider.
 
-Không giữ rời rạc tên của địa điểm mới với tọa độ cũ. Dùng đối tượng immutable để thay nguyên bộ selectedLocation.
+## File Flutter cần sửa
 
-## 3. Sửa race condition trước khi thêm UI
+| File | Hiện trạng | Sửa | Giữ/Xóa | Test |
+|---|---|---|---|---|
+| `frontend/mobile/lib/features/location/presentation/widgets/location_picker_sheet.dart` | Trước đây ghép context, gửi viewport và có source switch | query raw, submit Search; một provider/list do backend điều khiển | giữ debounce, request IDs, map, validation, manual pin, confirm | query exact/no geo params, request stale, marker/manual, details |
+| `frontend/mobile/lib/features/location/data/location_repository.dart` | provider/lat/lon parameters, TomTom detail/discover, dead nearby method | unified mode query/session; detail/discover; no picker geo args | remove nearby method nếu repo-wide không có caller; giữ reverse | URL/JSON/Unicode/no geo params |
+| `frontend/mobile/lib/features/location/data/models/location_search_result.dart` | DTO chung có nullable provider metadata | giữ model, bảo đảm JSON parse/serialize null coords, type/id/details/session | không tạo model provider trùng | suggest/details/discover mapping |
+| `frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart` | truyền locationContext; auto-fill chỉ khi blank | bỏ context; theo dõi title auto-fill gần nhất; giữ title đã sửa; không auto-fill MANUAL_PIN | giữ create/edit, image upload, destination/custom exclusivity | blank/auto/manual title; create/update roundtrip |
+| `frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart` | truyền `itinerary.location` vào add/edit Activity dialog | bỏ arguments để itinerary location không tới picker | giữ luồng dialog/reload | regression add/edit activity |
+| `frontend/mobile/lib/features/itinerary/presentation/widgets/itinerary_location_search_field.dart` | một text field nhưng có provider toggle riêng | dùng unified search mode, bỏ toggle; giữ autocomplete điểm đến dạng text | không truyền kết quả/coords sang Activity | điểm đến text search |
+| `frontend/mobile/lib/core/constants/api_constants.dart` | location search/details/discover/nearby constants | giữ routes thực sự gọi; bỏ nearby nếu dead | không thêm route trùng | constant references |
+| `frontend/mobile/lib/features/itinerary/data/models/{create_activity_request,update_activity_request,activity_detail}.dart` và `itinerary_crud_repository.dart` | map fields custom location | chỉ sửa nếu tests tìm lỗi contract | giữ API và fields/schema | create/update/read roundtrip |
+| `frontend/mobile/test/location_picker_test.dart` | tests format context và TomTom toggle | thay bằng tests independent itinerary, single field/list, submit mode, no context/bias, race guard/autofill/manual pin | bỏ tests cho logic cố ý xóa | full picker tests |
+| `frontend/mobile/test/location_repository_test.dart` | test provider + coordinates + nearby | test unified modes, exact Unicode, session, no lat/lon; xóa nearby test khi client method bỏ | giữ reverse test | repository tests |
 
-Khi người dùng nhập ký tự:
+## Không thay đổi
 
-1. Tăng searchRevision ngay lập tức và hủy timer cũ.
-2. Nếu query ngắn hơn hai ký tự: dọn kết quả, giữ selectedLocation trừ khi người dùng chủ động bỏ chọn.
-3. Timer 400 ms giữ revision hiện tại.
-4. Trước và sau request, kiểm tra mounted/revision/query/context.
-5. Chỉ kết quả tương ứng revision mới được cập nhật.
+- `app_base_map.dart`, `app_map_view.dart`, CARTO tile config, marker builder: chỉ sửa nếu test chứng minh marker callback/camera có lỗi.
+- Activity photo upload/Cloudinary; không lấy ảnh từ TomTom/Google.
+- Itinerary map/ORS route, Destination catalog CRUD, các form lịch trình ngoài việc bỏ context truyền sang Activity.
+- README dự án: người dùng yêu cầu giữ nội dung cấu hình đang test.
 
-Khi chọn item: hủy timer, tăng searchRevision và selectionRevision, vô hiệu hóa reverse cũ, xác nhận cặp tọa độ rồi thay selectedLocation nguyên khối.
+## Gỡ code cũ có kiểm soát
 
-Khi ghim: tăng selectionRevision, đặt tọa độ ghim ngay, metadata tạm; reverse có revision và tọa độ đã chụp. Chỉ áp tên/địa chỉ khi revision vẫn khớp. Không đổi tọa độ ghim theo tọa độ tâm đường hoặc tòa nhà do reverse trả về.
-
-Khi xóa/đóng/dispose: vô hiệu hóa mọi callback; dispose controller. Có thể hủy HTTP nếu client hỗ trợ nhưng generation guard vẫn bắt buộc.
-
-Kết quả thiếu tọa độ không được giữ điểm cũ hoặc fallback (0,0). Vô hiệu hóa chọn và gợi ý xác nhận vị trí thủ công.
-
-## 4. Thêm địa điểm từ map hoặc từ ngày
-
-Search hoạt động nhận `itinerary.location` làm ngữ cảnh tỉnh/thành. Ví dụ lịch trình có địa điểm “Hà Nội”, khi người dùng gõ “Hồ Hoàn Kiếm”, query gửi đến backend là “Hồ Hoàn Kiếm, Hà Nội”; backend giữ `countrycodes=vn` khi gọi LocationIQ. Ngữ cảnh chỉ bias kết quả, không bảo đảm lọc cứng theo địa giới hành chính.
-
-Cùng một luồng chọn cho hai điểm vào:
-
-- Từ ngày: đã biết dayId; chọn xong mở form tối giản với địa điểm.
-- Từ map tổng: chọn ngày đích trước khi commit. Không tự chọn “ngày 1” khi đang xem tất cả.
-- Chọn địa điểm tự điền tên hoạt động nếu tên trống hoặc còn là tên tự sinh; không ghi đè tên người dùng đã sửa.
-- Giờ, chi phí, ghi chú và ảnh là tùy chọn; giữ validation thời gian/chi phí hiện có.
-- Chặn double submit khi POST đang chạy.
-- Hủy picker không thay đổi dữ liệu form trước đó.
-- Tìm thấy cùng địa điểm đã có trong ngày: gợi ý “Đã có trong ngày này”, vẫn cho thêm một lần ghé khác.
-
-Tách chọn khu vực khỏi chọn điểm. Không cần xin GPS để lập kế hoạch đến một thành phố khác.
-
-## 5. Quy trình ảnh
-
-1. Người dùng chọn file bằng service có sẵn.
-2. Kiểm tra sơ bộ dung lượng/định dạng, preview.
-3. Upload khi xác nhận form hoặc bằng hành động upload rõ ràng; không tải lại mỗi lần widget rebuild.
-4. Nhận secureUrl + assetId; lưu assetId trong request activity.
-5. Lưu activity; nếu lỗi giữ assetId để người dùng thử lại, tránh upload trùng.
-6. Nếu bỏ form sau upload: asset tạm được xử lý theo chính sách orphan của backend.
-
-ImageSource UI: USER_UPLOAD, DESTINATION, OPEN_LICENSE (sau này), NONE. source trả từ backend; không cho client tự nhận nguồn “Google” hay “đã cấp phép”.
-
-Hiển thị dùng một component thumbnail: kích thước ổn định, loading/error placeholder, semantic label. Thumbnail timeline không cần gallery. Ảnh upload không làm điều kiện bắt buộc tạo hoạt động.
-
-Nếu bổ sung Commons sau này, chỉ gọi lấy ảnh sau khi người dùng chọn địa điểm hoặc mở chi tiết, không gọi cho mọi gợi ý theo từng ký tự. Metadata license phải đi cùng ảnh; khi không xác minh được thì bỏ ảnh tự động.
-
-## 6. Đồng bộ timeline, map và route
-
-- Sau create/update/delete/reorder: lấy dữ liệu chuẩn từ server hoặc cập nhật notifier nhất quán.
-- Giữ selectedActivityId nếu activity còn tồn tại; xóa selection khi bị xóa.
-- Cache client dùng dayId + mode + revision/tọa độ theo thứ tự, không chỉ dayNumber.
-- Đổi tên/ảnh không buộc gọi ORS nếu tọa độ và thứ tự không đổi; nội dung thẻ phải cập nhật.
-- Đổi tọa độ/thứ tự/ngày: invalidate tuyến bị ảnh hưởng.
-- Request tuyến theo ngày có generation riêng hoặc một generation cho lần tải snapshot toàn bộ; tránh request ngày B vô tình làm ngày A treo loading.
-- Route server giữ kiểm tra quyền trước cache; không dùng route cache để trả thông tin lịch trình riêng tư.
-- Đường thẳng fallback được gắn nhãn ước lượng, không hiển thị ETA giả.
-- Chỉ dùng tọa độ thật cho lưu/route/navigation; tọa độ giãn marker chỉ ở lớp vẽ.
-
-## 7. Giao diện theo thiết kế dự án
-
-Dùng Theme/AppColors và widget chung; ảnh nhỏ, khoảng trắng đủ, không lặp nhiều card lồng nhau. Primary CTA rõ “Thêm vào ngày …” hoặc “Lưu thay đổi”.
-
-Search cập nhật trực tiếp, không layout animation. Sheet dùng motion nhẹ Flutter-native, tắt khi disableAnimations. Không thêm package animation. Tất cả hit area >=48 dp, kiểm tra 320 px, bàn phím, text scale và tên dài.
-
-Web admin giữ bảng địa điểm, ảnh, trạng thái, form và map. Không cần làm màn timeline cho web trong MVP. Nếu thay tile, kiểm tra CORS, token public và attribution của cả web/mobile.
-
-Thông báo người dùng không chứa key, tên biến môi trường hoặc câu lệnh cấu hình. Cấu hình thiếu được ghi log phù hợp cho lập trình viên và hiện thông báo dễ hiểu trong UI.
-
-## 8. Tương thích client cũ
-
-Mobile mới chỉ dùng suggestions nếu backend hỗ trợ; feature flag triển khai sau backend. Không fallback sang endpoint cũ cho mọi lỗi, vì 401/429/503 cần xử lý đúng. Fallback legacy chỉ khi xác định server cũ/flag tắt.
-
-Ảnh: serializer phân biệt không gửi và gửi null theo contract. Response thiếu resolvedLocation/coverImage được đọc bằng dữ liệu cũ. Không ép cập nhật app chỉ vì backend thêm trường tùy chọn.
+- `locationContext` và `formatQueryWithContext` đã bị xóa khỏi show dialog/widget/call-site; test append context cũng đã bỏ.
+- Xóa `_searchProvider`, toggle UI, provider-specific source selection khỏi picker và destination search field; provider selection server-side.
+- Bỏ truyền viewport vào search/Discover và bỏ callback `onPositionChanged`; vẫn giữ `initialCenter` để hiển thị map theo Activity đã lưu.
+- Nearby: method và API constant phía mobile đã xóa sau `rg` xác nhận không có caller. Backend route/provider legacy được giữ để tránh phá consumer API ngoài mobile project.
+- Không xóa adapter LocationIQ, reverse-geocode, TomTom Details, Activity custom fields hoặc manual pin.

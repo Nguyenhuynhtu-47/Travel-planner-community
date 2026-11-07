@@ -1,131 +1,77 @@
-# 03. Lộ trình, kiểm thử và tiêu chí nghiệm thu
+# Lộ trình, kiểm thử và nghiệm thu
 
-## 1. M0 — Baseline và kiểm chứng nhà cung cấp
+## Giai đoạn 1 — plan (hoàn tất trước source)
 
-- Ghi branch/HEAD, trạng thái Git, cấu hình provider theo tên biến; không sao chép secret.
-- Chạy baseline backend/mobile/web ở môi trường phù hợp trước thay đổi mã.
-- Kiểm tra quyền CARTO/grant; nếu không phù hợp, thử Geoapify tiles qua config hiện có.
-- Kiểm tra LocationIQ autocomplete/nearby và quota tài khoản; kiểm tra ORS ở dashboard. Không dùng hạn mức trong plan cũ như kết quả đã xác minh hôm nay.
-- Bộ benchmark đề xuất 30 truy vấn: 10 danh thắng, 10 quán ăn/cà phê, 5 lưu trú, 5 ga/sân bay/địa chỉ ít phổ biến; phân bố Hà Nội, Đà Nẵng, Đà Lạt, TP.HCM.
-- Mỗi nhóm có tên có dấu/không dấu, tên một phần, tên trùng ở nhiều tỉnh và truy vấn không tồn tại.
-- Lập bảng query, context, top 5, đúng POI/địa chỉ/tọa độ, latency, request count. Không đưa dữ liệu cá nhân thật vào benchmark.
-- Mục tiêu đề xuất: ít nhất 24/30 truy vấn chuẩn có kết quả đúng trong top 5. Đây là tiêu chí dự án, chưa có số đo thực. Các biến thể đo riêng để không làm sai mẫu số.
-- Chỉ thay provider khi có bằng chứng cải thiện và điều khoản/quota phù hợp.
+- Đọc bốn plan hiện hữu và lần theo picker, repository, Activity form/detail screen, controller/service/adapters, entity/DTO.
+- Ghi trực tiếp nguyên nhân: itinerary.location bị ghép vào query; map viewport bị gửi thành geo-bias; app default IQ và dùng Suggest, trong khi API Explorer có thể gọi Discover; LocationIQ dùng IQ search + khi cần autocomplete/ranking/two-stage logic; TomTom được trả direct nhưng UI buộc đổi nguồn.
+- Ghi policy constraint TomTom về không gộp/đổi thứ tự search result; chọn một provider mỗi response. Ghi TomTom persistence/account terms là release gate chưa xác minh.
+- Không sửa README theo chỉ dẫn người dùng.
 
-Đầu ra: ghi nhận kết quả thực, lựa chọn provider và budget. Những mục chưa có quyền tài khoản được ghi chưa kiểm chứng, không giả định pass.
+## Giai đoạn 2 — backend
 
-## 2. M1 — Sửa lỗi nền
+1. Thêm `mode=SUGGEST|SEARCH` vào route search đang có; route/controller không nhận itinerary context, lat/lon hay provider do UI chọn.
+2. Chọn một provider server-side: enabled+key → TomTom; disabled/missing → LocationIQ. Không merge nguồn. Lỗi upstream TomTom không biến thành empty và không âm thầm đổi sang IQ.
+3. TomTom Suggest giữ query chính xác, VN only, no origin. TomTom Discover cho submit, query chính xác, VN only, no geometry/origin/POI filter mặc định. Headers version/language/key/attributes; session UUID nhất quán.
+4. Giữ Details sau user selection khi thiếu tọa độ; validate type/id/session; no extra Details sau Discover có position.
+5. Giữ IQ flow khi TomTom off, không nhận picker coordinates. Giữ reverse. Bỏ nearby backend chỉ sau `rg` chứng minh không còn consumer.
+6. DTO mapping giữ thứ tự TomTom, không rank/dedupe/merge TomTom. Không log token/raw payload.
 
-Thực hiện theo test trước/sau cho race, tọa độ thiếu, cặp tọa độ thống nhất và hidden catalog. Giữ contract cũ.
+## Giai đoạn 3 — Flutter
 
-File backend trọng tâm: LocationIqGeocodingProvider, LocationServiceImpl, ItineraryServiceImpl, RouteServiceImpl. File Flutter trọng tâm: location_picker_sheet.dart, activity_detail.dart.
+1. Bỏ truyền itinerary.location và camera coordinates khỏi Activity picker; xóa formatQueryWithContext và tests liên quan.
+2. Một ô input gọi mode Suggest; keyboard/nút Search gọi mode Search; một danh sách dùng cùng widget/model; bỏ nút chuyển provider và nearby/category UI/code đã xác nhận chết.
+3. Duy trì debounce 400–500ms, min 2 chars, request revision guards, state loading/empty/error/retry và một UUID/session mỗi picker.
+4. Chọn result: nếu cần mới gọi Details; validate tọa độ; atomically update title/address/id/provider/marker; manual map tap clears old POI identity.
+5. Activity form chỉ auto-fill tên nếu title blank hoặc còn bằng giá trị lần auto-fill trước; name đã sửa tay giữ nguyên. Không auto-fill POI name khi manual pin.
+6. Activity save/edit/read dùng contract và schema hiện tại; không thêm catalog Destination; ảnh upload giữ nguyên.
 
-Nghiệm thu: không có selection ghép nhầm metadata, không sinh điểm (0,0) từ dữ liệu thiếu; ba trạng thái vị trí vẫn được bảo toàn.
+## Test bắt buộc
 
-## 3. M2 — Tìm kiếm hợp nhất
+### Backend
 
-Thêm envelope suggestions và discover; nguồn catalog + online, category/context, cache key đầy đủ, limiter tổng và trạng thái quota. Cập nhật UI chọn điểm theo một ô search.
+- Controller mode validation và query giữ Unicode; không nhận/dùng latitude/longitude/context ở search.
+- TomTom enabled → duy nhất Suggest/Discover tương ứng; LocationIQ không được gọi; TomTom disabled → IQ path.
+- Query `Hồ Hoàn Kiếm` gửi nguyên văn, kể cả itinerary là Đà Lạt; body chỉ query/maxResults/country VN; không origin/preferences/geometry/poiTypes.
+- Suggest headers Accept JSON, vi-VN, version 3, API key header, Attributes hẹp, Session-Id UUID; query/ID/type/title/subtitles/more mapping giữ thứ tự.
+- Suggest không tọa độ → Details chỉ sau choose; Discover có coords → không Details; `[lon,lat]` map đúng; reject invalid/missing coords.
+- 400/403/429/5xx/timeout phản ánh đúng; không cache error as empty; key không xuất hiện log/JSON.
+- LocationIQ path giữ VN filter/reverse, không nhận coordinates từ Activity picker; regression cache/ranking tests.
+- Activity create/update/get: name/address/coordinates/provider/id; catalog/custom/none exclusive; user image unchanged; no provider call on save/read.
 
-Nghiệm thu: lỗi online không che catalog; bộ lọc “Tất cả” vẫn tìm các điểm ngoài du lịch; không gọi API cho mỗi frame kéo map; không tự insert kết quả tìm kiếm vào Destination.
+### Flutter
 
-## 4. M3 — Ảnh hoạt động
+- Query `Hồ Hoàn Kiếm` đúng nguyên văn; itinerary location `Đà Lạt` không xuất hiện trong query/request.
+- Repository URI không có provider toggle, latitude, longitude, context, bounds; Suggest vs Search mode đúng; Unicode được encode/decode chuẩn.
+- Một input/list; không source switch/category chips/nearby request; không tự chọn item đầu.
+- Debounce, response cũ, change query, picker close, Details/reverse stale response.
+- Result thiếu coords gọi Details sau chọn; cancel/failure không giữ marker POI cũ; Discover result không gọi Details lại.
+- Title trống auto-fill; chọn POI B cập nhật title auto A; sửa title thủ công không ghi đè; manual pin không gán POI cũ.
+- Confirm/cancel, create/edit/reopen Activity và CARTO marker giữ đúng vị trí. Activity data test TomTom chỉ chạy khi persistence gate được xác minh; nếu chưa, kiểm tra UI và không lưu provider payload.
 
-Migration bổ sung và asset tracking; mở rộng upload tương thích; UI chọn/xóa/dùng ảnh địa điểm; timeline đọc ảnh thống nhất.
+### Hồi quy
 
-Nghiệm thu: ảnh tồn tại sau tải lại; client cũ update không xóa ảnh; người dùng không gắn asset riêng của người khác; upload thất bại không mất form. Không thêm Google Photos vào milestone này.
+- Tạo/sửa itinerary, thêm ngày/hoạt động, chỉnh activity, detail map, manual pin, destination catalog, image upload, CARTO tiles và ORS route.
+- Chạy backend `mvnw test`, mobile `flutter analyze`, test liên quan rồi `flutter test`; `dart format` chỉ trên file Dart đổi.
 
-## 5. M4 — Tích hợp map–timeline
+## Cổng pháp lý / phát hành
 
-Luồng thêm từ map vào đúng ngày, chọn activity, refresh theo dayId, route invalidate khi cần. Không thay thứ tự do tự tối ưu.
+TomTom AUP công khai cấm đổi thứ tự kết quả search và combine với search services khác. Vì thế không nghiệm thu merged list IQ+TomTom nếu chưa có ngoại lệ account-specific bằng văn bản. Thiết kế một API/UI dùng một provider per response là phương án mặc định.
 
-Nghiệm thu: sửa tọa độ/thứ tự làm marker và route thay đổi đúng; sửa ảnh không gọi lại route không cần thiết; điểm trùng vẫn mở đúng activity.
+TomTom terms cụ thể cho quyền lưu/share POI results vào MySQL và hiển thị trên CARTO chưa xác minh theo key/account. Tới khi xác minh: không persist TomTom response data lâu dài; chỉ manual pin và dữ liệu user tự viết được phép lưu theo model hiện tại. Không tự diễn giải điều khoản thay người dùng.
 
-## 6. Ma trận kiểm thử backend
+TomTom pricing công bố free monthly requests/no credit card theo từng API nhưng hạn mức/billing thay đổi; kiểm tra dashboard/account. Không coi limiter RAM hay quota marketing là hard spending cap.
 
-| Nhóm | Ca bắt buộc |
-|---|---|
-| Parser | Tọa độ thiếu, chuỗi lỗi, out-of-range; (0,0) hợp lệ; ID không ổn định không dùng định danh |
-| Location | Catalog/custom/none; từ chối trộn; latitude/longitude thiếu một vế |
-| Chuyển nguồn | Catalog → provider → pin → none; không giữ metadata cũ |
-| Destination ẩn | Cấm gắn mới; giữ liên kết cũ khi chỉ sửa giờ; xử lý đổi sang ID ẩn khác |
-| Search | Query ngắn/dài, limit, category sai, context thiếu cặp |
-| Cache | Phân biệt provider/category/vùng/ngôn ngữ; hit không gọi upstream; TTL và lỗi không cache như empty |
-| Quota | Tổng nhiều user/instance, restart, cache miss trùng, 429 Retry-After, không fallback trả phí |
-| Partial result | Catalog còn khi online timeout/quota/disabled |
-| Quyền | Guest ghi activity bị từ chối; non-owner; day không thuộc itinerary; private route |
-| Ảnh | Upload sai loại/quá cỡ; asset không tồn tại/khác owner; absent/null/NONE/AUTO |
-| Tương thích | Client cũ gửi PUT không trường ảnh giữ ảnh; response cũ/new parse được |
-| Route | 0/1/n điểm, đổi mode/thứ tự/tọa độ; fallback không ETA giả; cache không rò domain data |
-| Migration | Dữ liệu cũ đọc được, FK/default đúng, rollback flag không mất dữ liệu |
+## Rollback
 
-Tận dụng ActivityLocationTest, LocationServiceTest, RouteServiceTest, DestinationControllerTest, AdminDestinationControllerTest, CloudinaryImageUploadServiceTest. Thêm provider contract tests bằng fixture, không gọi dịch vụ thật trong CI thông thường.
+- Giữ schema/API Activity cũ, nên rollback source không cần migration.
+- Có thể tắt TomTom bằng cờ hiện tại, unified API tự dùng LocationIQ.
+- Nếu TomTom request parity hoặc terms có vấn đề, TomTom server flag off; giữ một ô search và manual pin hoạt động.
+- Không rollback bằng cách khôi phục locationContext/viewport bias vào picker.
 
-## 7. Ma trận kiểm thử Flutter
+## Trạng thái nghiệm thu
 
-| Ca | Kết quả cần đạt |
-|---|---|
-| A đang search, nhập B nhưng timer B chưa chạy | A không được thay danh sách mới |
-| A đang search, xóa còn 0–1 ký tự | A không làm kết quả cũ hiện lại |
-| Reverse A đang chờ, chọn POI B | A không đổi tên/ID/tọa độ B |
-| Chọn kết quả thiếu tọa độ sau khi đã chọn A | Không dùng tọa độ A cho tên mới |
-| Kéo map rồi chưa chọn | Camera center không bị coi là điểm đã xác nhận |
-| Chọn điểm rồi hủy picker | Form cũ không đổi |
-| Thêm từ map khi xem tất cả ngày | Phải chọn ngày đích, lưu đúng dayId |
-| Hai activity cùng tọa độ | Chọn được từng activity; dữ liệu gốc không bị giãn |
-| Đổi ngày/mode liên tục | Kết quả cũ không ghi đè; loading kết thúc đúng |
-| Chọn/xóa ảnh và upload lỗi | Form được giữ, serializer absent/null đúng |
-| Điểm không ảnh và ảnh 404 | Placeholder đúng kích thước; vẫn lưu được |
-| 320 px + bàn phím + text scale | Không overflow/che CTA hoặc attribution |
-| Reduced motion | Không animation gây chờ/loop ngoài loading |
-| Web admin | CRUD destination, hidden state, map và attribution không hồi quy |
-
-Dùng fake repository/Completer để kiểm soát thứ tự phản hồi. Các test có spinner dùng pump có thời lượng thay vì pumpAndSettle vô hạn.
-
-## 8. Lệnh kiểm tra khi triển khai
-
-Từ backend:
-
-~~~powershell
-.\mvnw.cmd test-compile
-.\mvnw.cmd test
-~~~
-
-Từ frontend/mobile và frontend/web tương ứng:
-
-~~~powershell
-flutter analyze
-flutter test
-~~~
-
-Kiểm tra format các file Dart thực sự thay đổi bằng dart format --output=none --set-exit-if-changed. Build mục tiêu khi có SDK và cấu hình phù hợp; kiểm tra thiết bị thật cho picker, bàn phím và image picker. Không chạy upload/search thật ngoài quota được chủ động dành cho smoke test.
-
-**Các lệnh trên là checklist tương lai, chưa được chạy trong phiên viết tài liệu.** Các test pass được ghi ở development log trước đây là lịch sử, không phải chứng nhận mới.
-
-## 9. Kịch bản nghiệm thu đầu-cuối
-
-1. Tạo chuyến đi, thêm ngày; tìm POI có dấu tiếng Việt.
-2. Chọn POI → tên hoạt động tự gợi ý → sửa tên → thêm ảnh → lưu.
-3. Đóng/mở lại lịch trình: tên, vị trí và ảnh không mất; không cần search lại.
-4. Chạm activity → marker đúng; chạm marker → activity đúng.
-5. Đổi địa điểm → route ngày đó được cập nhật; ảnh tự động không còn gắn POI cũ.
-6. Thêm hoạt động không vị trí; nó vẫn ở timeline nhưng không thành marker giả.
-7. Tắt search/giả lập 429: catalog, ghim/nhập tọa độ và lưu hoạt động còn hoạt động khi backend khả dụng.
-8. Tắt route: thấy đường thẳng ước lượng đúng nhãn.
-9. Tắt tile/mất mạng: không mất form; không hứa chức năng chưa có như lưu offline lên server.
-10. Đăng nhập tài khoản khác: không sửa được lịch trình/asset riêng.
-11. Kiểm tra mobile cũ và web admin với backend mới.
-12. Kiểm tra chỉ có provider đã chọn được gọi; không có billing/overage tự kích hoạt.
-
-## 10. Phát hành và theo dõi
-
-Deploy schema bổ sung → backend tương thích → mobile theo flag → theo dõi lỗi/quota → mở dần. Rollback flag nếu sai vị trí/ảnh hoặc quota bất thường; giữ dữ liệu để xử lý.
-
-Cập nhật docs/ai/03-api-contract.md khi API thật được triển khai, sửa ghi chú trạng thái ở kiến trúc/status khi xác minh, và append development log trong cùng đợt. Không ghi toàn bộ MVP “hoàn thành” khi mới có UI hoặc tài liệu.
-
-## 11. Kết quả thực của đợt lập tài liệu
-
-- Đã kiểm tra Git: develop, HEAD c1873ad; working tree ban đầu sạch.
-- Đã đọc mã và tìm các luồng liên quan bằng PowerShell/rg.
-- Đã đối chiếu tài liệu công khai của provider; chưa kiểm tra tài khoản và khóa dự án.
-- Chưa chạy Maven/Flutter test hoặc build vì thay đổi chỉ là Markdown.
-- Kiểm tra cuối đợt: tính tồn tại của file, link nội bộ, encoding và diff; kết quả thực được ghi ở development log.
+- Đã cập nhật bốn file plan trước khi sửa source; README dự án không chỉnh trong đợt này.
+- Flutter: `flutter.bat test test/location_picker_test.dart test/location_repository_test.dart` — pass (35 tests); `flutter.bat analyze` — no issues found.
+- Backend: `mvnw.cmd test` — pass (250 tests, 0 failures). `LocationServiceTest` riêng — pass (39 tests).
+- Chưa chạy end-to-end trên app/device với TomTom key; cấu hình thật và quyền lưu kết quả TomTom theo tài khoản chưa xác minh.
+- Chưa chạy toàn bộ regression suite mobile hoặc end-to-end trên app/device với TomTom key.

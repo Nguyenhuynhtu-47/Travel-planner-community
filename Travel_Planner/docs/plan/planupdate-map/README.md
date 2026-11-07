@@ -1,71 +1,76 @@
-# Kế hoạch cập nhật map, tìm địa điểm và ảnh hoạt động
+# Kế hoạch refactor luồng tìm kiếm địa điểm
 
-Ngày lập: **05/11/2026**. Cơ sở mã: develop tại c1873ad.
-Trạng thái: **Đang triển khai MVP trong nhánh làm việc**. M1, tìm kiếm LocationIQ giới hạn Việt Nam với ngữ cảnh tỉnh/thành lịch trình, nearby theo nhóm POI và ảnh hoạt động đã được nối vào code; kiểm thử mục tiêu đã qua. Nearby mặc định tắt bằng cấu hình. Search hợp nhất catalog/online, migration media asset có ownership, ảnh mở kèm license và các hạng mục map–timeline nâng cao vẫn nằm ngoài phần đã hoàn tất.
+Ngày rà soát: 06/11/2026. Phạm vi: Flutter Mobile, Spring Boot, LocationIQ, TomTom Places Search v3, CARTO và dữ liệu Activity hiện có.
 
-## 1. Mục tiêu và tài liệu
+## Quyết định và trạng thái
 
-Cho phép người dùng tìm địa điểm theo cách quen thuộc của ứng dụng bản đồ, chọn vào ngày trong lịch trình, thêm ảnh riêng và xem hoạt động nhất quán trên timeline/map; ưu tiên dịch vụ miễn phí có giới hạn và không tự phát sinh phí.
+Kế hoạch này thay thế các mô tả triển khai cũ trong thư mục. Refactor code đã thực hiện: hoạt động không còn truyền `itinerary.location` vào picker; query không bị ghép vùng và camera map không đi vào request tìm kiếm. Picker và ô điểm đến dùng một luồng search, không còn chọn nguồn bằng nút. Gõ gọi Suggest; submit gọi Discover qua cùng endpoint.
 
-- [Đánh giá hiện trạng](../../feedback/01-danh-gia-hien-trang-map.md).
-- [Quyết định mô hình](../../feedback/02-mo-hinh-dia-diem-va-hoat-dong.md).
-- [Nhà cung cấp và nguồn ảnh](../../feedback/03-api-mien-phi-va-anh-dia-diem.md).
-- [Backend, API và dữ liệu](01-backend-api-va-du-lieu.md).
-- [Frontend và ảnh](02-frontend-va-anh-hoat-dong.md).
-- [Triển khai, kiểm thử và nghiệm thu](03-lo-trinh-kiem-thu-nghiem-thu.md).
+Thiết kế đích có một ô search, một danh sách, một backend search API và cùng map CARTO. Provider do backend chọn theo cấu hình: TomTom khi `app.map.tomtom.enabled` và key hợp lệ; nếu TomTom tắt thì LocationIQ. Mỗi response chỉ dùng một nguồn, không gộp hoặc đổi thứ tự kết quả TomTom. Flutter không chọn provider, không gửi điểm đến lịch trình, tọa độ camera, viewport, bounds, radius hay bias. Query TomTom giữ nguyên chữ người dùng và chỉ lọc quốc gia Việt Nam.
 
-Kế hoạch này bổ sung và cập nhật hướng phát triển sau [plan map ban đầu](../01-map-integration-audit-and-plan.md). Các mô tả “chưa có map/search/tọa độ Activity” ở đầu plan cũ là lịch sử, không phải hiện trạng để triển khai lại.
+**Ràng buộc điều khoản:** TomTom Acceptable Use Policy đang công bố cấm thay đổi thứ tự kết quả tìm kiếm hoặc gộp chúng với dịch vụ tìm kiếm khác. Vì vậy không triển khai danh sách trộn LocationIQ + TomTom nếu chưa có ngoại lệ bằng văn bản trong thỏa thuận tài khoản. TomTom Search API dùng như nguồn chính khi được bật; LocationIQ giữ nguyên và được dùng khi TomTom tắt. Nếu người dùng muốn trộn hai nguồn trong cùng một danh sách, đó là hạng mục bị chặn chờ xác nhận từ TomTom. Xem [AUP](https://www.tomtom.com/en-gb/legal/acceptable-use-policy/).
 
-## 2. Quyết định khuyến nghị
+Điều khoản công khai đã xác nhận LocationIQ cho phép lưu response data lâu dài và giới hạn cache request/response free đến 48 giờ; điều khoản TomTom theo tài khoản hiện chưa xác minh quyền lưu/share tên, địa chỉ, tọa độ và ID trong MySQL. Giữ schema hiện tại; không mở rộng persistence TomTom cho phát hành trước khi xác nhận quyền. Khi chưa xác minh, người dùng vẫn có thể ghim thủ công và tự nhập dữ liệu của mình. Xem [LocationIQ Terms](https://api.locationiq.com/tos) và [TomTom account terms](https://www.tomtom.com/en-gb/legal/third-party-product-terms/).
 
-| Quyết định | Lý do |
-|---|---|
-| Giữ flutter_map và luồng route hiện có | Đã có renderer, marker, tuyến theo ngày, fallback |
-| Ưu tiên LocationIQ cho tìm tên | Đã tích hợp, cải thiện UX và chất lượng trước khi thay |
-| Nearby LocationIQ có cờ cấu hình; benchmark nhà cung cấp khác | Gợi ý nhóm POI khác với autocomplete tên; chất lượng/quota tài khoản cần xác minh |
-| Giữ catalog Destination và vị trí riêng Activity trong MVP | Tránh migration lớn; không làm lộ pin riêng vào danh mục chung |
-| Giữ search hiện có và thêm API nearby dạng List | Tương thích contract cũ; endpoint hợp nhất có envelope vẫn là phần sau |
-| Ảnh upload + catalog là phạm vi bắt buộc | Đáp ứng ảnh hoạt động mà không phụ thuộc Google Photos |
-| Ảnh Commons tự động là phần mở rộng | Cần khớp địa điểm, license và attribution |
-| Google Places/Photos không bật mặc định | Không phù hợp yêu cầu không phát sinh phí và map nền hiện tại |
-| Xác minh CARTO trước phát hành | Điều kiện tài khoản phải được kiểm tra lại |
+README dự án được giữ nguyên theo yêu cầu ở đề bài; không ghi key hoặc sửa lệnh cấu hình trong README.
 
-### Phạm vi tìm kiếm của MVP
+## Hiện trạng dữ liệu và lưu trữ
 
-- Mọi truy vấn LocationIQ Autocomplete tiếp tục bị giới hạn ở Việt Nam bằng `countrycodes=vn` tại backend.
-- Khi thêm hoặc sửa hoạt động trong một lịch trình, mobile truyền `itinerary.location` (tỉnh/thành của chuyến đi) làm ngữ cảnh: người dùng gõ `Hồ Hoàn Kiếm` trong lịch trình Hà Nội thì API nhận `Hồ Hoàn Kiếm, Hà Nội`.
-- Ngữ cảnh tỉnh/thành giúp xếp hạng kết quả gần đúng địa điểm chuyến đi; đây là bias bằng văn bản, không phải ranh giới địa lý cứng. Nếu cần loại tuyệt đối kết quả ngoài tỉnh, phải có tọa độ/vùng hành chính chuẩn cho điểm đến và lọc kết quả theo vùng.
-- Search vẫn debounce 400 ms, giới hạn tối đa 20 kết quả và dùng API proxy backend; không gọi LocationIQ trực tiếp từ app. Hạn mức free được kiểm soát bởi provider và rate limiter hiện có; vượt hạn mức phải hiện trạng thái lỗi, không tự đổi sang dịch vụ trả phí.
+- `itineraries.location` là chuỗi mô tả điểm đến; entity hiện không có tọa độ điểm đến.
+- `activities.destination_id` liên kết tới catalog `destinations`; custom POI/ghim lưu ở các cột hiện có: `custom_location_name`, `custom_address`, `latitude`, `longitude`, `place_id`, `location_provider`.
+- `activities.name` là tiêu đề hoạt động độc lập với tên địa điểm. `image_url` là ảnh user upload/catalog; không lấy ảnh từ TomTom/Google trong luồng này.
+- DTO tạo/sửa/đọc Activity đã chuyển các trường location; `applyLocation` bảo đảm catalog và custom location loại trừ nhau, validate cặp tọa độ và không tạo Destination mới. Không cần migration.
+- Không tìm thấy service/API sao chép lịch trình trong backend; `original_itinerary_id` chỉ được dùng như metadata/seeder, nên không thêm logic copy vào phạm vi.
 
-Chưa tạo places/activity_locations trong MVP. Đó là lựa chọn dài hạn có phân tích trong feedback, không phải một hạng mục bắt buộc chạy ngầm cùng nâng cấp UI.
+## Request flow hiện tại
 
-## 3. Chia giai đoạn
+```text
+Flutter ô search
+  ├─ gõ sau debounce → GET /api/locations/search?query=<nguyên văn>&mode=SUGGEST&sessionId=...
+  ├─ submit bàn phím/nút tìm → GET /api/locations/search?query=<nguyên văn>&mode=SEARCH&sessionId=...
+  ├─ chọn Suggest thiếu tọa độ → GET /api/locations/providers/tomtom/details?type=...&id=...&sessionId=...
+  └─ chọn discoverAction → GET /api/locations/search?query=<nguyên văn>&mode=SEARCH&sessionId=...
+       ↓
+Backend chọn duy nhất một provider từ cấu hình:
+  TomTom enabled + key → Suggest hoặc Discover; không chèn origin/geometry/proximity
+  TomTom disabled       → LocationIQ, không nhận tọa độ từ picker
+       ↓
+DTO chuẩn hóa giữ nguyên thứ tự/provider, Flutter kiểm tra tọa độ
+       ↓
+Marker CARTO; xác nhận trả location về form Activity; không ghi DB khi gõ/tìm
+       ↓
+Lưu qua API Activity hiện tại và MySQL theo cổng điều khoản ở trên
+```
 
-| Giai đoạn | Kết quả cụ thể | Phụ thuộc |
-|---|---|---|
-| M0 — Kiểm chứng | Baseline test, mẫu truy vấn Việt Nam, quyền provider, ngân sách | Không |
-| M1 — Sửa tính đúng | Không stale selection, không tọa độ mặc định 0, nguồn vị trí nhất quán | M0 |
-| M2 — Search theo vùng | Chỉ Việt Nam + `itinerary.location` làm ngữ cảnh tỉnh/thành; catalog + online và category vẫn là phần mở rộng | M1 |
-| M3 — Ảnh hoạt động | Upload/chọn/xóa ảnh, response, timeline, migration bổ sung | M1; tích hợp với M2 |
-| M4 — Luồng map–timeline | Thêm từ map vào ngày, focus, reload và route đúng | M2 + M3 |
-| M5 — Hoàn thiện | Kiểm thử hồi quy, cấu hình free, cập nhật contract và vận hành | M4 |
-| M6 — Tùy chọn | Ảnh mở tự động, thư viện POI/chuẩn hóa bảng | Sau khi có nhu cầu và bằng chứng |
+## TomTom request parity
 
-Đây là thứ tự công việc, không phải cam kết số ngày hoàn thành. Dừng thay provider nếu benchmark không chứng minh cải thiện; vẫn có thể hoàn thành M1, ảnh upload và UI bằng nền hiện có.
+- Suggest dùng POST `/maps/orbis/places/suggest`, Discover dùng POST `/maps/orbis/places/discover`; Details dùng GET `/maps/orbis/places/details/{type}/{id}`.
+- Headers: `Accept: application/json`, `Accept-Language: vi-VN`, `TomTom-Api-Version: 3`, `TomTom-Api-Key` chỉ phía backend, `Content-Type: application/json`, `Attributes` giới hạn field.
+- Body Suggest/Discover: query chính xác sau trim khoảng trắng ngoài, `maxResults` tối đa 10, `filters.countryCodesIso2: ["VN"]`. Không gửi `origin`, `preferences.geometry`, `filters.geometry`, tỉnh/thành phố, POI category hay radius mặc định.
+- Session UUID v4/v7 được khởi tạo một lần mỗi picker, dùng xuyên suốt Suggest → Discover/Details, không lưu vào Activity.
+- Suggest không bảo đảm tọa độ. Chỉ gọi Details khi người dùng chọn item cần resolve; Discover đã có tọa độ thì không gọi Details lại. Chuyển `[longitude, latitude]` thành `latitude/longitude` đúng thứ tự.
+- Giữ nguyên thứ tự response TomTom, không xếp hạng, dedupe hoặc ghép LocationIQ. Không log key/raw response.
 
-## 4. Ranh giới phạm vi
+## Các phase
 
-Bao gồm đánh giá và kế hoạch cho backend, mobile và tương thích web admin. Không bao gồm xây lại social, thông báo, thanh toán, đặt chỗ, tối ưu lộ trình tự động, gallery nhiều ảnh, chỉ đường turn-by-turn trong app hoặc offline bản đồ toàn phần.
+1. **Plan:** hoàn tất rà soát và sửa bốn file trong thư mục này trước mọi thay đổi source.
+2. **Backend:** thống nhất mode Suggest/Search trên route hiện có; provider do server chọn; bỏ lat/lon khỏi search activity; giữ Details/Discover có validate; kiểm thử raw request, mapping, lỗi và config.
+3. **Flutter:** bỏ `locationContext`, provider toggle, viewport params và nearby/search-category code khỏi picker; thêm submit Discover; giữ search generation guard; chỉ một danh sách; tự điền tiêu đề có theo dõi giá trị đã tự điền.
+4. **Activity:** giữ nguyên API/schema/catalog-vs-custom; kiểm thử create/update/read, manual pin, ảnh upload và không gọi provider khi save/reopen.
+5. **Verification:** test backend/mobile, đối chiếu request `Hồ Hoàn Kiếm` khi itinerary là Đà Lạt, rà references trước khi xóa code; ghi rõ hạng mục bị chặn về điều khoản.
 
-Không tạo tài khoản/billing, không đăng ký dịch vụ, không thay key và không chạy migration trong phiên lập tài liệu. Những việc này là bước triển khai sau có cấu hình cụ thể.
+## Tiêu chí nghiệm thu
 
-## 5. Điều kiện hoàn thành MVP
+- Itinerary Đà Lạt + activity query `Hồ Hoàn Kiếm` gửi đúng nguyên văn; không gửi Đà Lạt, tọa độ, origin, bounds hoặc bias.
+- Search gõ và Search submit dùng Suggest/Discover tương ứng, đều giới hạn VN; response TomTom không bị thay thứ tự hoặc trộn nguồn.
+- Flutter có một ô, một list, map CARTO, marker, Hủy, Xác nhận; không có provider toggle hoặc category chips.
+- Response cũ không đè query mới; không tự chọn kết quả đầu; Details chỉ chạy khi cần.
+- Chọn POI điền tiêu đề nếu trống/đang còn là giá trị tự động trước đó; sửa tay thì không ghi đè. Manual pin xóa provider ID/name cũ.
+- Không ghi DB khi search. Activity dùng schema hiện có; TomTom persistence giữ sau cổng điều khoản.
+- Không thay README; LocationIQ/reverse, lịch trình, ảnh upload, CARTO và ORS route không hồi quy.
 
-- Tìm theo tên và theo nhóm POI trong khu vực đã chọn; luôn có “Tất cả” và ghim tay.
-- Không trộn catalog với custom; giữ hoạt động không vị trí.
-- Tên, ID và tọa độ thuộc cùng một lựa chọn sau các thao tác nhanh.
-- Có ảnh riêng hoạt động; fallback catalog/placeholder; không ảnh vẫn lưu.
-- Map, timeline và route nhất quán sau thêm/sửa/xóa/reorder.
-- Hết quota không làm mất dữ liệu; không tự chuyển sang dịch vụ trả phí.
-- Client cũ và web admin còn đọc/ghi theo hợp đồng cũ đã xác định.
-- Bộ kiểm thử ở M5 được chạy và ghi kết quả thực; lỗi còn lại được nêu rõ.
+## Tài liệu con
+
+- [Backend API và dữ liệu](01-backend-api-va-du-lieu.md)
+- [Flutter picker và form hoạt động](02-frontend-va-anh-hoat-dong.md)
+- [Lộ trình, kiểm thử và nghiệm thu](03-lo-trinh-kiem-thu-nghiem-thu.md)
