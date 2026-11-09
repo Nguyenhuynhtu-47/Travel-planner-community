@@ -8,6 +8,7 @@ import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
+import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
@@ -107,6 +108,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
         builder: (_) => ProfileScreen(authNotifier: widget.authNotifier),
       ),
     );
+  }
+
+  void _navigateToCreator(int? userId) {
+    if (userId == null || userId <= 0) return;
+    final currentId = int.tryParse('${widget.authNotifier.currentUser?['userId'] ?? ''}');
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => currentId == userId
+        ? ProfileScreen(authNotifier: widget.authNotifier)
+        : PublicProfileScreen(userId: userId, authNotifier: widget.authNotifier)));
   }
 
   void _navigateToDetail(ItinerarySummary itinerary) async {
@@ -573,6 +582,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             isFavorited: _exploreNotifier.isFavorited(itinerary.itineraryId),
             onFavoriteTap: () => _handleFavoriteTap(itinerary),
             onTap: () => _navigateToDetail(itinerary),
+            onCreatorTap: () => _navigateToCreator(itinerary.creator?.userId),
           );
         },
       ),
@@ -966,6 +976,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   onTap: () => _navigateToDetail(itin),
                   onFavoriteTap: () => _handleFavoriteTap(itin),
+                  onCreatorTap: () => _navigateToCreator(itin.creator?.userId),
                 );
               }).toList(),
             ),

@@ -8,6 +8,7 @@ class ActivityTimelineItem extends StatelessWidget {
   final bool isLast;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onComments;
 
   const ActivityTimelineItem({
     super.key,
@@ -15,6 +16,7 @@ class ActivityTimelineItem extends StatelessWidget {
     this.isLast = false,
     this.onEdit,
     this.onDelete,
+    this.onComments,
   });
 
   String _formatCost(double cost) {
@@ -387,6 +389,16 @@ class ActivityTimelineItem extends StatelessWidget {
                       ),
                     ),
                   ],
+                  if (onComments != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: onComments,
+                        icon: const Icon(Icons.mode_comment_outlined, size: 17),
+                        label: const Text('Bình luận hoạt động'),
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                      ),
+                    ),
                 ],
               ),
             ),
