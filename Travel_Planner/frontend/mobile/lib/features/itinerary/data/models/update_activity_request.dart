@@ -11,6 +11,7 @@ class UpdateActivityRequest {
   final double? longitude;
   final String? placeId;
   final String? locationProvider;
+  final String? imageUrl;
 
   const UpdateActivityRequest({
     required this.name,
@@ -25,6 +26,7 @@ class UpdateActivityRequest {
     this.longitude,
     this.placeId,
     this.locationProvider,
+    this.imageUrl,
   });
 
   Map<String, dynamic> toJson() {
@@ -43,12 +45,12 @@ class UpdateActivityRequest {
       'cost': cost ?? 0.0,
       'customLocationName':
           (customLocationName != null && customLocationName!.trim().isNotEmpty)
-              ? customLocationName!.trim()
-              : null,
+          ? customLocationName!.trim()
+          : null,
       'customAddress':
           (customAddress != null && customAddress!.trim().isNotEmpty)
-              ? customAddress!.trim()
-              : null,
+          ? customAddress!.trim()
+          : null,
       'latitude': latitude,
       'longitude': longitude,
       'placeId': (placeId != null && placeId!.trim().isNotEmpty)
@@ -56,8 +58,9 @@ class UpdateActivityRequest {
           : null,
       'locationProvider':
           (locationProvider != null && locationProvider!.trim().isNotEmpty)
-              ? locationProvider!.trim()
-              : null,
+          ? locationProvider!.trim()
+          : null,
+      'imageUrl': imageUrl?.trim(),
     };
   }
 

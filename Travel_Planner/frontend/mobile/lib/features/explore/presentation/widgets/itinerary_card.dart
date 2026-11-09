@@ -12,6 +12,7 @@ class ItineraryCard extends StatelessWidget {
   final IconData? actionIcon;
   final Color? actionIconColor;
   final VoidCallback? onActionTap;
+  final VoidCallback? onCreatorTap;
 
   const ItineraryCard({
     super.key,
@@ -23,6 +24,7 @@ class ItineraryCard extends StatelessWidget {
     this.actionIcon,
     this.actionIconColor,
     this.onActionTap,
+    this.onCreatorTap,
   });
 
   String _formatBudget(double budget) {
@@ -288,7 +290,10 @@ class ItineraryCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Divider(height: 1, color: AppColors.hairlineSoft),
                     const SizedBox(height: 8),
-                    Row(
+                    InkWell(
+                      onTap: onCreatorTap,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Row(
                       children: [
                         CircleAvatar(
                           radius: 10,
@@ -321,7 +326,7 @@ class ItineraryCard extends StatelessWidget {
                           ),
                         ),
                       ],
-                    ),
+                    )),
                   ],
                 ],
               ),

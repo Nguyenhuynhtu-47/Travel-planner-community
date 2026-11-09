@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -156,21 +157,19 @@ public class LocationServiceTest {
         }
 
         @Test
-        @DisplayName("Search with out-of-bounds latitude/longitude throws BadRequestException")
-        void search_outOfBoundsCoordinates_badRequest() throws Exception {
+        @DisplayName("Search ignores client-supplied map coordinates and keeps query independent")
+        void search_clientCoordinatesIgnored_ok() throws Exception {
             mockMvc.perform(get("/api/locations/search")
                             .param("query", "Hồ Gươm")
                             .param("latitude", "95.0")
                             .param("longitude", "105.8"))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value(containsString("latitude")));
+                    .andExpect(status().isOk());
 
             mockMvc.perform(get("/api/locations/search")
                             .param("query", "Hồ Gươm")
                             .param("latitude", "21.0")
                             .param("longitude", "190.0"))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value(containsString("longitude")));
+                    .andExpect(status().isOk());
         }
 
         @Test
@@ -263,6 +262,11 @@ public class LocationServiceTest {
                 }
 
                 @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
+                    return Collections.emptyList();
+                }
+
+                @Override
                 public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {
                     return null;
                 }
@@ -305,6 +309,11 @@ public class LocationServiceTest {
 
                 @Override
                 public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
                     return Collections.emptyList();
                 }
 
@@ -359,6 +368,11 @@ public class LocationServiceTest {
                 }
 
                 @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
+                    return Collections.emptyList();
+                }
+
+                @Override
                 public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {
                     callCount.incrementAndGet();
                     passedCoords[0] = latitude;
@@ -406,6 +420,11 @@ public class LocationServiceTest {
 
                 @Override
                 public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
                     return Collections.emptyList();
                 }
 
@@ -616,6 +635,42 @@ public class LocationServiceTest {
         }
 
         @Test
+        @DisplayName("Nearby is explicitly disabled until the provider feature flag is enabled")
+        void provider_nearbyDisabled_returnsServiceUnavailable() {
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(RestClient.builder(), props);
+            AppException ex = assertThrows(AppException.class,
+                    () -> provider.searchNearby(21.0, 105.0, "ALL", 5000, 10));
+            assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatus());
+        }
+
+        @Test
+        @DisplayName("Search parser drops missing coordinates but preserves valid zero coordinates")
+        void provider_searchCoordinates_missingDroppedZeroPreserved() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+            server.expect(requestTo(allOf(
+                            containsString("/search"),
+                            containsString("countrycodes=vn"),
+                            containsString("accept-language=vi"))))
+                    .andRespond(withSuccess("""
+                            [
+                              {"place_id":"bad","display_name":"No coordinates"},
+                              {"osm_type":"node","osm_id":1,"display_name":"Zero Point","lat":"0","lon":"0"}
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+            List<LocationSearchResultResponse> results = provider.search("point", 10, null, null);
+            assertEquals(1, results.size());
+            assertEquals(0.0, results.get(0).getLatitude());
+            assertEquals(0.0, results.get(0).getLongitude());
+            server.verify();
+        }
+
+        @Test
         @DisplayName("API Key is never leaked into API responses or error structures")
         void apiKey_neverExposedInOutput() throws Exception {
             mockMvc.perform(get("/api/locations/search")
@@ -636,7 +691,9 @@ public class LocationServiceTest {
             props.getGeocoding().setApiKey("test_pk_123");
             LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(restClient, props);
 
-            server.expect(requestTo(containsString("/v1/autocomplete")))
+            server.expect(requestTo(containsString("/search")))
+                    .andRespond(withStatus(HttpStatus.NOT_FOUND));
+            server.expect(requestTo(containsString("/autocomplete")))
                     .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
             List<LocationSearchResultResponse> results = provider.search("DiaDiemKhongCoThat123", 10, null, null);
@@ -656,7 +713,7 @@ public class LocationServiceTest {
             props.getGeocoding().setApiKey("test_pk_123");
             LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(restClient, props);
 
-            server.expect(requestTo(containsString("/v1/autocomplete")))
+            server.expect(requestTo(containsString("/search")))
                     .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 
             RateLimitExceededException ex = assertThrows(RateLimitExceededException.class,
@@ -696,13 +753,446 @@ public class LocationServiceTest {
             props.getGeocoding().setApiKey("test_pk_123");
             LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(restClient, props);
 
-            server.expect(requestTo(containsString("/v1/autocomplete")))
+            server.expect(requestTo(containsString("/search")))
                     .andRespond(withException(new SocketTimeoutException("Read timed out")));
 
             AppException ex = assertThrows(AppException.class,
                     () -> provider.search("Huế", 10, null, null));
             assertEquals(HttpStatus.GATEWAY_TIMEOUT, ex.getStatus());
             server.verify();
+        }
+    }
+
+    @Nested
+    @DisplayName("Vietnamese Language & Specific POI Search Tests")
+    class VietnameseAndPoiSearchTests {
+
+        @Test
+        @DisplayName("Search sends accept-language=vi by default to LocationIQ autocomplete")
+        void search_sendsVietnameseLanguageParam() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+
+            server.expect(requestTo(allOf(
+                            containsString("/search"),
+                            containsString("accept-language=vi"),
+                            containsString("q=qu%C3%A1n%20c%C3%A0%20ph%C3%AA"))))
+                    .andRespond(withSuccess("""
+                            [
+                              {
+                                "place_id": "101",
+                                "osm_type": "node",
+                                "osm_id": 555,
+                                "display_name": "Cà Phê Trứng, 39 Nguyễn Hữu Huân, Hà Nội",
+                                "display_place": "Cà Phê Trứng",
+                                "lat": "21.0345",
+                                "lon": "105.8541",
+                                "class": "amenity",
+                                "type": "cafe"
+                              }
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+
+            List<LocationSearchResultResponse> results = provider.search("quán cà phê", 5, null, null);
+            assertEquals(1, results.size());
+            assertEquals("Cà Phê Trứng", results.get(0).getName());
+            assertEquals("cafe", results.get(0).getCategory());
+            server.verify();
+        }
+
+        @Test
+        @DisplayName("Search with latitude and longitude generates proximity viewbox and avoids unsupported lat/lon params")
+        void search_withCoordinates_generatesProximityViewbox() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+
+            server.expect(requestTo(allOf(
+                            containsString("/search"),
+                            containsString("viewbox="),
+                            containsString("bounded=0"),
+                            not(containsString("importancesort=0")),
+                            not(containsString("lat=")),
+                            not(containsString("lon=")))))
+                    .andRespond(withSuccess("""
+                            [
+                              {
+                                "place_id": "202",
+                                "osm_type": "node",
+                                "osm_id": 888,
+                                "display_name": "Tiệm Bánh Tiramisu, Quận 1, Hồ Chí Minh",
+                                "display_place": "Tiệm Bánh Tiramisu",
+                                "lat": "10.7769",
+                                "lon": "106.7009",
+                                "class": "shop",
+                                "type": "bakery"
+                              }
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+
+            List<LocationSearchResultResponse> results = provider.search("tiệm bánh", 5, 10.7769, 106.7009);
+            assertEquals(1, results.size());
+            assertEquals("Tiệm Bánh Tiramisu", results.get(0).getName());
+            assertEquals("bakery", results.get(0).getCategory());
+            server.verify();
+        }
+
+        @Test
+        @DisplayName("Search parser prioritizes name:vi over English display_place or display_name")
+        void searchParser_prioritizesVietnameseName() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+
+            server.expect(requestTo(containsString("/search")))
+                    .andRespond(withSuccess("""
+                            [
+                              {
+                                "place_id": "303",
+                                "osm_type": "way",
+                                "osm_id": 999,
+                                "display_name": "Notre Dame Cathedral of Saigon, Công xã Paris, Bến Nghé, Quận 1, Hồ Chí Minh",
+                                "display_place": "Notre Dame Cathedral of Saigon",
+                                "address": {
+                                  "name:vi": "Nhà thờ Đức Bà Sài Gòn",
+                                  "name": "Notre Dame Cathedral of Saigon"
+                                },
+                                "lat": "10.7797",
+                                "lon": "106.6990",
+                                "class": "tourism",
+                                "type": "attraction"
+                              }
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+
+            List<LocationSearchResultResponse> results = provider.search("Nhà thờ Đức Bà", 5, null, null);
+            assertEquals(1, results.size());
+            assertEquals("Nhà thờ Đức Bà Sài Gòn", results.get(0).getName());
+            server.verify();
+        }
+
+        @Test
+        @DisplayName("Search parser preserves native brand names without artificial translation when name:vi is absent")
+        void searchParser_preservesNativeBrandNames() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+
+            server.expect(requestTo(containsString("/search")))
+                    .andRespond(withSuccess("""
+                            [
+                              {
+                                "place_id": "404",
+                                "osm_type": "node",
+                                "osm_id": 1234,
+                                "display_name": "Starbucks Reserve Han Thuyen, Hàn Thuyên, Bến Nghé, Quận 1, Hồ Chí Minh",
+                                "display_place": "Starbucks Reserve Han Thuyen",
+                                "lat": "10.7788",
+                                "lon": "106.6985",
+                                "class": "amenity",
+                                "type": "cafe"
+                              }
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+
+            List<LocationSearchResultResponse> results = provider.search("Starbucks", 5, null, null);
+            assertEquals(1, results.size());
+            assertEquals("Starbucks Reserve Han Thuyen", results.get(0).getName());
+            assertEquals("cafe", results.get(0).getCategory());
+            server.verify();
+        }
+
+        @Test
+        @DisplayName("Search deduplicates items having same placeId or same coordinate and name")
+        void search_deduplicatesIdenticalResults() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+
+            server.expect(requestTo(containsString("/search")))
+                    .andRespond(withSuccess("""
+                            [
+                              {
+                                "place_id": "505",
+                                "osm_type": "node",
+                                "osm_id": 777,
+                                "display_name": "Phở Hòa Pasteur, 260C Pasteur, Quận 3, Hồ Chí Minh",
+                                "display_place": "Phở Hòa Pasteur",
+                                "lat": "10.7876",
+                                "lon": "106.6899",
+                                "class": "amenity",
+                                "type": "restaurant"
+                              },
+                              {
+                                "place_id": "505",
+                                "osm_type": "node",
+                                "osm_id": 777,
+                                "display_name": "Phở Hòa Pasteur, 260C Pasteur, Quận 3, Hồ Chí Minh",
+                                "display_place": "Phở Hòa Pasteur",
+                                "lat": "10.7876",
+                                "lon": "106.6899",
+                                "class": "amenity",
+                                "type": "restaurant"
+                              },
+                              {
+                                "place_id": "506",
+                                "osm_type": "way",
+                                "osm_id": 888,
+                                "display_name": "Phở Hòa Pasteur, Pasteur, Hồ Chí Minh",
+                                "display_place": "Phở Hòa Pasteur",
+                                "lat": "10.78761",
+                                "lon": "106.68991",
+                                "class": "amenity",
+                                "type": "restaurant"
+                              }
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+
+            List<LocationSearchResultResponse> results = provider.search("Phở Hòa", 5, null, null);
+            // The duplicate with place_id 505 and the near-identical coord key for Phở Hòa Pasteur are filtered out
+            assertEquals(1, results.size());
+            assertEquals("Phở Hòa Pasteur", results.get(0).getName());
+            server.verify();
+        }
+
+        @Test
+        @DisplayName("Reverse geocoding sends accept-language=vi")
+        void reverseGeocode_sendsVietnameseLanguageParam() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+
+            server.expect(requestTo(allOf(
+                            containsString("/v1/reverse"),
+                            containsString("accept-language=vi"),
+                            containsString("lat=10.7769"),
+                            containsString("lon=106.7009"))))
+                    .andRespond(withSuccess("""
+                            {
+                              "place_id": "606",
+                              "osm_type": "node",
+                              "osm_id": 999,
+                              "display_name": "Đồng Khởi, Bến Nghé, Quận 1, Thành phố Hồ Chí Minh",
+                              "display_place": "Đường Đồng Khởi",
+                              "lat": "10.7769",
+                              "lon": "106.7009"
+                            }
+                            """, MediaType.APPLICATION_JSON));
+
+            LocationSearchResultResponse response = provider.reverseGeocode(10.7769, 106.7009);
+            assertNotNull(response);
+            assertEquals("Đường Đồng Khởi", response.getName());
+            server.verify();
+        }
+
+        @Test
+        @DisplayName("Search handles unaccented Vietnamese queries seamlessly")
+        void search_handlesUnaccentedVietnameseQuery() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+            MapProperties props = new MapProperties();
+            props.getGeocoding().setApiKey("test_pk_123");
+            LocationIqGeocodingProvider provider = new LocationIqGeocodingProvider(builder.build(), props);
+
+            server.expect(requestTo(allOf(
+                            containsString("/search"),
+                            containsString("q=tiem%20banh"))))
+                    .andRespond(withSuccess("""
+                            [
+                              {
+                                "place_id": "707",
+                                "osm_type": "node",
+                                "osm_id": 111,
+                                "display_name": "Tiệm Bánh ABC, Nguyễn Trãi, Quận 5",
+                                "display_place": "Tiệm Bánh ABC",
+                                "lat": "10.7550",
+                                "lon": "106.6700",
+                                "class": "shop",
+                                "type": "bakery"
+                              }
+                            ]
+                            """, MediaType.APPLICATION_JSON));
+
+            List<LocationSearchResultResponse> results = provider.search("tiem banh", 5, null, null);
+            assertEquals(1, results.size());
+            assertEquals("Tiệm Bánh ABC", results.get(0).getName());
+            assertEquals("bakery", results.get(0).getCategory());
+            server.verify();
+        }
+    }
+
+    // ========================================================
+    // 7. TWO-STAGE QUERY UNDERSTANDING & GEOGRAPHIC FILTERING
+    // ========================================================
+
+    @Nested
+    @DisplayName("Two-Stage Query Understanding & Geographic Filtering Tests")
+    class TwoStageQueryUnderstandingAndGeographicFilteringTests {
+
+        @Test
+        @DisplayName("Search 'Cơm tấm Long Xuyên' resolves Long Xuyên area and strictly filters out Saigon venues")
+        void search_twoStage_decomposesComTamLongXuyen_andFiltersOutDistantSaigonResults() {
+            GeocodingProvider mockProvider = new GeocodingProvider() {
+                @Override
+                public String getProviderName() {
+                    return "LOCATION_IQ";
+                }
+
+                @Override
+                public boolean isConfigured() {
+                    return true;
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {
+                    if (query.equalsIgnoreCase("Long Xuyên")) {
+                        // Stage A: Geocoding locality
+                        return List.of(LocationSearchResultResponse.builder()
+                                .placeId("locality_lx")
+                                .name("Long Xuyên")
+                                .formattedAddress("Thành phố Long Xuyên, Tỉnh An Giang, Việt Nam")
+                                .latitude(10.37196)
+                                .longitude(105.41491)
+                                .boundingBox(List.of(10.30307, 10.43969, 105.36051, 105.49606))
+                                .type("city")
+                                .category("administrative")
+                                .provider("LOCATION_IQ")
+                                .build());
+                    }
+
+                    if (query.toLowerCase().contains("cơm tấm long xuyên")) {
+                        // Combined search returns false positive in TP.HCM (175km away)
+                        return List.of(LocationSearchResultResponse.builder()
+                                .placeId("saigon_fp")
+                                .name("Long Xuyên Quán 2 - Cơm Tấm Bánh Tằm Bì")
+                                .formattedAddress("Đường số 45, Phường Khánh Hội, Thành phố Thủ Đức, Thành phố Hồ Chí Minh, Việt Nam")
+                                .latitude(10.7592)
+                                .longitude(106.6994)
+                                .category("restaurant")
+                                .provider("LOCATION_IQ")
+                                .build());
+                    }
+
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchInArea(
+                        String query, int limit, Double latitude, Double longitude, List<Double> boundingBox, Integer radiusMeters) {
+                    if (query.equalsIgnoreCase("Cơm tấm") || query.equalsIgnoreCase("Cơm")) {
+                        // Stage B.1: Found local genuine restaurant in Long Xuyên
+                        return List.of(LocationSearchResultResponse.builder()
+                                .placeId("lx_restaurant_1")
+                                .name("Cơm Hai Thuế")
+                                .formattedAddress("245/3, Lương Văn Cù, Long Xuyên, Tỉnh An Giang, Việt Nam")
+                                .latitude(10.3799)
+                                .longitude(105.4424)
+                                .category("restaurant")
+                                .provider("LOCATION_IQ")
+                                .build());
+                    }
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {
+                    return null;
+                }
+            };
+
+            LocationServiceImpl service = new LocationServiceImpl(mockProvider);
+            List<LocationSearchResultResponse> results = service.searchLocations("Cơm tấm Long Xuyên", 10, null, null);
+
+            assertNotNull(results);
+            assertFalse(results.isEmpty());
+
+            // Ensure the genuine restaurant in Long Xuyên is present
+            assertTrue(results.stream().anyMatch(r -> r.getName().equals("Cơm Hai Thuế")));
+
+            // STRICT GEOGRAPHIC FILTER: Ensure false-positive restaurant in TP.HCM was filtered out!
+            assertFalse(results.stream().anyMatch(r -> r.getName().contains("Long Xuyên Quán 2")),
+                    "False positive restaurant in TP.HCM must be discarded by GeographicFilterService!");
+            assertFalse(results.stream().anyMatch(r -> r.getFormattedAddress().contains("Thành phố Hồ Chí Minh")),
+                    "Cross-province false positive in TP.HCM must not be returned for Long Xuyên search!");
+        }
+
+        @Test
+        @DisplayName("Search with explicit location returns locality fallback when no POIs exist in the area")
+        void search_twoStage_returnsFallbackLocalityWhenNoPoiInArea() {
+            GeocodingProvider mockProvider = new GeocodingProvider() {
+                @Override
+                public String getProviderName() {
+                    return "LOCATION_IQ";
+                }
+
+                @Override
+                public boolean isConfigured() {
+                    return true;
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {
+                    if (query.equalsIgnoreCase("Hồ Gươm")) {
+                        return List.of(LocationSearchResultResponse.builder()
+                                .placeId("lake_hg")
+                                .name("Hồ Gươm")
+                                .formattedAddress("Hồ Hoàn Kiếm, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội, Việt Nam")
+                                .latitude(21.0288)
+                                .longitude(105.8525)
+                                .boundingBox(List.of(21.0259, 21.0316, 105.8511, 105.8535))
+                                .type("lake")
+                                .category("water")
+                                .provider("LOCATION_IQ")
+                                .build());
+                    }
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchInArea(
+                        String query, int limit, Double latitude, Double longitude, List<Double> boundingBox, Integer radiusMeters) {
+                    return Collections.emptyList(); // No bakery in OSM
+                }
+
+                @Override
+                public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {
+                    return null;
+                }
+            };
+
+            LocationServiceImpl service = new LocationServiceImpl(mockProvider);
+            List<LocationSearchResultResponse> results = service.searchLocations("tiệm bánh gần Hồ Gươm", 10, null, null);
+
+            assertNotNull(results);
+            assertEquals(1, results.size());
+            assertEquals("Hồ Gươm (Khu vực)", results.get(0).getName());
+            assertEquals("locality", results.get(0).getType());
+            assertTrue(Boolean.TRUE.equals(results.get(0).getIsLocalityFallback()));
+            assertEquals(21.0288, results.get(0).getLatitude(), 0.001);
+            assertEquals(105.8525, results.get(0).getLongitude(), 0.001);
         }
     }
 }

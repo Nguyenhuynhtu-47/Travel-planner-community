@@ -11,6 +11,7 @@ class CreateActivityRequest {
   final double? longitude;
   final String? placeId;
   final String? locationProvider;
+  final String? imageUrl;
 
   const CreateActivityRequest({
     required this.name,
@@ -25,6 +26,7 @@ class CreateActivityRequest {
     this.longitude,
     this.placeId,
     this.locationProvider,
+    this.imageUrl,
   });
 
   Map<String, dynamic> toJson() {
@@ -48,6 +50,8 @@ class CreateActivityRequest {
         'placeId': placeId!.trim(),
       if (locationProvider != null && locationProvider!.trim().isNotEmpty)
         'locationProvider': locationProvider!.trim(),
+      if (imageUrl != null && imageUrl!.trim().isNotEmpty)
+        'imageUrl': imageUrl!.trim(),
     };
   }
 

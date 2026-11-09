@@ -16,6 +16,7 @@ class ActivityDetail {
   final double? longitude;
   final String? placeId;
   final String? locationProvider;
+  final String? imageUrl;
 
   const ActivityDetail({
     required this.activityId,
@@ -33,6 +34,7 @@ class ActivityDetail {
     this.longitude,
     this.placeId,
     this.locationProvider,
+    this.imageUrl,
   });
 
   factory ActivityDetail.fromJson(Map<String, dynamic> json) {
@@ -67,6 +69,7 @@ class ActivityDetail {
           : num.tryParse(json['longitude']?.toString() ?? '')?.toDouble(),
       placeId: json['placeId']?.toString(),
       locationProvider: json['locationProvider']?.toString(),
+      imageUrl: json['imageUrl']?.toString(),
     );
   }
 

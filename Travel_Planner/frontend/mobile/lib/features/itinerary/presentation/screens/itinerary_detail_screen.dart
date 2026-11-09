@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -19,6 +21,8 @@ import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/itinerary_day_card.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../comments/presentation/widgets/itinerary_comments_section.dart';
+import '../../../profile/presentation/screens/public_profile_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../data/models/reorder_activity_item.dart';
 import '../widgets/reorder_activities_dialog.dart';
 import '../widgets/itinerary_map_preview_card.dart';
@@ -485,14 +489,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     );
   }
 
-
   SocialStateUpdate _buildSocialUpdate([ItineraryDetail? itinerary]) {
     final detail = itinerary ?? _notifier.itineraryDetail;
     return SocialStateUpdate(
       itineraryId: widget.itineraryId,
       isFavorited: _userFavoritedOverride ?? detail?.isFavorited,
       isSaved: _userSavedOverride ?? detail?.isSaved,
-      userRating: _userRatingCleared ? null : (_userRatingOverride ?? detail?.userRating),
+      userRating: _userRatingCleared
+          ? null
+          : (_userRatingOverride ?? detail?.userRating),
       averageRating: _averageRatingOverride ?? detail?.averageRating,
       ratingCount: _ratingCountOverride ?? detail?.ratingCount,
       favoriteCount: _favoriteCountOverride ?? detail?.favoriteCount,
@@ -519,9 +524,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
 
     try {
       if (nextSaved) {
-        await _socialRepository.saveItinerary(itinerary.itineraryId, token: _effectiveToken);
+        await _socialRepository.saveItinerary(
+          itinerary.itineraryId,
+          token: _effectiveToken,
+        );
       } else {
-        await _socialRepository.removeSavedItinerary(itinerary.itineraryId, token: _effectiveToken);
+        await _socialRepository.removeSavedItinerary(
+          itinerary.itineraryId,
+          token: _effectiveToken,
+        );
       }
       setState(() {
         _userSavedOverride = nextSaved;
@@ -532,7 +543,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(nextSaved ? 'Đã lưu lịch trình' : 'Đã bỏ lưu lịch trình'),
+            content: Text(
+              nextSaved ? 'Đã lưu lịch trình' : 'Đã bỏ lưu lịch trình',
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -540,10 +553,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -555,7 +565,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     }
   }
 
-  Future<void> _handleToggleFavorite(ItineraryDetail itinerary, bool isOwner) async {
+  Future<void> _handleToggleFavorite(
+    ItineraryDetail itinerary,
+    bool isOwner,
+  ) async {
     if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -579,7 +592,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     final currentFav = _userFavoritedOverride ?? itinerary.isFavorited;
     final nextFav = !currentFav;
     final currentCount = _favoriteCountOverride ?? itinerary.favoriteCount;
-    final nextCount = nextFav ? currentCount + 1 : (currentCount > 0 ? currentCount - 1 : 0);
+    final nextCount = nextFav
+        ? currentCount + 1
+        : (currentCount > 0 ? currentCount - 1 : 0);
 
     setState(() {
       _isTogglingFavorite = true;
@@ -587,9 +602,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
 
     try {
       if (nextFav) {
-        await _socialRepository.addFavorite(itinerary.itineraryId, token: _effectiveToken);
+        await _socialRepository.addFavorite(
+          itinerary.itineraryId,
+          token: _effectiveToken,
+        );
       } else {
-        await _socialRepository.removeFavorite(itinerary.itineraryId, token: _effectiveToken);
+        await _socialRepository.removeFavorite(
+          itinerary.itineraryId,
+          token: _effectiveToken,
+        );
       }
       setState(() {
         _userFavoritedOverride = nextFav;
@@ -601,7 +622,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình'),
+            content: Text(
+              nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình',
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -609,10 +632,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -624,7 +644,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     }
   }
 
-  Future<void> _openRatingDialog(ItineraryDetail itinerary, bool isOwner) async {
+  Future<void> _openRatingDialog(
+    ItineraryDetail itinerary,
+    bool isOwner,
+  ) async {
     if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -645,7 +668,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       return;
     }
 
-    final currentRating = _userRatingCleared ? null : (_userRatingOverride ?? itinerary.userRating);
+    final currentRating = _userRatingCleared
+        ? null
+        : (_userRatingOverride ?? itinerary.userRating);
     final initialScore = currentRating ?? 5;
     int selectedScore = initialScore;
     final hasExistingRating = currentRating != null;
@@ -657,7 +682,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
           builder: (dialogCtx, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
               contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -665,7 +692,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
               actionsAlignment: MainAxisAlignment.end,
               title: Text(
                 hasExistingRating ? 'Cập nhật đánh giá' : 'Đánh giá lịch trình',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -673,7 +703,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   const Text(
                     'Chọn số sao để đánh giá lịch trình này:',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   SizedBox(
@@ -690,7 +723,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 2),
                             child: IconButton(
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
+                              ),
                               visualDensity: VisualDensity.compact,
                               tooltip: '$starValue sao',
                               icon: Icon(
@@ -742,7 +778,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   onPressed: () => Navigator.of(ctx).pop(selectedScore),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   child: const Text('Gửi'),
                 ),
@@ -757,7 +795,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
 
     if (result == -1) {
       try {
-        await _socialRepository.deleteRating(itinerary.itineraryId, token: _effectiveToken);
+        await _socialRepository.deleteRating(
+          itinerary.itineraryId,
+          token: _effectiveToken,
+        );
         final currentCount = _ratingCountOverride ?? itinerary.ratingCount;
         setState(() {
           _userRatingOverride = null;
@@ -768,14 +809,16 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
         final update = _buildSocialUpdate(itinerary);
         widget.onSocialUpdate?.call(update);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa đánh giá')),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Đã xóa đánh giá')));
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
+            SnackBar(
+              content: Text('Lỗi: $e'),
+              backgroundColor: AppColors.error,
+            ),
           );
         }
       }
@@ -790,7 +833,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
           _userRatingOverride = result;
           _userRatingCleared = false;
           if (response['averageRating'] is num) {
-            _averageRatingOverride = (response['averageRating'] as num).toDouble();
+            _averageRatingOverride = (response['averageRating'] as num)
+                .toDouble();
           }
           if (response['ratingCount'] is num) {
             _ratingCountOverride = (response['ratingCount'] as num).toInt();
@@ -807,7 +851,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
+            SnackBar(
+              content: Text('Lỗi: $e'),
+              backgroundColor: AppColors.error,
+            ),
           );
         }
       }
@@ -844,8 +891,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                     currentUsername.toLowerCase() ==
                         creatorUsername.toLowerCase()));
 
-        final effectiveSaved = _userSavedOverride ?? itinerary?.isSaved ?? false;
-        final effectiveFavorited = _userFavoritedOverride ?? itinerary?.isFavorited ?? false;
+        final effectiveSaved =
+            _userSavedOverride ?? itinerary?.isSaved ?? false;
+        final effectiveFavorited =
+            _userFavoritedOverride ?? itinerary?.isFavorited ?? false;
 
         return PopScope(
           canPop: true,
@@ -865,23 +914,35 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 icon: const Icon(Icons.arrow_back),
                 tooltip: 'Quay lại',
                 onPressed: () {
-                  Navigator.of(context).pop(_hasSocialChanges ? _buildSocialUpdate(itinerary) : null);
+                  Navigator.of(context).pop(
+                    _hasSocialChanges ? _buildSocialUpdate(itinerary) : null,
+                  );
                 },
               ),
               actions: [
                 if (itinerary != null) ...[
                   IconButton(
                     icon: Icon(
-                      effectiveSaved ? Icons.bookmark : Icons.bookmark_border_rounded,
-                      color: effectiveSaved ? AppColors.savedActive : AppColors.textPrimary,
+                      effectiveSaved
+                          ? Icons.bookmark
+                          : Icons.bookmark_border_rounded,
+                      color: effectiveSaved
+                          ? AppColors.savedActive
+                          : AppColors.textPrimary,
                     ),
                     tooltip: effectiveSaved ? 'Bỏ lưu' : 'Lưu lịch trình',
-                    onPressed: _isTogglingSave ? null : () => _handleToggleSave(itinerary),
+                    onPressed: _isTogglingSave
+                        ? null
+                        : () => _handleToggleSave(itinerary),
                   ),
                   IconButton(
                     icon: Icon(
-                      effectiveFavorited ? Icons.favorite : Icons.favorite_border_rounded,
-                      color: effectiveFavorited ? Colors.redAccent : AppColors.textPrimary,
+                      effectiveFavorited
+                          ? Icons.favorite
+                          : Icons.favorite_border_rounded,
+                      color: effectiveFavorited
+                          ? Colors.redAccent
+                          : AppColors.textPrimary,
                     ),
                     tooltip: effectiveFavorited ? 'Bỏ yêu thích' : 'Yêu thích',
                     onPressed: _isTogglingFavorite
@@ -1150,6 +1211,13 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                     onDeleteActivity: isOwner
                         ? (act) => _handleDeleteActivity(itinerary, day, act)
                         : null,
+                    onActivityComments:
+                        itinerary.visibility == 'PUBLIC' &&
+                            (itinerary.status == 'ACTIVE' ||
+                                itinerary.status == 'PUBLISHED')
+                        ? (act) =>
+                              _openActivityComments(act.activityId, act.name)
+                        : null,
                     onReorderActivities: isOwner
                         ? () => _handleReorderActivities(itinerary, day)
                         : null,
@@ -1218,7 +1286,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 ),
               ),
           ],
-          if ((itinerary.status == 'ACTIVE' || itinerary.status == 'PUBLISHED') &&
+          if ((itinerary.status == 'ACTIVE' ||
+                  itinerary.status == 'PUBLISHED') &&
               itinerary.visibility == 'PUBLIC') ...[
             SliverToBoxAdapter(
               child: ItineraryCommentsSection(
@@ -1227,11 +1296,82 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 authNotifier: widget.authNotifier,
               ),
             ),
-            SliverToBoxAdapter(
-              child: _buildRatingSection(itinerary, isOwner),
-            ),
+            SliverToBoxAdapter(child: _buildRatingSection(itinerary, isOwner)),
           ],
         ],
+      ),
+    );
+  }
+
+  void _openActivityComments(int activityId, String activityName) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) {
+        final mediaQuery = MediaQuery.of(context);
+        final availableHeight =
+            mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+          child: SizedBox(
+            height: availableHeight * 0.82,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.base,
+                    AppSpacing.md,
+                    AppSpacing.base,
+                    0,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          activityName,
+                          style: AppTextStyles.titleMd.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: ActivityCommentsSection(
+                      activityId: activityId,
+                      token: _effectiveToken,
+                      authNotifier: widget.authNotifier,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openCreatorProfile(int userId) {
+    final currentId = int.tryParse(
+      '${widget.authNotifier?.currentUser?['userId'] ?? ''}',
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => currentId == userId && widget.authNotifier != null
+            ? ProfileScreen(authNotifier: widget.authNotifier!)
+            : PublicProfileScreen(
+                userId: userId,
+                authNotifier: widget.authNotifier,
+              ),
       ),
     );
   }
@@ -1288,14 +1428,13 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     );
   }
 
-
   Widget _buildRatingSection(ItineraryDetail itinerary, bool isOwner) {
-    final effectiveUserRating =
-        _userRatingCleared ? null : (_userRatingOverride ?? itinerary.userRating);
+    final effectiveUserRating = _userRatingCleared
+        ? null
+        : (_userRatingOverride ?? itinerary.userRating);
     final effectiveAverageRating =
         _averageRatingOverride ?? itinerary.averageRating;
-    final effectiveRatingCount =
-        _ratingCountOverride ?? itinerary.ratingCount;
+    final effectiveRatingCount = _ratingCountOverride ?? itinerary.ratingCount;
     final hasUserRating = effectiveUserRating != null;
     final isGuest =
         widget.authNotifier != null && !widget.authNotifier!.isAuthenticated;
@@ -1325,7 +1464,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   onPressed: () => _openRatingDialog(itinerary, isOwner),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                   ),
                   icon: Icon(
                     hasUserRating
@@ -1382,11 +1524,13 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                           Row(
                             children: List.generate(5, (index) {
                               final starThreshold = index + 1;
-                              final isFilled = effectiveRatingCount > 0 &&
+                              final isFilled =
+                                  effectiveRatingCount > 0 &&
                                   (effectiveAverageRating >= starThreshold ||
                                       (effectiveAverageRating >=
                                           starThreshold - 0.25));
-                              final isHalf = effectiveRatingCount > 0 &&
+                              final isHalf =
+                                  effectiveRatingCount > 0 &&
                                   !isFilled &&
                                   effectiveAverageRating >=
                                       starThreshold - 0.75;
@@ -1394,8 +1538,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                                 isFilled
                                     ? Icons.star_rounded
                                     : (isHalf
-                                        ? Icons.star_half_rounded
-                                        : Icons.star_outline_rounded),
+                                          ? Icons.star_half_rounded
+                                          : Icons.star_outline_rounded),
                                 color: Colors.amber,
                                 size: 20,
                               );
@@ -1513,8 +1657,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                         onTap: () => _openRatingDialog(itinerary, isOwner),
                         borderRadius: BorderRadius.circular(4),
                         child: const Padding(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
                           child: Text(
                             'Chỉnh sửa',
                             style: TextStyle(
@@ -1544,7 +1690,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           minimumSize: Size.zero,
                           side: const BorderSide(color: AppColors.primary),
                           shape: RoundedRectangleBorder(
@@ -1655,27 +1803,34 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (itinerary.creator != null) ...[
-                    Row(
-                      children: [
-                        _creatorAvatar(itinerary.creator!.avatar),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            itinerary.creator!.displayName != 'anonymous'
-                                ? 'Tạo bởi ${itinerary.creator!.displayName}'
-                                : (itinerary.creator!.userId != 0
-                                      ? 'Tạo bởi Người dùng #${itinerary.creator!.userId}'
-                                      : 'Tạo bởi người dùng ẩn danh'),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
+                    InkWell(
+                      onTap: itinerary.creator!.userId == 0
+                          ? null
+                          : () =>
+                                _openCreatorProfile(itinerary.creator!.userId),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Row(
+                        children: [
+                          _creatorAvatar(itinerary.creator!.avatar),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              itinerary.creator!.displayName != 'anonymous'
+                                  ? 'Tạo bởi ${itinerary.creator!.displayName}'
+                                  : (itinerary.creator!.userId != 0
+                                        ? 'Tạo bởi Người dùng #${itinerary.creator!.userId}'
+                                        : 'Tạo bởi người dùng ẩn danh'),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 4),
                   ],

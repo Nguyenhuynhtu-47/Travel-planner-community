@@ -7,7 +7,7 @@ class LocationRepository {
   final ApiClient _apiClient;
 
   LocationRepository({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient();
 
   /// Search places and autocomplete locations by query.
   ///
@@ -16,9 +16,9 @@ class LocationRepository {
   Future<List<LocationSearchResult>> searchLocations(
     String query, {
     int? limit,
-    double? latitude,
-    double? longitude,
     String? token,
+    String mode = 'SUGGEST',
+    String? sessionId,
   }) async {
     final trimmed = query.trim();
     if (trimmed.length < 2) {
@@ -27,11 +27,9 @@ class LocationRepository {
 
     final queryParameters = <String, dynamic>{
       'query': trimmed,
+      'mode': mode,
+      'sessionId': ?sessionId,
       if (limit != null && limit >= 1 && limit <= 20) 'limit': limit,
-      if (latitude != null && latitude >= -90.0 && latitude <= 90.0)
-        'latitude': latitude,
-      if (longitude != null && longitude >= -180.0 && longitude <= 180.0)
-        'longitude': longitude,
     };
 
     final response = await _apiClient.get(
@@ -48,6 +46,22 @@ class LocationRepository {
     }
 
     return const [];
+  }
+
+  Future<LocationSearchResult?> resolveTomTomPlace({
+    required String type,
+    required String id,
+    String? sessionId,
+    String? token,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.locationTomTomDetailsEndpoint,
+      queryParameters: {'type': type, 'id': id, 'sessionId': ?sessionId},
+      token: token,
+    );
+    return response is Map<String, dynamic>
+        ? LocationSearchResult.fromJson(response)
+        : null;
   }
 
   /// Reverse geocodes coordinates (latitude, longitude) to place information.
@@ -84,4 +98,3 @@ class LocationRepository {
     }
   }
 }
-

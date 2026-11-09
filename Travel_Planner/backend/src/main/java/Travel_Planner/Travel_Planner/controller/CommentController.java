@@ -37,4 +37,5 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(commentService.createComment(itineraryId, request, username));
     }
+
 }

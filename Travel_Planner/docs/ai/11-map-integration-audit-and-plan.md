@@ -1,0 +1,1922 @@
+# Map Integration Audit and Implementation Plan — Strictly Free Services & Cost-Controlled Architecture
+
+## 1. Executive Summary: Free-Only Strategy & Cost Boundaries
+
+This document presents a comprehensive technical audit and implementation plan for integrating map and geographical capabilities into the **Travel Planner** platform.
+
+Following project mandates, this plan is engineered under **strict cost-controlled, free-first architectural principles**:
+- **No mandatory paid dependencies, no paid subscriptions, and no automatic billing.**
+- **No paid usage beyond free tiers.**
+- **No automatic fallback to paid providers.**
+- **No automatic production fallback to public community infrastructure:** Public OpenStreetMap tile servers (`tile.openstreetmap.org`) and the public OSRM demo server (`router.project-osrm.org`) are strictly restricted to manual local development/testing; they are **never** configured as automatic production fallbacks.
+- **Clear cost boundaries:** Free software and free-tier API usage are strictly distinguished from potentially paid hosting, domain, SSL, and server infrastructure.
+- **Explicit human approval required:** Introducing any paid service, commercial plan upgrade, or billing account requires explicit human approval from the project owner.
+- **Non-commercial usage assumption:** CARTO Basemaps provides 5,000,000 monthly tile requests for non-commercial/academic use (versus 1,000,000 for commercial use). This project operates under an explicit non-commercial academic assumption (university capstone project `TLCN`); any future commercialization requires formal reassessment of tile licensing and quota limits.
+- **Core feature independence:** Core map and location features (creating activities, dropping pins, saving coordinates, displaying markers, and local straight-line distance calculations) remain fully operational even if all third-party geocoding and routing services are exhausted or disabled.
+
+### Verified Technology Stack (from Codebase)
+- **Backend:** Spring Boot 4.1.1 (Java 22), Spring Security, Spring Data JPA, MySQL 8 (verified in [`pom.xml`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/pom.xml#L8-L32))
+- **Mobile Client:** Flutter (Dart 3.13.5, Flutter 3.47.7, Material 3)
+- **Web Client:** Flutter Web (Admin/Moderation & Content Management)
+- **Communication:** RESTful JSON API with JWT Bearer Token Authentication
+
+### Current State Overview
+1. **Database & Data Model:** The `destinations` table in MySQL contains `latitude` and `longitude` fields (`DECIMAL(10, 7)`) and `address`. Seed data ([`DataSeeder.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/seeder/DataSeeder.java#L261-L442)) contains 15+ realistic Vietnamese coordinates (Hanoi, Ha Long, Da Nang, Da Lat, Phu Quoc). However, the `activities` table does not store coordinates directly, and the `itineraries` table stores only a free-form string for `location`.
+2. **Backend APIs:** [`DestinationController.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/controller/DestinationController.java) exposes basic read-only APIs (`GET /api/destinations?keyword=...` and `GET /api/destinations/{id}`). There are no APIs for external place search, geocoding, reverse geocoding, route calculation, or user/admin destination creation.
+3. **Flutter Mobile:** Destination selection in [`ActivityFormDialog`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart#L504-L560) is currently a plain `DropdownButtonFormField` that lists pre-seeded database destinations. Itinerary location in `CreateItineraryScreen` is a simple text field. **Zero map rendering packages or widgets exist in the mobile codebase.**
+4. **Flutter Web:** Flutter Web is currently in an early skeleton stage (only Auth and Profile are implemented). Destination and itinerary management features (`locations/`, `itineraries/`) contain only `.gitkeep`.
+5. **No External Map Provider:** No map SDK, tile service, or geocoding provider has been integrated or configured.
+
+### Strategic Architecture: Decoupled & Free-First
+We adopt a **Decoupled Free-First Architecture** where client map rendering, core data management, and optional cloud services are isolated into distinct tiers:
+1. **Free Client Map Canvas (`flutter_map`):** An open-source (MIT), pure Dart rendering engine that draws raster map tiles directly on the Flutter canvas without native SDK bindings, license fees, or platform view bugs.
+2. **Direct Tile Delivery without Secrets:** Flutter clients stream raster tiles directly from free-tier tile CDNs (primarily CARTO Basemaps Voyager/Positron) configured via `--dart-define` (`String.fromEnvironment`). Direct tile requests eliminate backend proxy bottlenecks.
+3. **Core Feature Independence (Offline-Ready Pinning):** Users can manually drop pins on the map to save exact coordinates (`latitude`, `longitude`) without calling any external geocoding API. An itinerary with coordinates displays markers and calculates straight-line connections purely from internal database records.
+4. **Optional Backend Proxy for Search & Routing:** Upstream geocoding (LocationIQ free tier) and routing (OpenRouteService standard tier) are encapsulated behind Spring Boot REST endpoints (`/api/locations/*`, `/api/itineraries/{id}/days/{dayId}/route`). These services are strictly optional enhancements: if quotas are reached, the system gracefully degrades to manual coordinate input and local straight-line distance calculations.
+5. **Universal Free External Navigation:** Turn-by-turn navigation is handed off to native navigation apps (Google Maps / Apple Maps) via standard, completely free deep-link URLs (`https://www.google.com/maps/dir/?api=1&...`), requiring zero API keys or billing accounts.
+
+*Latest Pricing and Terms Verification Date: October 2026.*
+
+---
+
+## 2. Current Implementation Audit
+
+| Component | Feature / Capability | Documented in Docs | Codebase Reality | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Backend** | Spring Boot Version | Docs mentioned v3 | [`pom.xml`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/pom.xml#L8) specifies `spring-boot-starter-parent` v4.1.1 (Java 22) | **Verified** |
+| **Backend** | Destination Entity with Lat/Lng | Yes (`00-project-context.md`, specs) | Defined in [`Destination.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Destination.java#L52-L56) | **Already Implemented** |
+| **Backend** | Seed Destination Coordinates | Yes | 15+ Vietnamese POIs in [`DataSeeder.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/seeder/DataSeeder.java#L261-L442) | **Already Implemented** |
+| **Backend** | Destination Read Endpoints | Yes | `GET /api/destinations`, `GET /api/destinations/{id}` in [`DestinationController.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/controller/DestinationController.java) | **Already Implemented** |
+| **Backend** | Activity Linking to Destination | Yes | Optional `destination_id` in [`Activity.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Activity.java#L47-L49) | **Already Implemented** |
+| **Backend** | Activity Ordering & Two-Pass Reorder | Yes | Implemented in [`ItineraryServiceImpl.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/ItineraryServiceImpl.java#L670-L730) | **Already Implemented** |
+| **Backend** | Itinerary Day Ordering | Yes | Implemented with `uk_itinerary_day_number` | **Already Implemented** |
+| **Backend** | Admin Destination Management CRUD | Mentioned in Spec §12 | Only public read operations exist; no POST, PUT, DELETE in [`DestinationController.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/controller/DestinationController.java) | **Not Implemented** |
+| **Backend** | External Place Search / Autocomplete | Mentioned in Spec §8 | No search service or external map provider integration | **Not Implemented** |
+| **Backend** | Geocoding & Reverse Geocoding | Mentioned in Spec §8 | No geocoding service | **Not Implemented** |
+| **Backend** | Per-Day Route Calculation | Mentioned in Spec §8 | No routing service or distance calculation | **Not Implemented** |
+| **Backend** | Activity Custom Coordinates | Not specified | `Activity` has no coordinate columns; relies strictly on `destination_id` | **Not Implemented** |
+| **Mobile** | Destination Selection Dropdown | Yes | Implemented in [`ActivityFormDialog`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart#L504-L560) | **Already Implemented** |
+| **Mobile** | Destination Display in Timeline | Yes | Implemented in [`ActivityTimelineItem`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_timeline_item.dart#L235-L310) | **Already Implemented** |
+| **Mobile** | Map Display / Viewer Widget | Mentioned in Spec §8 | No map library in `pubspec.yaml`; zero map widgets | **Not Implemented** |
+| **Mobile** | Place Search / Map Picker Modal | Mentioned in Spec §8 | Only static database dropdown; no map picker | **Not Implemented** |
+| **Mobile** | Itinerary Route Visualization | Mentioned in Spec §8 | No polyline or route display | **Not Implemented** |
+| **Mobile** | Day-by-Day Marker Filtering | Mentioned in Spec §8 | No map-related filtering | **Not Implemented** |
+| **Web** | Admin Destination Management UI | Mentioned in Spec §12 | Feature directory `locations/` contains only `.gitkeep` | **Not Implemented** |
+| **Web** | Map Display on Web | Mentioned in Spec §8 | No map package in web `pubspec.yaml` | **Not Implemented** |
+
+---
+
+## 3. Existing Data Model and Relationships
+
+### 3.1 Entity Analysis
+
+#### 1. `Itinerary` (`Travel_Planner.Travel_Planner.model.Itinerary`)
+- **Source File:** [`Itinerary.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Itinerary.java)
+- **Key Fields:**
+  - `itineraryId`: `Integer` (PK, Identity)
+  - `user`: `User` (ManyToOne, FK `user_id`, non-null)
+  - `originalItinerary`: `Itinerary` (ManyToOne, FK `original_itinerary_id`, nullable)
+  - `title`: `String(150)` (non-null)
+  - `description`: `TEXT`
+  - `location`: `String(150)` (non-null) — *Free-form text label (e.g., "Đà Lạt, Lâm Đồng"); has NO foreign key to `destinations` and stores no coordinates.*
+  - `coverImage`: `String(500)`
+  - `totalDays`: `Integer` (non-null)
+  - `budget`: `BigDecimal(15, 2)`
+  - `theme`: `String(100)`
+  - `visibility`: `Visibility` (`PUBLIC`, `PRIVATE`)
+  - `status`: `ItineraryStatus` (`ACTIVE`, `HIDDEN`, `DELETED`) — *Verified from source code (`ItineraryStatus.java`). Note: `DRAFT` does not exist in the codebase.*
+  - Counters: `viewCount`, `favoriteCount`, `ratingCount`, `commentCount`, `reuseCount`
+  - Timestamps: `createdAt`, `updatedAt`
+
+#### 2. `ItineraryDay` (`Travel_Planner.Travel_Planner.model.ItineraryDay`)
+- **Source File:** [`ItineraryDay.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/ItineraryDay.java)
+- **Key Fields:**
+  - `dayId`: `Integer` (PK, Identity)
+  - `itinerary`: `Itinerary` (ManyToOne, FK `itinerary_id`, non-null)
+  - `dayNumber`: `Integer` (non-null)
+  - `title`: `String(150)` (nullable)
+  - `date`: `LocalDate` (nullable)
+  - Timestamps: `createdAt`, `updatedAt`
+- **Constraints:** Unique constraint `uk_itinerary_day_number (itinerary_id, day_number)`.
+- **Note:** Stores no location, address, or coordinate data.
+
+#### 3. `Activity` (`Travel_Planner.Travel_Planner.model.Activity`)
+- **Source File:** [`Activity.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Activity.java)
+- **Key Fields:**
+  - `activityId`: `Integer` (PK, Identity)
+  - `itineraryDay`: `ItineraryDay` (ManyToOne, FK `day_id`, non-null)
+  - `destination`: `Destination` (ManyToOne, FK `destination_id`, nullable=true)
+  - `name`: `String(150)` (non-null) — *Describes what the user is doing (e.g., "Ăn trưa bún bò").*
+  - `description`: `TEXT`
+  - `startTime`: `LocalTime` (nullable)
+  - `endTime`: `LocalTime` (nullable)
+  - `cost`: `BigDecimal(15, 2)` (non-null, default 0)
+  - `displayOrder`: `Integer` (non-null)
+  - Timestamps: `createdAt`, `updatedAt`
+- **Constraints:** Unique constraint `uk_activity_day_order (day_id, display_order)`.
+
+#### 4. `Destination` (`Travel_Planner.Travel_Planner.model.Destination`)
+- **Source File:** [`Destination.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Destination.java)
+- **Key Fields:**
+  - `destinationId`: `Integer` (PK, Identity)
+  - `name`: `String(150)` (non-null)
+  - `address`: `String(255)` (non-null)
+  - `description`: `TEXT`
+  - `imageUrl`: `String(500)`
+  - `latitude`: `BigDecimal(10, 7)` (nullable)
+  - `longitude`: `BigDecimal(10, 7)` (nullable)
+  - `status`: `DestinationStatus` (`ACTIVE`, `HIDDEN`)
+  - Timestamps: `createdAt`, `updatedAt`
+
+### 3.2 Key Architectural Findings & Data Questions
+
+1. **Can activities exist without a predefined destination?**
+   **YES.** In `Activity.java`, `@JoinColumn(name = "destination_id", nullable = true)`. Activities such as "Nghỉ ngơi", "Tự do dạo phố", or "Ăn uống tự do" can be created without selecting a destination.
+2. **Does an activity currently store latitude and longitude?**
+   **NO.** `Activity` has no coordinate columns. If an activity is not linked to a `Destination`, it has zero geographical presence.
+3. **Does a destination store geographical coordinates?**
+   **YES.** `Destination` stores `latitude` and `longitude` as `BigDecimal(10, 7)`.
+4. **Can an itinerary contain multiple destinations?**
+   **YES, but only indirectly.** An itinerary has days, days have activities, and activities reference destinations. There is no direct relation between `Itinerary` and `Destination`. At the itinerary header level, `location` is just a single string label.
+5. **Are activity ordering and day ordering supported?**
+   **YES.** Day ordering is enforced by `dayNumber` with `uk_itinerary_day_number`. Activity ordering within each day is enforced by `displayOrder` with `uk_activity_day_order`. A safe two-pass reordering API is already operational.
+6. **Does the existing database schema support storing geographical information?**
+   **Partially.** Only the `destinations` table holds coordinates. If an activity requires a location that does not exist in the catalog, it cannot record coordinates without adding a new row to `destinations`.
+
+### 3.3 Existing Entity-Relationship Diagram
+
+```mermaid
+erDiagram
+    users ||--o{ itineraries : "creates"
+    itineraries ||--o{ itinerary_days : "has days (day_number 1..N)"
+    itinerary_days ||--o{ activities : "contains activities (display_order 1..N)"
+    destinations ||--o{ activities : "referenced by (optional)"
+
+    itineraries {
+        int itinerary_id PK
+        int user_id FK
+        string title
+        string location "Plain text label only"
+        int total_days
+        decimal budget
+        string status
+    }
+
+    itinerary_days {
+        int day_id PK
+        int itinerary_id FK
+        int day_number "Unique per itinerary"
+        string title
+        date date
+    }
+
+    activities {
+        int activity_id PK
+        int day_id FK
+        int destination_id FK "Nullable"
+        string name
+        time start_time
+        time end_time
+        decimal cost
+        int display_order "Unique per day"
+    }
+
+    destinations {
+        int destination_id PK
+        string name
+        string address
+        decimal latitude "DECIMAL(10,7)"
+        decimal longitude "DECIMAL(10,7)"
+        string status "ACTIVE, HIDDEN"
+    }
+```
+
+---
+
+## 4. Backend API Audit
+
+### 4.1 Existing APIs Related to Itineraries & Destinations
+
+| Controller | Method | Endpoint | Auth | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| `DestinationController` | `GET` | `/api/destinations` | Public | List active destinations (optional `keyword` filter) |
+| `DestinationController` | `GET` | `/api/destinations/{id}` | Public | Get single destination detail by ID |
+| `ItineraryController` | `GET` | `/api/itineraries` | Public | Explore public itineraries with pagination and filters |
+| `ItineraryController` | `GET` | `/api/itineraries/{id}` | Public / Owner | Retrieve full itinerary detail (including days, activities, destination objects) |
+| `ItineraryController` | `POST` | `/api/itineraries` | Bearer JWT | Create itinerary with initial days |
+| `ItineraryController` | `PUT` | `/api/itineraries/{id}` | Bearer JWT (Owner) | Update basic itinerary info |
+| `ItineraryController` | `DELETE`| `/api/itineraries/{id}` | Bearer JWT (Owner) | Soft delete itinerary (`status = DELETED`) |
+| `ItineraryController` | `POST` | `/api/itineraries/{id}/days` | Bearer JWT (Owner) | Append day to itinerary |
+| `ItineraryController` | `PUT` | `/api/itineraries/{id}/days/{dayId}` | Bearer JWT (Owner) | Update day title and date |
+| `ItineraryController` | `DELETE`| `/api/itineraries/{id}/days/{dayId}` | Bearer JWT (Owner) | Delete day and cascaded activities |
+| `ItineraryController` | `POST` | `/api/itineraries/{id}/days/{dayId}/activities` | Bearer JWT (Owner) | Create activity in day (nullable `destinationId`) |
+| `ItineraryController` | `PUT` | `/api/itineraries/{id}/days/{dayId}/activities/{activityId}` | Bearer JWT (Owner) | Update activity info and destination reference |
+| `ItineraryController` | `DELETE`| `/api/itineraries/{id}/days/{dayId}/activities/{activityId}` | Bearer JWT (Owner) | Delete activity & renumber display order |
+| `ItineraryController` | `PUT` | `/api/itineraries/{id}/days/{dayId}/activities/reorder` | Bearer JWT (Owner) | Two-pass batch reorder activities |
+
+### 4.2 Gaps in Backend API
+1. **No External Place Search / Autocomplete API:**
+   Clients cannot search real-world places. `GET /api/destinations?keyword=...` only matches substrings against rows currently seeded in MySQL.
+2. **No Geocoding / Reverse Geocoding API:**
+   Converting coordinates into a structured address cannot be performed through the backend.
+3. **No Admin Destination Management API:**
+   Shared catalog destinations can only be created via `DataSeeder.java`. There are no admin endpoints for `POST /api/admin/destinations`, `PUT`, or `DELETE`.
+4. **No Per-Day Route Calculation API:**
+   There is no endpoint to calculate travel distance, travel time, or turn-by-turn route geometry between consecutive activities within an itinerary day.
+5. **No Coordinate Validation Utility:**
+   No reusable validator verifying that latitude is in `[-90.0, 90.0]` and longitude is in `[-180.0, 180.0]`.
+
+---
+
+## 5. Flutter Mobile Audit
+
+### 5.1 Current Screens & User Flows
+
+1. **`CreateItineraryScreen` & `EditItineraryScreen`:**
+   - [`create_itinerary_screen.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/create_itinerary_screen.dart)
+   - Location input is a standard `AppTextField` with `controller: _locationController`.
+   - The user types a free-form string (e.g., "Đà Lạt, Lâm Đồng").
+   - No map preview, no location autocomplete, no coordinates captured.
+
+2. **`ActivityFormDialog`:**
+   - [`activity_form_dialog.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart)
+   - Fetches destinations from `itineraryCrudRepository.getDestinations()`.
+   - Displays a `DropdownButtonFormField<int?>`:
+     - Option 1: "Không liên kết địa điểm" (value `null`)
+     - Option 2..N: Seeded destinations from MySQL (e.g., "Hồ Hoàn Kiếm & Phố Cổ Hà Nội")
+   - Cannot search on a map, cannot drop a pin, cannot add custom locations.
+
+3. **`ItineraryDetailScreen` & `ActivityTimelineItem`:**
+   - [`itinerary_detail_screen.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart)
+   - Renders header, statistics, day list via `ItineraryDayCard`, and timeline items.
+   - [`activity_timeline_item.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_timeline_item.dart) displays destination name, address, description, and thumbnail.
+   - **Tapping the destination card does nothing.** There is no map view or coordinates modal.
+
+4. **Dependencies (`pubspec.yaml`):**
+   - Dependencies: `http: ^1.2.2`, `flutter_secure_storage: ^9.2.2`, `cupertino_icons: ^1.0.8`.
+   - No map package (`flutter_map`, `google_maps_flutter`, or `mapbox_maps_flutter`) is installed.
+
+### 5.2 Mobile Touchpoints & Enhancements
+
+```mermaid
+flowchart TD
+    A[Create / Edit Itinerary Screen] -->|Enhance| A1[Add Free-Text Location or Seeded Suggestion]
+    
+    B[Activity Form Dialog] -->|Enhance| B1[Select Catalog Destination OR Search Free Place OR Drop Pin Manually]
+    
+    C[Itinerary Detail Screen] -->|New Widget| C1[Add Interactive Map Card & Fullscreen Map Mode]
+    C1 --> C2[Day-by-Day Filter: All Days vs Day 1..N]
+    C1 --> C3[Marker Callouts with Activity Info & Cost]
+    C1 --> C4[Free External Google Maps Navigation Intent]
+```
+
+---
+
+## 6. Flutter Web Audit
+
+### 6.1 Current Status of Flutter Web
+- **Source Root:** `frontend/web/lib/`
+- **Implemented Features:**
+  - `auth`: `LoginScreen`, `RegisterScreen`, `AuthNotifier`, `AuthRepository`
+  - `profile`: `ProfileScreen`, `ProfileRepository`
+- **Unimplemented Features:**
+  - `itineraries/`, `locations/`, `dashboard/`, `moderation/`, `users/`, `violations/` all contain only `.gitkeep`.
+- **Dependencies (`pubspec.yaml`):**
+  - Dependencies: `http: ^1.2.2`, `shared_preferences: ^2.3.2`, `cupertino_icons: ^1.0.8`.
+  - Zero map packages installed.
+
+### 6.2 Platform Responsibilities & Anti-Duplication Rule
+According to `00-project-context.md` and `01-architecture.md`:
+- Flutter Web is **primarily for administration, content moderation, and destination management**.
+- Mobile and Web share the exact same Spring Boot REST contracts.
+- **Do not duplicate mobile consumer travel workflows onto Web.** On Web, map functionality is used exclusively for:
+  1. Administrative Destination Management (`/admin/destinations`): viewing, creating, updating, and verifying shared destination coordinates on a map.
+  2. Moderation: previewing reported itineraries with their stops on a read-only map.
+- Map dependencies will be added to Flutter Web only in Phase 7 when Admin destination management is built.
+
+---
+
+## 7. Database Audit
+
+### 7.1 Existing MySQL Schema Details
+
+#### Table: `destinations`
+```sql
+CREATE TABLE `destinations` (
+  `destination_id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) NOT NULL,
+  `address` varchar(255) NOT NULL,
+  `description` text,
+  `image_url` varchar(500) DEFAULT NULL,
+  `latitude` decimal(10,7) DEFAULT NULL,
+  `longitude` decimal(10,7) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'ACTIVE',
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`destination_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+- Coordinate Precision: `DECIMAL(10, 7)` provides precision to ~1.11 centimeters, which is more than sufficient for addresses and tourism POIs.
+- Status: `ACTIVE`, `HIDDEN`.
+
+#### Table: `activities`
+```sql
+CREATE TABLE `activities` (
+  `activity_id` int NOT NULL AUTO_INCREMENT,
+  `day_id` int NOT NULL,
+  `destination_id` int DEFAULT NULL,
+  `name` varchar(150) NOT NULL,
+  `description` text,
+  `start_time` time(6) DEFAULT NULL,
+  `end_time` time(6) DEFAULT NULL,
+  `cost` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `display_order` int NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`activity_id`),
+  UNIQUE KEY `uk_activity_day_order` (`day_id`,`display_order`),
+  CONSTRAINT `fk_activity_day` FOREIGN KEY (`day_id`) REFERENCES `itinerary_days` (`day_id`),
+  CONSTRAINT `fk_activity_destination` FOREIGN KEY (`destination_id`) REFERENCES `destinations` (`destination_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+- Missing: Custom location snapshot fields (`custom_location_name`, `custom_address`, `latitude`, `longitude`, `place_id`, `location_provider`) for activities without a catalog destination.
+
+### 7.2 Hibernate DDL Configuration & Verification Details
+- **Configuration in `application.properties`:** `spring.jpa.hibernate.ddl-auto=update`.
+- **Application Behavior:** In development, adding new fields to `Activity.java` causes Hibernate to automatically execute `ALTER TABLE activities ADD COLUMN ...` on application startup.
+- **Index Generation:** Hibernate `ddl-auto=update` may not automatically create multi-column composite indexes across all versions unless explicitly mapped on the entity. The composite index `idx_activities_coordinates` must be explicitly declared via `@Table(name = "activities", indexes = { @Index(name = "idx_activities_coordinates", columnList = "latitude, longitude") })` on `Activity.java` or verified via MySQL console.
+- **Verification Queries:**
+  ```sql
+  DESCRIBE activities;
+  SHOW INDEX FROM activities;
+  SELECT COUNT(*) FROM activities WHERE latitude IS NOT NULL;
+  ```
+- **Legacy Row Compatibility:** Existing rows in `activities` will receive `NULL` for all new columns. Rows with `destination_id != null` continue referencing catalog destinations with no behavioral change; rows with `destination_id == null` continue functioning as No Location activities.
+
+---
+
+## 8. Map Technology Evaluation & Official Terms Verification
+
+*All pricing, quotas, rate limits, credit card requirements, and terms of service documented below were verified against official provider documentation in **October 2026**.*
+
+### 8.1 Technical Layers & Independence Principles
+To satisfy the cost-controlled mandate, we decouple mapping functionality into five distinct layers:
+1. **Client Map Rendering Library (Free Software):** Open-source UI widget rendering tiles, markers, and polylines on the client canvas (e.g., `flutter_map`, licensed under MIT). Zero license fees, zero subscriptions.
+2. **Map Geographic Data (Open Data):** OpenStreetMap (OSM) geographic database, licensed under the Open Database License (ODbL). Free to use with mandatory attribution.
+3. **Map Tile CDN / Hosting (Free Tier):** Servers hosting pre-rendered raster tile slices. Evaluated: CARTO Basemaps (5M tiles/month for non-commercial use, 1M for commercial use).
+4. **Place Search & Geocoding (Free Tier / Self-Hostable):** Translating search strings to coordinates. Evaluated: LocationIQ (free tier 5k req/day, caching allowed up to 48 hours).
+5. **Routing & Directions (Free Tier / Free Software):** Calculating road networks. Evaluated: OpenRouteService (Standard Plan: 2,000 req/day directions, 1,000 req/day geocoding/reverse geocoding/autocomplete).
+
+### 8.2 Provider Comparison Matrix (Verified October 2026)
+
+| Criteria | `flutter_map` + CARTO | OpenRouteService (HeiGIT) | LocationIQ | Google Maps Platform *(DISALLOWED)* | Mapbox *(DISALLOWED)* |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Component Role** | Map Tile Rendering & Canvas | Driving / Walking Road Routing | Place Search & Reverse Geocode | All-in-One Proprietary Stack | All-in-One Proprietary Stack |
+| **Software License / Access** | MIT (Library) + ODbL (Data) | LGPL v3 (Software) / Free Cloud API | Commercial Cloud API | Closed Proprietary SDK | Closed Proprietary SDK |
+| **Genuinely Free Tier Exists?** | **YES** | **YES** | **YES** | No genuine zero-risk free tier ($200 recurring credit only) | Free tier exists, but overage triggers billing |
+| **Free Quota & Limits** | **5,000,000 tiles/month** (non-commercial)<br>**1,000,000 tiles/month** (commercial)<br>*Assumes non-commercial use* | **Standard Plan:**<br>Directions: 2,000 req/day (40/min)<br>Geocoding: 1,000 req/day (100/min)<br>Reverse Geo: 1,000 req/day (100/min)<br>Autocomplete: 1,000 req/day (100/min) | **5,000 requests/day**<br>2 req/sec (60 req/min)<br>*Cache TTL $\le$ 48h allowed* | Autocomplete: ~$2.83/1k<br>Routes: ~$5.00/1k<br>Loads: $7/1k | Dynamic: 25k MAU<br>Geocoding: 100k/mo<br>Routing: 100k/mo |
+| **Payment Method Required at Signup?** | Stated **NO** in terms for free account | **€0 verified**; payment flow requires confirmation during onboarding | Stated **NO** in pricing terms; live flow requires confirmation | **MANDATORY** | **MANDATORY** for account verification |
+| **Outcome on Exceeding Quota** | Rate limiting, suspension, or blocking (no guaranteed status code); contact support;<br>**no automatic billing** | **HTTP 429 / 403** (Hard Stop);<br>**no billing system attached** | **HTTP 429** (Hard Stop);<br>**no automatic billing** | **Automatic pay-per-use billing** to credit card | **Automatic overage billing** ($0.50-$4.00 per 1k) |
+| **Commercial / Academic Policy** | Non-commercial assumption (academic/student); commercial reassessment required | Humanitarian & research funded; free for standard tier | Limited commercial & non-commercial use with attribution | Commercial pay-per-use | Commercial pay-per-use |
+| **Mandatory Attribution** | `© OpenStreetMap contributors, © CARTO` | `© openrouteservice.org by HeiGIT \| Map data © OpenStreetMap contributors` | `Search by LocationIQ.com` | Google Logo & Copyright | Mapbox Logo & Copyright |
+| **Verification Status** | **CONFIRMED (DOCS)** | **CONFIRMED (DOCS)** / **UNVERIFIED (LIVE SIGNUP REQUIRED)** | **CONFIRMED (DOCS)** / **UNVERIFIED (LIVE SIGNUP REQUIRED)** | **CONFIRMED (DOCS)** (Prohibited) | **CONFIRMED (DOCS)** (Prohibited) |
+| **Suitable for Student / Capstone?** | **SUITABLE** (No mandatory paid dependencies; hosting separate) | **SUITABLE** (No mandatory paid dependencies; hosting separate) | **SUITABLE** (No mandatory paid dependencies; hosting separate) | **PROHIBITED** (Financial overage risk) | **PROHIBITED** (Financial overage risk) |
+| **Official Documentation URL** | [CARTO Basemaps](https://carto.com/help/building-maps/basemaps/) | [OpenRouteService Plans](https://openrouteservice.org/plans/) | [LocationIQ Pricing](https://locationiq.com/pricing) | [Google Maps Pricing](https://cloud.google.com/maps-platform/pricing) | [Mapbox Pricing](https://www.mapbox.com/pricing) |
+
+### 8.3 Detailed Official Terms Verification
+
+#### 1. CARTO Basemaps (Tile Provider)
+- **Source:** [`https://carto.com/help/building-maps/basemaps/`](https://carto.com/help/building-maps/basemaps/), [`https://carto.com/legal/basemap-terms/`](https://carto.com/legal/basemap-terms/), and [`https://carto.com/pricing`](https://carto.com/pricing) (Verified October 2026).
+- **Free Allowance & Commercial Distinction:**
+  - **Non-Commercial Use:** Free up to **5,000,000 tile requests per calendar month**. This applies to personal projects, academic research, teaching, and non-profits.
+  - **Commercial Use:** Free up to **1,000,000 tile requests per calendar month** for business/commercial applications.
+- **Project Non-Commercial Assumption:** This project operates under an explicit non-commercial academic assumption (university capstone project `TLCN`). If the platform is commercialized or transferred to a business entity in the future, the project **must reassess tile consumption** against the lower 1,000,000 tile/month commercial ceiling and acquire a paid commercial plan if needed.
+- **Academic Exemption Nuance:** Exceeding 5,000,000 tile requests does **not** grant an automatic or unconditional academic exemption. CARTO terms state that non-commercial users exceeding the limit may contact CARTO support to request an evaluation for an increased limit, which is granted on a case-by-case basis.
+- **Fair-Use Limits & Quota Exceeded Behavior:**
+  - Official Terms Reference: [CARTO Basemap Terms](https://carto.com/legal/basemap-terms/).
+  - When monthly limits are reached or excessive usage is detected, CARTO may apply rate limiting, service suspension, or request blocking.
+  - **No Guaranteed Status Code:** CARTO does **not guarantee a specific HTTP status code** (such as HTTP 429 or 403); responses may manifest as connection timeouts, failed image loads, non-standard HTTP errors, or empty/blank tiles.
+  - **Application Handling Requirement:** Client map rendering (`flutter_map`) must handle unavailable, timed-out, or invalid tile responses gracefully (e.g. via `errorTileCallback` or `TileLayer.errorImage`) without relying on specific HTTP status codes and without crashing the canvas.
+  - **Zero Auto-Billing:** CARTO does not initiate automatic billing or unexpected credit card charges on standard free developer plans.
+- **Attribution:** Mandatory visible credit: `© OpenStreetMap contributors, © CARTO`.
+
+#### 2. OpenRouteService by HeiGIT (Routing Engine)
+- **Source:** [`https://openrouteservice.org/plans/`](https://openrouteservice.org/plans/) and [`https://heigit.org/`](https://heigit.org/) (Verified October 2026).
+- **Verified Free Quotas (Standard Plan):**
+  - **Directions V2 (Routing):** **2,000 requests/day** and **40 requests/minute**.
+  - **Geocoding:** **1,000 requests/day** and **100 requests/minute**.
+  - **Reverse Geocoding:** **1,000 requests/day** and **100 requests/minute**.
+  - **Geocoding Autocomplete:** **1,000 requests/day** and **100 requests/minute**.
+  - *Distinction from Collaborative Plan:* Higher quotas (such as 15,000 geocoding requests/day) belong strictly to the Collaborative Plan, which requires manual application and approval for recognized academic/humanitarian institutions. The Travel Planner architecture relies strictly on the public Standard Plan quotas.
+- **Payment Method & Registration Nuance:** Public documentation confirms the Standard Plan costs €0 and does not feature a self-serve credit card billing gateway. However, exact registration requirements (email verification vs institutional affiliation) must be confirmed during initial account setup. We do not claim unconditional exemption from registration checks without live signup execution.
+- **Quota Exceeded Behavior:** Responds with `HTTP 429 Too Many Requests` or `HTTP 403 Quota Exceeded`. No automatic billing occurs.
+- **Attribution:** Mandatory visible credit: `© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors`.
+
+#### 3. LocationIQ (Geocoding & Place Search)
+- **Source:** [`https://locationiq.com/pricing`](https://locationiq.com/pricing), [`https://locationiq.com/tos`](https://locationiq.com/tos), and LocationIQ Caching Policy (Verified October 2026).
+- **Free Allowance:** **5,000 requests per day**, rate-limited to **2 requests/second** (60 requests/minute).
+- **Commercial Use Policy:** Free tier permits **Limited Commercial Use** and non-commercial evaluation, provided visible attribution is displayed.
+- **Attribution:** Mandatory: visible text or link stating `"Search by LocationIQ.com"`.
+- **Caching Restrictions & TTL Compliance:** LocationIQ Terms of Service explicitly permit caching request-response pairs for **up to 48 hours** on the Free Plan to prevent redundant calls. Server-side caching of raster map tiles is strictly prohibited. The proposed Spring Boot Caffeine cache configured with a **24-hour TTL strictly complies** with this $\le 48\text{h}$ restriction.
+- **Registration Payment Verification:** Official pricing documentation states that the Free tier requires only email registration without upfront credit card details. However, live execution of the registration flow must be confirmed during initial developer onboarding.
+- **Quota Exceeded Behavior:** Hard cap returning `HTTP 429`. Failed requests do not count toward daily quota. No automatic upgrades or billing occur.
+
+#### 4. OpenStreetMap Foundation Tile Server (`tile.openstreetmap.org`)
+- **Source:** [`https://operations.osmfoundation.org/policies/tiles/`](https://operations.osmfoundation.org/policies/tiles/) (Verified October 2026).
+- **Strict Prohibition on Automatic Production Fallback:**
+  - The public OSM tile server is funded by donations and operated by volunteers with limited hardware.
+  - **Public OSM tiles must NEVER be configured as an automatic production fallback** when CARTO or other tile hosts encounter downtime or quota exhaustion.
+- **Policy Requirements:**
+  - Valid `User-Agent` identifying the application and version.
+  - Valid `Referer` or contact information.
+  - Mandatory visible attribution: `© OpenStreetMap contributors`.
+  - Client-side caching to prevent repeat downloads.
+  - Strict prohibition on bulk downloading and automated scraping.
+- **Flutter Web Technical Limitation:**
+  - In Flutter Web, browser security sandboxing strictly controls the `User-Agent` HTTP header for cross-origin image requests (`Image.network` / HTML canvas `img`).
+  - Web applications running in the browser **cannot override or set a custom `User-Agent` header** on tile image requests.
+  - Consequently, direct client-side fetching of public OSM tiles on Flutter Web cannot strictly comply with OSM's custom `User-Agent` policy without an intermediate proxy (which is prohibited by our architecture).
+- **Approved Scope:** Public OSM tiles may only be used during **manual, low-volume local development on mobile** where custom headers can be supplied via Dart HTTP clients. They are strictly excluded from production builds.
+
+#### 5. Open Source Routing Machine (OSRM) Public Demo (`router.project-osrm.org`)
+- **Source:** [`https://routing.openstreetmap.de/`](https://routing.openstreetmap.de/) (Verified October 2026).
+- **Strict Terms:** The public demo server is a sandbox showcase. It has **no SLA, no uptime guarantee**, supports **driving mode only**, and strictly prohibits heavy or continuous polling.
+- **Strict Prohibition on Automatic Production Fallback:**
+  - The OSRM public demo server is strictly restricted to **manual development and sandbox testing**.
+  - It is **never** used as an automatic production fallback when OpenRouteService fails or exceeds quota.
+- **Production Routing Fallback:** When OpenRouteService is unavailable, the backend calculates straight-line indicative connections locally using the **Haversine formula (`ESTIMATED_INDICATIVE`)**, generating zero outbound network requests and incurring zero cost.
+
+#### 6. Universal Google Maps Navigation Deep Links (External Navigation)
+- **Source:** [`https://developers.google.com/maps/documentation/urls/get-started`](https://developers.google.com/maps/documentation/urls/get-started) (Verified October 2026).
+- **Terms:** Universal URL intents (`https://www.google.com/maps/dir/?api=1&origin=...&destination=...&travelmode=...`) are standard deep links that launch the native Google Maps app or open in a browser.
+- **Cost:** Free, requiring no API key, no SDK installation, and no billing account.
+
+### 8.4 Self-Hosting Infrastructure & Cost Realities
+While open-source software (OSRM, Nominatim, Photon, TileServer-GL) has **no software license fees**, self-hosting introduces non-zero infrastructure costs:
+- Running Nominatim for Vietnam requires a server with at least 8 GB RAM and 60+ GB SSD (~$10–$20/month on cloud VPS).
+- Running OSRM for Vietnam road networks requires 4–8 GB RAM for pre-processing graph hierarchy.
+- Operating a custom vector tile server requires constant outbound bandwidth.
+
+**Decision for Travel Planner:** We **do not mandate self-hosting** for this academic project. Mandating self-hosting would transfer API costs into server rental costs. Instead, we use free cloud tiers (CARTO, LocationIQ, OpenRouteService) with client debouncing, aggressive backend in-memory caching, and local straight-line fallbacks, avoiding server rental requirements for mapping services.
+
+---
+
+## 9. Cost Classification and Quota Reference Table
+
+All components and external services utilized in this plan are classified below according to the project's strict cost taxonomy:
+- **`FREE SOFTWARE`:** Open-source software with no license fee.
+- **`FREE TIER`:** Free third-party cloud service with strict usage limits and no mandatory credit card.
+- **`SELF-HOSTED`:** Open-source software requiring local or self-provided server infrastructure (infrastructure costs may exist if hosted on cloud VPS).
+- **`OPTIONAL PAID`:** Commercial pay-per-request or subscription services. **Strictly banned from this project.**
+- **`UNVERIFIED`:** Pricing or terms not officially verified. **Not allowed as dependencies.**
+
+| System Component | Selected Solution | Cost Category | Free Quota & Limits | Possible Cost Risk | Required Mitigation & Failsafe | Official Source & Verification Date |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Client Map Rendering** | `flutter_map` (v7+) | `FREE SOFTWARE` | Unlimited (Pure Dart canvas) | None (Open-source MIT) | None required. | [pub.dev/flutter_map](https://pub.dev/packages/flutter_map) (Oct 2026) |
+| **Coordinate Math** | `latlong2` | `FREE SOFTWARE` | Unlimited (Local math functions) | None (Apache 2.0) | None required. | [pub.dev/latlong2](https://pub.dev/packages/latlong2) (Oct 2026) |
+| **Map Tile Provider** | CARTO Basemaps (Voyager) | `FREE TIER` | 5,000,000 tiles/month (non-commercial); 1,000,000 tiles/month (commercial) | Rate limiting, suspension, or blocking if fair-use limit exceeded (no guaranteed status code) | Non-commercial assumption; reassess before commercialization; client error tile handling | [CARTO Basemap Terms](https://carto.com/legal/basemap-terms/) / [Basemaps](https://carto.com/help/building-maps/basemaps/) (Oct 2026) |
+| **Alternative Tile Host** | MapTiler Cloud | `FREE TIER` | 100,000 requests/month | Temporary suspension when quota reached | Hard suspension prevents any billing; no credit card required | [MapTiler Pricing](https://www.maptiler.com/pricing/) (Oct 2026) |
+| **Place Search & Geocoding** | LocationIQ | `FREE TIER` | 5,000 requests/day, 2 req/sec; cache $\le$ 48h | HTTP 429 when quota exceeded | Client debouncing (400ms); Caffeine cache (24h TTL); manual pin fallback | [LocationIQ Pricing](https://locationiq.com/pricing) (Oct 2026) |
+| **Road Routing Engine** | OpenRouteService (HeiGIT) | `FREE TIER` | Standard Plan — Directions: 2,000/day (40/min); Geocoding / Reverse Geo / Autocomplete: 1,000/day (100/min) | HTTP 429 when quota exceeded | Local straight-line Haversine fallback; no automatic production fallback to OSRM | [OpenRouteService Plans](https://openrouteservice.org/plans/) (Oct 2026) |
+| **Turn-by-Turn Navigation** | Native Google Maps URL Intent | `FREE SOFTWARE` / Deep Link | Unlimited | None (Standard OS URL handler) | Standard `url_launcher` URI intent (added in Phase 6); requires no API key or account | [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started) (Oct 2026) |
+| **In-Memory Cache** | Caffeine Cache | `FREE SOFTWARE` | Unlimited (Local JVM heap) | High memory if unbounded | Bound cache to max 500 entries, 24-hour TTL (Apache 2.0) | [Caffeine GitHub](https://github.com/ben-manes/caffeine) (Oct 2026) |
+| **Rate Limiter** | Bucket4j Core (`com.bucket4j:bucket4j-core` v8.10.1) | `FREE SOFTWARE` | Unlimited (In-memory token bucket on single JVM) | None (Apache 2.0; free for commercial & open source) | Evict inactive IP keys after 1 hour; no paid commercial license required | [Bucket4j License](https://github.com/bucket4j/bucket4j/blob/master/LICENSE) (Oct 2026) |
+| **Relational Database** | MySQL Community Edition | `FREE SOFTWARE` | Unlimited (Local storage capacity) | Disk space exhaustion | Standard indexing; store coordinates as `DECIMAL(10,7)` | [MySQL Community](https://www.mysql.com/) (Oct 2026) |
+| **Backend REST API** | Spring Boot 4.1.1 (Java 22) | `FREE SOFTWARE` | Unlimited (Open source framework) | None (Apache 2.0) | Standard Spring Boot architecture | [Spring Framework](https://spring.io/) (Oct 2026) |
+| **Backup Tile Server** | OpenStreetMap Public Server | `FREE TIER` | Low-volume local dev only; custom UA required | IP block; policy violation; Flutter Web UA limitation | **MANUAL DEV ONLY:** Strictly excluded from automatic production fallback | [OSM Tile Policy](https://operations.osmfoundation.org/policies/tiles/) (Oct 2026) |
+| **Sandbox Routing** | OSRM Public Demo Server | `FREE TIER` | Driving only; sandbox test only; no SLA | IP block on heavy use; service termination | **MANUAL DEV ONLY:** Strictly excluded from automatic production fallback | [OSRM Project](https://routing.openstreetmap.de/) (Oct 2026) |
+| **Google Maps Platform APIs** | Places, Geocoding, Routes | `OPTIONAL PAID` | **BANNED** ($200 credit with credit card) | **Extreme:** Auto billing beyond credit | **STRICTLY PROHIBITED:** Removed from dependencies and plan | [Google Maps Pricing](https://cloud.google.com/maps-platform/pricing) |
+| **Mapbox APIs** | Vector Tiles, Directions | `OPTIONAL PAID` | **BANNED** (Credit card required for tokens) | **High:** Auto overage billing | **STRICTLY PROHIBITED:** Removed from dependencies and plan | [Mapbox Pricing](https://www.mapbox.com/pricing) |
+
+> [!NOTE]
+> **Distinction Between Software/APIs and Infrastructure:**
+> While all selected libraries, APIs, and frameworks operate with zero licensing fees and zero automatic billing on free tiers, public deployment to the Internet requires separate infrastructure:
+> - Cloud Virtual Private Server (VPS) compute for Spring Boot & MySQL.
+> - Custom domain name registration and DNS hosting.
+> - Outbound network bandwidth (egress).
+>
+> For university evaluation, defense, and development, the platform runs on local workstations (localhost) or university-provided servers at zero infrastructure expense. Introducing any paid cloud hosting, paid API tier, or commercial subscription requires explicit human approval from the project owner.
+
+---
+
+## 10. Disallowed Services & Prohibited Architecture Patterns
+
+To ensure financial safety and maintain architectural integrity, the following services, libraries, and patterns are **strictly prohibited**:
+
+1. **PROHIBITED: Google Maps Platform Paid APIs:**
+   - No Google Places API (New/Old), Google Geocoding API, Google Routes API, or Dynamic Maps SDK.
+   - *Reason:* Mandates international credit card registration; exceeding monthly free credits incurs automatic, unbounded credit card charges.
+   - *Allowed Exception:* Ordinary deep-link URLs to the external Google Maps application (`https://www.google.com/maps/dir/?api=1&...`) executed via `url_launcher` without API keys.
+2. **PROHIBITED: Mapbox SDK & Cloud APIs:**
+   - No `mapbox_maps_flutter` or Mapbox Directions/Geocoding REST endpoints.
+   - *Reason:* Requires credit card account verification and implements automatic pay-per-request overage billing.
+3. **PROHIBITED: Automatic Failover to Paid Providers:**
+   - The backend and frontend must **never** contain fallback logic that switches to a commercial paid service when a free service fails.
+   - When a free quota is exhausted, the system must **fail gracefully to local handling or display a polite notice**, never initiate a commercial transaction.
+4. **PROHIBITED: Automatic Production Fallback to Community Sandbox Infrastructure:**
+   - The production application must **never** automatically fall back to public OpenStreetMap tile servers (`tile.openstreetmap.org`) or the public OSRM demo server (`router.project-osrm.org`).
+   - Community servers are operated on donated volunteer resources and prohibit production routing/tile traffic.
+5. **PROHIBITED: Backend Map Tile Proxying:**
+   - Spring Boot must never download, proxy, or cache map raster tiles.
+   - *Reason:* Proxying thousands of tile images consumes server bandwidth and exhausts database/thread connection pools. Tiles must be streamed directly from CDN to client.
+6. **PROHIBITED: Mandatory External Geocoding for Pin Dropping:**
+   - Saving an activity with coordinates must **never** be gated on a successful external geocoding response.
+   - Dropping a pin on the map must work offline or when upstream geocoding is rate-limited.
+7. **PROHIBITED: Adding Paid Services Without Explicit Human Approval:**
+   - No developer or agent may add a paid API key, upgrade a free subscription, or enter payment credentials without formal prior sign-off from the project owner.
+
+---
+
+## 11. Billing and Quota-Exhaustion Safeguards
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                     QUOTA EXHAUSTION DEFENSE MATRIX                    │
+├───────────────────────┬────────────────────────────────────────────────┤
+│ FAILURE SCENARIO      │ SYSTEM BEHAVIOR & FAILSAFE RESPONSE            │
+├───────────────────────┼────────────────────────────────────────────────┤
+│ LocationIQ Daily Cap  │ 1. Backend catches HTTP 429 from upstream.     │
+│ Exhausted (5k/day)    │ 2. Backend serves cached queries from Caffeine │
+│                       │    (within 48h TTL limit).                     │
+│                       │ 3. For cache misses, returns HTTP 429 with     │
+│                       │    polite Vietnamese message.                  │
+│                       │ 4. Client UI disables autocomplete search and  │
+│                       │    guides user: "Ghim vị trí trên bản đồ".     │
+│                       │ 5. Manual pin dropping remains 100% functional.│
+├───────────────────────┼────────────────────────────────────────────────┤
+│ Reverse Geocoding     │ 1. Upstream timeout or HTTP 429.               │
+│ Timeout / Failure     │ 2. Backend returns null address snapshot.      │
+│                       │ 3. Mobile UI preserves exact Lat/Lng.          │
+│                       │ 4. UI assigns fallback: "Vị trí đã ghim".      │
+│                       │ 5. Activity saves to database successfully.    │
+├───────────────────────┼────────────────────────────────────────────────┤
+│ OpenRouteService Cap  │ 1. Backend catches HTTP 429 or read timeout.   │
+│ Exhausted (2k/day)    │ 2. Backend computes direct Haversine distance  │
+│                       │    locally (Zero external network calls).      │
+│                       │ 3. Returns routeType = ESTIMATED_INDICATIVE.   │
+│                       │ 4. totalDurationSeconds set to null.           │
+│                       │ 5. Mobile renders dashed amber straight line   │
+│                       │    with disclaimer banner. No OSRM fallback.   │
+├───────────────────────┼────────────────────────────────────────────────┤
+│ CARTO Tile Server     │ 1. CARTO applies rate limiting, suspension, or │
+│ Fair-Use Exceeded     │    blocking (no guaranteed status code).       │
+│                       │ 2. flutter_map handles tile load failures      │
+│                       │    gracefully (errorTileCallback / placeholder)│
+│                       │    without relying on specific HTTP codes.     │
+│                       │ 3. Offline-cached tiles continue rendering.    │
+│                       │ 4. NO automatic fallback to OSM public tiles.  │
+│                       │ 5. Admin can update --dart-define tile URL.    │
+└───────────────────────┴────────────────────────────────────────────────┘
+```
+
+### 11.1 Cost and Architecture Safeguards
+1. **No Payment Instrument Registration:** No payment instruments or credit cards are linked to any mapping service accounts used in development, testing, or deployment.
+2. **Hard Rate Limiting & Cutoffs:** Upstream providers selected (LocationIQ, ORS, MapTiler) employ hard HTTP 429 cutoffs rather than automatic billing pipelines.
+3. **Internal Haversine Math Engine:** Straight-line distance calculation is implemented in pure Java on Spring Boot using the Haversine formula, requiring zero external API requests:
+   $$d = 2r \arcsin \left( \sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(\frac{\Delta \lambda}{2}\right)} \right)$$
+
+### 11.2 User-Facing Error Messages (Vietnamese)
+- On search quota exhaustion (`HTTP 429`):
+  *"Hệ thống tìm kiếm địa điểm trực tuyến đang tạm nghỉ do đạt giới hạn miễn phí trong ngày. Bạn vui lòng ghim vị trí trực tiếp trên bản đồ hoặc thử lại vào ngày mai."*
+- On route calculation quota exhaustion (`ESTIMATED_INDICATIVE`):
+  *"Không thể kết nối dịch vụ định tuyến đường bộ. Bản đồ đang hiển thị đường nối thẳng ước tính giữa các điểm dừng."*
+
+### 11.3 Dual-Tier Rate Limiting Architecture & Real-World Constraints
+1. **Identity Keying Strategy:**
+   - **Authenticated Requests:** Keyed by internal numeric user ID (`auth:user:<userId>`) extracted securely from the JWT principal (`UserPrincipal.getId()`).
+     - Limit: **60 requests/minute**.
+     - Benefit: Fully isolates individual authenticated users. Users logging in from the same corporate network, university Wi-Fi, or mobile CGNAT will not share or deplete each other's rate-limit buckets.
+   - **Guest / Unauthenticated Requests:** Keyed by client IP address (`ip:<clientIp>`), resolving IP strictly via trusted proxy validation.
+     - Limit: **30 requests/minute**.
+2. **Trusted Proxy Whitelist & Anti-Spoofing IP Resolution:**
+   - **Never Blindly Trust `X-Forwarded-For`:** In public web deployments, client-controlled HTTP headers such as `X-Forwarded-For` or `X-Real-IP` can be easily forged. Blindly trusting `X-Forwarded-For` would allow an attacker to bypass guest rate limits entirely by sending a randomized header with each request.
+   - **Strict Trusted Proxy Enforcement:**
+     - The application evaluates forwarded IP headers **only if** the direct connecting socket address (`request.getRemoteAddr()`) matches an explicitly configured list of trusted reverse proxies (configured via `app.security.trusted-proxies=127.0.0.1,::1,10.0.0.0/8,...`).
+     - When a connection originates from an explicitly trusted reverse proxy (e.g. Nginx, Cloudflare, AWS ALB), the client IP is extracted from the appropriate client entry in `X-Forwarded-For`.
+     - When no trusted proxy is configured, or when the connecting socket is not in the trusted whitelist, the application **strictly falls back to `request.getRemoteAddr()`**, discarding any client-provided `X-Forwarded-For` headers.
+   - **Impact on Guest Rate Limiting:**
+     - **Header Spoofing Prevention:** Malicious clients cannot evade the 30 req/min guest rate limit by rotating forged `X-Forwarded-For` values.
+     - **Local & Standalone Operation:** In local development or standalone deployments without a reverse proxy, `request.getRemoteAddr()` (e.g., `127.0.0.1`) is used directly and securely.
+     - **Reverse Proxy Requirement:** When deploying behind a production reverse proxy, administrators must explicitly whitelist the proxy IP in `app.security.trusted-proxies`. Failure to do so causes all guest requests to be identified by the reverse proxy's own IP, inadvertently grouping all guest users worldwide into a single shared rate-limit bucket.
+3. **Shared-IP Reality for Guest Users:**
+   > [!IMPORTANT]
+   > **Shared-IP Isolation Applies ONLY to Authenticated Users:**
+   > Unauthenticated guest users behind a shared IP (such as university campus Wi-Fi, dormitories, coffee shops, or mobile cellular CGNAT) **still share the single guest rate limit bucket (`ip:<clientIp>`)**.
+   > The architecture does NOT eliminate shared-IP contention for guests.
+   > If guest users encounter `HTTP 429 Too Many Requests`, the UI prompts them to log in: *"Bạn đã đạt giới hạn tìm kiếm tạm thời. Vui lòng đăng nhập để tiếp tục sử dụng hạn mức tìm kiếm riêng."* Logging in immediately switches their key to `auth:user:<userId>`, granting them their own dedicated 60 req/min quota.
+4. **Multi-Instance Deployment Limitations (In-Memory Bucket4j):**
+   - Bucket4j Core (`com.bucket4j:bucket4j-core` v8.10.1) stores token buckets in the local JVM heap.
+   - In a multi-instance / clustered deployment (e.g. multiple Spring Boot instances behind a load balancer without sticky sessions), rate limit counters are not shared across JVMs. A user could theoretically consume up to $N \times \text{limit}$ requests across $N$ instances.
+   - For this academic capstone project running on a single server, in-memory Bucket4j provides zero-overhead, thread-safe rate limiting without external infrastructure dependencies.
+   - **Horizontal Scaling Path:** If horizontal scaling is required in the future, Bucket4j provides a drop-in transition to Redis (`bucket4j-redis` / Lettuce), preserving identical token bucket logic while centralizing token state.
+
+### 11.4 CARTO Basemaps API Key Authentication & Client Key Security Evaluation
+
+#### 1. Policy Enforcement & Root Cause Analysis
+- **CARTO Basemap Requirement:** As enforced by CARTO on `basemaps.cartocdn.com`, all direct raster tile requests require an API key passed via query parameter (`?key=<apiKey>`).
+- **Failure Symptom:** Unauthenticated requests or requests with omitted/invalid keys return HTTP status `200 OK` with a 2,049-byte watermarked PNG tile (`ETag: "wm-da89c20e77c1-light"`) bearing the diagonal watermark *"TILES REQUIRED / API KEY REQUIRED"*. Because the CDN returns HTTP 200 with MIME type `image/png`, pure network error handlers do not trigger, resulting in a blank white canvas behind map markers.
+- **Quota Terms:** Free non-commercial/academic tier provides **5,000,000 monthly tile requests** (versus 1,000,000 for commercial usage). Academic capstone usage operates well within this boundary. Instant signup is available at [https://carto.com/basemaps/apikey](https://carto.com/basemaps/apikey).
+
+#### 2. Client-Side Decoupled Configuration
+- **Environment Parameter:** Configured via `--dart-define=CARTO_API_KEY=<key>` (with `--dart-define=MAP_API_KEY=<key>` accepted as fallback).
+- **Template Resolution:** Resolved automatically in `MapConstants.appendApiKey` and `effectiveTileUrlTemplate`:
+  - Standard raster tile endpoint: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=<apiKey>`.
+  - Automatically handles query parameter separators (`?` vs `&`), placeholder substitution (`{key}`, `{apiKey}`), duplicate parameter avoidance, and standard URL query encoding.
+- **Provider Decoupling:** `MapTileProviderConfig` abstracts tile delivery:
+  - `MapTileProviderConfig.defaultProvider()` & `carto()` propagate `apiKey` and set `requiresApiKey: true`.
+  - `MapTileProviderConfig.openStreetMapDev()` sets `requiresApiKey: false` and does not append keys or show warnings.
+
+#### 3. Client Key Security Evaluation & Architecture Decision
+- **Public Client Key Classification:** The CARTO Basemaps API key is architecturally classified as a **public client token** designed for direct browser and mobile app tile streaming, analogous to Mapbox public tokens (`pk.ey...`) and Google Maps JavaScript API keys.
+- **Security Assessment:**
+  - In Flutter mobile and web client architectures, any key transmitted in client HTTP requests is inspectable via network proxies or binary reverse-engineering.
+  - CARTO enforces rate limiting and quota boundaries (5M requests/month) upstream at their CDN edge without automatic credit-card billing linkages.
+  - For web deployments, HTTP `Referer` / origin restrictions can be applied directly in the CARTO dashboard.
+- **Prohibition of Backend Tile Proxy:**
+  - We strictly **reject proxying raster map tiles through the Spring Boot backend**.
+  - Streaming hundreds of concurrent image tiles through backend REST controllers would consume immense backend CPU, saturate thread pools, multiply network egress costs, and create severe latency bottlenecks.
+  - Direct client-to-CDN streaming with `--dart-define=CARTO_API_KEY` maintains the Decoupled Free-First Architecture.
+
+#### 4. Missing API Key UX & Graceful Degradation
+- When `CARTO_API_KEY` is not supplied, the app detects `isCartoApiKeyMissing = true`.
+- Instead of silently rendering blank watermarked tiles, both Mobile (`MapApiKeyMissingBanner` in `AppBaseMap` / `AppMapView`) and Web (`_buildApiKeyMissingBanner` in `WebMapView`) display a dismissible, non-intrusive warning card:
+  - Clearly explains: *"Chưa cấu hình CARTO Basemaps API Key"*.
+  - Provides the exact startup command: `--dart-define=CARTO_API_KEY=<your_key>`.
+  - Links to free registration at `carto.com/basemaps/apikey`.
+- Core map capabilities (destination markers, day badges, route polylines, camera recentering, activity popups, and click-to-pin coordinate selection) remain 100% operational whether the key is configured, missing, or dismissed.
+
+---
+
+## 12. Target Architecture & Decoupled Data Flow
+
+### 12.1 Refined Activity Location Model (Three-State)
+Activities support three mutually exclusive location states:
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│                        ACTIVITY LOCATION STATES                       │
+├─────────────────────────┬───────────────────────┬─────────────────────┤
+│ 1. CATALOG DESTINATION  │ 2. CUSTOM LOCATION    │ 3. NO LOCATION      │
+├─────────────────────────┼───────────────────────┼─────────────────────┤
+│ destinationId = <ID>    │ destinationId = null  │ destinationId = null│
+│ customLocationName=null │ customLocationName="..."│customLocationName=null│
+│                         │   (Optional / Nullable)│                     │
+│ customAddress = null    │ customAddress = "..." │ customAddress = null│
+│                         │   (Optional / Nullable)│                     │
+│ latitude = null         │ latitude = 11.9404    │ latitude = null     │
+│                         │   (Mandatory when set)│                     │
+│ longitude = null        │ longitude = 108.4385  │ longitude = null    │
+│                         │   (Mandatory when set)│                     │
+│ placeId = null          │ placeId = "osm_123"   │ placeId = null      │
+│                         │   (Optional / Nullable)│                     │
+│ locationProvider = null │ locationProvider="LQ" │locationProvider=null│
+│                         │   (Optional / Nullable)│                     │
+└─────────────────────────┴───────────────────────┴─────────────────────┘
+```
+
+#### Detailed Validation Rules:
+1. **Catalog Destination (`destinationId != null`):**
+   - `destinationId` must reference an active record in `destinations`.
+   - All custom location fields (`customLocationName`, `customAddress`, `latitude`, `longitude`, `placeId`, `locationProvider`) must be `null`.
+   - Coordinates and address are resolved from the associated `Destination`.
+2. **Custom Location (`destinationId == null`):**
+   - `destinationId` must be `null`.
+   - `latitude` and `longitude` must either **both be present** or **both be null**.
+   - If a custom pin is placed: `latitude` and `longitude` are **mandatory**. Valid bounds: latitude $\in [-90.0, 90.0]$, longitude $\in [-180.0, 180.0]$.
+   - **Crucial Rule:** `customLocationName`, `customAddress`, `placeId`, and `locationProvider` are **nullable / optional**. If reverse-geocoding fails or times out when dropping a pin in an unmapped area, **the user must still be permitted to save the activity with valid coordinates**.
+   - **UI Fallback for Unnamed Locations:** If `customLocationName` is null or blank, the UI displays a clean fallback: *"Vị trí đã ghim"* ("Pinned location").
+3. **No Location:**
+   - `destinationId == null` AND `latitude == null` AND `longitude == null` AND all custom fields null. Represents non-physical activities (e.g. rest, free time).
+4. **Disambiguation of `Activity.name` vs. `customLocationName`:**
+   - `Activity.name` (required): Describes the activity itself (*"Thưởng thức cà phê sáng", "Check-in săn mây"*).
+   - `customLocationName` (optional): Describes the physical venue name (*"Quán Cà Phê Tùng", "Đồi Chè Cầu Đất"*).
+
+#### Activity Location State Transitions (Update Logic):
+When updating an existing activity, the transition between the three states must strictly satisfy mutual exclusivity:
+- **Catalog Destination $\longrightarrow$ Custom Location:**
+  - Request sends: `destinationId = null`, valid `latitude` and `longitude`, optional `customLocationName` and `customAddress`.
+  - Service logic: Clears `destination` entity reference to `null`, sets the custom fields on `Activity`.
+- **Custom Location $\longrightarrow$ Catalog Destination:**
+  - Request sends: `destinationId = <validId>`, all custom location fields set to `null`.
+  - Service logic: Validates destination exists in catalog, links `destination`, and explicitly resets all custom fields (`customLocationName`, `customAddress`, `latitude`, `longitude`, `placeId`, `locationProvider`) to `null`.
+- **Catalog / Custom $\longrightarrow$ No Location:**
+  - Request sends: `destinationId = null`, all custom location fields `null`.
+  - Service logic: Sets `destination = null` and all custom fields to `null`.
+- **Backend Service-Layer Mutual Exclusivity Enforcement:**
+  - If a request supplies `destinationId != null` AND any custom coordinate (`latitude != null || longitude != null`), `ItineraryServiceImpl` immediately rejects the operation with `HTTP 400 Bad Request` (*"Không thể đồng thời chỉ định địa điểm từ danh mục và tọa độ tùy chỉnh"*).
+  - Validation is strictly enforced at the backend service layer, never relying solely on client UI guards.
+- **Atomic Coordinate Pair Validation:**
+  - `latitude` and `longitude` must always be supplied as a valid pair.
+  - If either is non-null while the other is null, reject with `HTTP 400 Bad Request` (*"Tọa độ latitude và longitude phải được cung cấp đồng thời"*).
+  - Bounds checking: `latitude` $\in [-90.0, 90.0]$ and `longitude` $\in [-180.0, 180.0]$.
+
+### 12.2 Destination Permissions & Catalog Management
+- **Regular Users (`ROLE_USER`):**
+  - Can search and select shared destinations via `GET /api/destinations`.
+  - Can use custom locations in their activities without admin approval.
+  - Custom locations **never** automatically pollute the shared destination catalog.
+- **Administrators (`ROLE_ADMIN`):**
+  - Shared destination catalog management is exposed via a dedicated controller: `AdminDestinationController` mapped to `/api/admin/destinations`.
+  - Covered automatically by `SecurityConfig`: `.requestMatchers("/api/admin/**").hasRole("ADMIN")` and `@PreAuthorize("hasRole('ADMIN')")`.
+
+### 12.3 Per-Day Route Calculation & Travel Mode Compatibility
+1. **Provider Travel Mode Compatibility:**
+   - OpenRouteService (ORS): Supports `driving` and `walking`.
+   - OSRM Public Demo Server: Supports `driving` **ONLY** (restricted to manual dev testing; never in production).
+   - **Strict Rule:** If an unsupported mode is requested, the backend returns `HTTP 400 Bad Request` with an explicit message: *"Chế độ di chuyển '{mode}' không được hỗ trợ bởi dịch vụ hiện tại"*. **Never silently convert walking to driving.**
+2. **Route Integrity & Ownership Guards (Matching Existing Backend Logic):**
+   - Replicate the exact access control behavior of `ItineraryServiceImpl.java:330-342`:
+     - Fetch itinerary by `id`. If non-existent or `status == ItineraryStatus.DELETED`, throw `ResourceNotFoundException("Itinerary not found")` (HTTP 404).
+     - If `status != ItineraryStatus.ACTIVE` (e.g., `HIDDEN`) or `visibility == Visibility.PRIVATE`:
+       - If caller is the itinerary owner (`itinerary.getUser().getId().equals(currentUser.getId())`) or has `ROLE_ADMIN`, access is granted.
+       - Otherwise, throw `ResourceNotFoundException("Itinerary not found")` (HTTP 404). Returning 404 instead of 403 prevents private trip ID enumeration.
+     - Public active itineraries (`status == ACTIVE` and `visibility == PUBLIC`) are readable by all users (guests and authenticated).
+   - Validate Day-to-Itinerary Ownership:
+     - Verify `day.getItinerary().getId().equals(itineraryId)`. If mismatched, throw `BadRequestException("Day does not belong to this itinerary")` (HTTP 400).
+   - Activities within `dayId` are queried in ascending `displayOrder`.
+3. **Three Distinct Route Outcomes:**
+   - `ACTUAL_ROAD`: Successful road routing. `totalDistanceMeters: <meters>`, `totalDurationSeconds: <seconds>`, `directDistanceMeters: <direct>`, `geometryCoordinates: [[lng, lat], ...]`. Solid primary polyline.
+   - `ESTIMATED_INDICATIVE`: Road routing failed, timed out, or quota exceeded. Calculated via local Haversine formula. `totalDistanceMeters: null`, `totalDurationSeconds: null` (never invented), `directDistanceMeters: <direct>`, `geometryCoordinates: [[lng1, lat1], [lng2, lat2], ...]`. Dashed amber polyline with warning banner.
+   - `INSUFFICIENT_WAYPOINTS`: Fewer than 2 activities in the day have coordinates.
+     - `status: "INSUFFICIENT_WAYPOINTS"`, `routeType: "NONE"`, `totalDistanceMeters: null`, `totalDurationSeconds: null`, `directDistanceMeters: 0.0`, `geometryCoordinates: []`. `waypoints` contains only stops with valid coordinates.
+
+### 12.5 Map Camera Centering & Geolocation Priority Strategy
+
+The map camera must not assume Da Nang (or any single city) is the permanent default location without an explicit product decision. Camera positioning follows a clear three-tier priority hierarchy:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   MAP CAMERA CENTERING PRIORITY HIERARCHY              │
+├────────────────────────────────────────────────────────────────────────┤
+│ 1. USER'S CURRENT LOCATION (Priority 1)                                │
+│    - Trigger: Location permission granted AND device GPS coordinates   │
+│      acquired within timeout (2–3 seconds).                            │
+│    - Behavior: Centers camera at user GPS coordinates (zoom ~14.0).    │
+├────────────────────────────────────────────────────────────────────────┤
+│ 2. CONTEXTUAL ITINERARY / DESTINATION COORDINATES (Priority 2)         │
+│    - Trigger: Map opened within itinerary detail, day route view, or   │
+│      destination preview with valid coordinates.                       │
+│    - Behavior: Centers on computed LatLngBounds or destination point,  │
+│      animating camera to fit all active markers on screen.             │
+├────────────────────────────────────────────────────────────────────────┤
+│ 3. CONFIGURABLE APPLICATION-WIDE FALLBACK (Priority 3)                 │
+│    - Trigger: GPS unavailable/denied AND no contextual coordinates     │
+│      exist (e.g. creating a new activity in an empty itinerary).       │
+│    - Behavior: Centers on configurable coordinates loaded from         │
+│      MapConstants (--dart-define), defaulting to geographic center     │
+│      (zoom ~6.0) as a configurable constant, not a fixed assumption.   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Permission-Denied and GPS-Unavailable Behavior:
+1. **Strictly Optional Permission:**
+   - Location permission is **optional**. Basic map browsing, manual pin-dropping, itinerary exploration, and route inspection must **never** be gated on location permission.
+   - The user must never be blocked or forced into device settings during standard app navigation.
+2. **Graceful Fallback:**
+   - If location permission is denied, restricted, or disabled, or if device GPS times out or is unavailable:
+     - The camera silently falls back down the priority chain to Priority 2 (Contextual Coordinates) or Priority 3 (Configurable Fallback).
+     - No intrusive blocking alert dialogs or repetitive error popups are shown.
+3. **Explicit "My Location" Button Action:**
+   - If the user explicitly taps a "Vị trí của tôi" (My Location) floating action button on the map canvas:
+     - If permission has not been requested yet: Prompt for permission once using standard OS dialog.
+     - If permission is permanently denied: Display a polite, non-blocking toast/snackbar:
+       *"Không thể xác định vị trí hiện tại. Vui lòng bật quyền truy cập vị trí trong Cài đặt thiết bị hoặc ghim vị trí thủ công trên bản đồ."*
+
+### 12.4 Decoupled Architecture Diagram
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                          FLUTTER CLIENTS                               │
+│                                                                        │
+│  Tile Delivery via --dart-define:                                      │
+│  - MAP_TILE_URL_TEMPLATE (Direct CDN endpoint)                         │
+│  - MAP_TILE_ATTRIBUTION ("© OpenStreetMap contributors, © CARTO")     │
+│                                                                        │
+│  Map Rendering Engine: `flutter_map` (v7+) [FREE SOFTWARE - MIT]       │
+│  - Pure Dart Canvas rendering (Zero native platform channels)          │
+│  - Direct Client Tile Requests (CARTO Basemaps CDN)                    │
+│  - Offline Pin Dropper: Tap canvas -> captures Lat/Lng locally         │
+│  - Turn-by-Turn Button: Deep links to native Google Maps App (FREE)    │
+└───────────────────┬────────────────────────────────┬───────────────────┘
+                    │                                │
+Direct Tile HTTP    │                                │ REST Calls with JWT
+(Client-to-CDN)     │                                │ (No master secrets in client)
+                    ▼                                ▼
+        ┌───────────────────────┐  ┌─────────────────────────────────────┐
+        │ TILE HOST (FREE TIER) │  │     SPRING BOOT BACKEND PROXY       │
+        │ CARTO Basemaps        │  │                                     │
+        │ (5M non-commercial /  │  │  Location & Routing Facade:         │
+        │  1M commercial)       │  │  - GET /api/locations/search        │
+        └───────────────────────┘  │  - GET /api/locations/reverse-geo   │
+                                   │  - GET .../days/{dayId}/route       │
+                                   │  - Bucket4j Core Rate Limiter       │
+                                   │  - In-Memory Caffeine Cache (24h)   │
+                                   │  - Local Haversine Distance Engine  │
+                                   └──────────────────┬──────────────────┘
+                                                      │
+                                        Outbound HTTP │ (Server-to-Server, Timeout: 3-4s)
+                                                      ▼
+                                   ┌─────────────────────────────────────┐
+                                   │       OPTIONAL FREE PROVIDERS       │
+                                   │  Search: LocationIQ (5k req/day)    │
+                                   │  Route: OpenRouteService (2k/day)   │
+                                   │  (If ORS fails: Local Haversine)    │
+                                   │  *No automatic fallback to OSRM*    │
+                                   └─────────────────────────────────────┘
+```
+
+---
+
+## 13. Proposed Database Changes
+
+All proposed database changes are strictly additive and backwards-compatible. Existing data remains untouched.
+
+### 13.1 Modify Table `activities`
+Add custom location snapshot columns to support activities without requiring a catalog `destination_id`:
+
+```sql
+ALTER TABLE `activities`
+  ADD COLUMN `custom_location_name` VARCHAR(150) NULL AFTER `name`,
+  ADD COLUMN `custom_address` VARCHAR(255) NULL AFTER `custom_location_name`,
+  ADD COLUMN `latitude` DECIMAL(10, 7) NULL AFTER `custom_address`,
+  ADD COLUMN `longitude` DECIMAL(10, 7) NULL AFTER `latitude`,
+  ADD COLUMN `place_id` VARCHAR(100) NULL AFTER `longitude`,
+  ADD COLUMN `location_provider` VARCHAR(30) NULL AFTER `place_id`;
+
+CREATE INDEX `idx_activities_coordinates` ON `activities` (`latitude`, `longitude`);
+```
+
+#### Application & Verification Workflow with `ddl-auto=update`:
+1. **Schema Evolution:**
+   - In development environments, Spring Boot is configured with `spring.jpa.hibernate.ddl-auto=update`.
+   - When the JPA entity `Activity.java` is updated with the new fields and annotated with `@Table(name = "activities", indexes = { @Index(name = "idx_activities_coordinates", columnList = "latitude, longitude") })`, Hibernate will automatically issue the `ALTER TABLE ... ADD COLUMN` statements during startup.
+2. **Schema Verification Checklist:**
+   - Run `DESCRIBE activities;` in MySQL to confirm all 6 columns are created with correct data types and `NULL` defaults.
+   - Run `SHOW INDEX FROM activities;` to confirm `idx_activities_coordinates` is active.
+   - Run `SELECT COUNT(*) FROM activities WHERE latitude IS NOT NULL;` (must return `0` initially).
+3. **Realistic Rollback Analysis & Data Loss Warning:**
+   > [!WARNING]
+   > **`DROP COLUMN` is NOT Unconditionally Safe:**
+   > Dropping newly added columns via `ALTER TABLE activities DROP COLUMN ...` is safe **ONLY before custom location data is written by users**.
+   > Once users have created activities with custom locations, executing `DROP COLUMN` will **permanently and irreversibly destroy** all custom location coordinates, venue names, and addresses.
+   > **Safe Rollback Procedures:**
+   > - **Pre-Rollback Backup:** Before executing any destructive DDL rollback in an environment containing user data, export or backup all rows with `SELECT * FROM activities WHERE latitude IS NOT NULL ...` or perform a `mysqldump`.
+   > - **Code-Only Reversion:** If rolling back feature code, leave the additive columns intact in the database schema (they will simply contain `NULL` or dormant data), reverting only application code and DTOs. This avoids destructive data loss.
+4. **Preservation of Existing Activity Records and CRUD Workflows:**
+   - Existing activities with `destination_id != null` retain their foreign key association and display behavior without modification.
+   - Existing activities with `destination_id == null` continue functioning as "No Location" activities.
+   - Existing CRUD endpoints (`POST`, `PUT`, `DELETE`, `reorder`) in `ItineraryServiceImpl` remain 100% backward-compatible.
+
+### 13.2 Architectural Simplification: Deferrals
+1. **Deferred: `Itinerary.latitude` & `Itinerary.longitude`:**
+   An itinerary is a multi-day trip spanning regions, not a single coordinate. Adding coordinates to `Itinerary` is premature and deferred.
+2. **Deferred: Persistent `location_search_cache` Table:**
+   Phase 2 will implement an **in-memory Caffeine cache** (max 500 entries, 24-hour TTL) first. Persistent MySQL caching is deferred until query volume and rate limits justify database persistence.
+
+---
+
+## 14. Proposed API Contracts
+
+### 14.1 Location Search API
+
+#### `GET /api/locations/search`
+- **Auth:** Public / Authenticated (Subject to in-memory rate limiting)
+- **Rate Limit:** 30 requests/min per IP (`ip:<clientIp>` for guests, resolved via trusted proxy whitelist or `request.getRemoteAddr()`; client-supplied `X-Forwarded-For` is never blindly trusted), 60 requests/min per user (`auth:user:<userId>` for authenticated). Exceeding returns `HTTP 429 Too Many Requests`.
+- **Validation Rules:**
+  - `query`: Required, trimmed, min 2 chars, max 100 chars. Empty or whitespace-only returns `HTTP 400 Bad Request`.
+  - `limit`: Optional integer, default 10, max 20.
+  - `latitude`: Optional double, $\in [-90.0, 90.0]$.
+  - `longitude`: Optional double, $\in [-180.0, 180.0]$.
+- **Response `200 OK`:**
+```json
+[
+  {
+    "placeId": "osm_way_12345678",
+    "name": "Hồ Hoàn Kiếm",
+    "formattedAddress": "Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội, Việt Nam",
+    "latitude": 21.0285110,
+    "longitude": 105.8544441,
+    "category": "tourism",
+    "provider": "LOCATION_IQ"
+  }
+]
+```
+
+### 14.2 Reverse Geocoding API
+
+#### `GET /api/locations/reverse-geocode`
+- **Auth:** Public / Authenticated (Subject to rate limiting)
+- **Query Parameters:**
+  - `latitude`: Required, $\in [-90.0, 90.0]$.
+  - `longitude`: Required, $\in [-180.0, 180.0]$.
+- **Response `200 OK`:**
+```json
+{
+  "placeId": "osm_node_87654321",
+  "name": "58 Quốc Tử Giám",
+  "formattedAddress": "58 Quốc Tử Giám, Văn Miếu, Đống Đa, Hà Nội, Việt Nam",
+  "latitude": 21.0293500,
+  "longitude": 105.8360500,
+  "category": "amenity",
+  "provider": "LOCATION_IQ"
+}
+```
+
+### 14.3 Per-Day Route Calculation API
+
+#### `GET /api/itineraries/{id}/days/{dayId}/route`
+- **Auth:** Public (if itinerary is public active) / Owner JWT (if private or hidden; non-owners receive HTTP 404 to prevent ID enumeration)
+- **Query Parameters:**
+  - `mode`: `String` (Optional: `driving` [default], `walking`)
+
+**Response `200 OK` (Road Route Available):**
+#### Route Caching Specification:
+- **Cache Engine:** In-memory Caffeine cache (max 500 entries, 12-hour TTL).
+- **Fully Specified Composite Cache Key (Strict SHA-256 Hashing):**
+  ```
+  route:{version}:{provider}:{mode}:{optionsHash}:{waypointsCoordsHash}
+  ```
+  - `version`: Cache/routing schema version (e.g. `v1`).
+  - `provider`: Active routing engine (e.g. `ors`).
+  - `mode`: Travel mode (`driving-car`, `foot-walking`).
+  - `optionsHash`: **SHA-256** hex string (64 characters) of sorted, normalized routing option key-value pairs (e.g., `avoid_features=tollways`). If default/empty options are used, SHA-256 of an empty string is used.
+  - `waypointsCoordsHash`: **SHA-256** hex string (64 characters) of ordered waypoint coordinates formatted to 5 decimal places (~1.1 meter precision), e.g. `SHA-256("21.02851,105.85444;21.02935,105.83605")`.
+- **Automatic Invalidation on Activity Reordering or Edits:**
+  - Because `waypointsCoordsHash` incorporates the exact ordered sequence of coordinates, any change to activity order (e.g. two-pass reorder API), stop addition, deletion, or coordinate edit will produce a different hash, automatically creating a cache miss and recalculating the route without requiring manual cache eviction listeners.
+
+#### Strict Decoupling of Cached Route Geometry from Domain Entities:
+> [!IMPORTANT]
+> **Cache Route-Provider Results ONLY (Zero User / Domain Data in Cache):**
+> To prevent data leakage, stale domain data, and cache bloat, the routing cache stores **ONLY** the raw calculation output received from the routing provider.
+> 
+> **What is Cached (`CachedRouteResult`):**
+> ```java
+> public record CachedRouteResult(
+>     String routeType,            // "ACTUAL_ROAD" or "ESTIMATED_INDICATIVE"
+>     String provider,             // "OPEN_ROUTE_SERVICE" or "LOCAL_HAVERSINE"
+>     Double totalDistanceMeters,  // e.g. 4250.0 (null for Haversine)
+>     Double directDistanceMeters, // e.g. 3800.0 (always computed via Haversine)
+>     Double totalDurationSeconds, // e.g. 720.0 (null for Haversine)
+>     List<List<Double>> geometryCoordinates // [[lng1, lat1], [lng2, lat2], ...]
+> ) implements Serializable {}
+> ```
+> 
+> **What is NEVER Cached:**
+> - Activity IDs, Activity names, location names, display orders, or costs.
+> - Itinerary IDs, Day IDs, user IDs, or permissions.
+> - User-specific or itinerary-specific response wrappers.
+
+#### Dynamic Response Assembly Workflow:
+When `GET /api/itineraries/{id}/days/{dayId}/route` is invoked:
+1. **Authorization & Validation:** Validate itinerary status, ownership/visibility (returning 404 on unpermitted/deleted itineraries to prevent ID enumeration), and verify `dayId` belongs to `itineraryId` (returning 400 on mismatch).
+2. **Fetch Current Domain Data:** Query the active `ItineraryDay` and its `activities` ordered by `displayOrder` directly from MySQL.
+3. **Extract Coordinates & Compute Key:** Filter activities with valid coordinates; format ordered coordinates to 5 decimal places; compute `waypointsCoordsHash` using **SHA-256**.
+4. **Cache Lookup:** Check Caffeine cache for key `route:v1:{provider}:{mode}:{optionsHash}:{waypointsCoordsHash}`.
+   - **Cache Hit:** Retrieve `CachedRouteResult`.
+   - **Cache Miss:** Call the active routing provider (OpenRouteService with 4-second timeout) or compute local Haversine fallback; store the resulting `CachedRouteResult` in Caffeine.
+5. **Dynamic Assembly:** Construct the final `RouteResponse` DTO by combining the **current live domain entities** (`itineraryId`, `dayId`, `status`, current `waypoints` list with active names, display orders, and IDs) with the cached road geometry and distance metrics from `CachedRouteResult`.
+6. **Return Response:** Return the dynamically assembled `RouteResponse` to the client.
+
+**Architectural Benefits:**
+- **Stale Name Immunity:** Renaming an activity, editing descriptions, or updating costs never invalidates or serves stale activity names from the route cache.
+- **Cross-Itinerary Cache Sharing:** Different itineraries or days that happen to visit the same sequence of coordinates share the exact same cached road geometry without any cross-user data leakage.
+
+```json
+{
+  "itineraryId": 4,
+  "dayId": 1,
+  "status": "SUCCESS",
+  "routeType": "ACTUAL_ROAD",
+  "mode": "driving",
+  "totalDistanceMeters": 4250.0,
+  "directDistanceMeters": 3800.0,
+  "totalDurationSeconds": 720.0,
+  "waypoints": [
+    {
+      "activityId": 10,
+      "name": "Ăn sáng Phở Thìn",
+      "locationName": "Phở Thìn Lò Đúc",
+      "latitude": 21.0285110,
+      "longitude": 105.8544441,
+      "displayOrder": 1
+    },
+    {
+      "activityId": 11,
+      "name": "Tham quan Văn Miếu",
+      "locationName": "Văn Miếu - Quốc Tử Giám",
+      "latitude": 21.0293500,
+      "longitude": 105.8360500,
+      "displayOrder": 2
+    }
+  ],
+  "geometryCoordinates": [
+    [105.8544441, 21.0285110],
+    [105.8450000, 21.0290000],
+    [105.8360500, 21.0293500]
+  ]
+}
+```
+
+**Response `200 OK` (Fallback when Upstream Route Fails or Quota Exceeded):**
+```json
+{
+  "itineraryId": 4,
+  "dayId": 1,
+  "status": "FALLBACK",
+  "routeType": "ESTIMATED_INDICATIVE",
+  "mode": "driving",
+  "totalDistanceMeters": null,
+  "directDistanceMeters": 3800.0,
+  "totalDurationSeconds": null,
+  "waypoints": [
+    {
+      "activityId": 10,
+      "name": "Ăn sáng Phở Thìn",
+      "locationName": "Phở Thìn Lò Đúc",
+      "latitude": 21.0285110,
+      "longitude": 105.8544441,
+      "displayOrder": 1
+    },
+    {
+      "activityId": 11,
+      "name": "Tham quan Văn Miếu",
+      "locationName": "Văn Miếu - Quốc Tử Giám",
+      "latitude": 21.0293500,
+      "longitude": 105.8360500,
+      "displayOrder": 2
+    }
+  ],
+  "geometryCoordinates": [
+    [105.8544441, 21.0285110],
+    [105.8360500, 21.0293500]
+  ]
+}
+```
+
+**Response `200 OK` (Insufficient Stops with Coordinates):**
+```json
+{
+  "itineraryId": 4,
+  "dayId": 1,
+  "status": "INSUFFICIENT_WAYPOINTS",
+  "routeType": "NONE",
+  "mode": "driving",
+  "totalDistanceMeters": null,
+  "directDistanceMeters": 0.0,
+  "totalDurationSeconds": null,
+  "waypoints": [
+    {
+      "activityId": 10,
+      "name": "Ăn sáng Phở Thìn",
+      "locationName": "Phở Thìn Lò Đúc",
+      "latitude": 21.0285110,
+      "longitude": 105.8544441,
+      "displayOrder": 1
+    }
+  ],
+  "geometryCoordinates": []
+}
+```
+
+### 14.4 Admin Destination Management APIs (`/api/admin/destinations`)
+Implemented in dedicated `AdminDestinationController` mapped to `/api/admin/destinations`:
+- `POST /api/admin/destinations` (`hasRole('ADMIN')`): Create shared destination.
+- `PUT /api/admin/destinations/{id}` (`hasRole('ADMIN')`): Update shared destination.
+- `DELETE /api/admin/destinations/{id}` (`hasRole('ADMIN')`): Soft-delete / hide shared destination.
+
+### 14.5 Enhanced Activity Request/Response Contracts
+
+#### `CreateActivityRequest` and `UpdateActivityRequest` (Backend & Mobile Synchronized)
+```json
+{
+  "name": "Ghé tiệm cà phê Tùng",
+  "description": "Thưởng thức cà phê phin cổ điển Đà Lạt",
+  "destinationId": null,
+  "customLocationName": "Cà phê Tùng",
+  "customAddress": "06 Khu Hòa Bình, Phường 1, TP. Đà Lạt",
+  "latitude": 11.9404100,
+  "longitude": 108.4385600,
+  "placeId": "osm_node_11223344",
+  "locationProvider": "LOCATION_IQ",
+  "startTime": "08:30:00",
+  "endTime": "09:30:00",
+  "cost": 50000.00
+}
+```
+
+#### `ActivityResponse` (Backend) & `ActivityDetail` (Mobile)
+```json
+{
+  "activityId": 15,
+  "name": "Ghé tiệm cà phê Tùng",
+  "description": "Thưởng thức cà phê phin cổ điển Đà Lạt",
+  "startTime": "08:30:00",
+  "endTime": "09:30:00",
+  "cost": 50000.00,
+  "displayOrder": 1,
+  "destination": null,
+  "customLocationName": "Cà phê Tùng",
+  "customAddress": "06 Khu Hòa Bình, Phường 1, TP. Đà Lạt",
+  "latitude": 11.9404100,
+  "longitude": 108.4385600,
+  "placeId": "osm_node_11223344",
+  "locationProvider": "LOCATION_IQ"
+}
+```
+
+---
+
+## 15. Revised Implementation Roadmap (Strictly Free-Only)
+
+The roadmap is strictly ordered so that core user travel planning functionality is operational and independent before optional cloud integrations are attached:
+
+$$\text{Create Activity} \longrightarrow \text{Pin Location} \longrightarrow \text{Save Coordinates} \longrightarrow \text{Open Map} \longrightarrow \text{Display Marker}$$
+
+### Phase 0: Free Map Environment Setup & Configuration
+- **Objective:** Establish open-source map dependencies and free tile endpoint conventions on Flutter mobile without committing secrets or requiring paid SDKs.
+- **Cost Category:** `FREE SOFTWARE` + `FREE TIER`.
+- **Backend Tasks:** None.
+  > [!NOTE]
+  > **Zero Backend Modifications in Phase 0:**
+  > To maintain strict separation of concerns and avoid dead code, backend configuration classes (`MapConfig.java`) and external provider properties are deferred to **Phase 2** where backend external proxy endpoints are implemented. Phase 0 is strictly confined to Flutter mobile map infrastructure.
+- **Mobile Tasks:**
+  - Add `flutter_map: ^7.0.2` and `latlong2: ^0.9.1` (MIT & Apache 2.0) to `frontend/mobile/pubspec.yaml`.
+    > [!NOTE]
+    > **Deferred Dependency:** `url_launcher: ^6.3.1` is strictly deferred to **Phase 6**, where external navigation deep linking is implemented. It is omitted from Phase 0 to maintain minimal, targeted dependency increments.
+  - Create `lib/core/constants/map_constants.dart` with free tile defaults and configurable fallback coordinates:
+    ```dart
+    class MapConstants {
+      static const String tileUrlTemplate = String.fromEnvironment(
+        'MAP_TILE_URL_TEMPLATE',
+        defaultValue: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      );
+      static const String tileAttribution = String.fromEnvironment(
+        'MAP_TILE_ATTRIBUTION',
+        defaultValue: '© OpenStreetMap contributors, © CARTO',
+      );
+      // Configurable application-wide fallback coordinates (Priority 3 fallback when GPS & contextual coords are unavailable)
+      // Defaults to the neutral national geographic centroid of Vietnam (zoom ~6.0) without assuming a fixed city
+      static const String _defaultLatEnv = String.fromEnvironment('DEFAULT_MAP_LATITUDE', defaultValue: '14.0583');
+      static const String _defaultLngEnv = String.fromEnvironment('DEFAULT_MAP_LONGITUDE', defaultValue: '108.2772');
+      static const String _defaultZoomEnv = String.fromEnvironment('DEFAULT_MAP_ZOOM', defaultValue: '6.0');
+      static double get fallbackLatitude => double.tryParse(_defaultLatEnv) ?? 14.0583;
+      static double get fallbackLongitude => double.tryParse(_defaultLngEnv) ?? 108.2772;
+      static double get fallbackZoom => double.tryParse(_defaultZoomEnv) ?? 6.0;
+    }
+    ```
+  - Create a basic smoke test widget to verify that `flutter_map` initializes and renders on device/emulator without platform channel errors.
+- **Web Tasks:** None.
+- **Acceptance Criteria:** `flutter test` passes with 0 failures; `flutter_map` and `latlong2` compile cleanly without dependency conflicts; basic map widget renders cleanly on mobile canvas; zero backend modifications; zero paid SDKs in dependencies.
+
+### Phase 1: Activity Location Data Support & Schema Evolution
+- **Objective:** Enable saving and retrieving geographical coordinates directly on activities without requiring external APIs.
+- **Cost Category:** `FREE SOFTWARE` (Internal MySQL & Java).
+- **Backend Tasks:**
+  - Add additive columns to `Activity.java`: `customLocationName`, `customAddress`, `latitude`, `longitude`, `placeId`, `locationProvider`.
+  - Implement coordinate bounds validation in `ItineraryServiceImpl` (lat: `[-90..90]`, lng: `[-180..180]`).
+  - Update `CreateActivityRequest.java`, `UpdateActivityRequest.java`, `ActivityResponse.java`.
+- **Mobile Tasks:**
+  - Update `CreateActivityRequest.dart`, `UpdateActivityRequest.dart`, `ActivityDetail.dart` with coordinate fields and helper getters (`effectiveLatitude`, `effectiveLongitude`, `effectiveLocationName`, `hasCoordinates`).
+- **Web Tasks:** None.
+- **Acceptance Criteria:** Backend tests pass; activities can be created and saved with manual coordinates.
+
+### Phase 2: Backend Location Services, Rate Limiting & Admin Destination APIs
+- **Objective:** Add optional place search proxy, reverse geocoding, in-memory caching, dual-tier rate limiting, and Admin destination management.
+- **Cost Category:** `FREE SOFTWARE` (Caffeine, Bucket4j Core v8.10.1 under Apache 2.0) + `FREE TIER` (LocationIQ).
+- **Backend Tasks:**
+  - Create `MapConfig.java` reading environment variables with safe defaults:
+    ```properties
+    # Optional Third-Party Free Tier Credentials (Defaults to disabled if blank)
+    app.map.geocoding.provider=${GEOCODING_PROVIDER:LOCATION_IQ}
+    app.map.geocoding.api-key=${LOCATION_IQ_API_KEY:}
+    app.map.geocoding.timeout-ms=${GEOCODING_TIMEOUT_MS:3000}
+
+    app.map.routing.provider=${ROUTING_PROVIDER:OPEN_ROUTE_SERVICE}
+    app.map.routing.api-key=${OPEN_ROUTE_SERVICE_API_KEY:}
+    app.map.routing.timeout-ms=${ROUTING_TIMEOUT_MS:4000}
+    ```
+  - Implement dual-tier in-memory rate limiting using Bucket4j Core:
+    - Authenticated: `auth:user:<userId>` (60 req/min).
+    - Guest: `ip:<clientIp>` (30 req/min), resolving client IP via trusted proxy whitelist (`app.security.trusted-proxies`), falling back to `request.getRemoteAddr()` (never blindly trusting client-supplied `X-Forwarded-For`).
+  - Implement query normalization (trim, min 2 chars, max 100 chars, reject blank/empty queries).
+  - Implement `LocationService` with 3-second upstream timeouts, mapped HTTP 429 errors, and Caffeine in-memory cache (**24h TTL, strictly adhering to LocationIQ's $\le 48\text{h}$ free caching restriction**, 500 entries max).
+  - If `LOCATION_IQ_API_KEY` is not provided, the search endpoint returns an empty list gracefully without throwing exceptions.
+  - Implement `AdminDestinationController` mapped to `/api/admin/destinations` (`POST`, `PUT`, `DELETE`).
+- **Mobile Tasks:** Create `LocationRepository` and `LocationSearchResult` model.
+- **Web Tasks:** None.
+- **Acceptance Criteria:** Search queries hit cache; excessive queries return 429; admin endpoints reject non-admin users.
+
+### Phase 3: Reusable Free Flutter Map Infrastructure on Mobile
+- **Objective:** Build a reusable, memory-efficient Flutter map wrapper rendering free tiles directly from CDN.
+- **Cost Category:** `FREE SOFTWARE` (`flutter_map`) + `FREE TIER` (CARTO CDN).
+- **Mobile Tasks:**
+  - Create `shared/widgets/app_map_view.dart` (reusable `FlutterMap` fetching tiles directly via `MapConstants`).
+  - Create `shared/widgets/map_marker_builder.dart` (builds custom marker pins with day/sequence badges).
+  - Include mandatory `RichAttributionWidget` displaying `MapConstants.tileAttribution`.
+- **Web Tasks:** None.
+- **Acceptance Criteria:** Reusable map widget renders cleanly without layout overflow or memory leaks.
+
+### Phase 4: Activity Location Picker with Offline Pin-Drop Fallback
+- **Objective:** Allow users to search places or manually drop a pin to assign location coordinates to an activity.
+- **Cost Category:** `FREE SOFTWARE` + `FREE TIER`.
+- **Mobile Tasks:**
+  - Create `location_picker_sheet.dart` with place search autocomplete and manual map pin dropper.
+  - **Zero-API Resilience:** Dropping a pin on the map allows saving coordinates immediately without waiting for or depending on reverse geocoding.
+  - UI fallback label: *"Vị trí đã ghim"* ("Pinned location") if address resolution fails or is unavailable.
+  - Update `ActivityFormDialog` and `ActivityTimelineItem`.
+- **Acceptance Criteria:** Users can pick a location via search OR drop a pin manually without network/API errors.
+
+### Phase 5: Itinerary Detail Map View & Day-by-Day Activity Markers
+- **Objective:** Display all itinerary activities on an interactive map with day filtering, driven purely by stored database coordinates.
+- **Cost Category:** `FREE SOFTWARE` (Pure Flutter canvas & stored data).
+- **Mobile Tasks:**
+  - Create `itinerary_map_preview_card.dart` embedded in `ItineraryDetailScreen`.
+  - Create `itinerary_map_screen.dart` (full-screen map with day tabs: `Tất cả`, `Ngày 1`, `Ngày 2`, etc.).
+  - Add camera bounding box calculation (`LatLngBounds`) to fit all day markers.
+  - Display informative badge for activities missing coordinates (*"2 hoạt động không có vị trí"*).
+  - Display single marker pin when only 1 stop has coordinates (`INSUFFICIENT_WAYPOINTS`).
+- **Acceptance Criteria:** Changing day filters markers; camera animates to fit active day coordinates.
+
+### Phase 6: Per-Day Route Calculation, Multi-Day Route Visualization & Free Navigation Deep Links
+- **Objective:** Calculate road routes between activities within each itinerary day and across the entire itinerary in "Tất cả" mode, with automatic straight-line fallback, in-memory caching, and free external navigation.
+- **Cost Category:** `FREE TIER` (OpenRouteService) + `FREE SOFTWARE` (Local Haversine & Google Maps URL deep links).
+- **Backend Tasks:**
+  - Create `RouteService` and `RouteController` (`GET /api/itineraries/{id}/days/{dayId}/route`).
+  - Validate ownership and day integrity (`dayId` belongs to `itineraryId`).
+  - Check provider mode compatibility (reject unsupported modes with HTTP 400).
+  - Call OpenRouteService (4-second timeout).
+  - Implement `CachedRouteResult` Caffeine cache storing provider geometry only (keyed by SHA-256 option and waypoint hashes; zero domain entities in cache). Dynamically assemble `RouteResponse`.
+  - **Local Haversine Fallback:** If upstream routing fails, times out, or quota is exhausted, compute straight-line geometry locally (`routeType = ESTIMATED_INDICATIVE`, `totalDurationSeconds = null`, `directDistanceMeters = <direct>`). **No automatic production fallback to OSRM demo.**
+- **Mobile Tasks:**
+  - Add `url_launcher: ^6.3.1` (BSD-3-Clause) to `frontend/mobile/pubspec.yaml` to launch external navigation intents.
+  - Render solid polyline for `ACTUAL_ROAD` and dashed amber line for `ESTIMATED_INDICATIVE`.
+  - **Full Multi-Day Route Visualization Across All Days ("Tất cả" mode):**
+    - Concurrently fetch routes for each day with $\ge 2$ coordinates via `Future.wait`.
+    - Maintain an in-memory cache `Map<int, RouteResponse> _routesByDay` keyed by `dayNumber`, automatically cleared on travel mode switches.
+    - Render distinct, separate `Polyline` instances for each day using that day's theme color (`ItineraryMapHelper.getDayColor(dayNumber)`), matching the marker pins (`D1`, `D2`, etc.).
+    - Strictly prohibit drawing artificial straight lines between the end of Day $K$ and start of Day $K+1$.
+    - Aggregate total road distance and total duration across all days in floating route summary card.
+    - Handle per-day errors gracefully: if Day 1 fails, Day 2 still renders its polyline and all markers remain intact.
+    - Automatically fit camera bounds across all located activities and route geometry.
+  - Add "Chỉ đường" button launching native navigation apps via universal free URL deep link (`https://www.google.com/maps/dir/?api=1&...`).
+- **Acceptance Criteria:** Day routes connect stops; All-days mode displays full journey across all days with day-specific colors and no artificial bridges; fallback handles quota exhaustion cleanly; `url_launcher` compiles without issues and launches native Google Maps intent with properly formatted origin/destination/travelmode coordinates.
+
+### Phase 7: Flutter Web Admin Destination Management [COMPLETED]
+- **Objective:** Implement destination catalog management on Flutter Web Admin.
+- **Cost Category:** `FREE SOFTWARE`.
+- **Status:** Completed and fully tested in Session 79.
+- **Web Tasks Completed:**
+  - Added `flutter_map: ^7.0.2` and `latlong2: ^0.9.1` to `frontend/web/pubspec.yaml`.
+  - Created `map_constants.dart` with CARTO Basemaps Voyager and neutral Vietnam centroid fallback.
+  - Created reusable `WebMapView` with `retinaMode: RetinaMode.isHighDensity(context)`, markers, attribution pill, and click-to-pin.
+  - Extended `ApiClient` with HTTP `delete` and 401 interception.
+  - Implemented `Destination` model and `DestinationRepository` consuming `/api/admin/destinations`.
+  - Created `DestinationFormDialog` with full input validation, coordinate pair rules, $[-90, 90]$ and $[-180, 180]$ bounds, and interactive mini-map.
+  - Created `HideDestinationDialog` for soft-deletion (`status = HIDDEN`) preserving database records and itinerary references.
+  - Created `AdminDestinationsScreen` with `ADMIN` role guard, debounced search, status filter (`ALL`, `ACTIVE`, `HIDDEN`), and responsive master-detail layout.
+  - Integrated navigation into Web Portal header and actions.
+  - Added 15 comprehensive unit and widget tests in `test/admin_destination_test.dart` (30/30 total web tests passing, 0 analyze issues).
+- **Acceptance Criteria:** Admin can view, create, edit, soft-delete, and verify shared destination coordinates on Flutter Web with zero paid services.
+
+---
+
+## 16. Risks and Mitigation
+
+| Risk | Description | Impact | Mitigation Strategy |
+| :--- | :--- | :--- | :--- |
+| **Free Quota Exhaustion** | High search frequency or route requests exhaust LocationIQ (5k/day) or ORS (2k/day) limits. | Medium | Client debouncing (400ms); Caffeine in-memory cache (24h TTL $\le$ 48h limit); local Haversine fallback; manual pin dropping works 100% without external APIs. |
+| **Accidental Billing / Surprise Costs** | Developers or evaluators accidentally trigger cloud billing charges. | Critical | **No payment instruments registered.** Proprietary paid SDKs (Google Maps Platform, Mapbox) are strictly banned. Free providers selected have hard HTTP 429 cutoffs. Introducing paid services requires explicit human approval. |
+| **CARTO Commercial Reclassification** | If the platform transitions from academic to commercial use, CARTO free tier reduces from 5M to 1M requests/month. | Medium | Project operates under explicit non-commercial academic assumption; formal reassessment required prior to any commercialization. |
+| **Flutter Web User-Agent Limitation for OSM** | Web browsers control the `User-Agent` HTTP header for cross-origin image requests, preventing custom User-Agent headers required by OSM policy. | Low | Public OSM tiles are strictly excluded from production; CARTO Basemaps is used for client tile streaming. OSM tiles are restricted to manual local mobile dev only. |
+| **Travel Mode Incompatibility** | Client requests `walking` when active routing provider only supports `driving` (e.g. OSRM Demo). | Medium | Backend checks provider capability set; explicitly returns HTTP 400 Bad Request. Never silently convert walking to driving. |
+| **Reverse Geocoding Failure on Map Pin Drop** | Dropping a pin in a remote or unmapped area causes reverse geocoding to return empty or error. | Low | Coordinate saving is completely decoupled from address resolution. UI displays *"Vị trí đã ghim"* as fallback name. |
+| **Tile Provider Rate Throttling** | Heavy concurrent tile requests from client devices cause tile CDN throttling. | Low | Use CARTO Basemaps (5M tiles/month free for academic use). Flutter tiles are cached locally by HTTP cache headers. |
+| **Activities Without Coordinates** | Activities like "Nghỉ ngơi" or "Ăn uống tự do" do not have specific geographic locations. | Low | Coordinate fields remain strictly nullable. The map view filters out non-geographic activities and shows an informative indicator. |
+| **Route Calculation Failure** | Road routing fails due to ferry routes, road disconnects, or upstream timeouts. | Low | Backend automatically falls back to straight-line connection with `routeType: ESTIMATED_INDICATIVE`, null duration, and direct distance calculated via local Haversine formula. |
+| **Hosting & Infrastructure Expenses** | Operating public servers, purchasing domain names, and cloud VPS compute carry real infrastructure costs. | Medium | Clear architectural distinction: mapping software and APIs are free-only, while server/hosting infrastructure is acknowledged and evaluated separately. Student local/university hosting used where feasible. |
+
+---
+
+## 17. Testing and Acceptance Criteria
+
+### 17.1 Backend Testing
+1. **Coordinate Validation Tests:**
+   - Assert that latitude outside `[-90, 90]` or longitude outside `[-180, 180]` throws `BadRequestException`.
+   - Assert that custom location with coordinates but null address/name succeeds (reverse-geocode resilience).
+2. **Persistence & Mutually Exclusive State Tests:**
+   - Test saving an activity with a catalog destination (`destinationId` set, custom fields null).
+   - Test saving an activity with a custom location (`destinationId` null, custom fields populated).
+   - Test clearing location (all fields null).
+3. **Authorization, Ownership & RBAC Tests:**
+   - Verify that `POST /api/admin/destinations` returns 403 Forbidden for `ROLE_USER` and succeeds for `ROLE_ADMIN`.
+   - Verify that `GET /api/itineraries/{id}/days/{dayId}/route` returns 404 if the itinerary is soft-deleted (`status = DELETED`), or if a private/hidden itinerary is requested by a non-owner (preventing ID enumeration).
+   - Verify that `GET /api/itineraries/{id}/days/{dayId}/route` returns 400 Bad Request if `dayId` does not belong to `itineraryId`.
+4. **Rate Limiting & Quota Failsafe Tests:**
+   - Assert that requests exceeding 30 req/min from the same IP return `HTTP 429 Too Many Requests` via Bucket4j Core.
+   - Assert that upstream connect/read timeouts trigger friendly fallback responses without crashing backend threads.
+5. **Per-Day Routing & Travel Mode Tests:**
+   - Verify that requesting an unsupported mode returns `HTTP 400 Bad Request` without silent conversion.
+   - Verify that days with fewer than 2 coordinates return `INSUFFICIENT_WAYPOINTS` with zero direct distance and empty geometry.
+   - Verify that routing failures trigger `ESTIMATED_INDICATIVE` fallback with `totalDurationSeconds: null` and `directDistanceMeters` populated via local Haversine calculation.
+
+### 17.2 Flutter Mobile Testing
+1. **Location Search & Picker Widget Tests:**
+   - Test `LocationPickerSheet`: verify typing triggers debounced repository call, and tapping a result updates selected state.
+   - Test dropping a pin on the map and saving coordinates even when reverse geocoding returns null (fallback label: *"Vị trí đã ghim"*).
+2. **Activity Form Dialog Tests:**
+   - Test saving, editing, and removing activity location across both Create and Update forms.
+3. **Map Display & Day Filtering Tests:**
+   - Test `ItineraryMapScreen`: verify changing day selector filters the rendered markers list.
+   - Test UI states: loading spinner, empty day state, tile failure banner, missing coordinates indicator.
+4. **Route Rendering Tests:**
+   - Verify that `ACTUAL_ROAD` renders as a solid primary polyline.
+   - Verify that `ESTIMATED_INDICATIVE` routes render as dashed lines with a warning banner indicating travel duration is unavailable.
+   - Verify that `INSUFFICIENT_WAYPOINTS` displays single marker pins without drawing polylines.
+5. **Universal Deep Link Test:**
+   - Verify tapping "Chỉ đường" invokes `launchUrl` with the expected Google Maps query string.
+
+### 17.3 Flutter Web Testing
+- Test Admin destination management screen rendering and permission guards against `/api/admin/destinations`.
+
+---
+
+## 18. Verification Summary & Next Steps
+
+### Summary of Free Architecture Guarantees:
+1. **No Mandatory Paid Dependencies:** No credit cards registered, no paid API keys required, and no automatic billing paths exist in the application.
+2. **Decoupled Map Rendering:** `flutter_map` (MIT) renders tiles directly from CARTO Basemaps (5M requests/month free tier under non-commercial assumption) without backend proxy bottlenecks.
+3. **Core Feature Independence:** Creating activities, dropping pins on the map, persisting coordinates, and viewing markers operate 100% locally from internal database records without external API dependencies.
+4. **Resilient Local Fallback Engine:** Upstream search and routing failures trigger graceful degradations (in-memory Caffeine cache $\le 48\text{h}$, manual pin entry, and local straight-line Haversine routing without community server auto-failovers).
+5. **Universal External Navigation:** Turn-by-turn routing is delegated to native Google Maps / Apple Maps apps via standard free deep links.
+6. **Explicit Governance:** Introducing any paid service or commercial upgrade requires explicit human approval from the project owner.
+
+### Map Integration Roadmap Status:
+All roadmap phases (Phase 0 through Phase 7) are now **100% completed, fully tested, and verified**:
+- **Phase 0:** Setup & Configuration (Free CARTO Basemaps & Flutter Map foundation)
+- **Phase 1:** Activity Location Data Model & Three-State DTOs
+- **Phase 2:** Backend Location Services (LocationIQ proxy, Caffeine caching, Bucket4j rate limiting, Admin Destination CRUD)
+- **Phase 3:** Reusable Free Flutter Map Infrastructure (`AppMapView`)
+- **Phase 4:** Activity Location Picker with Offline Pin-Drop Fallback
+- **Phase 5:** Itinerary Detail Map View & Day-by-Day Activity Markers
+- **Phase 6:** Per-Day Route Calculation & Navigation Deep Links (OpenRouteService, Haversine fallback, Google Maps intent)
+- **Phase 7:** Flutter Web Admin Destination Management (Role-guarded CRUD, interactive web map, soft-delete safety)
+
+---
+
+## 19. Multi-Day Route Visualization & Co-Located Coordinate Audit (Session 82)
+
+### 19.1 Observed Issues & Root Cause Analysis
+
+During real-device Android testing on multi-day itineraries (specifically target Itinerary 262: *"Hành Trình Di Sản Miền Trung: Đà Nẵng - Hội An 4N3Đ"*), four distinct issues were identified and audited:
+
+| Observed Problem | Symptoms | Root Cause |
+| :--- | :--- | :--- |
+| **A. Missing Road Polylines** | Neither All-Days nor single-day mode displayed connecting road lines; card showed text like *"Khoảng cách đường chi..."*. | When `OPENROUTESERVICE_API_KEY` is unset or empty, backend returns `status: "FALLBACK"` with empty road geometry (`[]`). Single-line truncation (`maxLines: 1`) on mobile viewports clipped fallback text. |
+| **B. Unchanged Markers Across Days** | Selecting Day 1, 2, 3, or 4 displayed markers at identical positions. | `DataSeeder.java` ignored `dayNum` when seeding activities for Đà Nẵng, assigning the exact same 3 destinations to every day. |
+| **C. Day 4 ("D4") Occlusion** | In "Tất cả" mode, only `D4` markers were visible on the map. | Because Days 1–4 had identical coordinates, Day 4 markers (rendered last in iteration order) painted directly on top of Days 1–3, occluding them completely. |
+| **D. Summary Card Clipping** | Distance and duration text clipped with ellipsis on 360–390dp devices. | Fixed-width and single-line constraints with horizontal action button left only ~178dp for two strings. |
+
+### 19.2 Solution Architecture & Implementation
+
+#### 1. Backend Seeder & Database Realism (`DataSeeder.java` & MySQL)
+- Expanded the destination catalog with 4 distinct real Đà Nẵng attractions:
+  - *Bãi Biển Mỹ Khê & Cầu Rồng* (`16.0611, 108.2280`)
+  - *Chợ Đêm Sơn Trà* (`16.0615, 108.2320`)
+  - *Danh Thắng Ngũ Hành Sơn* (`16.0042, 108.2635`)
+  - *Chợ Hàn Đà Nẵng* (`16.0682, 108.2246`)
+- Refactored `seedActivitiesForDay` to branch on `dayNum`, providing genuine, distinct activities and destinations across all 4 days.
+- Updated MySQL database records for Itinerary 262 (activities 19..30 across days 9..12) to match real geographic positions.
+
+#### 2. Co-Located Coordinate Jitter Algorithm (`ItineraryMapHelper.dart`)
+- To prevent complete marker occlusion if any future itinerary has activities at identical coordinates:
+  - In `buildActivityMarkers`, detect co-located coordinates ($N > 1$).
+  - For duplicate coordinates, apply a small deterministic radial offset:
+    $$\Delta \text{lat} = R \cdot \cos\left(\frac{2\pi \cdot k}{N}\right), \quad \Delta \text{lng} = \frac{R}{\cos(\text{lat}_{\text{rad}})} \cdot \sin\left(\frac{2\pi \cdot k}{N}\right)$$
+    where $R \approx 0.00018^\circ$ (~18–20 meters).
+  - Ensures all markers at the same address remain individually visible, labeled (`D1`, `D2`, etc.), and tappable.
+
+#### 3. Responsive Route Card & Multi-Day Fallback Handling (`ItineraryMapScreen.dart`)
+- Replaced `maxLines: 1` with `maxLines: 2` and flexible column wrapping across road and fallback route cards.
+- Supported All-Days fallback aggregation: sums `directDistanceMeters` across all days when external road routing is unconfigured or in fallback state.
+- Route card visibility logic checks `hasRoadOrFallback` to ensure fallback information is presented cleanly without truncation.
+
+### 19.3 Architecture Constraints Compliance
+- **Strict Free-First & Zero Paid Dependencies:** OpenRouteService remains free-tier optional; Haversine straight-line calculation operates entirely offline.
+- **No Artificial Cross-Day Lines:** Days remain strictly isolated in polyline rendering.
+- **No Unsanctioned Public Routing Abuse:** Public OSRM demo servers are never contacted as an unconfigured fallback.
+
+---
+*Report compiled, refined, and verified against the Travel Planner codebase. All terms and pricing verified as of October 2026.*
+
+---
+
+## 20. Báo Cáo Audit & Đánh Giá Toàn Diện Chức Năng Tìm Kiếm Địa Điểm (Place Search) — 05/11/2026
+
+### 20.1. Tổng quan triển khai
+- **Công nghệ và dịch vụ đang sử dụng:**
+  - **Backend:** Spring Boot 4.1.1 (Java 22), Spring Data JPA, Spring Security (JWT Stateless), MySQL 8, Bucket4j 8.10.1 (Rate limiting), Caffeine Cache 3.1.8.
+  - **Dịch vụ tìm kiếm địa điểm bên ngoài (Upstream Provider):** LocationIQ API v1 (`/autocomplete`, `/reverse`, `/nearby`) với giới hạn địa lý Việt Nam (`countrycodes=vn`).
+  - **Bản đồ Mobile:** Flutter (Dart 3, Material 3), `flutter_map` v7.0.2 (kết xuất raster tile bằng pure Dart canvas), `latlong2` v0.9.1.
+  - **Bản đồ nền (Tile CDN):** CARTO Basemaps (`Voyager` / `Positron`) nạp trực tiếp từ ứng dụng mobile, không ủy quyền qua backend proxy, hạn mức 5.000.000 lượt yêu cầu/tháng cho mục đích phi thương mại/học tập.
+  - **Tính toán tuyến đường (Routing):** OpenRouteService v2 (`/directions/driving-car`, `/directions/foot-walking`) tích hợp qua backend proxy với cơ chế tự động chuyển đổi sang đường thẳng Haversine khi ngoại tuyến hoặc không có khóa.
+  - **Điều hướng (Navigation):** Deep link miễn phí chuyển tiếp sang ứng dụng bản đồ gốc của thiết bị (Google Maps / Apple Maps).
+  - **Hình ảnh địa điểm/hoạt động:** Cloudinary (tải lên thông qua chữ ký bảo mật từ backend).
+
+- **Những thành phần đã triển khai trong mã nguồn:**
+  - **Backend (`Travel_Planner/backend`):**
+    - `LocationController.java`: Cung cấp 3 endpoint RESTful công khai: `GET /api/locations/search`, `GET /api/locations/reverse-geocode`, `GET /api/locations/nearby`.
+    - `LocationService.java` & `LocationServiceImpl.java`: Tầng nghiệp vụ xử lý tiền kiểm tra đầu vào, làm tròn tọa độ chuẩn xác (5 chữ số thập phân ~1.1m) để chống trôi key cache, bộ nhớ đệm Caffeine (500 mục, TTL 24 giờ).
+    - `GeocodingProvider.java` & `LocationIqGeocodingProvider.java`: Trừu tượng hóa nhà cung cấp định vị, sử dụng Spring `RestClient` với cấu hình kết nối và đọc tối đa 3000ms.
+    - `LocationRateLimiter.java`: Giới hạn tốc độ truy cập kép (Dual-tier) với Bucket4j: 60 yêu cầu/phút cho người dùng đăng nhập và 30 yêu cầu/phút cho khách vãng lai theo IP (`ClientIpResolver`).
+    - `MapProperties.java` & `application.properties`: Quản lý cấu hình tập trung cho geocoding và routing từ biến môi trường.
+    - `Activity.java` & `ItineraryServiceImpl.java`: Mô hình dữ liệu vị trí 3 trạng thái độc quyền (State 1: Catalog, State 2: Custom Location, State 3: No Location).
+  - **Frontend Mobile (`Travel_Planner/frontend/mobile`):**
+    - `LocationPickerSheet.dart`: Modal bottom sheet chiếm 90% chiều cao màn hình, tích hợp thanh tìm kiếm địa điểm, bộ lọc phân loại xung quanh (ActionChips), danh sách kết quả cuộn mượt mà, bản đồ `AppMapView` tương tác trực quan với ghim marker `MapMarkerBuilder`, tính năng ghim thủ công và chỉnh sửa tên địa điểm.
+    - `LocationRepository.java`: Quản lý gọi API vị trí từ client, xử lý debounce, bắt lỗi mã hóa và ánh xạ JSON sang đối tượng Dart.
+    - `CustomLocationResult.dart` & `LocationSearchResult.dart`: Lớp dữ liệu kết quả tìm kiếm và vị trí xác nhận kèm bộ tiền kiểm tra tọa độ hợp lệ.
+    - `ActivityFormDialog.dart`: Tích hợp chọn địa điểm từ danh mục (Dropdown) hoặc từ bản đồ (LocationPickerSheet), thực thi nghiêm ngặt tính loại trừ lẫn nhau giữa 2 nguồn dữ liệu.
+    - `ItineraryMapScreen.dart` & `ItineraryMapHelper.dart`: Hiển thị bản đồ lộ trình chi tiết theo từng ngày, vẽ polyline tuyến đường và hiển thị điểm dừng hoạt động.
+
+- **Luồng hoạt động thực tế từ Flutter đến Backend và Database:**
+  ```mermaid
+  sequenceDiagram
+      actor User as Người dùng
+      participant Sheet as LocationPickerSheet
+      participant Repo as LocationRepository
+      participant Controller as LocationController
+      participant RateLimiter as LocationRateLimiter (Bucket4j)
+      participant Service as LocationServiceImpl (Caffeine)
+      participant Provider as LocationIqProvider
+      participant Upstream as LocationIQ API (vn)
+      participant DB as MySQL Database
+
+      User->>Sheet: Nhập từ khóa ("Bà Nà Hills")
+      Note over Sheet: Debounce 400ms & gắn ngữ cảnh tỉnh/thành
+      Sheet->>Repo: searchLocations("Bà Nà Hills, Đà Nẵng")
+      Repo->>Controller: GET /api/locations/search?query=...
+      Controller->>RateLimiter: tryConsume(rateLimitKey)
+      RateLimiter-->>Controller: Allowed (Token consumed)
+      Controller->>Service: searchLocations(trimmedQuery, limit, lat, lon)
+      Service->>Service: Kiểm tra Caffeine Cache (Key: search:bà nà hills...:none:none)
+      alt Cache Hit
+          Service-->>Controller: Trả về kết quả trong Cache
+      else Cache Miss
+          Service->>Provider: search(trimmedQuery, limit, lat, lon)
+          Provider->>Upstream: GET /v1/autocomplete?key=...&q=...&countrycodes=vn
+          Upstream-->>Provider: JSON Array (lat, lon, display_name, place_id)
+          Provider->>Provider: Lọc tọa độ hợp lệ, gán mã OSM/PlaceId
+          Provider-->>Service: List<LocationSearchResultResponse>
+          Service->>Service: Lưu vào Caffeine Cache (TTL 24h)
+          Service-->>Controller: List<LocationSearchResultResponse>
+      end
+      Controller-->>Repo: 200 OK [JSON Array]
+      Repo-->>Sheet: List<LocationSearchResult>
+      Sheet-->>User: Hiển thị danh sách kết quả dạng Dropdown
+
+      User->>Sheet: Chọn "Bà Nà Hills" & bấm "Xác nhận vị trí"
+      Sheet-->>User: Đóng modal, trả về CustomLocationResult
+      Note over User: Mở ActivityFormDialog (State 2: destinationId = null)
+      User->>DB: POST /api/itineraries/{id}/days/{dayId}/activities
+      Note over DB: ItineraryServiceImpl.applyLocation lưu custom_location_name, latitude, longitude, place_id, provider
+  ```
+
+---
+
+### 20.2. Đánh giá Backend (Spring Boot)
+- **Các API hiện có:**
+  - `GET /api/locations/search`: Tìm kiếm địa điểm bằng từ khóa. Chấp nhận các tham số: `query` (hoặc `q`), `limit` (mặc định 10, tối đa 20), `latitude` (hoặc `lat`), `longitude` (hoặc `lon`, `lng`) cho viewport bias.
+  - `GET /api/locations/reverse-geocode`: Chuyển đổi tọa độ vĩ độ/kinh độ thành thông tin địa chỉ văn bản.
+  - `GET /api/locations/nearby`: Tìm kiếm điểm ưa thích lân cận theo thể loại (`ALL`, `ATTRACTION`, `FOOD`, `CAFE`, `STAY`), bán kính (100 - 10.000m) và giới hạn kết quả.
+- **Kiến trúc xử lý tìm kiếm:**
+  - Phân tầng mạch lạc, áp dụng mẫu thiết kế Provider Pattern thông qua giao diện `GeocodingProvider`. Điều này giúp việc hoán đổi hoặc mở rộng thêm nhà cung cấp khác trong tương lai (ví dụ Nominatim tự host, Geoapify, Goong) không gây ảnh hưởng đến tầng dịch vụ `LocationService`.
+  - Sử dụng Spring `RestClient` hiện đại (Spring 6 / Spring Boot 3 & 4) với bộ định thời kết nối `SimpleClientHttpRequestFactory` (ConnectTimeout: 3000ms, ReadTimeout: 3000ms).
+  - Quá trình chuẩn hóa dữ liệu địa điểm đầu ra chặt chẽ: `osm_type` và `osm_id` được chuyển đổi thành chuỗi định danh duy nhất `osm_{type}_{id}`, tên hiển thị ưu tiên theo thứ tự `display_place` -> `address.name` -> phần đầu của `display_name` -> fallback `Vị trí đã chọn`.
+- **Xác định tính chất dữ liệu:**
+  - **Backend thực sự gọi dịch vụ ngoài (LocationIQ API), KHÔNG PHẢI dữ liệu mẫu hay mock cứng.**
+  - Khi chưa cấu hình khóa API hoặc biến môi trường `LOCATION_IQ_API_KEY` bị rỗng: Hệ thống phòng vệ bằng phương thức `isConfigured()`, trả về danh sách rỗng `[]` (cho tìm kiếm), mã 404 (cho reverse-geocode) và mã 503 (cho nearby), đảm bảo không gây sập ứng dụng (zero crash).
+- **Quản lý API Key & Biến môi trường:**
+  - Backend đọc từ biến môi trường `${LOCATION_IQ_API_KEY:}` thông qua `@ConfigurationProperties(prefix = "app.map")` trong lớp `MapProperties`.
+  - Không có khóa API nào bị gắn cứng (hardcode) trong mã nguồn Java hoặc file `application.properties`.
+- **Xử lý lỗi, Rate Limiting và Caching:**
+  - **Rate Limiting:** Sử dụng thư viện Bucket4j quản lý bộ đệm token trong bộ nhớ với Caffeine (`LocationRateLimiter`). Người dùng đã xác thực (JWT) được cấp 60 lượt/phút; khách vãng lai (IP qua `ClientIpResolver`) được cấp 30 lượt/phút. Khi vượt ngưỡng, hệ thống trả về HTTP 429 kèm thông báo: *"Bạn đã gửi quá nhiều yêu cầu vị trí. Vui lòng thử lại sau một phút."*
+  - **Caching:** Caffeine in-memory cache với cấu hình tối đa 500 mục và thời gian sống (TTL) 24 giờ cho cả search, reverse và nearby. Điều này hoàn toàn tuân thủ điều khoản dịch vụ của LocationIQ (giới hạn lưu cache không quá 48 giờ) và tiết kiệm tối đa quota miễn phí (5.000 lượt/ngày).
+  - **Xử lý lỗi nhà cung cấp:**
+    - Mã 404 từ LocationIQ (không tìm thấy địa điểm): Ánh xạ thành danh sách rỗng `[]` với HTTP 200 cho người dùng thay vì báo lỗi.
+    - Mã 429 từ LocationIQ (hết quota ngày hoặc vượt 2 req/giây): Bắt lỗi và chuyển thành `RateLimitExceededException` (HTTP 429).
+    - Mã 5xx từ LocationIQ: Chuyển thành `AppException` (HTTP 502 Bad Gateway).
+    - Timeout kết nối/đọc: Chuyển thành `AppException` (HTTP 504 Gateway Timeout).
+- **Validation dữ liệu đầu vào:**
+  - Từ khóa tìm kiếm: Bắt buộc không rỗng, độ dài từ 2 đến 100 ký tự sau khi cắt tỉa khoảng trắng (`trimmed`).
+  - Số lượng kết quả (`limit`): Giới hạn trong khoảng 1 đến 20.
+  - Tọa độ: Kiểm tra chặt chẽ tính hữu hạn (`isFinite`) và phạm vi hợp lệ trên Trái Đất (Vĩ độ: [-90.0, 90.0], Kinh độ: [-180.0, 180.0]).
+
+---
+
+### 20.3. Đánh giá Frontend (Flutter Mobile)
+- **Giao diện và luồng tìm kiếm:**
+  - Giao diện `LocationPickerSheet` tuân thủ nghiêm ngặt Design System Material 3, màu sắc nhận diện `AppColors.primary` (Rausch #FF385C).
+  - Thanh tìm kiếm đặt nổi trên bản đồ, hỗ trợ xóa nhanh bằng một chạm (Clear icon).
+  - Bộ phím tắt phân loại lân cận (`ActionChip`): Gần đây, Tham quan, Ăn uống, Cà phê, Lưu trú, cho phép tìm nhanh POI mà không cần gõ phím.
+  - Khung kết quả tìm kiếm giới hạn chiều cao tối đa 220px, có chỉ báo tiến trình xoay tròn khi đang truy vấn và hiển thị biểu tượng trạng thái rỗng thân thiện khi không tìm thấy kết quả.
+- **Kiểm soát Request & Debounce:**
+  - Kỹ thuật Debounce với thời gian chờ 400ms (`_debounceTimer`): Khi người dùng gõ phím liên tục, timer cũ bị hủy ngay lập tức, ngăn ngừa việc gửi bão request lên server.
+  - Tự động hủy tìm kiếm và đóng bảng kết quả khi từ khóa còn dưới 2 ký tự.
+  - **Chống Race Condition (Kết quả cũ ghi đè kết quả mới):** Sử dụng cơ chế biến đếm định danh `_searchRequestId` và `_reverseGeocodeRequestId`. Khi một phản hồi mạng trả về trễ hơn so với thao tác mới nhất của người dùng, điều kiện `if (!mounted || requestId != _searchRequestId) return;` sẽ loại bỏ phản hồi cũ, bảo đảm giao diện không bao giờ bị ghi đè dữ liệu sai lệch.
+- **Tích hợp bản đồ & Ghim tọa độ:**
+  - Bản đồ nhúng `AppMapView` vận hành mượt mà với `flutter_map` v7.
+  - Khi người dùng chọn một địa điểm từ danh sách tìm kiếm: Bản đồ tự động kích hoạt hoạt ảnh di chuyển camera `_mapController.move(point, 15.0)` đến đúng tọa độ và đặt pin marker.
+  - **Khả năng ghim thủ công (Zero-API Pin Drop Resilience):** Khi người dùng chạm vào bất kỳ điểm nào trên bản đồ, hệ thống đặt ngay marker tại tọa độ đó với tên mặc định là *"Vị trí đã ghim"* (`MANUAL_PIN`). Một request reverse-geocoding được phát đi ngầm để lấy địa chỉ mô tả, nhưng **tuyệt đối không ghi đè tên do người dùng đặt và không gán placeId của địa điểm lân cận vào ghim thủ công**. Người dùng có thể nhấn nút chỉnh sửa để đặt lại tên theo ý muốn.
+- **Xử lý thiếu dữ liệu và Trạng thái vòng đời:**
+  - Tọa độ thiếu hoặc không hợp lệ: Phương thức `_selectSearchResult` chủ động bắt lỗi `ArgumentError` hoặc kiểm tra bounds, thông báo yêu cầu người dùng ghim vị trí thủ công thay vì gây sập ứng dụng (crash).
+  - Vòng đời giao diện: Khi đóng bottom sheet (bằng nút Hủy hoặc nút Đóng), sheet trả về `null` và giữ nguyên trạng thái biểu mẫu của `ActivityFormDialog` mà không làm mất dữ liệu người dùng đang nhập dở.
+
+---
+
+### 20.4. Đánh giá Database và Quan hệ dữ liệu
+- **Cấu trúc bảng liên quan:**
+  - **Bảng `destinations`:** Đóng vai trò là danh mục địa điểm dùng chung chuẩn hóa do quản trị viên (Admin) biên tập hoặc nạp từ seed data ban đầu. Lưu trữ các cột: `destination_id`, `name`, `address`, `description`, `image_url`, `latitude`, `longitude`, `status`. Bảng này không lưu trữ các trường phụ thuộc nhà cung cấp như `place_id` hay `location_provider`.
+  - **Bảng `activities`:** Lưu trữ hoạt động lịch trình của người dùng. Đã được mở rộng với các cột: `custom_location_name` (varchar 150), `custom_address` (varchar 255), `latitude` (decimal 10,7), `longitude` (decimal 10,7), `place_id` (varchar 100), `location_provider` (varchar 30), `image_url` (varchar 500). Có chỉ mục chuyên biệt `idx_activities_coordinates` trên cặp `(latitude, longitude)`.
+- **Quan hệ dữ liệu & Mô hình 3 trạng thái độc quyền (Mutual Exclusivity):**
+  - Tầng nghiệp vụ `ItineraryServiceImpl.applyLocation` cưỡng chế nghiêm ngặt 3 trạng thái:
+    - **Trạng thái 1 (Catalog Destination):** `destination_id != null`. Toàn bộ các trường `custom_*`, `latitude`, `longitude`, `place_id`, `location_provider` bị xóa về `null`. Tọa độ và thông tin hiển thị được tham chiếu sống từ bảng `destinations`.
+    - **Trạng thái 2 (Custom Location):** `destination_id = null`. Cặp tọa độ `latitude` và `longitude` là bắt buộc đồng thời (`Atomic coordinate pair validation`). Các trường tên vị trí tùy chỉnh, địa chỉ, placeId và nhà cung cấp (`LOCATION_IQ` hoặc `MANUAL_PIN`) được lưu trực tiếp trên dòng hoạt động.
+    - **Trạng thái 3 (No Location):** `destination_id = null` và toàn bộ các trường vị trí tùy chỉnh đều bằng `null`. Hoạt động vẫn được lưu trữ bình thường nhưng không hiển thị ghim trên bản đồ.
+- **Đánh giá tính toàn vẹn và khả năng tránh trùng lặp:**
+  - **Tận dụng bảng hiện tại:** Hoàn toàn tận dụng cấu trúc hiện có mà không cần tạo bảng mới, phù hợp tiêu chí không can thiệp schema không cần thiết.
+  - **Khả năng phân biệt nguồn gốc:** Hệ thống phân biệt rõ ràng giữa vị trí từ nhà cung cấp (`location_provider = 'LOCATION_IQ'`) và tọa độ do người dùng tự ghim (`location_provider = 'MANUAL_PIN'`).
+  - **Hạn chế về tránh trùng lặp (Deduplication):** Chưa có cơ chế phát hiện hoặc tái sử dụng một Custom Location giữa các người dùng hoặc giữa các hoạt động khác nhau. Cùng một quán cà phê nếu hai người dùng ghim sẽ tạo ra hai bản ghi tọa độ độc lập trong bảng `activities`.
+  - **Tính tương thích ngược:** Tương thích 100% với dữ liệu lịch trình cũ. Các hoạt động tạo từ các phiên bản trước chỉ dùng `destination_id` hoặc không có địa điểm tiếp tục hoạt động hoàn hảo mà không cần chạy migration sửa đổi dữ liệu cũ.
+
+---
+
+### 20.5. Đánh giá Tích hợp tổng thể và Hệ sinh thái
+- **Khả năng tương thích giữa các chức năng:**
+  - **Bản đồ lịch trình (`ItineraryMapScreen`):** Đọc tọa độ thông qua các getter hiệu dụng (`activity.effectiveLatitude`, `activity.effectiveLongitude`). Dù hoạt động thuộc State 1 (Catalog) hay State 2 (Custom), bản đồ đều nhận diện chính xác và hiển thị marker đúng vị trí.
+  - **Thuật toán phân tán tọa độ trùng (`Co-Located Coordinate Jitter`):** Khi nhiều hoạt động trong cùng một ngày diễn ra tại cùng một vị trí (ví dụ ăn sáng và ăn tối tại cùng khách sạn), thuật toán `ItineraryMapHelper` tự động phân tán nhẹ bán kính ~18m để các marker không đè lấp lên nhau.
+  - **Tính toán lộ trình (`RouteServiceImpl`):** Trích xuất tọa độ điểm dừng từ cả Catalog và Custom Location một cách đồng nhất, hỗ trợ định tuyến đường bộ qua OpenRouteService (với bộ nhớ đệm Caffeine 12h) và tự động chuyển về đường thẳng Haversine khi gặp sự cố.
+  - **Dẫn đường ngoài ứng dụng:** Tọa độ của địa điểm tìm kiếm được chuyển tiếp chính xác vào URL deep-link dẫn đường Google Maps: `https://www.google.com/maps/dir/?api=1&destination={lat},{lon}`.
+- **Những điểm làm tốt:**
+  - Triển khai nguyên tắc **Kiến trúc phi chi phí (Strictly Free & Cost-Controlled)** xuất sắc: Sử dụng hoàn toàn thư viện mã nguồn mở và gói miễn phí (CARTO Basemaps, LocationIQ Free Tier, OpenRouteService Standard Tier, Leaflet/Flutter Map).
+  - Tự chủ tính năng cốt lõi (Core Feature Independence): Không phụ thuộc sinh tử vào bên thứ ba. Người dùng vẫn tạo được lịch trình, ghim vị trí, xem bản đồ và tính khoảng cách ngay cả khi mất mạng internet quốc tế hoặc hết hạn ngạch API.
+  - Trải nghiệm người dùng mượt mà, không giật lag nhờ phân lớp bộ nhớ đệm (Caffeine Cache) và cơ chế debounce/hủy request hợp lý.
+- **Những điểm chưa hợp lý:**
+  - **Sự phân mảnh giữa Catalog và Search:** Tính năng tìm kiếm trên bản đồ chưa hợp nhất với danh mục nội bộ `destinations`. Nếu người dùng tìm một điểm đã có sẵn trong cơ sở dữ liệu (ví dụ: "Bà Nà Hills"), hệ thống sẽ tạo một Custom Location mới thay vì gợi ý liên kết với Destination đã chuẩn hóa kèm ảnh đại diện đẹp từ admin.
+  - **Ngữ cảnh tỉnh/thành chỉ là văn bản gợi ý:** Việc ghép chuỗi `query + ", " + locationContext` mang tính thiên vị độ liên quan (relevance bias) chứ không phải ranh giới hành chính cứng (bounding polygon). Một số địa điểm trùng tên nổi tiếng ở tỉnh khác vẫn có thể xuất hiện trong kết quả.
+
+---
+
+### 20.6. Kết quả kiểm thử thực tế và Bảng đối chiếu kịch bản
+
+#### A. Tổng hợp kết quả kiểm thử tự động (Automated Verification)
+- **Backend Test Suite (Maven / JUnit 5 / SpringBootTest):**
+  - Toàn bộ test suite backend: **200 / 200 tests PASS (100% Green, thời gian chạy: 47.5s)**.
+  - Bộ kiểm thử chuyên biệt cho Place Search & Location (`LocationServiceTest`, `ActivityLocationTest`): **48 / 48 tests PASS (100% Green, thời gian chạy: 21.6s)**.
+- **Frontend Mobile Test Suite (Flutter Test):**
+  - Toàn bộ test suite mobile: **333 / 333 tests PASS (100% Green, thời gian chạy: 40s)**.
+  - Bộ kiểm thử chuyên biệt cho Map & Location (`location_repository_test`, `location_picker_test`, `activity_location_model_test`, `itinerary_activity_management_test`, `itinerary_map_test`): **95 / 95 tests PASS (100% Green)**.
+- **Static Analysis (Kiểm tra mã tĩnh):**
+  - Flutter Mobile: `flutter analyze` đạt **0 errors, 0 warnings, 0 issues** (31.0s).
+  - Flutter Web: `flutter analyze` đạt **0 errors, 0 warnings, 0 issues** (4.0s).
+
+#### B. Đánh giá chi tiết 10 kịch bản thực tế
+
+| Kịch bản đánh giá | Đã xử lý trong code? | Có test chứng minh? | Kết quả kiểm thử thực tế | Vấn đề còn tồn tại |
+| :--- | :---: | :---: | :--- | :--- |
+| **1. Tìm kiếm địa điểm nổi tiếng (Bà Nà Hills)** | Có | Có | **ĐẠT.** Backend gọi LocationIQ Autocomplete với `countrycodes=vn`. Trả về danh sách kết quả chứa tên, địa chỉ, tọa độ chính xác. | Nếu chưa cấu hình `LOCATION_IQ_API_KEY`, trả về danh sách rỗng `[]` thay vì lỗi. |
+| **2. Tìm kiếm tiếng Việt có dấu** | Có | Có | **ĐẠT.** URI builder mã hóa UTF-8 an toàn; cache key hỗ trợ chuỗi Unicode; Mobile hiển thị đầy đủ dấu tiếng Việt. | `accept-language` trên LocationIQ Autocomplete cố định là `en` nên một số kết quả có thể hiển thị dạng không dấu. |
+| **3. Tìm kiếm bằng tiếng Anh** | Có | Có | **ĐẠT.** "Ba Na Hills", "Sword Lake" tìm kiếm chính xác nhờ LocationIQ nhận diện tên quốc tế. | Không có. |
+| **4. Từ khóa không có kết quả** | Có | Có | **ĐẠT.** LocationIQ trả về 404 được bắt và chuyển thành mảng rỗng `[]` (HTTP 200). Mobile hiển thị: *"Không tìm thấy địa điểm phù hợp"*. | Không có. |
+| **5. Từ khóa rất ngắn (< 2 ký tự) hoặc gõ liên tục** | Có | Có | **ĐẠT.** Mobile chặn không gọi API nếu < 2 ký tự. Backend kiểm tra độ dài 2..100 ký tự (trả 400 nếu vi phạm). Debounce 400ms và `_searchRequestId` ngăn chặn triệt để bão request và race condition. | Không có. |
+| **6. Chọn địa điểm và xác nhận** | Có | Có | **ĐẠT.** Bản đồ di chuyển đến vị trí chọn, pin marker hiển thị, xác nhận cập nhật biểu mẫu hoạt động và lưu thành công vào MySQL ở State 2. | Không có. |
+| **7. Tìm kiếm địa điểm đã có trong database** | Chưa hoàn thiện | Có (riêng rẽ) | **CẢNH BÁO.** Tìm kiếm bản đồ chỉ truy vấn LocationIQ, không tìm trong bảng `destinations`. Địa điểm được lưu dưới dạng Custom Location thay vì ánh xạ `destination_id`. | Chưa có cơ chế tìm kiếm hợp nhất (Unified Search) giữa Catalog nội bộ và Online POI. |
+| **8. Ghim tọa độ thủ công khi không tìm thấy** | Có | Có | **ĐẠT.** Chạm bản đồ đặt marker ngay lập tức (`MANUAL_PIN`). Reverse-geocode descriptive ngầm lấy địa chỉ. Mất mạng vẫn xác nhận lưu tọa độ bình thường (Zero-API resilience). | Không có. |
+| **9. Nhà cung cấp lỗi hoặc hết quota (429, 5xx, timeout)** | Có | Có | **ĐẠT.** Backend bắt 429 ném `RateLimitExceededException`; bắt 5xx ném 502; timeout ném 504. Mobile hiển thị thông báo lỗi thân thiện, không crash màn hình; người dùng vẫn ghim tay được. | Không có cơ chế tự động chuyển sang nhà cung cấp phụ (do chủ trương không dùng API trả phí và không lạm dụng máy chủ cộng đồng). |
+| **10. Địa điểm thiếu thông tin hoặc sai tọa độ** | Có | Có | **ĐẠT.** Backend parse tọa độ kiểm tra `isFinite` và bounds [-90, 90], [-180, 180]. Mobile validate tọa độ trước khi ghim; nếu thiếu hiển thị thông báo yêu cầu ghim tay; nếu thiếu tên fallback về *"Vị trí đã ghim"*. | Không có. |
+
+---
+
+### 20.7. Danh sách vấn đề phát hiện và Phân loại mức độ nghiêm trọng
+
+#### 1. Mức độ CRITICAL (Nghiêm trọng — Ảnh hưởng bảo mật)
+- **Vấn đề C-01: Rò rỉ các API Key và Secret thực tế trong tài liệu Git (`Travel_Planner/README.md`)**
+  - **Mô tả:** Trong file `Travel_Planner/README.md` tại các dòng 11 đến 15, các khóa cấu hình thực tế gồm `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `OPENROUTESERVICE_API_KEY`, và `LOCATION_IQ_API_KEY` bị ghi trực tiếp dưới dạng câu lệnh PowerShell và đã được đẩy lên lịch sử Git (commit `2109d8f`).
+  - **Nguyên nhân:** Đưa cấu hình môi trường phát triển cục bộ vào tài liệu hướng dẫn chạy mà không che giấu thông tin nhạy cảm.
+  - **Vị trí code:** `Travel_Planner/README.md#L11-L15`.
+  - **Ảnh hưởng:** Bất kỳ ai có quyền truy cập kho mã nguồn đều có thể lấy các khóa này để gọi dịch vụ, dẫn đến nguy cơ cạn kiệt quota miễn phí hoặc lộ tài nguyên media trên Cloudinary.
+  - **Hướng khắc phục đề xuất:**
+    1. Lập tức truy cập trang quản trị của Cloudinary, OpenRouteService và LocationIQ để **thu hồi (Revoke/Rotate)** các khóa bị lộ và cấp khóa mới.
+    2. Xóa các giá trị thực tế khỏi `README.md`, thay thế bằng chuỗi giả định mẫu (ví dụ: `your_api_key_here`).
+    3. Hướng dẫn khai báo qua file `.env` hoặc biến môi trường cục bộ và đảm bảo file chứa khóa nằm trong `.gitignore`.
+
+#### 2. Mức độ HIGH (Chức năng chính chưa tối ưu)
+- **Vấn đề H-01: Thiếu cơ chế tìm kiếm hợp nhất (Unified Search) giữa Catalog Destinations và Online Places**
+  - **Mô tả:** Trong `LocationPickerSheet`, thanh tìm kiếm chỉ truy vấn duy nhất nhà cung cấp ngoài `LocationIQ` qua `/api/locations/search`. Nó hoàn toàn bỏ qua danh mục điểm đến có sẵn trong bảng `destinations` của cơ sở dữ liệu.
+  - **Nguyên nhân:** Kiến trúc hiện tại phân tách độc lập hai luồng: Chọn danh mục từ Dropdown và Tìm kiếm vị trí tự do từ bản đồ.
+  - **Vị trí code:** `LocationController.java`, `LocationPickerSheet.dart#L224`.
+  - **Ảnh hưởng:** Người dùng tìm kiếm một địa điểm nổi tiếng đã được Admin chuẩn hóa (ví dụ: "Bà Nà Hills") trên bản đồ sẽ vô tình tạo một điểm tùy chỉnh (Custom Location) không có ảnh đại diện và mô tả chính thức từ hệ thống, gây phân mảnh dữ liệu.
+  - **Hướng khắc phục đề xuất:** Triển khai endpoint tìm kiếm hợp nhất `GET /api/locations/unified-search` hoặc tích hợp kết quả từ `DestinationRepository` lên đầu danh sách kết quả của `LocationPickerSheet` với huy hiệu nhận diện riêng (badge "Danh mục").
+
+#### 3. Mức độ MEDIUM (Trải nghiệm và Xử lý tình huống)
+- **Vấn đề M-01: Định vị theo ngữ cảnh tỉnh/thành chỉ mang tính gợi ý văn bản (Textual Bias)**
+  - **Mô tả:** Hàm `_queryWithLocationContext` ghép chuỗi `query + ", " + locationContext`.
+  - **Nguyên nhân:** LocationIQ Autocomplete không hỗ trợ bounding polygon dạng hành chính phức tạp mà chỉ nhận chuỗi văn bản hoặc tọa độ tâm.
+  - **Vị trí code:** `location_picker_sheet.dart#L260-L271`.
+  - **Ảnh hưởng:** Nếu người dùng gõ từ khóa chung chung, LocationIQ có thể trả về các địa điểm ở tỉnh thành khác nếu địa điểm đó có độ phổ biến cao hơn trên bản đồ OSM toàn quốc.
+  - **Hướng khắc phục đề xuất:** Bổ sung tham số `viewbox` hoặc `bounded=1` trong truy vấn LocationIQ khi biết trước tọa độ trung tâm và bán kính của điểm đến trong lịch trình.
+- **Vấn đề M-02: Tham số ngôn ngữ `accept-language` trên Autocomplete bị gán cứng là `en`**
+  - **Mô tả:** Trong `LocationIqGeocodingProvider.java#L89`, query parameter `accept-language` được đặt là `"en"` thay vì `"vi"`.
+  - **Nguyên nhân:** Tránh lỗi tương thích tham số chuỗi nhiều ngôn ngữ trên endpoint Autocomplete của LocationIQ.
+  - **Vị trí code:** `LocationIqGeocodingProvider.java#L89`.
+  - **Ảnh hưởng:** Một số địa danh hiển thị trên kết quả gợi ý có thể bị chuyển tự tiếng Anh hoặc mất dấu tiếng Việt tự nhiên.
+  - **Hướng khắc phục đề xuất:** Kiểm tra và cấu hình `accept-language=vi` nếu nhà cung cấp hỗ trợ đơn mã ngôn ngữ tiếng Việt cho Việt Nam.
+
+#### 4. Mức độ LOW (Tối ưu hóa và Tiện ích)
+- **Vấn đề L-01: Bộ nhớ đệm Caffeine in-memory bị mất khi khởi động lại server**
+  - **Mô tả:** Caffeine cache lưu trữ trong RAM của tiến trình Spring Boot.
+  - **Nguyên nhân:** Thiết kế đơn giản cho môi trường đơn máy chủ (Single Instance).
+  - **Vị trí code:** `LocationServiceImpl.java#L35-L48`.
+  - **Ảnh hưởng:** Mỗi lần restart server backend, các truy vấn cũ sẽ phải gọi lại LocationIQ, tiêu tốn một lượng nhỏ quota trong ngày.
+  - **Hướng khắc phục đề xuất:** Chấp nhận cho giai đoạn đồ án/MVP; xem xét chuyển sang Redis khi triển khai hệ thống phân tán đa phiên bản.
+- **Vấn đề L-02: Tính năng tìm kiếm địa điểm xung quanh (`Nearby`) đang tắt mặc định**
+  - **Mô tả:** Biến `app.map.geocoding.nearby-enabled` mặc định là `false`. Khi bấm các chip phân loại, backend trả về mã 503.
+  - **Vị trí code:** `application.properties#L40`, `LocationIqGeocodingProvider.java#L149-L151`.
+  - **Ảnh hưởng:** Người dùng không sử dụng được tính năng gợi ý nhanh các quán ăn, quán cà phê lân cận trên bản đồ nếu người quản trị chưa chủ động bật biến môi trường.
+  - **Hướng khắc phục đề xuất:** Giữ nguyên cho bản miễn phí; chỉ bật khi dự án có quota API ổn định.
+
+---
+
+### 20.8. Đánh giá mức độ hoàn thiện
+
+| Thành phần chức năng | Mức độ hoàn thiện | Nhận xét chi tiết |
+| :--- | :---: | :--- |
+| **Backend Place Search** | **Hoàn thành** | Đầy đủ API search, reverse-geocode, nearby; tích hợp LocationIQ thực tế; tiền kiểm tra tham số, sanitize dữ liệu, xử lý lỗi upstream và cấu hình timeout chuẩn mực. |
+| **Frontend Place Search** | **Hoàn thành** | Giao diện công thái học cao; hỗ trợ debounce 400ms, hủy request rác, chống race condition kết quả cũ ghi đè; hiển thị đầy đủ các trạng thái loading, empty, error. |
+| **Map Integration** | **Hoàn thành** | Tích hợp mượt mà `flutter_map` v7 với CARTO Basemaps raster tiles; di chuyển camera chính xác; hỗ trợ ghim thủ công độc lập (Zero-API resilience); thuật toán chống đè marker hiệu quả. |
+| **Database Integration** | **Hoàn thành** | Mô hình 3 trạng thái độc quyền (Catalog / Custom / None) thực thi nghiêm ngặt; đảm bảo tương thích 100% dữ liệu lịch trình cũ; không làm bẩn bảng catalog. |
+| **Error Handling & Resilience** | **Hoàn thành** | Xử lý triệt để các mã lỗi 404, 429, 5xx, timeout; không bao giờ gây sập ứng dụng (zero crash); thông báo lỗi bằng tiếng Việt thân thiện với người dùng. |
+| **Testing & Quality** | **Hoàn thành** | Kiểm thử tự động đạt 100% (200/200 backend tests, 333/333 mobile tests); tĩnh học mã nguồn đạt 0 lỗi/cảnh báo trên cả Mobile và Web. |
+| **Security & API Quota** | **Hoàn thành một phần** | Bộ đệm Caffeine và Bucket4j rate limiting kiểm soát quota rất tốt; **tuy nhiên bị trừ điểm nặng do rò rỉ API key trong file README.md trên Git**. |
+
+---
+
+### 20.9. Lộ trình cải thiện đề xuất
+
+#### Nhóm 1: Bắt buộc phải xử lý ngay (P0 - Immediate)
+1. **Thu hồi và xoay vòng toàn bộ API Key bị rò rỉ:** Thay thế `LOCATION_IQ_API_KEY`, `OPENROUTESERVICE_API_KEY`, `CLOUDINARY_API_KEY`/`SECRET` trên dashboard của các nhà cung cấp.
+2. **Làm sạch file `Travel_Planner/README.md`:** Xóa vĩnh viễn các chuỗi khóa nhạy cảm khỏi tài liệu, thay bằng hướng dẫn thiết lập biến môi trường chuẩn.
+
+#### Nhóm 2: Nên cải thiện cho phiên bản phát hành tiếp theo (P1 - High Priority)
+1. **Hợp nhất tìm kiếm (Unified Search):** Cho phép `LocationPickerSheet` tìm kiếm song song trong bảng `destinations` của hệ thống để ưu tiên hiển thị các điểm đến chính thức đã có sẵn ảnh và mô tả.
+2. **Cấu hình Bounding Box / Viewbox:** Bổ sung giới hạn tọa độ hộp chữ nhật (Viewbox) quanh thành phố của chuyến đi để tăng độ chính xác địa phương, khắc phục triệt để tình trạng trả về địa điểm trùng tên ở tỉnh khác.
+3. **Thử nghiệm ngôn ngữ tiếng Việt:** Đánh giá lại tham số `accept-language=vi` trên LocationIQ để đảm bảo tên địa điểm trả về giữ đúng dấu tiếng Việt.
+
+#### Nhóm 3: Có thể phát triển trong tương lai khi có nhu cầu mở rộng (P2 - Future Enhancement)
+1. **Mô hình bảng trung gian `places`:** Khi có nhu cầu xây dựng kho địa điểm người dùng đóng góp (Community Places), chuẩn hóa địa điểm thành bảng riêng để tránh lặp dữ liệu trong `activities`.
+2. **Chuyển đổi bộ nhớ đệm sang Redis:** Áp dụng khi triển khai hệ thống backend đa máy chủ (Multi-instance load balancing).
+3. **Cơ chế Fallback nhiều nhà cung cấp:** Tích hợp thêm nhà cung cấp định vị dự phòng miễn phí (như Geoapify hoặc Goong bản thử nghiệm) khi có sự phê duyệt chính thức từ chủ dự án.
+
+---
+
+### 20.10. Kết luận đánh giá
+
+1. **Chức năng tìm kiếm địa điểm hiện tại đã đủ điều kiện sử dụng chưa?**
+   - **TRẢ LỜI: ĐÃ ĐỦ ĐIỀU KIỆN SỬ DỤNG VỀ MẶT TÍNH NĂNG VÀ NGHIỆP VỤ.**
+   - Hệ thống hoạt động rất ổn định, mượt mà, gọi API thực tế của LocationIQ, có giao diện tìm kiếm và chọn bản đồ trực quan, hỗ trợ ghim thủ công độc lập và tương thích hoàn hảo với cơ sở dữ liệu cũng như tính năng định tuyến. Tuy nhiên, **trước khi đưa vào môi trường thực tế, BẮT BUỘC phải thực hiện xoay vòng khóa API bị lộ trong tài liệu README.md**.
+
+2. **Kiến trúc hiện tại có phù hợp để tiếp tục phát triển không?**
+   - **TRẢ LỜI: HOÀN TOÀN PHÙ HỢP.**
+   - Kiến trúc phân lớp của Backend với `GeocodingProvider` và `RoutingProvider` giúp phân tách rành mạch mã nguồn với nhà cung cấp bên ngoài.
+   - Mô hình 3 trạng thái vị trí trên `Activity` giải quyết triệt để bài toán kết hợp giữa danh mục dùng chung và địa điểm ghim tự do mà không làm vỡ các ràng buộc quan hệ hay dữ liệu cũ.
+   - Kiến trúc miễn phí (Free-first) với `flutter_map` và CARTO Basemaps bảo vệ dự án khỏi các rủi ro phát sinh chi phí ngoài ý muốn.
+
+3. **Những vấn đề nào cần giải quyết trước khi xem là hoàn thiện?**
+   - Xoay vòng và xóa các API Key trong tài liệu `README.md`.
+   - Kết nối tìm kiếm danh mục nội bộ vào chung giao diện tìm kiếm bản đồ (Unified Search) để người dùng không bị phân mảnh trải nghiệm.
+
+4. **Có cần thay đổi công nghệ hoặc nhà cung cấp không?**
+   - **TRẢ LỜI: KHÔNG CẦN THAY ĐỔI CÔNG NGHỆ HOẶC NHÀ CUNG CẤP Ở THỜI ĐIỂM HIỆN TẠI.**
+   - Sự kết hợp giữa **LocationIQ (Geocoding/Search)** + **CARTO Basemaps (Bản đồ nền)** + **OpenRouteService (Tuyến đường)** + **Google Maps (Chỉ đường ngoài ứng dụng)** là giải pháp tối ưu nhất hiện nay đáp ứng trọn vẹn yêu cầu: **Chi phí 0 VNĐ, chất lượng dữ liệu tốt tại Việt Nam, không yêu cầu thẻ tín dụng quốc tế và tuân thủ pháp lý/điều khoản phi thương mại của đồ án.**
+
+---
+*Báo cáo Audit hoàn thành ngày 05/11/2026 bởi Antigravity Engine.*
+
+---
+
+## 21. Bổ sung: Triển khai Cải tiến Ngôn ngữ Tiếng Việt và Khả năng Tìm kiếm POI (05/11/2026)
+
+### 21.1. Mục tiêu và Phạm vi thực hiện
+Triển khai giải quyết triệt để 2 vấn đề trọng tâm theo yêu cầu:
+1. **Ưu tiên kết quả tiếng Việt:** Cấu hình và ưu tiên tiếng Việt tự nhiên cho kết quả tìm kiếm, reverse geocoding và gợi ý lân cận; giữ nguyên tên thương hiệu gốc, không dịch sai lệch và hỗ trợ tốt cả từ khóa có dấu lẫn không dấu.
+2. **Cải thiện tìm kiếm địa điểm cụ thể (POI):** Khắc phục tình trạng không tìm thấy tiệm bánh, quán cà phê, nhà thuốc, siêu thị hoặc tên chuỗi thương hiệu cụ thể; tối ưu hóa phạm vi tìm kiếm theo ngữ cảnh chuyến đi và loại bỏ các kết quả trùng lặp.
+
+### 21.2. Các giải pháp đã triển khai
+1. **Cấu hình & Tích hợp Backend (Spring Boot):**
+   - Bổ sung cấu hình `app.map.geocoding.language=${GEOCODING_LANGUAGE:vi}` trong `application.properties` và `MapProperties.java`.
+   - Cập nhật `LocationIqGeocodingProvider.java`:
+     - Truyền `accept-language=vi` cho tất cả các endpoint (`/autocomplete`, `/reverse`, `/nearby`).
+     - Tối ưu hóa định vị không gian: thay vì truyền `lat`/`lon` (vốn bị LocationIQ autocomplete bỏ qua), hệ thống tự động tính toán hình hộp bao (`viewbox`) quanh tọa độ trung tâm với $\Delta = 0.15^\circ \approx 16.6\text{km}$, đi kèm `bounded=0` và `importancesort=0` để ưu tiên các địa điểm gần khung nhìn nhất mà không loại bỏ các POI quan trọng.
+     - Nâng cấp bộ phân tích `parseLocationItem`: Ưu tiên trường `address.name:vi` khi có bản dịch tiếng Việt chính thức, sau đó fallback tuần tự về `display_place`, `address.name`, `display_name` và giữ nguyên tên thương hiệu quốc tế (Starbucks, Pizza 4P's, Highlands Coffee).
+     - Trích xuất loại địa điểm cụ thể (`type` như `bakery`, `cafe`, `pharmacy`, `supermarket`, `restaurant`) làm `category` thay vì nhóm chung chung (`class` như `shop`, `amenity`).
+     - Khử trùng lặp kết quả (Deduplication) dựa trên cặp nhận diện `placeId` và `normalized(name + lat + lon)`.
+2. **Tối ưu hóa Giao diện & Ngữ cảnh (Flutter Mobile):**
+   - Bổ sung bộ phân giải tọa độ trung tâm điểm đến `LocationPickerSheet.resolveContextCenter(locationContext)` hỗ trợ 15 trung tâm du lịch lớn tại Việt Nam (Hà Nội, TP.HCM, Đà Nẵng, Đà Lạt, Nha Trang, Hội An, Huế, Phú Quốc, Sa Pa, Hạ Long, Vũng Tàu, Cần Thơ, Ninh Bình, Quy Nhơn, Phan Thiết).
+   - Khi tạo hoạt động mới chưa có ghim (`initialCenter == null`), bản đồ và khung nhìn tự động căn giữa theo tọa độ thành phố của chuyến đi (zoom 13.0) thay vì trôi dạt về tọa độ trung tâm quốc gia (Gia Lai).
+   - Xây dựng hàm `LocationPickerSheet.formatQueryWithContext(query, locationContext)`:
+     - Nhận diện các truy vấn đã có tên thành phố (kể cả dạng rút gọn như "Hồ Chí Minh" khi context là "Thành phố Hồ Chí Minh") để tránh ghép chuỗi trùng lặp.
+     - Tự động bổ sung ngữ cảnh thành phố cho các từ khóa đơn lẻ (ví dụ: `tiệm bánh` -> `tiệm bánh, Thành phố Hồ Chí Minh`).
+     - Bảo toàn các truy vấn có định từ hành chính hoặc giới từ không gian (`quận`, `phường`, `gần`, `tại`, `ở`, dấu phẩy) để tận dụng `viewbox` mà không gây nghẽn bộ phân tích từ của nhà cung cấp.
+
+### 21.3. Kết quả Kiểm thử & Xác thực
+- **Backend Test Suite:** **207 / 207 tests passed (100% Green, bao gồm 7 test mới trong `VietnameseAndPoiSearchTests`)**.
+- **Mobile Test Suite:** **340 / 340 tests passed (100% Green, bao gồm 7 test mới trong `Phase 4 - Destination Context Resolution & Specific POI Query Formatting`)**.
+- **Static Analysis:** **0 issues trên cả Mobile và Web**.
+- **Xác thực thực tế qua API LocationIQ:**
+  - `tiệm bánh` tại TP.HCM -> Trả về Tiệm Bánh Mì 362, Tiệm Bánh Ngọt Pháp, Tiệm Bánh Xèo tại Quận 1, TP.HCM.
+  - `quan ca phe` (không dấu) tại Hà Nội -> Trả về Quán cà phê Wabi-Sabi, Quán cà phê Mùa Hè tại Hà Nội bằng tiếng Việt có dấu.
+  - `Starbucks` tại TP.HCM -> Trả về đúng chuỗi cà phê Starbucks tại Quận 1, bảo toàn tên riêng.
+  - `nhà thuốc` tại TP.HCM -> Trả về Nhà Thuốc Pharmacity với danh mục `pharmacy`.
+
+---
+
+## 22. Triển khai Cải tiến Toàn diện Hệ thống Tìm kiếm Địa điểm & Xếp hạng Ngữ nghĩa (05/11/2026)
+
+### 22.1. Phân tích Nguyên nhân Gốc rễ của Sai lệch Địa điểm
+1. **Tham số `importancesort=0` đảo lộn trọng số toàn cầu:**
+   - Khi truyền `importancesort=0` vào LocationIQ `/autocomplete`, nhà cung cấp ưu tiên tuyệt đối theo khoảng cách tới tâm viewport (0 km tại vị trí đang xem) và gạt bỏ hoàn toàn điểm số tầm quan trọng toàn cầu (`importance`).
+   - Hậu quả: Người dùng đứng tại TP.HCM gõ "Vũng Tàu" hoặc "Đà Lạt", hệ thống trả về quán ăn "Cơm Tấm An Giang / Vũng Tàu" hoặc "Đà Lạt Ơi" tại TP.HCM lên vị trí số 1 thay vì thành phố Vũng Tàu/Đà Lạt.
+2. **Hạn chế của Autocomplete so với Forward Geocoding:**
+   - Autocomplete chỉ xử lý chuỗi tiền tố (prefix matching), thiếu khả năng nhận diện ranh giới hành chính (`class=place`, `type=city`), thiếu thông tin bounding box và cấu trúc truy vấn tự nhiên ("Quán cà phê ở Đà Lạt").
+   - Forward Geocoding (`/v1/search`) của LocationIQ giải quyết hoàn hảo các truy vấn thực tế, trả về đầy đủ tọa độ, loại thực thể, ranh giới và điểm số `importance` cao (> 0.50 đối với các thành phố).
+3. **Loại bỏ Hardcode 15 Thành phố:**
+   - Danh sách 15 thành phố tĩnh trước đây được loại bỏ hoàn toàn, thay thế bằng cơ chế xử lý truy vấn động, chuẩn hóa không dấu và xếp hạng ngữ nghĩa.
+4. **Cải thiện Zoom Camera thích ứng:**
+   - Trước đây camera cố định zoom 15.0 cho mọi kết quả. Nay phân biệt rõ: chọn thành phố/địa danh hành chính sẽ zoom tổng quan (12.0); chọn POI chi tiết sẽ zoom cận cảnh (15.5).
+
+### 22.2. Các Thành phần Đã Triển khai
+
+1. **Backend – Spring Boot (Java 22):**
+   - **`LocationSearchResultResponse.java`:** Bổ sung các trường tương thích ngược: `type` (String), `importance` (Double), `boundingBox` (List<Double>).
+   - **`LocationIqGeocodingProvider.java`:**
+     - Nâng cấp tìm kiếm chính sang Forward Geocoding `/v1/search` với `accept-language=vi`, `addressdetails=1`, `normalizecity=1`, `dedupe=1`.
+     - Chỉ truyền `viewbox` đối với các dịch vụ chung chung không có tên địa danh tường minh; không truyền `importancesort=0` để bảo toàn trọng số địa danh.
+     - Fallback sang `/autocomplete` chỉ khi `/search` trả về 0 kết quả.
+   - **`HereGeocodingProvider.java`:** Triển khai độc lập tích hợp HERE Geocoding & Search v7 API (`/v1/geocode`, `/v1/discover`, `/v1/revgeocode`), kích hoạt qua `HERE_API_KEY`, tự động fallback an toàn khi chưa cấu hình.
+   - **`LocationRankingService` & `LocationRankingServiceImpl.java`:**
+     - Bộ máy chấm điểm và xếp hạng ngữ nghĩa độc lập.
+     - Chuẩn hóa tiếng Việt có dấu và không dấu qua `Normalizer.Form.NFD`.
+     - Phân loại ý định truy vấn: Hành chính/thành phố vs Dịch vụ/POI.
+     - Công thức tính điểm: Khớp tên chính xác (+70), thực thể hành chính khớp ý định thành phố (+55 vs -45 phạt quán ăn khi tìm thành phố), khớp loại dịch vụ (+45), tương thích khu vực (+40 vs -40), trọng số nhà cung cấp (+25 * importance), khoảng cách khung nhìn (+10 tối đa cho dịch vụ mở).
+     - Khử trùng lặp không gian dựa trên `placeId` và `normalized(name + lat_lon_rounded_110m)`.
+   - **`LocationServiceImpl.java`:** Tổng hợp kết quả đa nhà cung cấp (LocationIQ + HERE nếu có), xếp hạng và khử trùng lặp trước khi trả về.
+
+2. **Frontend – Flutter Mobile:**
+   - **`location_search_result.dart`:** Bổ sung `type`, `importance`, `boundingBox` và getter `isCityOrAdministrative`.
+   - **`location_picker_sheet.dart`:**
+     - Loại bỏ toàn bộ danh sách tọa độ tĩnh của 15 thành phố.
+     - Nâng cấp `formatQueryWithContext` với biểu thức chính quy Unicode-aware: `(^|[^\p{L}\p{N}])(quận|quan|huyện|huyen|phường|phuong|thị xã|thi xa|gần|gan|tại|tai|ở|o)([^\p{L}\p{N}]|$)`.
+     - Tự động tách tiền tố hành chính ("thành phố", "tỉnh", "tp.") để tránh lặp từ khóa.
+     - Di chuyển camera thích ứng (`isCityOrAdministrative ? 12.0 : 15.5`).
+
+### 22.3. Kết quả Kiểm thử & Xác nhận Thực tế
+- **Backend Full Tests:** **215 / 215 tests passed (100% Green, BUILD SUCCESS, thời gian: 61s)**.
+  - Bao gồm 5 test mới trong `LocationRankingServiceTest` và 3 test trong `HereGeocodingProviderTest`.
+- **Mobile Full Tests:** **339 / 339 tests passed (100% Green, thời gian: 54s)**.
+  - Bao gồm 25 test trong `location_picker_test.dart`.
+- **Static Analysis:** **0 issues (`flutter analyze --no-pub` hoàn toàn sạch)**.
+- **Thực nghiệm 16 truy vấn thực tế:** Đạt độ chính xác 16/16 đối với cả thành phố lớn, tên không dấu, danh thắng, thương hiệu chuỗi và truy vấn ngữ cảnh.
+
+---
+
+## 23. Triển khai Cơ chế Hiểu Truy vấn (Query Understanding) & Lọc Ranh giới Địa lý (Geographic Filtering) (05/11/2026 - Session 95)
+
+### 23.1. Phân tích Nguyên nhân Gốc rễ Sai lệch Phạm vi Địa lý
+- **Hiện tượng thực tế:** Khi tìm kiếm `cơm tấm Long Xuyên`, hệ thống trả về `Long Xuyên Quán 2 - Cơm Tấm Bánh Tằm Bì` nằm tại TP. Thủ Đức, TP. Hồ Chí Minh (cách Long Xuyên khoảng 175 km).
+- **Nguyên nhân cốt lõi:**
+  1. **Thiếu tầng phân rã ngữ nghĩa:** Hệ thống trước đây gửi toàn bộ chuỗi `cơm tấm Long Xuyên` lên provider như một chuỗi văn bản đơn lẻ, không phân biệt đâu là món ăn/dịch vụ cần tìm (`cơm tấm`) và đâu là địa danh giới hạn không gian (`Long Xuyên`).
+  2. **Không có bộ lọc không gian cứng:** Hệ thống cũ chỉ áp dụng cơ chế thưởng/phạt điểm số trong ranking; khi dữ liệu OSM tại Long Xuyên không có node trùng khớp chính xác từ ngữ, kết quả từ các tỉnh thành khác (do chứa chữ "Long Xuyên" trong tên quán) vẫn lọt qua và được trả về người dùng.
+  3. **Xung đột tên món đặc sản:** Các món ăn truyền thống có chứa tên địa phương (`bún bò Huế`, `phở Hà Nội`, `nem nướng Nha Trang`, `bánh khọt Vũng Tàu`) dễ bị cắt nhầm thành tìm kiếm tại địa phương đó nếu không có cơ chế bảo vệ danh từ ghép.
+
+### 23.2. Kiến trúc & Giải pháp Triển khai
+
+#### 1. Bộ máy Phân tích Truy vấn (`QueryUnderstandingService.java` & `QueryUnderstandingServiceImpl.java`)
+- **Phân loại Ý định (`SearchIntent`):** `POI_IN_LOCATION`, `LOCALITY`, `SPECIFIC_PLACE`, `GENERIC_POI`.
+- **DTOs chuyên dụng (`Travel_Planner/Travel_Planner/dto/location/`):**
+  - `ParsedLocationQuery`: `originalQuery`, `normalizedQuery`, `searchKeyword`, `locationQuery`, `placeCategory`, `searchIntent`.
+  - `GeographicTargetArea`: `queryName`, `resolvedName`, `centerLat`, `centerLon`, `boundingBox`, `maxRadiusKm`, `targetType`, `stateOrProvince`.
+- **Quy tắc phân tích:**
+  - Bảo vệ danh từ món ăn đặc sản (`PROTECTED_COMPOUND_DISHES`): Nhận diện các món như `bún bò Huế`, `phở Hà Nội`, `mì Quảng`, v.v. là `GENERIC_POI` không kèm địa danh, trừ khi người dùng thêm giới từ tường minh (ví dụ: `bún bò Huế ở Sài Gòn`).
+  - Tách giới từ rõ ràng (`PREPOSITION_PATTERN`): `ở`, `tại`, `gần`, `near`, `khu vực`, `quanh` và dấu phẩy `,`.
+  - Tách cú pháp ghép ngầm (`CATEGORY_PREFIXES`): Khớp các tiền tố thương mại/ẩm thực/lưu trú kết hợp phân tách theo từ nguyên bản (`cơm tấm Long Xuyên`, `cafe Đà Lạt`, `khách sạn Vũng Tàu`, `nhà hàng Quận 1`).
+  - Kiểm tra bộ bổ nghĩa món ăn (`FOOD_MODIFIERS`): Phân biệt các từ bổ nghĩa như `tấm`, `gà`, `bò`, `sườn`, `niêu`, `nướng` để các truy vấn như `cơm gà`, `cơm sườn`, `phở bò` không bị tách nhầm thành địa danh.
+  - Nhận diện đơn vị hành chính (`ADMINISTRATIVE_PREFIX_PATTERN`): Tự động phân loại `thành phố`, `tỉnh`, `quận`, `huyện` thành `LOCALITY`.
+
+#### 2. Quy trình Thực thi Hai Giai đoạn (`Two-Stage Execution Flow`)
+- **Giai đoạn A (Locality Geocoding):**
+  - Geocode địa danh `parsed.getLocationQuery()` để thu được tâm tọa độ, ranh giới hộp (`boundingBox`) và bán kính tối đa `maxRadiusKm` (thành phố: 15-20km, quận huyện: 8km, địa danh nhỏ: 3.5km).
+- **Giai đoạn B (In-Area Search & Spatial Filtering):**
+  - Gọi `primaryProvider.searchInArea(...)` với `viewbox` và `bounded=1` để gom các POI nằm gọn trong khu vực.
+  - Fallback tìm kiếm theo từ khóa gốc (ví dụ: `cơm` khi tìm `cơm tấm`) bên trong khu vực nếu dữ liệu OSM còn thưa thớt.
+  - Gọi tìm kiếm kết hợp có thiên vị tọa độ trung tâm địa danh.
+  - Gọi nhà cung cấp phụ (HERE) qua `/v1/discover` với `in=bbox` / `in=circle` nếu được cấu hình.
+
+#### 3. Bộ lọc Không gian & Ranh giới Địa lý Nghiêm ngặt (`GeographicFilterService.java`)
+- **Kiểm tra tọa độ hợp lệ:** Đảm bảo kinh độ, vĩ độ là số thực hữu hạn, nằm trong khoảng `[-90, 90]` và `[-180, 180]`.
+- **Kiểm tra khoảng cách Haversine:** Loại bỏ mọi ứng viên có khoảng cách tới tâm khu vực mục tiêu $> \text{maxRadiusKm} \times 1.25$.
+- **Kiểm tra Bounding Box:** Đảm bảo tọa độ nằm trong ranh giới hộp có dung sai đệm $\approx 2.7\text{ km}$.
+- **Kiểm tra Xung đột Tỉnh/Thành phố:** Nếu địa chỉ định dạng của ứng viên xuất hiện tên tỉnh/thành phố lớn khác (như `Thành phố Hồ Chí Minh`, `Hà Nội`, `Đà Nẵng`) không thuộc khu vực mục tiêu, ứng viên bị loại bỏ ngay lập tức.
+- **Dự phòng an toàn (Fallback):** Nếu khu vực không có POI nào trên bản đồ, hệ thống trả về chính thực thể địa danh mục tiêu, giúp camera bản đồ di chuyển chính xác về thành phố/khu vực yêu cầu, tuyệt đối không trả về quán ăn ở tỉnh thành khác.
+
+#### 4. Giao diện & Trải nghiệm Người dùng trên Flutter Mobile
+- `LocationPickerSheet`:
+  - Tiếp tục chuyển camera tức thì và mượt mà tới tọa độ đã chọn.
+  - Phóng to thích ứng: zoom `12.0` cho địa danh hành chính, zoom `15.5` cho địa điểm POI chi tiết.
+  - Giữ nguyên toàn bộ mô hình vị trí 3 trạng thái của Activity (`CATALOG`, `CUSTOM`, `NONE`), tính năng ghim thủ công `MANUAL_PIN` và hiển thị bản đồ nền raster CARTO/OSM.
+
+### 23.3. Kết quả Kiểm thử & Đo kiểm Thực nghiệm (Benchmark)
+- **Kiểm thử Đơn vị & Tích hợp Backend:**
+  - `QueryUnderstandingServiceTest`: **20/20 test passed** (kiểm tra đầy đủ các dạng truy vấn, từ không dấu, tiền tố, món ăn được bảo vệ, địa danh đơn lẻ).
+  - `GeographicFilterServiceTest`: **5/5 test passed** (kiểm tra giữ ứng viên đúng vùng, loại bỏ quán cách 175km tại TP.HCM, loại bỏ tọa độ lỗi, loại bỏ xung đột tỉnh thành, khử trùng lặp tọa độ).
+  - `LocationServiceTest`: **39/39 test passed** (kiểm tra luồng hai giai đoạn end-to-end và cơ chế fallback an toàn).
+  - Toàn bộ backend location test suite: **72 / 72 tests passed (100% Green, BUILD SUCCESS)**.
+- **Kiểm thử Frontend Flutter:**
+  - Toàn bộ mobile test suite: **339 / 339 tests passed (100% Green)**.
+  - Phân tích tĩnh: **`flutter analyze --no-pub` hoàn toàn sạch (0 issues found)**.
+- **Đo kiểm Thực nghiệm 7 Truy vấn Mục tiêu với Upstream API:**
+
+| STT | Truy vấn người dùng | Ý định nhận diện | Từ khóa POI | Khu vực mục tiêu | Kết quả Top 1 trả về | Tọa độ & Trạng thái |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | `Cơm tấm Long Xuyên` | `POI_IN_LOCATION` | Cơm tấm | Long Xuyên | Thành phố Long Xuyên, Tỉnh An Giang | `(10.37196, 105.41491)` - Quán TP.HCM (175km) bị loại bỏ hoàn toàn |
+| 2 | `Cơm tấm ở Long Xuyên` | `POI_IN_LOCATION` | Cơm tấm | Long Xuyên | Cơm Hai Thuế, Lương Văn Cù, Long Xuyên | `(10.37993, 105.44236)` - Đúng 100% tại Long Xuyên, An Giang |
+| 3 | `Cafe Đà Lạt` | `POI_IN_LOCATION` | Cafe | Đà Lạt | Cafe, Triệu Việt Vương, Đà Lạt, Lâm Đồng | `(11.93141, 108.42906)` - 5/5 quán đều tại Đà Lạt |
+| 4 | `Khách sạn Vũng Tàu` | `POI_IN_LOCATION` | Khách sạn | Vũng Tàu | Pacific Hotel Vung Tau, Lê Lợi, Vũng Tàu | `(10.34681, 107.07465)` - 5/5 khách sạn đều tại Vũng Tàu |
+| 5 | `Nhà hàng Quận 1` | `POI_IN_LOCATION` | Nhà hàng | Quận 1 | Nhà hàng HQ Choi Go Jip, Hàm Nghi, Quận 1 | `(10.77081, 106.69972)` - 5/5 nhà hàng tại Quận 1, TP.HCM |
+| 6 | `Tiệm bánh gần Hồ Gươm` | `POI_IN_LOCATION` | Tiệm bánh | Hồ Gươm | Cửa Hàng Bánh Mì Phố, Hoàn Kiếm, Hà Nội | `(21.03143, 105.85347)` - Tiệm bánh cách TP.HCM 1138km bị loại bỏ |
+| 7 | `Cơm tấm` | `GENERIC_POI` | Cơm tấm | Không chỉ định | Cơm Tấm, Lương Minh Nguyệt, TP.HCM | Theo khung nhìn bản đồ của người dùng tại TP.HCM |
+
+---
+
+## 24. Rà soát & Củng cố Hệ thống Tìm kiếm Địa điểm trên Thiết bị Thực (Session 96)
+
+### 24.1. Môi trường Kiểm thử Thiết bị Thật
+- **Thiết bị:** Samsung Galaxy A34 5G (`SM-A346E` / `RFCW8105T0H`), Android 16 (One UI), Flutter Engine sử dụng backend Impeller Vulkan.
+- **Ứng dụng:** `com.example.mobile` đang chạy trên thiết bị, hiển thị giao diện `LocationPickerSheet`.
+- **Hạ tầng Backend:** Spring Boot 4.1.1 (`/api/health` UP) kết nối MySQL 8.0.37 tại cổng 8080, chuyển tiếp qua `adb reverse tcp:8080 tcp:8080`.
+- **Dữ liệu Upstream:** LocationIQ Autocomplete/Search (`accept-language=vi`), HERE Geocoding Discover API, OpenRouteService.
+
+### 24.2. Các Cải tiến Kỹ thuật & Khắc phục Vấn đề Thực tế
+
+#### A. Khảo sát & Đính chính Khoảng cách Haversine
+- **Vấn đề rà soát:** Trong báo cáo Session 95, khoảng cách giữa tâm thành phố Long Xuyên `(10.37196, 105.41491)` và quán `Cơm Hai Thuế` `(10.37993, 105.44236)` được ghi nhận ước lượng `~1.2 km`.
+- **Đối chiếu toán học:**
+  $$\Delta\text{lat} = 10.37993 - 10.37196 = 0.00797^\circ \approx 0.886\text{ km}$$
+  $$\Delta\text{lon} = 105.44236 - 105.41491 = 0.02745^\circ \approx 3.006\text{ km}$$
+  $$\text{Khoảng cách Haversine thực tế} = \mathbf{3.13045\text{ km}}$$
+- **Kết luận:** Thuật toán trong `GeographicFilterServiceImpl.java` tính toán chính xác $3.13\text{ km}$, nhỏ hơn bán kính thành phố Long Xuyên ($15.0\text{ km}$). Quán `Cơm Hai Thuế` nằm hoàn toàn hợp lệ trong địa bàn Long Xuyên. Số liệu `~1.2 km` trước đó chỉ là ước tính ghi chép trong tài liệu báo cáo, không phải lỗi logic code.
+
+#### B. Phân biệt Rõ ràng Dự phòng Địa danh (Locality Fallback Disambiguation)
+- **Vấn đề:** Khi OpenStreetMap không có POI ẩm thực nào tại khu vực tìm kiếm, hệ thống kích hoạt cơ chế fallback trả về tâm địa danh, nhưng tên kết quả trả về `Long Xuyên` khiến người dùng dễ nhầm lẫn đây là tên một quán ăn.
+- **Giải pháp triển khai:**
+  - Bổ sung trường `Boolean isLocalityFallback` trong `LocationSearchResultResponse.java`.
+  - Cập nhật builder fallback trong `LocationServiceImpl.java`: đặt tên hiển thị dạng `Long Xuyên (Khu vực)`, gán `category: "locality"`, `type: "locality"`, `isLocalityFallback: true`.
+  - Cập nhật model Flutter `LocationSearchResult`: mở rộng `isCityOrAdministrative` bao gồm `locality` và `isLocalityFallback`.
+  - Nâng cấp giao diện `LocationPickerSheet`: hiển thị biểu tượng `Icons.location_city_outlined` kèm badge chip nhãn `Khu vực` hoặc `Địa danh`, ngăn chặn hoàn toàn việc người dùng nhầm lẫn ranh giới địa lý với cửa hàng kinh doanh.
+
+#### C. Lọc Bỏ Triệt để Danh mục Thương mại Không Tương thích (Semantic Filtering)
+- **Vấn đề:** Khi tìm món ăn (ví dụ `cơm tấm`), một số điểm bán lẻ viễn thông/điện tử có tên miền chứa đuôi `.com` (như `Ngocankhang.com`, `category: shop, type: mobile_phone`) từng bị lọt vào danh sách do thuật toán tìm kiếm chuỗi con không phân biệt từ.
+- **Giải pháp triển khai:**
+  - Định nghĩa tập hợp các danh mục không tương thích `INCOMPATIBLE_FOOD_TYPES` (`mobile_phone`, `electronics`, `car_repair`, `clothes`, `motorcycle`, `atm`, `bank`, `fuel`, v.v.).
+  - Trong `LocationRankingServiceImpl.java`: áp dụng mức phạt điểm nặng (`-100.0` điểm) cho các danh mục này khi ý định tìm kiếm là ẩm thực.
+  - Trong `LocationServiceImpl.java`: tại Giai đoạn B gom ứng viên, loại bỏ hoàn toàn các thực thể thuộc danh mục không tương thích trước khi chấm điểm và trả về.
+
+#### D. Tách biệt Ngữ cảnh Hành trình khi Tìm kiếm Tỉnh/Thành Khác
+- **Vấn đề:** Khi mở `LocationPickerSheet` từ một hành trình đang thuộc tỉnh An Giang, logic `formatQueryWithContext` tự động nối thêm `, An Giang` vào mọi truy vấn POI nếu người dùng không gõ từ `ở`/`tại`, dẫn đến tìm kiếm `cafe Đà Lạt` bị biến thành `cafe Đà Lạt, An Giang`.
+- **Giải pháp triển khai:**
+  - Bổ sung biểu thức chính quy `_knownRegionsPattern` nhận diện các thành phố/tỉnh du lịch phổ biến của Việt Nam (`đà lạt`, `vũng tàu`, `hà nội`, `sài gòn`, `đà nẵng`, `nha trang`, `huế`, `cần thơ`, `hải phòng`, `long xuyên`, `phú quốc`, v.v.).
+  - Khi câu truy vấn đã nêu rõ một địa danh du lịch cụ thể, hệ thống bỏ qua việc gán ngữ cảnh tỉnh thành mặc định của hành trình, giúp kết quả tìm kiếm đúng 100% với mong muốn của người dùng.
+
+### 24.3. Bảng Tổng hợp Kết quả Đo nghiệm Thực tế trên Thiết bị Thật
+
+| Nhóm | Truy vấn thực tế | Ý định | Khu vực mục tiêu | Kết quả hiển thị Top 1 | Tọa độ (Lat, Lon) | Phân loại | Đúng Địa Lý | Đúng Nhu Cầu | Camera Bản Đồ |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- | :---: | :---: | :---: |
+| A | `Cơm tấm Long Xuyên` | `POI_IN_LOCATION` | Long Xuyên, An Giang | `Long Xuyên (Khu vực)` | 10.37196, 105.41491 | `locality` | Đạt | Đạt (Không nhầm shop) | Zoom 12.0 |
+| A | `Cơm tấm ở Long Xuyên` | `POI_IN_LOCATION` | Long Xuyên, An Giang | `Cơm Hai Thuế` | 10.37993, 105.44236 | `fast_food` | Đạt (3.13 km) | Đạt (Cơm tấm) | Zoom 15.5 |
+| A | `Cafe Đà Lạt` | `POI_IN_LOCATION` | Đà Lạt, Lâm Đồng | `Cafe` (Triệu Việt Vương) | 11.93141, 108.42906 | `cafe` | Đạt (Đà Lạt) | Đạt (Cà phê) | Zoom 15.5 |
+| A | `Khách sạn Vũng Tàu` | `POI_IN_LOCATION` | Vũng Tàu | `Khách sạn Công Đoàn` | 10.34259, 107.07810 | `hotel` | Đạt (Vũng Tàu) | Đạt (Khách sạn) | Zoom 15.5 |
+| A | `Nhà hàng Quận 1` | `POI_IN_LOCATION` | Quận 1, TP.HCM | `Nhà Hàng El Gaucho` | 10.77803, 106.70363 | `restaurant` | Đạt (Quận 1) | Đạt (Nhà hàng) | Zoom 15.5 |
+| A | `Tiệm bánh gần Hồ Gươm` | `POI_IN_LOCATION` | Hồ Gươm, Hà Nội | `Cửa Hàng Bánh Mì Phố` | 21.03143, 105.85347 | `place` | Đạt (~0.3 km) | Đạt (Bánh mì) | Zoom 15.5 |
+| B | `Bún bò Huế` | `GENERIC_POI` | Toàn quốc (Ưu tiên Huế) | `Bún bò Huế` (Yết Kiêu, Huế) | 16.46583, 107.56726 | `restaurant` | Đạt | Đạt (Bún bò) | Zoom 15.5 |
+| B | `Phở Hà Nội` | `GENERIC_POI` | Toàn quốc (Ưu tiên HN) | `Phở hà nội` (Bà Triệu, HN) | 21.02532, 105.85169 | `restaurant` | Đạt | Đạt (Phở) | Zoom 15.5 |
+| B | `Cơm gà` | `GENERIC_POI` | Theo khung nhìn Viewport | `Cơm Gà` (Phan Văn Hân, TP.HCM) | 10.79411, 106.70428 | `restaurant` | Đạt | Đạt (Cơm gà) | Zoom 15.5 |
+| B | `Nem nướng Nha Trang` | `GENERIC_POI` | Toàn quốc (Món ăn) | `Nem nướng Nha Trang` (Hoàng Quốc Việt) | 21.04437, 105.79256 | `restaurant` | Đạt | Đạt (Nem nướng) | Zoom 15.5 |
+| B | `Bún bò Huế ở Sài Gòn` | `POI_IN_LOCATION` | Sài Gòn (TP.HCM) | `Bún Bò Huế Gia Hội` (Trần Cao Vân) | 10.78415, 106.69750 | `restaurant` | Đạt (TP.HCM) | Đạt (Bún bò Huế) | Zoom 15.5 |
+| C | `cơm gà` (Viewport TP.HCM) | `GENERIC_POI` | Khung nhìn Sài Gòn | `Cơm Gà` (Phan Văn Hân, TP.HCM) | 10.79411, 106.70428 | `restaurant` | Đạt | Đạt | Zoom 15.5 |
+| C | `cơm gà` (Viewport Nha Trang) | `GENERIC_POI` | Khung nhìn Nha Trang | `Cơm Gà` (Núi Một, Nha Trang) | 12.24527, 109.18929 | `restaurant` | Đạt | Đạt | Zoom 15.5 |
+
+### 24.4. Kiểm thử Tự động & Tính Ổn định
+- **Backend Test Suite:** `.\mvnw.cmd test -Dtest=LocationServiceTest,LocationRankingServiceTest,HereGeocodingProviderTest,QueryUnderstandingServiceTest,GeographicFilterServiceTest` $\rightarrow$ **72 / 72 tests passed (100% Green, BUILD SUCCESS)**.
+- **Frontend Test Suite:** `flutter test test/location_picker_test.dart` $\rightarrow$ **25 / 25 tests passed (100% Green)**. Toàn bộ dự án mobile: **339 / 339 tests passed**.
+- **Phân tích Mã nguồn:** `flutter analyze --no-pub` $\rightarrow$ **Không có cảnh báo, không có lỗi (0 issues found)**.
+- **Trạng thái Thiết bị Thật:** Ứng dụng duy trì hiệu năng 60fps mượt mà, không giật lag, không sập bộ nhớ (out-of-memory), camera di chuyển chính xác và hiển thị đầy đủ ghim địa điểm.
+
+
+

@@ -26,7 +26,8 @@ class ApiConstants {
   static const String meEndpoint = '/api/auth/me';
   static const String currentProfileEndpoint = '/api/user/profile';
   static const String itinerariesEndpoint = '/api/itineraries';
-  static const String recommendationsEndpoint = '/api/itineraries/recommendations';
+  static const String recommendationsEndpoint =
+      '/api/itineraries/recommendations';
   static const String commentsEndpoint = '/comments';
   static const String userItinerariesEndpoint = '/api/user/itineraries';
   static const String destinationsEndpoint = '/api/destinations';
@@ -34,7 +35,10 @@ class ApiConstants {
   static const String imageUploadEndpoint = '/api/media/images';
   static const String locationsEndpoint = '/api/locations';
   static const String locationSearchEndpoint = '/api/locations/search';
-  static const String locationReverseGeocodeEndpoint = '/api/locations/reverse-geocode';
+  static const String locationReverseGeocodeEndpoint =
+      '/api/locations/reverse-geocode';
+  static const String locationTomTomDetailsEndpoint =
+      '/api/locations/providers/tomtom/details';
   static const String savedItinerariesEndpoint = '/api/user/saved-itineraries';
   static const String userFavoritesEndpoint = '/api/user/favorites';
 

@@ -21,6 +21,11 @@ class FakeLocationRepository extends LocationRepository {
   ApiException? exceptionToThrow;
   int searchCallCount = 0;
   String? lastSearchQuery;
+  String? lastSearchMode;
+  LocationSearchResult? tomTomDetailsResult;
+  int tomTomDetailsCallCount = 0;
+  String? lastTomTomDetailsType;
+  String? lastTomTomDetailsId;
   int reverseGeocodeCallCount = 0;
   double? lastReverseLat;
   double? lastReverseLng;
@@ -29,22 +34,37 @@ class FakeLocationRepository extends LocationRepository {
     this.searchResultsToReturn = const [],
     this.reverseGeocodeResultToReturn,
     this.exceptionToThrow,
+    this.tomTomDetailsResult,
   });
 
   @override
   Future<List<LocationSearchResult>> searchLocations(
     String query, {
     int? limit,
-    double? latitude,
-    double? longitude,
     String? token,
+    String mode = 'SUGGEST',
+    String? sessionId,
   }) async {
     searchCallCount++;
     lastSearchQuery = query;
+    lastSearchMode = mode;
     if (exceptionToThrow != null) {
       throw exceptionToThrow!;
     }
     return searchResultsToReturn;
+  }
+
+  @override
+  Future<LocationSearchResult?> resolveTomTomPlace({
+    required String type,
+    required String id,
+    String? sessionId,
+    String? token,
+  }) async {
+    tomTomDetailsCallCount++;
+    lastTomTomDetailsType = type;
+    lastTomTomDetailsId = id;
+    return tomTomDetailsResult;
   }
 
   @override
@@ -153,114 +173,123 @@ void main() {
       expect(result.toString(), contains('Quán Bún Bò Huế'));
     });
 
-    test('fromSearchResult factory converts LocationSearchResult correctly', () {
-      const searchResult = LocationSearchResult(
-        placeId: 'place-77',
-        name: 'Hồ Gươm',
-        formattedAddress: 'Hoàn Kiếm, Hà Nội, Việt Nam',
-        latitude: 21.0285,
-        longitude: 105.8544,
-        provider: 'LOCATION_IQ',
-      );
+    test(
+      'fromSearchResult factory converts LocationSearchResult correctly',
+      () {
+        const searchResult = LocationSearchResult(
+          placeId: 'place-77',
+          name: 'Hồ Gươm',
+          formattedAddress: 'Hoàn Kiếm, Hà Nội, Việt Nam',
+          latitude: 21.0285,
+          longitude: 105.8544,
+          provider: 'LOCATION_IQ',
+        );
 
-      final custom = CustomLocationResult.fromSearchResult(searchResult);
-      expect(custom.locationName, 'Hồ Gươm');
-      expect(custom.address, 'Hoàn Kiếm, Hà Nội, Việt Nam');
-      expect(custom.latitude, 21.0285);
-      expect(custom.longitude, 105.8544);
-      expect(custom.placeId, 'place-77');
-      expect(custom.locationProvider, 'LOCATION_IQ');
-    });
+        final custom = CustomLocationResult.fromSearchResult(searchResult);
+        expect(custom.locationName, 'Hồ Gươm');
+        expect(custom.address, 'Hoàn Kiếm, Hà Nội, Việt Nam');
+        expect(custom.latitude, 21.0285);
+        expect(custom.longitude, 105.8544);
+        expect(custom.placeId, 'place-77');
+        expect(custom.locationProvider, 'LOCATION_IQ');
+      },
+    );
 
-    test('fromSearchResult uses fallback name when search result name is empty', () {
-      const searchResult = LocationSearchResult(
-        placeId: '',
-        name: '',
-        formattedAddress: '',
-        latitude: 16.0,
-        longitude: 108.0,
-      );
+    test(
+      'fromSearchResult uses fallback name when search result name is empty',
+      () {
+        const searchResult = LocationSearchResult(
+          placeId: '',
+          name: '',
+          formattedAddress: '',
+          latitude: 16.0,
+          longitude: 108.0,
+        );
 
-      final custom = CustomLocationResult.fromSearchResult(searchResult);
-      expect(custom.locationName, 'Vị trí đã ghim');
-      expect(custom.address, isNull);
-      expect(custom.placeId, isNull);
-      expect(custom.locationProvider, 'LOCATION_IQ');
-    });
+        final custom = CustomLocationResult.fromSearchResult(searchResult);
+        expect(custom.locationName, 'Vị trí đã ghim');
+        expect(custom.address, isNull);
+        expect(custom.placeId, isNull);
+        expect(custom.locationProvider, 'LOCATION_IQ');
+      },
+    );
   });
 
   group('Phase 4 - LocationPickerSheet Widget Tests', () {
-    testWidgets('Renders search input, map, and initial hint when no center is provided',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Renders search input, map, and initial hint when no center is provided',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final fakeRepo = FakeLocationRepository();
+        final fakeRepo = FakeLocationRepository();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(repository: fakeRepo),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Chọn vị trí trên bản đồ'), findsOneWidget);
-      expect(
-        find.text('Tìm kiếm địa điểm (tối thiểu 2 ký tự)...'),
-        findsOneWidget,
-      );
-      expect(find.byType(AppMapView), findsOneWidget);
-      expect(
-        find.text('Chạm vào bản đồ để thả ghim hoặc tìm kiếm địa điểm'),
-        findsOneWidget,
-      );
-      expect(find.text('Hủy'), findsOneWidget);
-      expect(find.text('Xác nhận vị trí'), findsOneWidget);
+        expect(find.text('Chọn vị trí trên bản đồ'), findsOneWidget);
+        expect(
+          find.text('Tìm kiếm địa điểm (tối thiểu 2 ký tự)...'),
+          findsOneWidget,
+        );
+        expect(find.byType(AppMapView), findsOneWidget);
+        expect(
+          find.text('Chạm vào bản đồ để thả ghim hoặc tìm kiếm địa điểm'),
+          findsOneWidget,
+        );
+        expect(find.text('Hủy'), findsOneWidget);
+        expect(find.text('Xác nhận vị trí'), findsOneWidget);
 
-      // Confirm button is disabled because no location is selected
-      final confirmBtn = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
-      );
-      expect(confirmBtn.onPressed, isNull);
-    });
+        // Confirm button is disabled because no location is selected
+        final confirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+        );
+        expect(confirmBtn.onPressed, isNull);
+      },
+    );
 
-    testWidgets('Renders initial marker and enables confirm button when initialCenter is passed',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Renders initial marker and enables confirm button when initialCenter is passed',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final fakeRepo = FakeLocationRepository();
+        final fakeRepo = FakeLocationRepository();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(
-              repository: fakeRepo,
-              initialCenter: const LatLng(10.77, 106.69),
-              initialName: 'Dinh Độc Lập',
-              initialAddress: '135 Nam Kỳ Khởi Nghĩa',
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: LocationPickerSheet(
+                repository: fakeRepo,
+                initialCenter: const LatLng(10.77, 106.69),
+                initialName: 'Dinh Độc Lập',
+                initialAddress: '135 Nam Kỳ Khởi Nghĩa',
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Dinh Độc Lập'), findsOneWidget);
-      expect(find.text('135 Nam Kỳ Khởi Nghĩa'), findsOneWidget);
+        expect(find.text('Dinh Độc Lập'), findsOneWidget);
+        expect(find.text('135 Nam Kỳ Khởi Nghĩa'), findsOneWidget);
 
-      // Confirm button is enabled
-      final confirmBtn = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
-      );
-      expect(confirmBtn.onPressed, isNotNull);
-    });
+        // Confirm button is enabled
+        final confirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+        );
+        expect(confirmBtn.onPressed, isNotNull);
+      },
+    );
 
-    testWidgets('Search query under 2 chars does not call searchLocations',
-        (tester) async {
+    testWidgets('Search query under 2 chars does not call searchLocations', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -270,9 +299,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(repository: fakeRepo),
-          ),
+          home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
         ),
       );
 
@@ -282,8 +309,33 @@ void main() {
       expect(fakeRepo.searchCallCount, 0);
     });
 
-    testWidgets('Debounced search query calls searchLocations and displays results',
-        (tester) async {
+    testWidgets('Search provider stays hidden behind one suggestion flow', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeRepo = FakeLocationRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
+        ),
+      );
+
+      expect(find.text('Tham quan'), findsNothing);
+      await tester.enterText(find.byType(TextField).first, 'Kica');
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pumpAndSettle();
+      expect(fakeRepo.lastSearchMode, 'SUGGEST');
+      expect(find.text('Tìm thêm trên TomTom'), findsNothing);
+      expect(find.text('Dùng LocationIQ'), findsNothing);
+    });
+
+    testWidgets('TomTom suggestion resolves Details before selection', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -292,47 +344,102 @@ void main() {
       final fakeRepo = FakeLocationRepository(
         searchResultsToReturn: [
           const LocationSearchResult(
-            placeId: 'loc-1',
-            name: 'Hồ Hoàn Kiếm',
-            formattedAddress: 'Hoàn Kiếm, Hà Nội',
-            latitude: 21.0285,
-            longitude: 105.8544,
+            placeId: 'pois:poi-1',
+            name: 'Bàu Trắng',
+            formattedAddress: 'Bình Thuận, Việt Nam',
+            provider: 'TOMTOM',
+            providerId: 'poi-1',
+            providerType: 'pois',
+            requiresDetails: true,
           ),
         ],
+        tomTomDetailsResult: const LocationSearchResult(
+          placeId: 'pois:poi-1',
+          name: 'Bàu Trắng',
+          formattedAddress: 'Bắc Bình, Bình Thuận, Việt Nam',
+          latitude: 11.05,
+          longitude: 108.43,
+          provider: 'TOMTOM',
+        ),
       );
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(repository: fakeRepo),
-          ),
+          home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
         ),
       );
-
-      await tester.enterText(find.byType(TextField).first, 'Hồ Hoàn Kiếm');
-      // Wait for 400ms debounce
+      await tester.enterText(find.byType(TextField).first, 'Bàu Trắng');
       await tester.pump(const Duration(milliseconds: 450));
       await tester.pumpAndSettle();
-
-      expect(fakeRepo.searchCallCount, 1);
-      expect(fakeRepo.lastSearchQuery, 'Hồ Hoàn Kiếm');
-      expect(find.text('Hồ Hoàn Kiếm'), findsWidgets);
-      expect(find.text('Hoàn Kiếm, Hà Nội'), findsOneWidget);
-
-      // Tapping a search result item selects it
-      await tester.tap(find.text('Hồ Hoàn Kiếm').last);
+      await tester.tap(find.text('Bàu Trắng').last);
       await tester.pumpAndSettle();
 
-      // Location details card now displays the selected place
-      expect(find.text('Hoàn Kiếm, Hà Nội'), findsOneWidget);
-      final confirmBtn = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+      expect(fakeRepo.tomTomDetailsCallCount, 1);
+      expect(fakeRepo.lastTomTomDetailsType, 'pois');
+      expect(fakeRepo.lastTomTomDetailsId, 'poi-1');
+      expect(find.text('Bắc Bình, Bình Thuận, Việt Nam'), findsOneWidget);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+            )
+            .onPressed,
+        isNotNull,
       );
-      expect(confirmBtn.onPressed, isNotNull);
     });
 
-    testWidgets('Search handles HTTP 429 rate limit error gracefully',
-        (tester) async {
+    testWidgets(
+      'Debounced search query calls searchLocations and displays results',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final fakeRepo = FakeLocationRepository(
+          searchResultsToReturn: [
+            const LocationSearchResult(
+              placeId: 'loc-1',
+              name: 'Hồ Hoàn Kiếm',
+              formattedAddress: 'Hoàn Kiếm, Hà Nội',
+              latitude: 21.0285,
+              longitude: 105.8544,
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
+          ),
+        );
+
+        await tester.enterText(find.byType(TextField).first, 'Hồ Hoàn Kiếm');
+        // Wait for 400ms debounce
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pumpAndSettle();
+
+        expect(fakeRepo.searchCallCount, 1);
+        expect(fakeRepo.lastSearchQuery, 'Hồ Hoàn Kiếm');
+        expect(find.text('Hồ Hoàn Kiếm'), findsWidgets);
+        expect(find.text('Hoàn Kiếm, Hà Nội'), findsOneWidget);
+
+        // Tapping a search result item selects it
+        await tester.tap(find.text('Hồ Hoàn Kiếm').last);
+        await tester.pumpAndSettle();
+
+        // Location details card now displays the selected place
+        expect(find.text('Hoàn Kiếm, Hà Nội'), findsOneWidget);
+        final confirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+        );
+        expect(confirmBtn.onPressed, isNotNull);
+      },
+    );
+
+    testWidgets('Search handles HTTP 429 rate limit error gracefully', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -347,9 +454,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(repository: fakeRepo),
-          ),
+          home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
         ),
       );
 
@@ -363,37 +468,38 @@ void main() {
       );
     });
 
-    testWidgets('Search handles generic network error gracefully without crashing',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Search handles generic network error gracefully without crashing',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final fakeRepo = FakeLocationRepository(
-        exceptionToThrow: ApiException(
-          statusCode: 500,
-          message: 'Network socket timeout',
-        ),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(repository: fakeRepo),
+        final fakeRepo = FakeLocationRepository(
+          exceptionToThrow: ApiException(
+            statusCode: 500,
+            message: 'Network socket timeout',
           ),
-        ),
-      );
+        );
 
-      await tester.enterText(find.byType(TextField).first, 'Chợ Lớn');
-      await tester.pump(const Duration(milliseconds: 450));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
+          ),
+        );
 
-      expect(find.text('Network socket timeout'), findsOneWidget);
-    });
+        await tester.enterText(find.byType(TextField).first, 'Chợ Lớn');
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pumpAndSettle();
 
-    testWidgets('Tapping map drops pin and sets fallback name Vị trí đã ghim',
-        (tester) async {
+        expect(find.text('Network socket timeout'), findsOneWidget);
+      },
+    );
+
+    testWidgets('Tapping map drops pin and sets fallback name Vị trí đã ghim', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -411,9 +517,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(repository: fakeRepo),
-          ),
+          home: Scaffold(body: LocationPickerSheet(repository: fakeRepo)),
         ),
       );
 
@@ -430,66 +534,67 @@ void main() {
       // Once reverse geocode resolves:
       await tester.pumpAndSettle();
       expect(fakeRepo.reverseGeocodeCallCount, 1);
-      expect(find.text('Nhà Thờ Đức Bà'), findsOneWidget);
-      expect(
-        find.text('01 Công Xã Paris, Bến Nghé, Quận 1'),
-        findsOneWidget,
-      );
+      expect(find.text('Vị trí đã ghim'), findsOneWidget);
+      expect(find.text('01 Công Xã Paris, Bến Nghé, Quận 1'), findsOneWidget);
     });
 
-    testWidgets('Reverse geocode failure preserves fallback label Vị trí đã ghim and allows confirmation',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Reverse geocode failure preserves fallback label Vị trí đã ghim and allows confirmation',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final fakeRepo = FakeLocationRepository(
-        exceptionToThrow: ApiException(
-          statusCode: 404,
-          message: 'Reverse geocode failed',
-        ),
-      );
+        final fakeRepo = FakeLocationRepository(
+          exceptionToThrow: ApiException(
+            statusCode: 404,
+            message: 'Reverse geocode failed',
+          ),
+        );
 
-      CustomLocationResult? confirmedResult;
+        CustomLocationResult? confirmedResult;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (ctx) => ElevatedButton(
-                onPressed: () async {
-                  confirmedResult = await showLocationPickerSheet(
-                    ctx,
-                    repository: fakeRepo,
-                  );
-                },
-                child: const Text('Open Sheet'),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () async {
+                    confirmedResult = await showLocationPickerSheet(
+                      ctx,
+                      repository: fakeRepo,
+                    );
+                  },
+                  child: const Text('Open Sheet'),
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Open Sheet'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Open Sheet'));
+        await tester.pumpAndSettle();
 
-      // Tap map
-      await tester.tap(find.byType(AppMapView));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
+        // Tap map
+        await tester.tap(find.byType(AppMapView));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
 
-      // Label remains fallback "Vị trí đã ghim"
-      expect(find.text('Vị trí đã ghim'), findsOneWidget);
+        // Label remains fallback "Vị trí đã ghim"
+        expect(find.text('Vị trí đã ghim'), findsOneWidget);
 
-      // Confirm button is enabled and taps successfully
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'));
-      await tester.pumpAndSettle();
+        // Confirm button is enabled and taps successfully
+        await tester.tap(
+          find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+        );
+        await tester.pumpAndSettle();
 
-      expect(confirmedResult, isNotNull);
-      expect(confirmedResult!.locationName, 'Vị trí đã ghim');
-      expect(confirmedResult!.locationProvider, 'MANUAL_PIN');
-    });
+        expect(confirmedResult, isNotNull);
+        expect(confirmedResult!.locationName, 'Vị trí đã ghim');
+        expect(confirmedResult!.locationProvider, 'MANUAL_PIN');
+      },
+    );
 
     testWidgets('Tapping Hủy pops sheet returning null', (tester) async {
       tester.view.physicalSize = const Size(400, 800);
@@ -531,387 +636,451 @@ void main() {
       expect(confirmedResult, isNull);
     });
 
-    testWidgets('Editing location name via dialog updates custom location name',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Editing location name via dialog updates custom location name',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final fakeRepo = FakeLocationRepository();
+        final fakeRepo = FakeLocationRepository();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: LocationPickerSheet(
-              repository: fakeRepo,
-              initialCenter: const LatLng(10.5, 106.5),
-              initialName: 'Vị trí đã ghim',
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: LocationPickerSheet(
+                repository: fakeRepo,
+                initialCenter: const LatLng(10.5, 106.5),
+                initialName: 'Vị trí đã ghim',
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Vị trí đã ghim'), findsOneWidget);
+        expect(find.text('Vị trí đã ghim'), findsOneWidget);
 
-      // Tap edit icon
-      await tester.tap(find.byIcon(Icons.edit_outlined));
-      await tester.pumpAndSettle();
+        // Tap edit icon
+        await tester.tap(find.byIcon(Icons.edit_outlined));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Đổi tên vị trí'), findsOneWidget);
+        expect(find.text('Đổi tên vị trí'), findsOneWidget);
 
-      // Enter custom name
-      await tester.enterText(find.byType(TextField).last, 'Quán Cà Phê Góc Phố');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu'));
-      await tester.pumpAndSettle();
+        // Enter custom name
+        await tester.enterText(
+          find.byType(TextField).last,
+          'Quán Cà Phê Góc Phố',
+        );
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Quán Cà Phê Góc Phố'), findsOneWidget);
-    });
+        expect(find.text('Quán Cà Phê Góc Phố'), findsOneWidget);
+      },
+    );
   });
 
   group('Phase 4 - ActivityFormBottomSheet Location Integration Tests', () {
-    testWidgets('ActivityFormBottomSheet shows map picker button and saves custom location',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'ActivityFormBottomSheet shows map picker button and saves custom location',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final fakeCrudRepo = FakeItineraryCrudRepository();
-      final fakeLocRepo = FakeLocationRepository(
-        reverseGeocodeResultToReturn: const LocationSearchResult(
-          placeId: 'loc-42',
-          name: 'Quán Ăn Ngon',
-          formattedAddress: '18 Phan Bội Châu, Hà Nội',
-          latitude: 21.0267,
-          longitude: 105.8433,
-        ),
-      );
-      final fakeAuth = FakeAuthNotifier();
+        final fakeCrudRepo = FakeItineraryCrudRepository();
+        final fakeLocRepo = FakeLocationRepository(
+          reverseGeocodeResultToReturn: const LocationSearchResult(
+            placeId: 'loc-42',
+            name: 'Quán Ăn Ngon',
+            formattedAddress: '18 Phan Bội Châu, Hà Nội',
+            latitude: 21.0267,
+            longitude: 105.8433,
+          ),
+        );
+        final fakeAuth = FakeAuthNotifier();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (ctx) => ElevatedButton(
-                onPressed: () => showActivityFormDialog(
-                  ctx,
-                  itineraryId: 1,
-                  dayId: 1,
-                  dayNumber: 1,
-                  authNotifier: fakeAuth,
-                  repository: fakeCrudRepo,
-                  locationRepository: fakeLocRepo,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () => showActivityFormDialog(
+                    ctx,
+                    itineraryId: 1,
+                    dayId: 1,
+                    dayNumber: 1,
+                    authNotifier: fakeAuth,
+                    repository: fakeCrudRepo,
+                    locationRepository: fakeLocRepo,
+                  ),
+                  child: const Text('Open Form'),
                 ),
-                child: const Text('Open Form'),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Open Form'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Open Form'));
+        await tester.pumpAndSettle();
 
-      // Check map picker button
-      expect(find.text('Chọn vị trí trên bản đồ'), findsOneWidget);
+        // Check map picker button
+        expect(find.text('Chọn vị trí trên bản đồ'), findsOneWidget);
 
-      // Open map picker
-      await tester.tap(find.text('Chọn vị trí trên bản đồ'));
-      await tester.pumpAndSettle();
+        // Open map picker
+        await tester.tap(find.text('Chọn vị trí trên bản đồ'));
+        await tester.pumpAndSettle();
 
-      // Tap map inside location picker sheet
-      expect(find.byType(LocationPickerSheet), findsOneWidget);
-      await tester.tap(find.byType(AppMapView));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
+        // Tap map inside location picker sheet
+        expect(find.byType(LocationPickerSheet), findsOneWidget);
+        await tester.tap(find.byType(AppMapView));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
 
-      // Confirm picked location
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'));
-      await tester.pumpAndSettle();
+        // Confirm picked location
+        await tester.tap(
+          find.widgetWithText(ElevatedButton, 'Xác nhận vị trí'),
+        );
+        await tester.pumpAndSettle();
 
-      // Picker sheet is closed, form shows custom location card
-      expect(find.byType(LocationPickerSheet), findsNothing);
-      expect(find.text('Quán Ăn Ngon'), findsOneWidget);
-      expect(find.text('18 Phan Bội Châu, Hà Nội'), findsOneWidget);
+        // Picker sheet is closed, form shows custom location card
+        expect(find.byType(LocationPickerSheet), findsNothing);
+        expect(find.text('Vị trí đã ghim'), findsWidgets);
+        expect(find.text('18 Phan Bội Châu, Hà Nội'), findsOneWidget);
 
-      // Enter activity name and submit
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Tên hoạt động *'),
-        'Ăn trưa Quán Ngon',
-      );
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Thêm hoạt động'));
-      await tester.pumpAndSettle();
+        // Enter activity name and submit
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Tên hoạt động *'),
+          'Ăn trưa Quán Ngon',
+        );
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Thêm hoạt động'));
+        await tester.pumpAndSettle();
 
-      expect(fakeCrudRepo.lastCreateRequest, isNotNull);
-      expect(fakeCrudRepo.lastCreateRequest!.name, 'Ăn trưa Quán Ngon');
-      expect(fakeCrudRepo.lastCreateRequest!.customLocationName, 'Quán Ăn Ngon');
-      expect(fakeCrudRepo.lastCreateRequest!.customAddress, '18 Phan Bội Châu, Hà Nội');
-      expect(fakeCrudRepo.lastCreateRequest!.latitude, closeTo(14.0583, 0.01));
-      expect(fakeCrudRepo.lastCreateRequest!.longitude, closeTo(108.2772, 0.01));
-      expect(fakeCrudRepo.lastCreateRequest!.destinationId, isNull);
-    });
+        expect(fakeCrudRepo.lastCreateRequest, isNotNull);
+        expect(fakeCrudRepo.lastCreateRequest!.name, 'Ăn trưa Quán Ngon');
+        expect(
+          fakeCrudRepo.lastCreateRequest!.customLocationName,
+          'Vị trí đã ghim',
+        );
+        expect(
+          fakeCrudRepo.lastCreateRequest!.customAddress,
+          '18 Phan Bội Châu, Hà Nội',
+        );
+        expect(
+          fakeCrudRepo.lastCreateRequest!.latitude,
+          closeTo(14.0583, 0.01),
+        );
+        expect(
+          fakeCrudRepo.lastCreateRequest!.longitude,
+          closeTo(108.2772, 0.01),
+        );
+        expect(fakeCrudRepo.lastCreateRequest!.destinationId, isNull);
+      },
+    );
 
-    testWidgets('Editing activity preserves existing custom location on normal edit',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Editing activity preserves existing custom location on normal edit',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final initialActivity = const ActivityDetail(
-        activityId: 55,
-        name: 'Hoạt động đã có vị trí',
-        displayOrder: 1,
-        customLocationName: 'Cà phê Giảng',
-        customAddress: '39 Nguyễn Hữu Huân, Hà Nội',
-        latitude: 21.0333,
-        longitude: 105.8540,
-        placeId: 'node-cafe-1',
-        locationProvider: 'LOCATION_IQ',
-      );
+        final initialActivity = const ActivityDetail(
+          activityId: 55,
+          name: 'Hoạt động đã có vị trí',
+          displayOrder: 1,
+          customLocationName: 'Cà phê Giảng',
+          customAddress: '39 Nguyễn Hữu Huân, Hà Nội',
+          latitude: 21.0333,
+          longitude: 105.8540,
+          placeId: 'node-cafe-1',
+          locationProvider: 'LOCATION_IQ',
+        );
 
-      final fakeCrudRepo = FakeItineraryCrudRepository();
-      final fakeLocRepo = FakeLocationRepository();
-      final fakeAuth = FakeAuthNotifier();
+        final fakeCrudRepo = FakeItineraryCrudRepository();
+        final fakeLocRepo = FakeLocationRepository();
+        final fakeAuth = FakeAuthNotifier();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (ctx) => ElevatedButton(
-                onPressed: () => showActivityFormDialog(
-                  ctx,
-                  itineraryId: 1,
-                  dayId: 1,
-                  dayNumber: 1,
-                  initialActivity: initialActivity,
-                  authNotifier: fakeAuth,
-                  repository: fakeCrudRepo,
-                  locationRepository: fakeLocRepo,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () => showActivityFormDialog(
+                    ctx,
+                    itineraryId: 1,
+                    dayId: 1,
+                    dayNumber: 1,
+                    initialActivity: initialActivity,
+                    authNotifier: fakeAuth,
+                    repository: fakeCrudRepo,
+                    locationRepository: fakeLocRepo,
+                  ),
+                  child: const Text('Open Edit Form'),
                 ),
-                child: const Text('Open Edit Form'),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Open Edit Form'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Open Edit Form'));
+        await tester.pumpAndSettle();
 
-      // Custom location is loaded and displayed
-      expect(find.text('Cà phê Giảng'), findsOneWidget);
-      expect(find.text('39 Nguyễn Hữu Huân, Hà Nội'), findsOneWidget);
+        // Custom location is loaded and displayed
+        expect(find.text('Cà phê Giảng'), findsOneWidget);
+        expect(find.text('39 Nguyễn Hữu Huân, Hà Nội'), findsOneWidget);
 
-      // Modify only activity name
-      final nameField = find.widgetWithText(TextFormField, 'Tên hoạt động *');
-      await tester.enterText(nameField, 'Uống cà phê trứng Giảng');
+        // Modify only activity name
+        final nameField = find.widgetWithText(TextFormField, 'Tên hoạt động *');
+        await tester.enterText(nameField, 'Uống cà phê trứng Giảng');
 
-      // Save changes
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu thay đổi'));
-      await tester.pumpAndSettle();
+        // Save changes
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu thay đổi'));
+        await tester.pumpAndSettle();
 
-      expect(fakeCrudRepo.lastUpdateRequest, isNotNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.name, 'Uống cà phê trứng Giảng');
-      expect(fakeCrudRepo.lastUpdateRequest!.customLocationName, 'Cà phê Giảng');
-      expect(fakeCrudRepo.lastUpdateRequest!.customAddress, '39 Nguyễn Hữu Huân, Hà Nội');
-      expect(fakeCrudRepo.lastUpdateRequest!.latitude, 21.0333);
-      expect(fakeCrudRepo.lastUpdateRequest!.longitude, 105.8540);
-      expect(fakeCrudRepo.lastUpdateRequest!.destinationId, isNull);
-    });
+        expect(fakeCrudRepo.lastUpdateRequest, isNotNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.name, 'Uống cà phê trứng Giảng');
+        expect(
+          fakeCrudRepo.lastUpdateRequest!.customLocationName,
+          'Cà phê Giảng',
+        );
+        expect(
+          fakeCrudRepo.lastUpdateRequest!.customAddress,
+          '39 Nguyễn Hữu Huân, Hà Nội',
+        );
+        expect(fakeCrudRepo.lastUpdateRequest!.latitude, 21.0333);
+        expect(fakeCrudRepo.lastUpdateRequest!.longitude, 105.8540);
+        expect(fakeCrudRepo.lastUpdateRequest!.destinationId, isNull);
+      },
+    );
 
-    testWidgets('Selecting a catalog destination clears custom location fields (State 1)',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Selecting a catalog destination clears custom location fields (State 1)',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final initialActivity = const ActivityDetail(
-        activityId: 55,
-        name: 'Hoạt động có custom location',
-        displayOrder: 1,
-        customLocationName: 'Vị trí cũ',
-        latitude: 10.0,
-        longitude: 106.0,
-      );
+        final initialActivity = const ActivityDetail(
+          activityId: 55,
+          name: 'Hoạt động có custom location',
+          displayOrder: 1,
+          customLocationName: 'Vị trí cũ',
+          latitude: 10.0,
+          longitude: 106.0,
+        );
 
-      final fakeCrudRepo = FakeItineraryCrudRepository(
-        destinations: const [
-          DestinationSummary(
-            destinationId: 99,
-            name: 'Điểm Đến Danh Mục',
-            address: 'Địa chỉ mẫu',
-          ),
-        ],
-      );
-      final fakeLocRepo = FakeLocationRepository();
-      final fakeAuth = FakeAuthNotifier();
+        final fakeCrudRepo = FakeItineraryCrudRepository(
+          destinations: const [
+            DestinationSummary(
+              destinationId: 99,
+              name: 'Điểm Đến Danh Mục',
+              address: 'Địa chỉ mẫu',
+            ),
+          ],
+        );
+        final fakeLocRepo = FakeLocationRepository();
+        final fakeAuth = FakeAuthNotifier();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (ctx) => ElevatedButton(
-                onPressed: () => showActivityFormDialog(
-                  ctx,
-                  itineraryId: 1,
-                  dayId: 1,
-                  dayNumber: 1,
-                  initialActivity: initialActivity,
-                  authNotifier: fakeAuth,
-                  repository: fakeCrudRepo,
-                  locationRepository: fakeLocRepo,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () => showActivityFormDialog(
+                    ctx,
+                    itineraryId: 1,
+                    dayId: 1,
+                    dayNumber: 1,
+                    initialActivity: initialActivity,
+                    authNotifier: fakeAuth,
+                    repository: fakeCrudRepo,
+                    locationRepository: fakeLocRepo,
+                  ),
+                  child: const Text('Open Edit Form'),
                 ),
-                child: const Text('Open Edit Form'),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Open Edit Form'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Open Edit Form'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Vị trí cũ'), findsOneWidget);
+        expect(find.text('Vị trí cũ'), findsOneWidget);
 
-      // Open dropdown and pick catalog destination
-      await tester.tap(find.text('Không liên kết địa điểm'));
-      await tester.pumpAndSettle();
+        // Open dropdown and pick catalog destination
+        await tester.tap(find.text('Không liên kết địa điểm'));
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.textContaining('Điểm Đến Danh Mục').last);
-      await tester.pumpAndSettle();
+        await tester.tap(find.textContaining('Điểm Đến Danh Mục').last);
+        await tester.pumpAndSettle();
 
-      // Custom location card disappears!
-      expect(find.text('Vị trí cũ'), findsNothing);
+        // Custom location card disappears!
+        expect(find.text('Vị trí cũ'), findsNothing);
 
-      // Save changes
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu thay đổi'));
-      await tester.pumpAndSettle();
+        // Save changes
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu thay đổi'));
+        await tester.pumpAndSettle();
 
-      expect(fakeCrudRepo.lastUpdateRequest, isNotNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.destinationId, 99);
-      expect(fakeCrudRepo.lastUpdateRequest!.customLocationName, isNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.latitude, isNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.longitude, isNull);
-    });
+        expect(fakeCrudRepo.lastUpdateRequest, isNotNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.destinationId, 99);
+        expect(fakeCrudRepo.lastUpdateRequest!.customLocationName, isNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.latitude, isNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.longitude, isNull);
+      },
+    );
 
-    testWidgets('Clearing custom location transitions activity to No Location (State 3)',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Clearing custom location transitions activity to No Location (State 3)',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final initialActivity = const ActivityDetail(
-        activityId: 55,
-        name: 'Hoạt động có custom location',
-        displayOrder: 1,
-        customLocationName: 'Vị trí cần xóa',
-        latitude: 10.0,
-        longitude: 106.0,
-      );
+        final initialActivity = const ActivityDetail(
+          activityId: 55,
+          name: 'Hoạt động có custom location',
+          displayOrder: 1,
+          customLocationName: 'Vị trí cần xóa',
+          latitude: 10.0,
+          longitude: 106.0,
+        );
 
-      final fakeCrudRepo = FakeItineraryCrudRepository();
-      final fakeLocRepo = FakeLocationRepository();
-      final fakeAuth = FakeAuthNotifier();
+        final fakeCrudRepo = FakeItineraryCrudRepository();
+        final fakeLocRepo = FakeLocationRepository();
+        final fakeAuth = FakeAuthNotifier();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (ctx) => ElevatedButton(
-                onPressed: () => showActivityFormDialog(
-                  ctx,
-                  itineraryId: 1,
-                  dayId: 1,
-                  dayNumber: 1,
-                  initialActivity: initialActivity,
-                  authNotifier: fakeAuth,
-                  repository: fakeCrudRepo,
-                  locationRepository: fakeLocRepo,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) => ElevatedButton(
+                  onPressed: () => showActivityFormDialog(
+                    ctx,
+                    itineraryId: 1,
+                    dayId: 1,
+                    dayNumber: 1,
+                    initialActivity: initialActivity,
+                    authNotifier: fakeAuth,
+                    repository: fakeCrudRepo,
+                    locationRepository: fakeLocRepo,
+                  ),
+                  child: const Text('Open Edit Form'),
                 ),
-                child: const Text('Open Edit Form'),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.text('Open Edit Form'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Open Edit Form'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Vị trí cần xóa'), findsOneWidget);
+        expect(find.text('Vị trí cần xóa'), findsOneWidget);
 
-      // Tap delete icon on custom location card
-      await tester.tap(find.byTooltip('Xóa vị trí'));
-      await tester.pumpAndSettle();
+        // Tap delete icon on custom location card
+        await tester.tap(find.byTooltip('Xóa vị trí'));
+        await tester.pumpAndSettle();
 
-      // Custom location card removed, button reappears
-      expect(find.text('Vị trí cần xóa'), findsNothing);
-      expect(find.text('Chọn vị trí trên bản đồ'), findsOneWidget);
+        // Custom location card removed, button reappears
+        expect(find.text('Vị trí cần xóa'), findsNothing);
+        expect(find.text('Chọn vị trí trên bản đồ'), findsOneWidget);
 
-      // Save changes
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu thay đổi'));
-      await tester.pumpAndSettle();
+        // Save changes
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu thay đổi'));
+        await tester.pumpAndSettle();
 
-      expect(fakeCrudRepo.lastUpdateRequest, isNotNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.destinationId, isNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.customLocationName, isNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.latitude, isNull);
-      expect(fakeCrudRepo.lastUpdateRequest!.longitude, isNull);
-    });
+        expect(fakeCrudRepo.lastUpdateRequest, isNotNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.destinationId, isNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.customLocationName, isNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.latitude, isNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.longitude, isNull);
+      },
+    );
   });
 
   group('Phase 4 - ActivityTimelineItem Custom Location Display', () {
-    testWidgets('ActivityTimelineItem renders custom location card when destination is null',
-        (tester) async {
-      const activity = ActivityDetail(
-        activityId: 1,
-        name: 'Check-in ngọn hải đăng',
-        displayOrder: 1,
-        customLocationName: 'Hải Đăng Vũng Tàu',
-        customAddress: 'Đỉnh núi Nhỏ, Vũng Tàu',
-        latitude: 10.3341,
-        longitude: 107.0745,
-      );
+    testWidgets(
+      'ActivityTimelineItem renders custom location card when destination is null',
+      (tester) async {
+        const activity = ActivityDetail(
+          activityId: 1,
+          name: 'Check-in ngọn hải đăng',
+          displayOrder: 1,
+          customLocationName: 'Hải Đăng Vũng Tàu',
+          customAddress: 'Đỉnh núi Nhỏ, Vũng Tàu',
+          latitude: 10.3341,
+          longitude: 107.0745,
+        );
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: ActivityTimelineItem(activity: activity),
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: ActivityTimelineItem(activity: activity)),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Check-in ngọn hải đăng'), findsOneWidget);
-      expect(find.text('Hải Đăng Vũng Tàu'), findsOneWidget);
-      expect(find.text('Đỉnh núi Nhỏ, Vũng Tàu'), findsOneWidget);
-      expect(find.byIcon(Icons.pin_drop), findsOneWidget);
-    });
+        expect(find.text('Check-in ngọn hải đăng'), findsOneWidget);
+        expect(find.text('Hải Đăng Vũng Tàu'), findsOneWidget);
+        expect(find.text('Đỉnh núi Nhỏ, Vũng Tàu'), findsOneWidget);
+        expect(find.byIcon(Icons.pin_drop), findsOneWidget);
+      },
+    );
 
-    testWidgets('ActivityTimelineItem renders fallback label Vị trí đã ghim when customLocationName is null',
-        (tester) async {
-      const activity = ActivityDetail(
-        activityId: 2,
-        name: 'Ghé điểm dừng chân',
-        displayOrder: 1,
-        latitude: 11.95,
-        longitude: 108.45,
-      );
+    testWidgets(
+      'ActivityTimelineItem renders fallback label Vị trí đã ghim when customLocationName is null',
+      (tester) async {
+        const activity = ActivityDetail(
+          activityId: 2,
+          name: 'Ghé điểm dừng chân',
+          displayOrder: 1,
+          latitude: 11.95,
+          longitude: 108.45,
+        );
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: ActivityTimelineItem(activity: activity),
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: ActivityTimelineItem(activity: activity)),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Ghé điểm dừng chân'), findsOneWidget);
-      expect(find.text('Vị trí đã ghim'), findsOneWidget);
-      expect(find.text('11.9500, 108.4500'), findsOneWidget);
+        expect(find.text('Ghé điểm dừng chân'), findsOneWidget);
+        expect(find.text('Vị trí đã ghim'), findsOneWidget);
+        expect(find.text('11.9500, 108.4500'), findsOneWidget);
+      },
+    );
+  });
+
+  group('Phase 4 - Location Result Types', () {
+    test('LocationSearchResult isCityOrAdministrative correctly identifies regions vs POIs', () {
+      const cityResult = LocationSearchResult(
+        placeId: '1',
+        name: 'Đà Lạt',
+        formattedAddress: 'Đà Lạt, Lâm Đồng',
+        type: 'city',
+        category: 'place',
+      );
+      expect(cityResult.isCityOrAdministrative, isTrue);
+
+      const adminResult = LocationSearchResult(
+        placeId: '2',
+        name: 'Quận 1',
+        formattedAddress: 'Quận 1, TP. Hồ Chí Minh',
+        type: 'administrative',
+        category: 'boundary',
+      );
+      expect(adminResult.isCityOrAdministrative, isTrue);
+
+      const poiResult = LocationSearchResult(
+        placeId: '3',
+        name: 'Cà phê Tùng',
+        formattedAddress: 'Khu Hoà Bình, Phường 1, Đà Lạt',
+        type: 'cafe',
+        category: 'amenity',
+      );
+      expect(poiResult.isCityOrAdministrative, isFalse);
     });
   });
 }

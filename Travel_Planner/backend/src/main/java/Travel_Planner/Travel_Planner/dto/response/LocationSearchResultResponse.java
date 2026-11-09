@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,6 +18,14 @@ public class LocationSearchResultResponse {
     private Double latitude;
     private Double longitude;
     private String category;
+    private String type;
+    private Double importance;
+    private List<Double> boundingBox;
     private String provider;
+    private Boolean isLocalityFallback;
+    private String providerId;
+    private String providerType;
+    private Boolean requiresDetails;
+    private String sessionId;
 }
 

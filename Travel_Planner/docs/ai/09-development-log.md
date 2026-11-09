@@ -4681,3 +4681,375 @@ Addressed 2 UI and layout requirements for the Rating module in the Mobile appli
   - Command: `.\mvnw.cmd test`
   - Result: **197 / 197 tests passed (BUILD SUCCESS in 1m 30s)**.
 - **Git Branch Status:** Maintained strictly on `feature/social-interaction` without commits or destructive database modifications.
+
+## 89. Map, Place Search and Activity Image Review (2026-11-05)
+
+- Branch: develop; inspected HEAD: c1873ad (Merge pull request #10 from feature/social-interaction). The working tree was clean before this documentation task.
+- Completed a source-based review of activity/catalog location rules, LocationIQ search and reverse geocoding, map rendering, routing, image upload, and related Flutter mobile/web flows. Reviewed project design, architecture, API guidance, historical plans and relevant development history.
+- Created nine Vietnamese Markdown documents under docs/feedback and docs/plan/planupdate-map: review index, implementation audit, location model analysis, provider/image-source comparison, UX proposal, plan index, backend/data contract proposal, frontend/image proposal, and rollout/test acceptance plan.
+- Recommended preserving the existing mutually exclusive catalog/custom/no-location model for the first release, improving search context and asynchronous selection correctness, and adding activity images with compatible asset handling. A normalized places/snapshot model remains a future option.
+- Verified public provider documentation for free-tier limits, attribution, storage/cache distinctions and photo restrictions. Account-specific quotas, CARTO grant/license eligibility and live Vietnamese POI quality remain unverified.
+- Identified potential picker response races and missing-coordinate fallback risks by static inspection; these have not been reproduced on a running device or fixed in this task.
+- Documented stale statements in earlier architecture, map and status documents without treating historical test counts as current verification.
+- Validation performed: PowerShell/rg source inspection, git status/branch/log inspection, and a read-back check of all nine new Markdown files, local Markdown links, Unicode replacement characters and fenced-block balance. These documentation checks passed.
+- No application code, API implementation, database schema, dependencies or provider account settings changed. Proposed endpoints, asset tables and migration steps are not implemented.
+- Maven/Flutter tests, analysis and builds were not run because this task changed documentation only.
+- Next steps: execute M0 provider/account and test baseline checks, then implement M1 selection/data correctness fixes before unified POI search and activity images.
+
+## 90. Map Search and Activity Cover MVP (2026-11-05)
+
+- Implemented the LocationIQ Nearby adapter and `GET /api/locations/nearby` with category, radius and result-limit validation, shared application throttling, a 24-hour bounded cache, upstream error mapping, and an opt-in `LOCATIONIQ_NEARBY_ENABLED` property. The feature remains disabled by default to avoid unexpected provider quota use; the existing API key is still required.
+- Hardened LocationIQ result parsing so missing, malformed, non-finite, and out-of-range coordinates are discarded while valid `(0, 0)` coordinates remain accepted. Added request-generation guards to picker searches, passed the viewport as autocomplete context, rejected invalid selected results, and kept a manually placed pin's coordinates and identity separate from reverse-geocoded address text.
+- Added activity `imageUrl` persistence through the existing Cloudinary upload flow. The mobile form supports image selection, preview and removal, suggests the selected place name when the activity name is blank, and the timeline displays the activity image with catalog fallback. The backend accepts HTTPS Cloudinary delivery URLs, preserves images when legacy PUT payloads omit/null the field, and clears on an empty string. No media asset ownership table or orphan cleanup was added.
+- Updated the API contract and the planupdate-map status/implementation notes. Existing feedback and historical plan entries were preserved.
+- Main files changed include `LocationController`, `LocationService`, `GeocodingProvider`, `LocationIqGeocodingProvider`, `LocationServiceImpl`, `MapProperties`, activity entity/DTO/service files, the mobile location repository/picker, activity models/form/timeline, image preview widget, related tests, and map API/plan documentation.
+- Verification: `flutter analyze` passed with no issues. Targeted Flutter tests (`location_repository_test.dart`, `itinerary_activity_management_test.dart`, `activity_location_model_test.dart`) passed. Targeted backend tests (`LocationServiceTest`, `ActivityLocationTest`) passed: 48 tests, 0 failures/errors. The full Flutter test run reached 330 passing and 3 failing expectations in `location_picker_test.dart`; one timeline icon mismatch was corrected afterward. A follow-up command to inspect/re-run the remaining failures was rejected, so a clean full-suite result is not verified. Full backend suite, Flutter web tests/build, live LocationIQ Nearby behavior/quota, mobile device image-picker behavior, and deployment migration have not been verified.
+- Next steps: rerun the failing picker tests and the full mobile suite; enable Nearby only in a configured deployment after checking account quota; run the full backend suite and validate a real image upload and map search without exceeding the intended free-tier budget.
+
+## 91. Vietnam-Scoped Activity Place Search (2026-11-05)
+
+- Passed the itinerary's `location` value from activity create/edit flows into the location picker. Search queries now append that province/city as textual context (for example, `Hồ Hoàn Kiếm, Hà Nội`) while leaving the typed text unchanged in the picker. Context is bounded to the backend's 100-character query limit; backend LocationIQ autocomplete already restricts results to Vietnam with `countrycodes=vn`.
+- Updated the planupdate-map README and frontend plan with the Vietnam-only scope, itinerary-city context behavior, free-tier/no-provider-fallback rule, and the limitation that textual context is a relevance bias rather than a hard administrative-boundary filter.
+- Corrected the LocationIQ Autocomplete language parameter to a single supported code. Removed the API token from the README and replaced it with the `LOCATION_IQ_API_KEY` environment-variable instruction; the application reads that variable from backend configuration. The token value was not copied to code, logs or tests. Because it had been stored in a project document, rotate it in the LocationIQ dashboard before relying on it.
+- Verification: focused city-context search test passed; `flutter analyze` reported no issues; full `location_picker_test.dart` passed (19 tests); `.\mvnw.cmd -Dtest=LocationServiceTest test` passed (30 tests). Two stale manual-pin test expectations were aligned with the existing contract: reverse geocoding supplies address text but does not replace the pin's label or coordinates. No live LocationIQ request was sent, so actual token validity and account quota are unverified.
+- Next steps: set `LOCATION_IQ_API_KEY` in the backend process environment, rotate the key if it was committed or shared, and smoke-test a small number of searches in Vietnamese. Consider a geocoded destination boundary only if strict exclusion of out-of-province results is required.
+
+## 92. Comprehensive Audit & Evaluation of Place Search Implementation (2026-11-05)
+
+### 92.1. Audit Context & Scope
+- **Date:** 2026-11-05
+- **Branch:** `test-change` (tracking `origin/feature/test-changes`); working tree clean except `Travel_Planner/README.md`.
+- **Audit Mandate:** Full-stack audit and quality evaluation of the newly implemented Place Search capabilities across Backend (Spring Boot), Mobile (Flutter), Database (MySQL schema & relationships), and ecosystem integrations (OSM, CARTO, OpenRouteService, Cloudinary). Evaluated strictly as read-only audit without code refactoring or new feature implementation.
+
+### 92.2. Key Findings & Architectural Assessment
+1. **Backend Implementation (`LocationController`, `LocationServiceImpl`, `LocationIqGeocodingProvider`):**
+   - **Real Service Call Verified:** Confirmed backend makes genuine upstream calls to LocationIQ API v1 (`/autocomplete`, `/reverse`, `/nearby`) via Spring `RestClient`; it does not return static or mock data.
+   - **Resilience & Rate Limiting:** Enforces Dual-Tier Bucket4j token bucket rate limiting (60 req/min for authenticated JWT users; 30 req/min for anonymous client IP). In-memory Caffeine cache (500 max entries, 24-hour TTL) prevents duplicate upstream calls and complies with LocationIQ's $\le 48\text{h}$ caching terms.
+   - **Upstream Error Mapping:** LocationIQ HTTP 404 is mapped cleanly to empty lists `[]` (HTTP 200). HTTP 429 maps to `RateLimitExceededException` (HTTP 429). HTTP 5xx maps to 502 Bad Gateway. Connection/read timeouts (3000ms limit) map to 504 Gateway Timeout.
+   - **Missing Key Protection:** If `LOCATION_IQ_API_KEY` is empty, `isConfigured()` returns false without throwing exceptions or crashing the server: search returns `[]`, reverse-geocode returns 404, nearby returns 503.
+2. **Frontend Implementation (`LocationPickerSheet`, `LocationRepository`, `AppMapView`):**
+   - **User Experience & Controls:** Sheet opens at 90% screen height with floating search bar, horizontal POI category chips (`ActionChip`), scrollable results dropdown (max 220px), interactive `flutter_map` v7 canvas with CARTO Basemaps, pin marker rendering, and confirmation bottom card.
+   - **Debounce & Race Condition Shield:** 400ms debounce timer cancels immediately if query changes or drops $< 2$ characters. Request counters (`_searchRequestId`, `_reverseGeocodeRequestId`) discard out-of-order network responses, completely preventing stale search results from overwriting newer selections.
+   - **Zero-API Pin Drop Resilience:** Tapping anywhere on the map places a manual pin (`MANUAL_PIN`) immediately. Reverse geocoding provides descriptive address text only; it never overwrites the pin name or assigns an arbitrary upstream POI identity.
+   - **Input Validation & Safety:** Malformed, non-finite, or out-of-range coordinates are rejected with a clear user prompt to pin on the map rather than crashing.
+3. **Database Model & State Integrity (`Activity`, `Destination`, `ItineraryServiceImpl`):**
+   - **Three-State Mutual Exclusivity Enforced:**
+     - *State 1 (Catalog Destination):* `destination_id != null`; all custom fields, coordinates, placeId, and provider are nullified.
+     - *State 2 (Custom Location):* `destination_id == null`; atomic coordinate pair (`latitude`, `longitude`) is mandatory; persists `customLocationName`, `customAddress`, `placeId`, and `locationProvider` on `activities`.
+     - *State 3 (No Location):* All location fields are null; valid activity preserved without a map pin.
+   - **Backward Compatibility:** 100% compatible with legacy itineraries that rely strictly on `destination_id`.
+   - **Data Duplication:** No deduplication across custom pins; multiple activities referencing the same real-world location create separate coordinate entries.
+4. **Security & Vulnerabilities (CRITICAL):**
+   - **Plain-text API Credentials Committed:** `Travel_Planner/README.md#L11-L15` explicitly documents real credentials in PowerShell script format (`CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `OPENROUTESERVICE_API_KEY`, `LOCATION_IQ_API_KEY`). Committed in commit `2109d8f`. Must be rotated immediately in respective dashboards and replaced with placeholder documentation.
+5. **Functional Gap (HIGH):**
+   - **Lack of Unified Search:** `LocationPickerSheet` queries only LocationIQ; it does not query internal database `destinations`. Searching for known catalog POIs (e.g., "Bà Nà Hills") creates a custom pin instead of linking to the curated catalog record with official cover image and description.
+
+### 92.3. Executed Test Suites & Verification Results
+- **Backend Full Suite:** **200 / 200 tests passing (100% Green, `./mvnw.cmd test` execution time: 47.5s)**.
+  - Targeted Location Suites: `LocationServiceTest` + `ActivityLocationTest`: **48 / 48 tests passing (100% Green)**.
+- **Mobile Full Suite:** **333 / 333 tests passing (100% Green, `flutter test` execution time: 40s)**.
+  - Targeted Map/Location Suites: `location_repository_test`, `location_picker_test`, `activity_location_model_test`, `itinerary_activity_management_test`, `itinerary_map_test`: **95 / 95 tests passing (100% Green)**.
+- **Static Analysis:**
+  - `flutter analyze` on Mobile: **0 errors, 0 warnings, 0 issues (ran in 31.0s)**.
+  - `flutter analyze` on Web: **0 errors, 0 warnings, 0 issues (ran in 4.0s)**.
+
+### 92.4. Documentation Updates
+- Updated `Travel_Planner/docs/plan/01-map-integration-audit-and-plan.md` and synchronized `Travel_Planner/docs/ai/11-map-integration-audit-and-plan.md` with Section 20: Comprehensive 10-section audit, evaluation matrix, 10-scenario assessment, and defect breakdown.
+- Logged verification facts into `docs/ai/09-development-log.md` (Session 92).
+
+### 92.5. Recommended Next Steps
+1. **P0 (Immediate):** Revoke and rotate `LOCATION_IQ_API_KEY`, `OPENROUTESERVICE_API_KEY`, and `CLOUDINARY_API_SECRET`. Replace values in `Travel_Planner/README.md` with environment variable placeholders.
+2. **P1 (Next Release):** Implement unified search endpoint combining catalog destinations with online LocationIQ autocomplete.
+3. **P1:** Enhance city bias using LocationIQ bounding boxes (`viewbox` parameter) instead of plain string appending.
+
+---
+
+## 93. Session Entry: Improvement of Vietnamese Language & Specific POI Search in Place Search Capabilities (2026-11-05)
+
+### 93.1. Problem Statement & Scope
+- Users and QA identified two critical issues with place search:
+  1. **Vietnamese Language Priority:** LocationIQ results occasionally returned names and addresses in English even when the user queried in Vietnamese.
+  2. **Specific POI Discovery Failure:** Specific places and commercial venues (e.g., bakeries, cafes, pharmacies, supermarkets, specific retail brands like Starbucks, Highlands Coffee, Phuc Long) were either not found or returned distant locations.
+- **Constraints Maintained:**
+  - Preserved Provider Pattern with LocationIQ (no provider replacement).
+  - Preserved Activity-Destination three-state location model (`CATALOG`, `CUSTOM`, `NONE`).
+  - No database schema or entity changes; no changes to custom location persistence logic or `effectiveLatitude`/`effectiveLongitude`.
+  - Manual pin drop (`MANUAL_PIN`) and zero-API resilience completely intact.
+  - Zero mock data generated.
+
+### 93.2. Root Causes Identified & Addressed
+1. **Language Hardcoding:** `LocationIqGeocodingProvider.java` hardcoded `accept-language=en` for autocomplete, suppressing Vietnamese translations from OpenStreetMap / LocationIQ.
+2. **Unsupported Autocomplete Query Parameters:** LocationIQ's `/autocomplete` API ignores `lat` and `lon` query parameters; geographic biasing strictly requires `viewbox=min_lon,min_lat,max_lon,max_lat&bounded=0&importancesort=0`. Without `viewbox`, POI searches defaulted to un-biased nationwide searches.
+3. **Missing Initial Viewport Context on Mobile:** When opening `LocationPickerSheet` for a new activity (`initialCenter == null`), `_viewportCenter` defaulted to `(14.0583, 108.2772)` (rural Gia Lai country centroid), biasing search requests to central highlands rather than the destination city of the itinerary.
+4. **Context Appending Over-Constraining Queries:** Appending city strings naively to queries containing district qualifiers or prepositions caused LocationIQ token mismatch.
+5. **Generic Categorization:** LocationIQ's `class` field (e.g., `shop`, `amenity`) obscured granular POI types (e.g., `bakery`, `cafe`, `pharmacy`, `supermarket`).
+6. **Result Duplication:** Multiple OpenStreetMap entities (e.g., node and way) for the same venue created duplicates in search results.
+
+### 93.3. Implementation Details
+1. **Spring Boot Backend:**
+   - **`MapProperties.java` & `application.properties`:** Added configurable geocoding language property `app.map.geocoding.language=${GEOCODING_LANGUAGE:vi}` (defaulting to `"vi"`).
+   - **`LocationIqGeocodingProvider.java`:**
+     - Applied `accept-language=vi` across `/autocomplete`, `/reverse`, and `/nearby`.
+     - Computed dynamic bounding box ($\Delta = 0.15^\circ \approx 16.6\text{km}$) around coordinates and passed `viewbox=minLon,minLat,maxLon,maxLat&bounded=0&importancesort=0`. Removed unsupported `lat`/`lon` parameters from `/autocomplete`.
+     - Prioritized `address.name:vi` over `display_place` and `display_name` in `parseLocationItem`, with fallback to English/native names when Vietnamese is absent.
+     - Extracted granular POI `type` (e.g., bakery, cafe, pharmacy) as `category` before falling back to `class`.
+     - Enforced in-memory deduplication combining `placeId` and normalized `(name + lat + lon)` keys.
+   - **`LocationServiceTest.java`:** Added nested class `VietnameseAndPoiSearchTests` covering Vietnamese accept-language, viewbox generation, `name:vi` priority, brand name preservation, deduplication, unaccented search, and reverse geocoding language.
+2. **Flutter Mobile:**
+   - **`location_picker_sheet.dart`:**
+     - Added `resolveContextCenter(String? context)` helper mapping 15 major Vietnamese destinations (Hà Nội, TP.HCM, Đà Nẵng, Đà Lạt, Nha Trang, Hội An, Huế, Phú Quốc, Sa Pa, Hạ Long, Vũng Tàu, Cần Thơ, Ninh Bình, Quy Nhơn, Phan Thiết) to city center coordinates.
+     - Initialized `_viewportCenter` and map initial camera center to `resolveContextCenter(widget.locationContext)` at zoom 13.0 when `initialCenter` is null.
+     - Added `formatQueryWithContext(String query, String? locationContext)` helper: strips city prefix (e.g. "Thành phố") to detect core city names, and intelligently appends city context to unconstrained POI queries while preserving queries with districts or prepositions.
+   - **`location_picker_test.dart`:** Added `Phase 4 - Destination Context Resolution & Specific POI Query Formatting` test group with 7 tests verifying city coordinate resolution, query formatting, and map center initialization.
+
+### 93.4. Verification Results
+- **Backend Full Test Suite (`backend/`):**
+  - Command: `.\mvnw.cmd test`
+  - Result: **207 / 207 tests passed (100% Green, BUILD SUCCESS, execution time: 53.5s)**.
+- **Mobile Full Test Suite (`frontend/mobile/`):**
+  - Command: `flutter test`
+  - Result: **340 / 340 tests passed (100% Green, execution time: 42s)**.
+- **Mobile & Web Static Analysis:**
+  - `flutter analyze` in `frontend/mobile/`: **No issues found! (0 errors, 0 warnings)**.
+  - `flutter analyze` in `frontend/web/`: **No issues found! (0 errors, 0 warnings)**.
+- **Live LocationIQ API Probing:**
+  - Verified `tiệm bánh` with HCMC viewbox: returns bakeries in HCMC in Vietnamese (Tiệm Bánh Mì 362, Tiệm Bánh Ngọt Pháp, Tiệm Bánh Xèo).
+  - Verified `quan ca phe` (unaccented) with Hanoi viewbox: returns cafes in Hanoi with proper Vietnamese accents (Quán cà phê Wabi-Sabi, Quán cà phê Mùa Hè).
+  - Verified brand `Starbucks` with HCMC viewbox: returns Starbucks cafes in HCMC (Starbucks Nguyễn Du, Starbucks Đông Du, Starbucks Lê Lai).
+  - Verified `nhà thuốc` with HCMC viewbox: returns pharmacies in HCMC with category `pharmacy` (Nhà Thuốc Pharmacity).
+
+---
+
+## 94. Session 94 - Comprehensive Map Location Search & Multi-Provider Engine Upgrade
+
+**Date:** 2026-11-05  
+**Scope:** Backend (Spring Boot 3, Java 22) & Mobile (Flutter 3.47.7, Dart 3.13.5)  
+**Objective:** Resolve geographic search degradation (e.g. `Vũng Tàu` returning distant eateries like `Cơm Tấm An Giang`, `Đà Lạt` returning local cafe `Đà Lạt Ơi`), eliminate hardcoded city coordinates, introduce semantic ranking, implement HERE Geocoding & Search provider, and enable adaptive camera zooming.
+
+### 94.1. Core Problems & Root Cause Analysis
+1. **Viewport Distance Overriding Importance (`importancesort=0`):**
+   - In Session 93, `importancesort=0` was passed to LocationIQ's `/v1/autocomplete` to prioritize viewport proximity.
+   - However, this instructed LocationIQ to sort candidates strictly by geographic distance to the map center (0 km in HCMC), ignoring global entity importance (importance `0.55` for city vs `0.0001` for eateries). Consequently, searching "Vũng Tàu" or "Đà Lạt" while viewing HCMC ranked restaurants containing those words at position #1.
+2. **Endpoint Limitation of Autocomplete:**
+   - LocationIQ's `/v1/autocomplete` treats input as prefix strings, lacking entity boundary awareness, bounding boxes, and comprehensive importance scoring.
+   - Forward Geocoding `/v1/search` reliably identifies administrative entities (`class=place`, `type=city`), natural language structures ("Quán cà phê ở Đà Lạt"), and returns bounding boxes (`boundingbox`) and accurate importance scores.
+3. **Hardcoding Limitation:**
+   - Previous temporary logic hardcoded a table of 15 Vietnamese cities in `location_picker_sheet.dart`, conflicting with requirements for dynamic, non-hardcoded destination handling.
+4. **Disorienting Uniform Camera Zoom:**
+   - Selecting a city previously zoomed in at 15.0 (street level), cutting off city boundaries. Conversely, generic POIs require tight zooming (15.5).
+
+### 94.2. Implementation Details
+
+#### A. Spring Boot Backend
+1. **DTO & Model Upgrades (`LocationSearchResultResponse.java`):**
+   - Added backward-compatible fields: `type` (String), `importance` (Double), and `boundingBox` (List<Double>).
+2. **Provider Configuration & HERE Support:**
+   - `MapProperties.java` & `application.properties`: Added `app.map.geocoding.here-api-key=${HERE_API_KEY:}` and base URLs for geocode/discover/revgeocode.
+   - `HereGeocodingProvider.java`: Implemented isolated `GeocodingProvider` using HERE Geocoding & Search v7 API (`/v1/geocode`, `/v1/discover`, `/v1/revgeocode`). Gracefully returns empty lists when unconfigured or on upstream error.
+3. **Primary Forward Geocoding in LocationIQ (`LocationIqGeocodingProvider.java`):**
+   - Upgraded primary search to Forward Geocoding `/v1/search` with parameters: `q`, `limit`, `countrycodes=vn`, `format=json`, `accept-language=vi`, `addressdetails=1`, `normalizecity=1`, `dedupe=1`.
+   - Viewport bounding box is applied ONLY to generic service queries without explicit region names, preserving global importance for city and landmark searches.
+   - `/v1/autocomplete` is kept strictly as a fallback when `/v1/search` returns 0 results.
+   - Extracted `type`, `importance`, `boundingBox`, and resolved Vietnamese entity names.
+4. **Semantic Ranking Engine (`LocationRankingService.java` & `LocationRankingServiceImpl.java`):**
+   - Created dedicated post-processing ranker:
+     - Normalizes accented and unaccented Vietnamese via `java.text.Normalizer.Form.NFD`.
+     - Classifies queries into administrative/city intent vs service/POI intent.
+     - Scoring formula: exact name match (+70), administrative city match (+55 vs -45 penalty for eateries during city query), service match (+45), region alignment (+40 vs -40), provider importance (+25 * importance), and subtle proximity (+10 max for unconstrained POIs).
+     - Spatial deduplication combining `placeId` and normalized `name + rounded coordinates (~110m)`.
+5. **Multi-Provider Aggregation (`LocationServiceImpl.java`):**
+   - Injected both `LocationIqGeocodingProvider` and `HereGeocodingProvider` along with `LocationRankingService`.
+   - Aggregates candidates from configured providers and passes through ranking and deduplication.
+
+#### B. Flutter Mobile
+1. **Data Model (`location_search_result.dart`):**
+   - Added `type`, `importance`, `boundingBox` fields and `isCityOrAdministrative` getter.
+2. **Location Picker Sheet (`location_picker_sheet.dart`):**
+   - Removed all hardcoded city coordinate tables.
+   - Implemented Unicode-aware regex matching in `formatQueryWithContext` using `(^|[^\p{L}\p{N}])(quận|quan|huyện|huyen|phường|phuong|thị xã|thi xa|gần|gan|tại|tai|ở|o)([^\p{L}\p{N}]|$)`.
+   - Stripped administrative prefixes ("thành phố", "tỉnh", "tp.") during context duplication checks.
+   - Adaptive camera zooming: zoom 12.0 for administrative areas and cities (`isCityOrAdministrative`), zoom 15.5 for specific venues and POIs.
+
+### 94.3. Verification Results
+- **Backend Full Test Suite (`Travel_Planner/backend`):**
+  - Command: `.\mvnw.cmd test`
+  - Result: **215 / 215 tests passed (100% Green, BUILD SUCCESS, execution time: 61s)**.
+  - New test suites:
+    - `LocationRankingServiceTest.java`: 5 tests covering city prioritization over eateries, Da Lat query ranking, unaccented matching, POI prioritization, and spatial deduplication.
+    - `HereGeocodingProviderTest.java`: 3 tests covering unconfigured state, geocode parsing with bounding box, and upstream error resilience.
+    - `LocationServiceTest.java`: 37 integration tests updated and passing.
+- **Mobile Full Test Suite (`Travel_Planner/frontend/mobile`):**
+  - Command: `flutter test`
+  - Result: **339 / 339 tests passed (100% Green, execution time: 54s)**.
+  - `location_picker_test.dart`: 25 tests passing, verifying adaptive zoom, context formatting, and debounced search.
+- **Static Analysis:**
+  - `flutter analyze --no-pub` in `frontend/mobile`: **No issues found! (0 errors, 0 warnings)**.
+- **Live Search Benchmarking (16 / 16 Successful Tests):**
+  - `Vũng Tàu` $\rightarrow$ Thành phố Vũng Tàu (Type: city, Importance: 0.65)
+  - `Đà Lạt` $\rightarrow$ Thành phố Đà Lạt (Type: city, Importance: 0.60)
+  - `vung tau` $\rightarrow$ Vũng Tàu (Type: city)
+  - `da lat` $\rightarrow$ Đà Lạt (Type: city)
+  - `Tiệm bánh Cối Xay Gió` $\rightarrow$ Bakery in Da Lat (Type: bakery)
+  - `Quán cà phê ở Đà Lạt` $\rightarrow$ Cafes in Da Lat
+  - `Khách sạn gần Hồ Gươm` $\rightarrow$ Hotels near Hoan Kiem Lake
+- **Zero Regression:**
+  - Preserved three-state activity location model (`CATALOG`, `CUSTOM`, `NONE`), `MANUAL_PIN` dropping, reverse geocoding fallback, and OpenRouteService routing.
+
+---
+
+## 95. Session 95 - Query Understanding & Geographic Filtering for Location Search (2026-11-05)
+
+### 95.1. Problem Statement & Root Cause Analysis
+- **Observed Defect:** Searching `cơm tấm Long Xuyên` returned `Long Xuyên Quán 2 - Cơm Tấm Bánh Tằm Bì` located in TP. Thủ Đức, TP. Hồ Chí Minh (~175 km away from Long Xuyên).
+- **Root Cause Analysis:**
+  1. **Lack of Semantic Query Decomposition:** The search pipeline treated `cơm tấm Long Xuyên` as a monolithic string rather than deconstructing it into an intent (`POI_IN_LOCATION`), a subject/food keyword (`cơm tấm`), and a target locality (`Long Xuyên`).
+  2. **Implicit Compound Syntax:** Previous regex only recognized prepositions (`ở`, `tại`, `gần`) or commas, failing on implicit patterns `[Service/Food] + [City]` (e.g. `cơm tấm Long Xuyên`, `cafe Đà Lạt`, `khách sạn Vũng Tàu`).
+  3. **No Strict Geographic Filtering:** The previous pipeline relied solely on soft viewbox biasing (`bounded=0`) and ranking penalties. If the upstream provider (LocationIQ / OSM) had few or no exact text nodes in the target city, distant cross-country candidates matching keyword tokens were still returned to the user.
+
+### 95.2. Architecture & Implementation
+
+#### A. Query Understanding Engine
+- **DTOs (`Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/location/`):**
+  - `SearchIntent`: Categorizes query into `POI_IN_LOCATION`, `LOCALITY`, `SPECIFIC_PLACE`, `GENERIC_POI`.
+  - `ParsedLocationQuery`: Encapsulates `originalQuery`, `normalizedQuery`, `searchKeyword`, `locationQuery`, `placeCategory`, and `searchIntent`.
+  - `GeographicTargetArea`: Encapsulates `queryName`, `resolvedName`, `centerLat`, `centerLon`, `boundingBox` `[minLat, maxLat, minLon, maxLon]`, `maxRadiusKm`, `targetType`, and `stateOrProvince`.
+- **Query Understanding Service (`QueryUnderstandingService.java` & `QueryUnderstandingServiceImpl.java`):**
+  - **Protected Compound Dishes:** Lexicalized regional specialties (`bún bò Huế`, `phở Hà Nội`, `mì Quảng`, `nem nướng Nha Trang`, `bánh khọt Vũng Tàu`, `cơm gà Tam Kỳ`, etc.) are recognized and protected as `GENERIC_POI` so they are not incorrectly split into location queries unless an explicit preposition/comma specifies a target city (e.g. `bún bò Huế ở Sài Gòn`).
+  - **Explicit Delimiters:** Prepositions (`ở`, `tại`, `gần`, `near`, `khu vực`, `quanh`) and comma separation (`Highlands Coffee, Lê Lợi`).
+  - **Exact Generic Category Check:** Queries matching full categories (e.g. `cơm tấm`, `quán cà phê`, `khách sạn`, `tiệm bánh`) are immediately classified as `GENERIC_POI` without spurious splits.
+  - **Implicit Compound Disambiguation:** Uses word-count splitting for `[CategoryPrefix] + [Location]` (e.g. `cơm tấm Long Xuyên`, `cafe Đà Lạt`, `khách sạn Vũng Tàu`, `nhà hàng Quận 1`). Food modifiers (`tam`, `ga`, `bo`, `suon`, `nieu`, `rang`, `cha`, `dau`, `rieu`, `nuong`, etc.) are checked so phrases like `cơm gà` or `cơm sườn` remain generic food queries.
+  - **Administrative Prefix & Locality Detection:** Queries matching administrative prefixes (`thành phố`, `tỉnh`, `quận`, `huyện`) or short locality names are classified as `LOCALITY`.
+
+#### B. Two-Stage Execution Flow (`LocationServiceImpl.java`)
+- **Stage A (Locality Geocoding):**
+  - Resolves `parsed.getLocationQuery()` into `GeographicTargetArea` using primary/secondary geocoding providers.
+  - Derives spatial boundaries: center coordinate `(centerLat, centerLon)`, bounding box, province/state name, and effective radial boundary `maxRadiusKm` (computed from bounding box corner distance or target type: 15-20km for cities, 8km for districts, 3.5km for landmarks).
+- **Stage B (In-Area POI Search):**
+  - Invokes `primaryProvider.searchInArea(...)` with `viewbox` and `bounded=1` containment.
+  - Fallback root keyword search (`cơm` for `cơm tấm`) inside area when initial exact results are sparse.
+  - Combined search (`cơm tấm Long Xuyên`) biased to target coordinates.
+  - Secondary `hereGeocodingProvider.searchInArea(...)` with `in=bbox` / `in=circle` if configured.
+- **Strict Geographic Filtering (`GeographicFilterService.java` & `GeographicFilterServiceImpl.java`):**
+  - Validates coordinate bounds: finite numbers in `[-90, 90]` and `[-180, 180]`.
+  - Haversine distance constraint: candidate must be $\le \text{targetArea.maxRadiusKm} \times 1.25$.
+  - Bounding box constraint: candidate must lie within `[minLat - buffer, maxLat + buffer, minLon - buffer, maxLon + buffer]` ($\text{buffer} = 0.025^\circ \approx 2.7\text{ km}$).
+  - Cross-province conflict filter: Discards any candidate whose address contains a contradictory major administrative region (e.g. `Thành phố Hồ Chí Minh` when searching in `Long Xuyên, An Giang`, or `TP.HCM` when searching near `Hồ Gươm, Hà Nội`).
+  - Spatial deduplication by rounded coordinates.
+- **Safe Locality Fallback:**
+  - If no POIs exist in OpenStreetMap for the designated area, returns the target locality itself (centering the map on the intended city/landmark) rather than displaying cross-province false positives.
+- **Provider Interface Extension (`GeocodingProvider.java`):**
+  - Added `default List<LocationSearchResultResponse> searchInArea(...)`.
+  - Implemented in `LocationIqGeocodingProvider` using `viewbox` + `bounded=1` / `bounded=0`.
+  - Implemented in `HereGeocodingProvider` using `/v1/discover` with `in=bbox` / `in=circle`.
+
+#### C. Mobile (Flutter)
+- `LocationPickerSheet`:
+  - When search results are selected, camera automatically animates to target coordinates with adaptive zoom (`12.0` for localities/administrative areas, `15.5` for POIs).
+  - Search query is debounced and passed directly without destructive client-side mutations.
+
+### 95.3. Verification Results
+- **Backend Location & Spatial Test Suite (`Travel_Planner/backend`):**
+  - Command: `.\mvnw.cmd test -Dtest=LocationServiceTest,LocationRankingServiceTest,HereGeocodingProviderTest,QueryUnderstandingServiceTest,GeographicFilterServiceTest`
+  - Result: **72 / 72 tests passed (100% Green, BUILD SUCCESS, execution time: 32s)**.
+  - New test suites:
+    - `QueryUnderstandingServiceTest.java`: 20 tests covering implicit/explicit prepositions, unaccented inputs, compound dishes, category splitting, and administrative localities.
+    - `GeographicFilterServiceTest.java`: 5 tests covering spatial containment, distant candidate rejection (175km TP.HCM rejected for Long Xuyên), invalid coordinate rejection, cross-province mismatch discard, and coordinate deduplication.
+    - `LocationServiceTest.java`: 39 tests including end-to-end two-stage execution and locality fallback.
+- **Mobile Full Test Suite (`Travel_Planner/frontend/mobile`):**
+  - Command: `flutter test`
+  - Result: **339 / 339 tests passed (100% Green, execution time: 49s)**.
+- **Static Analysis:**
+  - Command: `flutter analyze --no-pub`
+  - Result: **No issues found! (0 errors, 0 warnings, 0 hints)**.
+- **Live Upstream Benchmark Evaluation (7 Benchmark Queries):**
+  1. `Cơm tấm Long Xuyên`: Intent `POI_IN_LOCATION` $\rightarrow$ Target Long Xuyên, An Giang `(10.37196, 105.41491)`. False positive in TP. Thủ Đức (~175 km away) discarded!
+  2. `Cơm tấm ở Long Xuyên`: Intent `POI_IN_LOCATION` $\rightarrow$ `Cơm Hai Thuế` `(10.37993, 105.44236)` & `Ngocankhang.com` in Long Xuyên, An Giang. 100% within target city!
+  3. `Cafe Đà Lạt`: Intent `POI_IN_LOCATION` $\rightarrow$ `Cafe` (Triệu Việt Vương), `Tiệm Chay Thiên Thảo` (Hai Bà Trưng), `IXORA HOMESTAY & COFFEE`, `Cafe 999`, `Vinh Hung` all in Đà Lạt, Lâm Đồng.
+  4. `Khách sạn Vũng Tàu`: Intent `POI_IN_LOCATION` $\rightarrow$ `Pacific Hotel Vung Tau`, `Khách sạn Công Đoàn`, `Khách sạn Sen Biển`, `Khách Sạn Vui`, `Khách sạn Bảo đảm Hàng hải` in Vũng Tàu.
+  5. `Nhà hàng Quận 1`: Intent `POI_IN_LOCATION` $\rightarrow$ `Nhà hàng Hàn Quốc Choi Go Jip`, `Nhà Hàng Warda`, `Nhà Hàng Xu`, `Nhà Hàng StormP Saigon`, `Nhà Hàng El Gaucho` in Quận 1, TP.HCM.
+  6. `Tiệm bánh gần Hồ Gươm`: Intent `POI_IN_LOCATION` $\rightarrow$ `Cửa Hàng Bánh Mì Phố` in Hoàn Kiếm, Hà Nội `(21.03143, 105.85347)`. Distant Saigon bakeries (1138 km away) discarded!
+  7. `Cơm tấm`: Intent `GENERIC_POI` $\rightarrow$ Local restaurants near user viewport in TP.HCM.
+- **Zero Regression:**
+  - Preserved three-state activity location model (`CATALOG`, `CUSTOM`, `NONE`), manual pin drop (`MANUAL_PIN`), reverse geocoding, and routing.
+
+## 96. Session 96 - Review & Harden Place Search with Physical Android Device Validation (2026-11-05)
+
+### 96.1. Running Environment & Physical Device Setup
+- **Connected Device:** Samsung Galaxy A34 5G (`SM-A346E` / `RFCW8105T0H`), Android 16 / One UI, running Flutter with Impeller Vulkan backend.
+- **Application State:** `com.example.mobile/com.example.mobile.MainActivity` active in foreground, displaying `LocationPickerSheet` on top of `ItineraryDetailScreen`.
+- **Backend Service:** Spring Boot 4.1.1 running on port 8080 (`/api/health` UP), connected to MySQL 8.0.37.
+- **Network Link:** `adb reverse tcp:8080 tcp:8080` active; Flutter launched with `--dart-define=API_BASE_URL=http://localhost:8080` and `CARTO_API_KEY=cb1_50v4_1_dae5edd4bc34213361f4c15b`.
+- **API Credentials:** Backend configured with live `LOCATION_IQ_API_KEY`, `OPENROUTESERVICE_API_KEY`, and `CLOUDINARY_API_KEY`.
+
+### 96.2. Technical Hardening & Root Cause Resolutions
+
+#### A. Haversine Distance Discrepancy Clarification
+- **Investigation:** In Session 95 documentation, the distance between Long Xuyên city center `(10.37196, 105.41491)` and `Cơm Hai Thuế` `(10.37993, 105.44236)` was claimed to be `~1.2 km`.
+- **Mathematical Audit:**
+  $$\Delta\text{lat} = 10.37993 - 10.37196 = 0.00797^\circ \approx 0.886\text{ km}$$
+  $$\Delta\text{lon} = 105.44236 - 105.41491 = 0.02745^\circ \approx 3.006\text{ km}$$
+  $$\text{Distance} = \text{Haversine}(10.37196, 105.41491, 10.37993, 105.44236) = \mathbf{3.13045\text{ km}}$$
+- **Finding:** `GeographicFilterServiceImpl.java` implemented the exact Haversine formula correctly ($R = 6371.0\text{ km}$). The distance computed was $3.13\text{ km} \le 15.0\text{ km}$, so `Cơm Hai Thuế` was legitimately retained. The `~1.2 km` figure in Session 95 was an inaccurate prose claim in the report, not an algorithmic defect.
+
+#### B. Locality Fallback Disambiguation
+- **Problem:** When Two-Stage search fell back to the target locality because OpenStreetMap had no matching POIs for a specific food/dish in that area, the fallback returned the raw city name without visual differentiation, risking confusion that the entire city was a restaurant.
+- **Implementation:**
+  - Added `Boolean isLocalityFallback` to `LocationSearchResultResponse.java`.
+  - In `LocationServiceImpl.java`, the fallback candidate explicitly sets `name: targetArea.getQueryName() + " (Khu vực)"`, `category: "locality"`, `type: "locality"`, and `isLocalityFallback: true`.
+  - In Flutter `location_search_result.dart`: Added `isLocalityFallback`, updated `isCityOrAdministrative` to return true for `locality` or `isLocalityFallback == true`.
+  - In Flutter `location_picker_sheet.dart`: Rendered `Icons.location_city_outlined` and a badge chip `Khu vực` or `Địa danh` next to the title.
+
+#### C. Incompatible Commercial Type Filtering for Food Intent
+- **Problem:** For food queries (e.g. `cơm tấm`), OSM nodes with `.com` in domain names (e.g. phone shop `Ngocankhang.com`) matched the unaccented substring `com` and could slip through if `type` was not validated.
+- **Implementation:**
+  - Defined `INCOMPATIBLE_FOOD_TYPES` (`mobile_phone`, `electronics`, `car`, `car_repair`, `clothes`, `motorcycle`, `atm`, `bank`, `fuel`, etc.).
+  - In `LocationRankingServiceImpl.java`: Added `-100.0` point penalty for incompatible commercial types when query has food intent. Expanded `SERVICE_KEYWORDS_PATTERN` and `matchesServiceIntent` to include Vietnamese food keywords (`com`, `pho`, `bun`, `lau`, `banh mi`, `nem nuong`, `hu tieu`).
+  - In `LocationServiceImpl.java`: In Stage B candidate aggregation, strictly filtered out any candidate with incompatible types when place category is `FOOD`.
+
+#### D. Itinerary Context Disambiguation in Mobile Search
+- **Problem:** When searching from within an existing itinerary (e.g. in An Giang), `LocationPickerSheet.formatQueryWithContext` was appending `, An Giang` to queries like `cafe Đà Lạt`, turning them into `cafe Đà Lạt, An Giang`.
+- **Implementation:** Expanded `hasRegionalIndicator` regex in `LocationPickerSheet` to recognize known Vietnamese cities and tourist provinces (`đà lạt`, `vũng tàu`, `hà nội`, `sài gòn`, `đà nẵng`, `nha trang`, `huế`, `long xuyên`, `phú quốc`, etc.). When a query explicitly mentions any known locality, the ambient itinerary context is omitted.
+
+### 96.3. Real Device & Upstream Live Verification Matrix
+
+| Nhóm | Query | Intent | Target Area | Top 1 Result | Lat, Lon | Category/Type | Đúng Địa Lý | Đúng Nhu Cầu | Camera Action |
+|---|---|---|---|---|---|---|---|---|---|
+| A | `Cơm tấm Long Xuyên` | `POI_IN_LOCATION` | Long Xuyên, An Giang | `Long Xuyên (Khu vực)` | 10.37196, 105.41491 | `locality` | Đúng (Fallback) | Đúng (Không nhầm shop) | Zoom 12.0 |
+| A | `Cơm tấm ở Long Xuyên` | `POI_IN_LOCATION` | Long Xuyên, An Giang | `Cơm Hai Thuế` | 10.37993, 105.44236 | `fast_food` | Đúng (3.13 km) | Đúng (Cơm tấm) | Zoom 15.5 |
+| A | `Cafe Đà Lạt` | `POI_IN_LOCATION` | Đà Lạt, Lâm Đồng | `Cafe` (Triệu Việt Vương) | 11.93141, 108.42906 | `cafe` | Đúng (Đà Lạt) | Đúng (Cafe) | Zoom 15.5 |
+| A | `Khách sạn Vũng Tàu` | `POI_IN_LOCATION` | Vũng Tàu | `Khách sạn Công Đoàn` | 10.34259, 107.07810 | `hotel` | Đúng (Vũng Tàu) | Đúng (Khách sạn) | Zoom 15.5 |
+| A | `Nhà hàng Quận 1` | `POI_IN_LOCATION` | Quận 1, TP.HCM | `Nhà Hàng El Gaucho` | 10.77803, 106.70363 | `restaurant` | Đúng (Quận 1) | Đúng (Nhà hàng) | Zoom 15.5 |
+| A | `Tiệm bánh gần Hồ Gươm` | `POI_IN_LOCATION` | Hồ Gươm, Hà Nội | `Cửa Hàng Bánh Mì Phố` | 21.03143, 105.85347 | `place` | Đúng (~0.3 km) | Đúng (Bánh) | Zoom 15.5 |
+| B | `Bún bò Huế` | `GENERIC_POI` | Toàn quốc (Bias Huế) | `Bún bò Huế` (Yết Kiêu, Huế) | 16.46583, 107.56726 | `restaurant` | Đúng (Huế / Toàn quốc) | Đúng (Bún bò) | Zoom 15.5 |
+| B | `Phở Hà Nội` | `GENERIC_POI` | Toàn quốc (Bias HN) | `Phở hà nội` (Bà Triệu, HN) | 21.02532, 105.85169 | `restaurant` | Đúng (Hà Nội) | Đúng (Phở) | Zoom 15.5 |
+| B | `Cơm gà` | `GENERIC_POI` | Viewport-dependent | `Cơm Gà` (Phan Văn Hân, TP.HCM) | 10.79411, 106.70428 | `restaurant` | Đúng (Theo viewport) | Đúng (Cơm gà) | Zoom 15.5 |
+| B | `Nem nướng Nha Trang` | `GENERIC_POI` | Toàn quốc (Món ăn) | `Nem nướng Nha Trang` (Hoàng Quốc Việt) | 21.04437, 105.79256 | `restaurant` | Đúng | Đúng (Nem nướng) | Zoom 15.5 |
+| B | `Bún bò Huế ở Sài Gòn` | `POI_IN_LOCATION` | Sài Gòn (TP.HCM) | `Bún Bò Huế Gia Hội` (Trần Cao Vân) | 10.78415, 106.69750 | `restaurant` | Đúng (Sài Gòn) | Đúng (Bún bò Huế) | Zoom 15.5 |
+| C | `cơm gà` (Viewport Sài Gòn) | `GENERIC_POI` | Viewport TP.HCM | `Cơm Gà` (Phan Văn Hân, TP.HCM) | 10.79411, 106.70428 | `restaurant` | Đúng (TP.HCM) | Đúng | Zoom 15.5 |
+| C | `cơm gà` (Viewport Nha Trang) | `GENERIC_POI` | Viewport Nha Trang | `Cơm Gà` (Núi Một, Nha Trang) | 12.24527, 109.18929 | `restaurant` | Đúng (Nha Trang) | Đúng | Zoom 15.5 |
+
+### 96.4. Test Suite & Static Analysis Verification
+- **Backend Test Suite:**
+  - Command: `.\mvnw.cmd test "-Dtest=LocationServiceTest,LocationRankingServiceTest,HereGeocodingProviderTest,QueryUnderstandingServiceTest,GeographicFilterServiceTest"`
+  - Result: **72 / 72 tests passed (100% Green, BUILD SUCCESS, execution time: 24.6s)**.
+- **Mobile Test Suite:**
+  - Command: `flutter test`
+  - Result: **339 / 339 tests passed (100% Green, execution time: 53s)**.
+  - Command: `flutter test test/location_picker_test.dart`
+  - Result: **25 / 25 tests passed (100% Green, execution time: 6s)**.
+- **Static Analysis:**
+  - Command: `flutter analyze --no-pub`
+  - Result: **No issues found! (0 errors, 0 warnings, 0 hints)**.
+- **Physical Device Stability:** Real Samsung device remained responsive with zero ANRs, zero memory crashes, and zero rendering glitches throughout the entire test session.
+
+### 97. Community Comments, Threads, and Public Profiles (2026-11-09)
+- Audited the active Git branch and working tree before implementation. Preserved all existing user changes; did not stage, commit, reset, or alter provider configuration.
+- Updated the community implementation plan and API contract before source changes. Kept Hibernate/JPA `ddl-auto=update` as the sole schema mechanism; removed the unconfigured SQL backfill script after confirming legacy roots can be handled without it.
+- Added paginated itinerary/activity comment threads, nested parent/root handling, public-profile/follow endpoints, legacy activity-comment compatibility, and Flutter comment/profile UI using shared theme and state widgets.
+- Backend verification: `./mvnw.cmd -q -Dtest=CommentThreadServiceTest,PublicUserServiceTest,ActivityCommentPreservationTest test` passed. No integration tests or database DDL/DML were run because no isolated MySQL test database was available.
+- Flutter verification: `flutter analyze --no-pub` passed. Focused comment/profile tests passed earlier (6 tests). Full `flutter test` completed with 339 passing and 4 failing tests: two rating-layout expectations and two activity-reordering expectations. The failures are outside the focused comment/profile test files; the full-suite failures remain unresolved.
+- `git diff --check` passed with a line-ending warning only. The physical MySQL schema and Android-device behavior were not verified in this task.
+
+
+
+

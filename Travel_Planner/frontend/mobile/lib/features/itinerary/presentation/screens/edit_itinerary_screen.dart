@@ -14,6 +14,7 @@ import '../../../explore/data/models/itinerary_summary.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/itinerary_detail.dart';
 import '../../data/models/update_itinerary_request.dart';
+import '../widgets/itinerary_location_search_field.dart';
 
 class EditItineraryScreen extends StatefulWidget {
   final int itineraryId;
@@ -335,11 +336,9 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
               const SizedBox(height: 16),
 
               // Destination / Location
-              AppTextField(
-                label: 'Điểm đến / Địa điểm *',
-                hint: 'Ví dụ: Đà Lạt, Lâm Đồng',
+              ItineraryLocationSearchField(
                 controller: _locationController,
-                textInputAction: TextInputAction.next,
+                token: widget.authNotifier.token,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Điểm đến không được để trống';

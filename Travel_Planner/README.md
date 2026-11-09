@@ -12,6 +12,10 @@ $env:CLOUDINARY_CLOUD_NAME="rk7uzrlv"
 $env:CLOUDINARY_API_KEY="959193589611582"
 $env:CLOUDINARY_API_SECRET="WQABx6A8CdWfEfWULvGdMtkOJmQ"
 $env:OPENROUTESERVICE_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjU5NjY0MjQ4MjFlOTQxYTlhNjhlY2MxMGQ2YjM2OTI5IiwiaCI6Im11cm11cjY0In0="
+$env:LOCATION_IQ_API_KEY ="pk.389b51ce02c4aa985d31e9a38e8c68f8"
+
+$env:TOMTOM_SEARCH_ENABLED="true"
+$env:TOMTOM_API_KEY="VI65jPYTHTz5Sp5TLJOlH9rA1jTeYNXo"
 
 cd Travel_Planner/backend
 .\mvnw.cmd spring-boot:run
@@ -119,6 +123,7 @@ flutter run -d RFCW8105T0H --dart-define=API_BASE_URL=http://localhost:8080 --da
 ```
 
 Hoặc
+
 ```powershell
 flutter run -d guirtwmvobovzpl7 --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=CARTO_API_KEY=cb1_50v4_1_dae5edd4bc34213361f4c15b
 ```

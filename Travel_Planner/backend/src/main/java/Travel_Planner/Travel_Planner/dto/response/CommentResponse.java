@@ -19,4 +19,11 @@ public class CommentResponse {
     private CreatorSummaryResponse creator;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Integer parentCommentId;
+    private Integer rootCommentId;
+    private Integer replyCount;
+    private boolean deleted;
+    private CreatorSummaryResponse replyToCreator;
+    private String targetType;
+    private Integer targetId;
 }

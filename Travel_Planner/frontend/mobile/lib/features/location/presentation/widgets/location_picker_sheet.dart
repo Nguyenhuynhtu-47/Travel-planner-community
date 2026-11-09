@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -29,12 +30,26 @@ class CustomLocationResult {
   });
 
   factory CustomLocationResult.fromSearchResult(LocationSearchResult result) {
+    if (!result.hasCoordinates ||
+        !result.latitude!.isFinite ||
+        !result.longitude!.isFinite ||
+        result.latitude! < -90 ||
+        result.latitude! > 90 ||
+        result.longitude! < -180 ||
+        result.longitude! > 180) {
+      throw ArgumentError.value(
+        result,
+        'result',
+        'Location result needs valid coordinates',
+      );
+    }
     return CustomLocationResult(
       locationName: result.name.isNotEmpty ? result.name : 'Vị trí đã ghim',
-      address:
-          result.formattedAddress.isNotEmpty ? result.formattedAddress : null,
-      latitude: result.latitude ?? 0.0,
-      longitude: result.longitude ?? 0.0,
+      address: result.formattedAddress.isNotEmpty
+          ? result.formattedAddress
+          : null,
+      latitude: result.latitude!,
+      longitude: result.longitude!,
       placeId: result.placeId.isNotEmpty ? result.placeId : null,
       locationProvider: result.provider ?? 'LOCATION_IQ',
     );
@@ -144,6 +159,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   String? _selectedPlaceId;
   String? _selectedProvider;
   bool _isReverseGeocoding = false;
+  late final String _searchSessionId;
 
   static const String fallbackLocationName = 'Vị trí đã ghim';
 
@@ -153,6 +169,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     _repository = widget.repository ?? LocationRepository();
     _mapController = MapController();
     _searchController = TextEditingController();
+    _searchSessionId = _newTomTomSessionId();
 
     if (widget.initialCenter != null) {
       _selectedPoint = widget.initialCenter;
@@ -175,6 +192,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
 
   void _onSearchChanged(String text) {
     _debounceTimer?.cancel();
+    final requestId = ++_searchRequestId;
     final query = text.trim();
 
     if (query.length < 2) {
@@ -194,11 +212,12 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     });
 
     _debounceTimer = Timer(const Duration(milliseconds: 400), () async {
-      final requestId = ++_searchRequestId;
       try {
         final results = await _repository.searchLocations(
           query,
+          mode: 'SUGGEST',
           token: widget.token,
+          sessionId: _searchSessionId,
         );
 
         if (!mounted || requestId != _searchRequestId) return;
@@ -217,9 +236,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
           _searchResults = [];
           _searchError = e.statusCode == 429
               ? 'Đã vượt quá giới hạn tìm kiếm, vui lòng thử lại sau.'
-              : (e.message.isNotEmpty
-                  ? e.message
-                  : 'Lỗi tìm kiếm địa điểm');
+              : (e.message.isNotEmpty ? e.message : 'Lỗi tìm kiếm địa điểm');
         });
       } catch (_) {
         if (!mounted || requestId != _searchRequestId) return;
@@ -232,14 +249,155 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     });
   }
 
-  void _selectSearchResult(LocationSearchResult result) {
+  Future<void> _submitSearch(String text) async {
+    final query = text.trim();
+    if (query.length < 2) return;
+    _debounceTimer?.cancel();
+    final requestId = ++_searchRequestId;
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+      _showSearchResults = true;
+    });
+    try {
+      final results = await _repository.searchLocations(
+        query,
+        mode: 'SEARCH',
+        token: widget.token,
+        sessionId: _searchSessionId,
+      );
+      if (!mounted || requestId != _searchRequestId) return;
+      setState(() {
+        _isSearching = false;
+        _searchResults = results;
+        _searchError = results.isEmpty
+            ? 'Không tìm thấy địa điểm phù hợp'
+            : null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted || requestId != _searchRequestId) return;
+      setState(() {
+        _isSearching = false;
+        _searchResults = [];
+        _searchError = e.message;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _searchRequestId) return;
+      setState(() {
+        _isSearching = false;
+        _searchResults = [];
+        _searchError = 'Không thể kết nối máy chủ tìm kiếm.';
+      });
+    }
+  }
+
+  String _newTomTomSessionId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
+  Future<void> _selectSearchResult(LocationSearchResult result) async {
     FocusScope.of(context).unfocus();
+    _debounceTimer?.cancel();
+    final requestId = ++_searchRequestId;
+    ++_reverseGeocodeRequestId;
+    if (result.type == 'discoverAction' ||
+        result.providerType == 'discoverAction') {
+      setState(() {
+        _isSearching = true;
+        _searchError = null;
+      });
+      try {
+        final results = await _repository.searchLocations(
+          _searchController.text.trim(),
+          mode: 'SEARCH',
+          sessionId: result.sessionId ?? _searchSessionId,
+          token: widget.token,
+        );
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchResults = results;
+          _showSearchResults = true;
+          _searchError = results.isEmpty
+              ? 'Không tìm thấy địa điểm phù hợp'
+              : null;
+        });
+      } on ApiException catch (e) {
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchError = e.message;
+        });
+      }
+      return;
+    }
+    if (result.requiresDetails &&
+        result.provider == 'TOMTOM' &&
+        result.providerId != null &&
+        result.providerType != null) {
+      setState(() {
+        _isSearching = true;
+        _searchError = null;
+      });
+      try {
+        result =
+            await _repository.resolveTomTomPlace(
+              type: result.providerType!,
+              id: result.providerId!,
+              sessionId: result.sessionId ?? _searchSessionId,
+              token: widget.token,
+            ) ??
+            result;
+      } on ApiException catch (e) {
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchError = e.message;
+        });
+        return;
+      } catch (_) {
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _isSearching = false;
+          _searchError = 'Không thể lấy tọa độ địa điểm từ TomTom.';
+        });
+        return;
+      }
+      if (!mounted || requestId != _searchRequestId) return;
+    }
     final point = result.hasCoordinates
         ? LatLng(result.latitude!, result.longitude!)
         : null;
 
+    if (point == null ||
+        !point.latitude.isFinite ||
+        !point.longitude.isFinite ||
+        point.latitude < -90 ||
+        point.latitude > 90 ||
+        point.longitude < -180 ||
+        point.longitude > 180) {
+      setState(() {
+        _showSearchResults = true;
+        _searchResults = [];
+        _searchError =
+            'Địa điểm này chưa có tọa độ hợp lệ. Hãy ghim vị trí trên bản đồ.';
+        _selectedPoint = null;
+        _selectedName = null;
+        _selectedAddress = null;
+        _selectedPlaceId = null;
+        _selectedProvider = null;
+      });
+      return;
+    }
+
     setState(() {
       _showSearchResults = false;
+      _isSearching = false;
       _searchController.text = result.name;
       _selectedName = result.name.isNotEmpty
           ? result.name
@@ -249,18 +407,17 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
           : null;
       _selectedPlaceId = result.placeId.isNotEmpty ? result.placeId : null;
       _selectedProvider = result.provider ?? 'LOCATION_IQ';
-      if (point != null) {
-        _selectedPoint = point;
-      }
+      _selectedPoint = point;
     });
 
-    if (point != null) {
-      _mapController.move(point, 15.0);
-    }
+    final zoom = result.isCityOrAdministrative ? 12.0 : 15.5;
+    _mapController.move(point, zoom);
   }
 
   Future<void> _handleMapTap(LatLng point) async {
     FocusScope.of(context).unfocus();
+    _debounceTimer?.cancel();
+    ++_searchRequestId;
     final requestId = ++_reverseGeocodeRequestId;
 
     setState(() {
@@ -285,14 +442,11 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       setState(() {
         _isReverseGeocoding = false;
         if (result != null) {
-          _selectedName = result.name.isNotEmpty
-              ? result.name
-              : fallbackLocationName;
           _selectedAddress = result.formattedAddress.isNotEmpty
               ? result.formattedAddress
               : null;
-          _selectedPlaceId = result.placeId.isNotEmpty ? result.placeId : null;
-          _selectedProvider = result.provider ?? 'LOCATION_IQ';
+          // Reverse geocoding is descriptive only; it must not turn a manual pin
+          // into a provider place with an identity at a different coordinate.
         }
       });
     } catch (_) {
@@ -336,9 +490,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
             ),
             onPressed: () {
               final trimmed = controller.text.trim();
-              Navigator.of(dialogCtx).pop(
-                trimmed.isNotEmpty ? trimmed : fallbackLocationName,
-              );
+              Navigator.of(dialogCtx)
+                  .pop(trimmed.isNotEmpty ? trimmed : fallbackLocationName);
             },
             child: const Text('Lưu'),
           ),
@@ -374,7 +527,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     final bottomInset = mediaQuery.viewInsets.bottom;
     final sheetHeight = mediaQuery.size.height * 0.90;
 
-    final initialCenter = widget.initialCenter ??
+    final initialCenter =
+        widget.initialCenter ??
         LatLng(MapConstants.fallbackLatitude, MapConstants.fallbackLongitude);
     final initialZoom = widget.initialCenter != null
         ? 15.0
@@ -511,6 +665,8 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                             child: TextField(
                               controller: _searchController,
                               onChanged: _onSearchChanged,
+                              onSubmitted: _submitSearch,
+                              textInputAction: TextInputAction.search,
                               decoration: InputDecoration(
                                 hintText:
                                     'Tìm kiếm địa điểm (tối thiểu 2 ký tự)...',
@@ -536,18 +692,18 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                         ),
                                       )
                                     : (_searchController.text.isNotEmpty
-                                        ? IconButton(
-                                            icon: const Icon(
-                                              Icons.clear,
-                                              size: 18,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                            onPressed: () {
-                                              _searchController.clear();
-                                              _onSearchChanged('');
-                                            },
-                                          )
-                                        : null),
+                                          ? IconButton(
+                                              icon: const Icon(
+                                                Icons.clear,
+                                                size: 18,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                              onPressed: () {
+                                                _searchController.clear();
+                                                _onSearchChanged('');
+                                              },
+                                            )
+                                          : null),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 12,
@@ -581,9 +737,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                                 height: 16,
                                                 child:
                                                     CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: AppColors.primary,
-                                                ),
+                                                      strokeWidth: 2,
+                                                      color: AppColors.primary,
+                                                    ),
                                               ),
                                               SizedBox(width: 10),
                                               Text(
@@ -599,83 +755,137 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                         ),
                                       )
                                     : (_searchError != null &&
-                                            _searchResults.isEmpty
-                                        ? Padding(
-                                            padding: const EdgeInsets.all(16),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.info_outline,
-                                                  size: 18,
-                                                  color: AppColors.muted,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    _searchError!,
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppColors
-                                                          .textSecondary,
+                                              _searchResults.isEmpty
+                                          ? Padding(
+                                              padding: const EdgeInsets.all(16),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.info_outline,
+                                                    size: 18,
+                                                    color: AppColors.muted,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      _searchError!,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: AppColors
+                                                            .textSecondary,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          )
-                                        : ListView.separated(
-                                            shrinkWrap: true,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 4,
-                                            ),
-                                            itemCount: _searchResults.length,
-                                            separatorBuilder: (_, _) =>
-                                                const Divider(
-                                              height: 1,
-                                              color: AppColors.hairlineSoft,
-                                            ),
-                                            itemBuilder: (context, index) {
-                                              final item =
-                                                  _searchResults[index];
-                                              return ListTile(
-                                                dense: true,
-                                                leading: const Icon(
-                                                  Icons.place_outlined,
-                                                  color: AppColors.primary,
-                                                  size: 20,
-                                                ),
-                                                title: Text(
-                                                  item.name,
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w600,
-                                                    color:
-                                                        AppColors.textPrimary,
+                                                ],
+                                              ),
+                                            )
+                                          : ListView.separated(
+                                              shrinkWrap: true,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 4,
                                                   ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                                subtitle: item
-                                                        .formattedAddress
-                                                        .isNotEmpty
-                                                    ? Text(
-                                                        item.formattedAddress,
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color: AppColors
-                                                              .textSecondary,
+                                              itemCount: _searchResults.length,
+                                              separatorBuilder: (_, _) =>
+                                                  const Divider(
+                                                    height: 1,
+                                                    color:
+                                                        AppColors.hairlineSoft,
+                                                  ),
+                                              itemBuilder: (context, index) {
+                                                final item =
+                                                    _searchResults[index];
+                                                final isArea =
+                                                    item.isLocalityFallback ||
+                                                    item.isCityOrAdministrative;
+                                                return ListTile(
+                                                  dense: true,
+                                                  leading: Icon(
+                                                    isArea
+                                                        ? Icons
+                                                              .location_city_outlined
+                                                        : Icons.place_outlined,
+                                                    color: AppColors.primary,
+                                                    size: 20,
+                                                  ),
+                                                  title: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          item.name,
+                                                          style: const TextStyle(
+                                                            fontSize: 13,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: AppColors
+                                                                .textPrimary,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      )
-                                                    : null,
-                                                onTap: () =>
-                                                    _selectSearchResult(item),
-                                              );
-                                            },
-                                          )),
+                                                      ),
+                                                      if (isArea) ...[
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 6,
+                                                                vertical: 2,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: AppColors
+                                                                .surfaceSoft,
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  4,
+                                                                ),
+                                                            border: Border.all(
+                                                              color: AppColors
+                                                                  .hairlineSoft,
+                                                              width: 0.5,
+                                                            ),
+                                                          ),
+                                                          child: Text(
+                                                            item.isLocalityFallback
+                                                                ? 'Khu vực'
+                                                                : 'Địa danh',
+                                                            style: const TextStyle(
+                                                              fontSize: 10,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                              color: AppColors
+                                                                  .textSecondary,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
+                                                  subtitle:
+                                                      item
+                                                          .formattedAddress
+                                                          .isNotEmpty
+                                                      ? Text(
+                                                          item.formattedAddress,
+                                                          style: const TextStyle(
+                                                            fontSize: 11,
+                                                            color: AppColors
+                                                                .textSecondary,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        )
+                                                      : null,
+                                                  onTap: () =>
+                                                      _selectSearchResult(item),
+                                                );
+                                              },
+                                            )),
                               ),
                             ),
                           ],

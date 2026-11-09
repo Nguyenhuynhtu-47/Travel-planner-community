@@ -160,6 +160,14 @@ Current inventory of API endpoints:
 | Reviews | POST | `/api/itineraries/{id}/ratings` | Authenticated | Submit itinerary rating | Planned |
 | Comments | GET | `/api/itineraries/{id}/comments` | Public | List active comments on a public active itinerary (paginated) | Implemented |
 | Comments | POST | `/api/itineraries/{id}/comments` | Authenticated | Post a comment on a public active itinerary | Implemented |
+| Comments | GET/POST | `/api/activities/{activityId}/comments` | Public read / authenticated write | List or create activity comments | Implemented |
+| Comments | GET/POST | `/api/comments/{commentId}/replies` | Public read / authenticated write | List a paginated thread or reply to the addressed parent | Implemented |
+| Comments | PUT/DELETE | `/api/comments/{commentId}` | Authenticated owner/admin | Edit or soft-delete a comment | Implemented |
+| Public User | GET | `/api/users/{userId}/public-profile` | Public | Read allowlisted profile and follow state | Implemented |
+| Public User | GET | `/api/users/{userId}/itineraries` | Public | List public active itineraries (paginated) | Implemented |
+| Follow | POST/DELETE | `/api/users/{userId}/follow` | Authenticated | Idempotent follow/unfollow | Implemented |
+| Follow | GET | `/api/users/{userId}/followers` | Public | List active followers (paginated) | Implemented |
+| Follow | GET | `/api/users/{userId}/following` | Public | List active followed users (paginated) | Implemented |
 | Admin | GET | `/api/admin/dashboard` | Admin | Administrative metrics dashboard | Planned |
 | Admin | GET | `/api/admin/users` | Admin | List and manage users | Planned |
 | Admin | PUT | `/api/admin/moderation` | Admin | Moderate reported content/trips | Planned |
@@ -173,6 +181,15 @@ Current inventory of API endpoints:
 - **Create:** `POST /api/itineraries/{id}/comments` requires a Bearer JWT and accepts `{"content":"..."}`. Content must not be blank. Returns `201 Created` with `CommentResponse` containing `commentId`, `content`, `creator` (`userId`, `username`, `fullName`, `avatar`), `createdAt`, and `updatedAt`.
 - Both operations only expose active, public itineraries whose owner account is active. Missing, private, or non-active itineraries return `404`; missing authentication returns `401`; invalid content returns `400`.
 - Creating a comment persists an `ACTIVE` record and increments the itinerary comment counter in the same transaction. Comment editing/deletion and eligibility based on itinerary reuse remain unspecified and are not included.
+
+### Community comments, public profiles and follows
+
+- Itinerary comment routes above remain backward compatible. Activity roots use `GET/POST /api/activities/{activityId}/comments`; only activity comments for an `ACTIVE` + `PUBLIC` itinerary with an active owner are visible.
+- Replies use `GET/POST /api/comments/{commentId}/replies?page=0&size=10`. POST treats `commentId` as the immediate parent, stores the parent FK, resolves the root through the parent chain, and returns a paginated flat thread. Reply pages are queried in the database using `rootCommentId`; the server does not load a whole tree before paging.
+- `PUT/DELETE /api/comments/{commentId}` requires an active authenticated account and the comment owner or an admin. Delete is soft; a deleted parent with active descendants remains as a placeholder. `CommentResponse` retains old fields and adds parent/root IDs, reply count, deletion state, reply-to creator, and target type/id.
+- Public profile uses `GET /api/users/{userId}/public-profile`; the response is an allowlist and must not include email, phone, address, role, status, or password. Public itineraries are filtered to `PUBLIC` + `ACTIVE` and active owners.
+- Follow writes derive the follower from the authenticated principal; self-follow is rejected. Repeated follow/unfollow calls are idempotent. Followers/following results contain public user summaries and are database-paginated.
+- Schema fields are mapped by JPA/Hibernate `ddl-auto=update`; existing comment roots with `root_comment_id = NULL` remain roots (`parent_comment_id IS NULL`) and resolve their root ID to their own `commentId`. No startup backfill or migration runner is configured.
 
 ### 10.1. List Authenticated User's Itineraries
 - **Path:** `GET /api/user/itineraries`
@@ -251,6 +268,14 @@ Current inventory of API endpoints:
   - Renumbers remaining days contiguously (`dayNumber = 1..totalDays`) to prevent unique key collisions.
   - Response: `200 OK` with `{"message": "Đã xóa ngày thành công"}`.
 
+### 10.5a. Location Search and Nearby Discovery
+- `GET /api/locations/search?query=...&limit=10&latitude=...&longitude=...` returns the existing LocationIQ autocomplete array. Query length is 2–100 characters and limit is 1–20. Viewport coordinates are optional search context, not a selection.
+- Activity location search appends the itinerary's `location` to the typed query when available (within the 100-character limit); the LocationIQ adapter restricts autocomplete results to Vietnam (`countrycodes=vn`). The city text biases relevance but does not create a strict administrative boundary.
+- `GET /api/locations/nearby?latitude=...&longitude=...&category=ALL&radiusMeters=2000&limit=10` returns nearby points of interest. Supported categories: `ALL`, `ATTRACTION`, `FOOD`, `CAFE`, `STAY`; radius is 100–10,000 metres and limit is 1–20.
+- Nearby discovery is opt-in through `LOCATIONIQ_NEARBY_ENABLED` (default `false`) and requires the existing LocationIQ API key. Disabled/unconfigured requests return HTTP 503; upstream quota exhaustion returns HTTP 429. No paid-provider fallback is performed.
+- Both endpoints use application rate limiting and server-side caching. Invalid upstream coordinates are discarded; valid zero coordinates remain valid.
+- `GET /api/locations/reverse-geocode?latitude=...&longitude=...` supplies descriptive address information for a manual pin. The pin retains its coordinates and does not inherit an identity from the reverse-geocoded nearby place.
+
 ### 10.6. Activity Management & Safe Reordering
 - **Add Activity:** `POST /api/itineraries/{id}/days/{dayId}/activities`
   - Body (`CreateActivityRequest`):
@@ -261,14 +286,17 @@ Current inventory of API endpoints:
       "startTime": "09:00:00",
       "endTime": "10:30:00",
       "cost": 0,
-      "destinationId": 1
+      "destinationId": 1,
+      "imageUrl": "https://res.cloudinary.com/<cloud>/image/upload/<asset>"
     }
     ```
   - `destinationId` is optional (nullable) for activities without specific POIs (rest, free time).
+  - `imageUrl` is optional and limited to HTTPS Cloudinary delivery URLs. Mobile uploads through the existing authenticated image endpoint and saves its returned URL; catalog image is the display fallback when this field is empty.
   - Automatically assigned `displayOrder = maxOrder + 1`.
   - Response: `201 Created` with `ActivityResponse`.
 - **Update Activity:** `PUT /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
-  - Body (`UpdateActivityRequest`): updates name, description, start/end time, cost, destinationId.
+  - Body (`UpdateActivityRequest`): updates name, description, start/end time, cost, location and optional `imageUrl`.
+  - Omitted/null `imageUrl` preserves the current activity image for older clients; an empty string clears it.
   - Response: `200 OK` with `ActivityResponse`.
 - **Delete Activity:** `DELETE /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
   - Deletes activity and renumbers subsequent activities contiguously.

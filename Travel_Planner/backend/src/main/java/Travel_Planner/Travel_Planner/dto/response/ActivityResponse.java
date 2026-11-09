@@ -29,4 +29,5 @@ public class ActivityResponse {
     private BigDecimal longitude;
     private String placeId;
     private String locationProvider;
+    private String imageUrl;
 }

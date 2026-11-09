@@ -1407,3 +1407,516 @@ During real-device Android testing on multi-day itineraries (specifically target
 
 ---
 *Report compiled, refined, and verified against the Travel Planner codebase. All terms and pricing verified as of October 2026.*
+
+---
+
+## 20. Báo Cáo Audit & Đánh Giá Toàn Diện Chức Năng Tìm Kiếm Địa Điểm (Place Search) — 05/11/2026
+
+### 20.1. Tổng quan triển khai
+- **Công nghệ và dịch vụ đang sử dụng:**
+  - **Backend:** Spring Boot 4.1.1 (Java 22), Spring Data JPA, Spring Security (JWT Stateless), MySQL 8, Bucket4j 8.10.1 (Rate limiting), Caffeine Cache 3.1.8.
+  - **Dịch vụ tìm kiếm địa điểm bên ngoài (Upstream Provider):** LocationIQ API v1 (`/autocomplete`, `/reverse`, `/nearby`) với giới hạn địa lý Việt Nam (`countrycodes=vn`).
+  - **Bản đồ Mobile:** Flutter (Dart 3, Material 3), `flutter_map` v7.0.2 (kết xuất raster tile bằng pure Dart canvas), `latlong2` v0.9.1.
+  - **Bản đồ nền (Tile CDN):** CARTO Basemaps (`Voyager` / `Positron`) nạp trực tiếp từ ứng dụng mobile, không ủy quyền qua backend proxy, hạn mức 5.000.000 lượt yêu cầu/tháng cho mục đích phi thương mại/học tập.
+  - **Tính toán tuyến đường (Routing):** OpenRouteService v2 (`/directions/driving-car`, `/directions/foot-walking`) tích hợp qua backend proxy với cơ chế tự động chuyển đổi sang đường thẳng Haversine khi ngoại tuyến hoặc không có khóa.
+  - **Điều hướng (Navigation):** Deep link miễn phí chuyển tiếp sang ứng dụng bản đồ gốc của thiết bị (Google Maps / Apple Maps).
+  - **Hình ảnh địa điểm/hoạt động:** Cloudinary (tải lên thông qua chữ ký bảo mật từ backend).
+
+- **Những thành phần đã triển khai trong mã nguồn:**
+  - **Backend (`Travel_Planner/backend`):**
+    - `LocationController.java`: Cung cấp 3 endpoint RESTful công khai: `GET /api/locations/search`, `GET /api/locations/reverse-geocode`, `GET /api/locations/nearby`.
+    - `LocationService.java` & `LocationServiceImpl.java`: Tầng nghiệp vụ xử lý tiền kiểm tra đầu vào, làm tròn tọa độ chuẩn xác (5 chữ số thập phân ~1.1m) để chống trôi key cache, bộ nhớ đệm Caffeine (500 mục, TTL 24 giờ).
+    - `GeocodingProvider.java` & `LocationIqGeocodingProvider.java`: Trừu tượng hóa nhà cung cấp định vị, sử dụng Spring `RestClient` với cấu hình kết nối và đọc tối đa 3000ms.
+    - `LocationRateLimiter.java`: Giới hạn tốc độ truy cập kép (Dual-tier) với Bucket4j: 60 yêu cầu/phút cho người dùng đăng nhập và 30 yêu cầu/phút cho khách vãng lai theo IP (`ClientIpResolver`).
+    - `MapProperties.java` & `application.properties`: Quản lý cấu hình tập trung cho geocoding và routing từ biến môi trường.
+    - `Activity.java` & `ItineraryServiceImpl.java`: Mô hình dữ liệu vị trí 3 trạng thái độc quyền (State 1: Catalog, State 2: Custom Location, State 3: No Location).
+  - **Frontend Mobile (`Travel_Planner/frontend/mobile`):**
+    - `LocationPickerSheet.dart`: Modal bottom sheet chiếm 90% chiều cao màn hình, tích hợp thanh tìm kiếm địa điểm, bộ lọc phân loại xung quanh (ActionChips), danh sách kết quả cuộn mượt mà, bản đồ `AppMapView` tương tác trực quan với ghim marker `MapMarkerBuilder`, tính năng ghim thủ công và chỉnh sửa tên địa điểm.
+    - `LocationRepository.java`: Quản lý gọi API vị trí từ client, xử lý debounce, bắt lỗi mã hóa và ánh xạ JSON sang đối tượng Dart.
+    - `CustomLocationResult.dart` & `LocationSearchResult.dart`: Lớp dữ liệu kết quả tìm kiếm và vị trí xác nhận kèm bộ tiền kiểm tra tọa độ hợp lệ.
+    - `ActivityFormDialog.dart`: Tích hợp chọn địa điểm từ danh mục (Dropdown) hoặc từ bản đồ (LocationPickerSheet), thực thi nghiêm ngặt tính loại trừ lẫn nhau giữa 2 nguồn dữ liệu.
+    - `ItineraryMapScreen.dart` & `ItineraryMapHelper.dart`: Hiển thị bản đồ lộ trình chi tiết theo từng ngày, vẽ polyline tuyến đường và hiển thị điểm dừng hoạt động.
+
+- **Luồng hoạt động thực tế từ Flutter đến Backend và Database:**
+  ```mermaid
+  sequenceDiagram
+      actor User as Người dùng
+      participant Sheet as LocationPickerSheet
+      participant Repo as LocationRepository
+      participant Controller as LocationController
+      participant RateLimiter as LocationRateLimiter (Bucket4j)
+      participant Service as LocationServiceImpl (Caffeine)
+      participant Provider as LocationIqProvider
+      participant Upstream as LocationIQ API (vn)
+      participant DB as MySQL Database
+
+      User->>Sheet: Nhập từ khóa ("Bà Nà Hills")
+      Note over Sheet: Debounce 400ms & gắn ngữ cảnh tỉnh/thành
+      Sheet->>Repo: searchLocations("Bà Nà Hills, Đà Nẵng")
+      Repo->>Controller: GET /api/locations/search?query=...
+      Controller->>RateLimiter: tryConsume(rateLimitKey)
+      RateLimiter-->>Controller: Allowed (Token consumed)
+      Controller->>Service: searchLocations(trimmedQuery, limit, lat, lon)
+      Service->>Service: Kiểm tra Caffeine Cache (Key: search:bà nà hills...:none:none)
+      alt Cache Hit
+          Service-->>Controller: Trả về kết quả trong Cache
+      else Cache Miss
+          Service->>Provider: search(trimmedQuery, limit, lat, lon)
+          Provider->>Upstream: GET /v1/autocomplete?key=...&q=...&countrycodes=vn
+          Upstream-->>Provider: JSON Array (lat, lon, display_name, place_id)
+          Provider->>Provider: Lọc tọa độ hợp lệ, gán mã OSM/PlaceId
+          Provider-->>Service: List<LocationSearchResultResponse>
+          Service->>Service: Lưu vào Caffeine Cache (TTL 24h)
+          Service-->>Controller: List<LocationSearchResultResponse>
+      end
+      Controller-->>Repo: 200 OK [JSON Array]
+      Repo-->>Sheet: List<LocationSearchResult>
+      Sheet-->>User: Hiển thị danh sách kết quả dạng Dropdown
+
+      User->>Sheet: Chọn "Bà Nà Hills" & bấm "Xác nhận vị trí"
+      Sheet-->>User: Đóng modal, trả về CustomLocationResult
+      Note over User: Mở ActivityFormDialog (State 2: destinationId = null)
+      User->>DB: POST /api/itineraries/{id}/days/{dayId}/activities
+      Note over DB: ItineraryServiceImpl.applyLocation lưu custom_location_name, latitude, longitude, place_id, provider
+  ```
+
+---
+
+### 20.2. Đánh giá Backend (Spring Boot)
+- **Các API hiện có:**
+  - `GET /api/locations/search`: Tìm kiếm địa điểm bằng từ khóa. Chấp nhận các tham số: `query` (hoặc `q`), `limit` (mặc định 10, tối đa 20), `latitude` (hoặc `lat`), `longitude` (hoặc `lon`, `lng`) cho viewport bias.
+  - `GET /api/locations/reverse-geocode`: Chuyển đổi tọa độ vĩ độ/kinh độ thành thông tin địa chỉ văn bản.
+  - `GET /api/locations/nearby`: Tìm kiếm điểm ưa thích lân cận theo thể loại (`ALL`, `ATTRACTION`, `FOOD`, `CAFE`, `STAY`), bán kính (100 - 10.000m) và giới hạn kết quả.
+- **Kiến trúc xử lý tìm kiếm:**
+  - Phân tầng mạch lạc, áp dụng mẫu thiết kế Provider Pattern thông qua giao diện `GeocodingProvider`. Điều này giúp việc hoán đổi hoặc mở rộng thêm nhà cung cấp khác trong tương lai (ví dụ Nominatim tự host, Geoapify, Goong) không gây ảnh hưởng đến tầng dịch vụ `LocationService`.
+  - Sử dụng Spring `RestClient` hiện đại (Spring 6 / Spring Boot 3 & 4) với bộ định thời kết nối `SimpleClientHttpRequestFactory` (ConnectTimeout: 3000ms, ReadTimeout: 3000ms).
+  - Quá trình chuẩn hóa dữ liệu địa điểm đầu ra chặt chẽ: `osm_type` và `osm_id` được chuyển đổi thành chuỗi định danh duy nhất `osm_{type}_{id}`, tên hiển thị ưu tiên theo thứ tự `display_place` -> `address.name` -> phần đầu của `display_name` -> fallback `Vị trí đã chọn`.
+- **Xác định tính chất dữ liệu:**
+  - **Backend thực sự gọi dịch vụ ngoài (LocationIQ API), KHÔNG PHẢI dữ liệu mẫu hay mock cứng.**
+  - Khi chưa cấu hình khóa API hoặc biến môi trường `LOCATION_IQ_API_KEY` bị rỗng: Hệ thống phòng vệ bằng phương thức `isConfigured()`, trả về danh sách rỗng `[]` (cho tìm kiếm), mã 404 (cho reverse-geocode) và mã 503 (cho nearby), đảm bảo không gây sập ứng dụng (zero crash).
+- **Quản lý API Key & Biến môi trường:**
+  - Backend đọc từ biến môi trường `${LOCATION_IQ_API_KEY:}` thông qua `@ConfigurationProperties(prefix = "app.map")` trong lớp `MapProperties`.
+  - Không có khóa API nào bị gắn cứng (hardcode) trong mã nguồn Java hoặc file `application.properties`.
+- **Xử lý lỗi, Rate Limiting và Caching:**
+  - **Rate Limiting:** Sử dụng thư viện Bucket4j quản lý bộ đệm token trong bộ nhớ với Caffeine (`LocationRateLimiter`). Người dùng đã xác thực (JWT) được cấp 60 lượt/phút; khách vãng lai (IP qua `ClientIpResolver`) được cấp 30 lượt/phút. Khi vượt ngưỡng, hệ thống trả về HTTP 429 kèm thông báo: *"Bạn đã gửi quá nhiều yêu cầu vị trí. Vui lòng thử lại sau một phút."*
+  - **Caching:** Caffeine in-memory cache với cấu hình tối đa 500 mục và thời gian sống (TTL) 24 giờ cho cả search, reverse và nearby. Điều này hoàn toàn tuân thủ điều khoản dịch vụ của LocationIQ (giới hạn lưu cache không quá 48 giờ) và tiết kiệm tối đa quota miễn phí (5.000 lượt/ngày).
+  - **Xử lý lỗi nhà cung cấp:**
+    - Mã 404 từ LocationIQ (không tìm thấy địa điểm): Ánh xạ thành danh sách rỗng `[]` với HTTP 200 cho người dùng thay vì báo lỗi.
+    - Mã 429 từ LocationIQ (hết quota ngày hoặc vượt 2 req/giây): Bắt lỗi và chuyển thành `RateLimitExceededException` (HTTP 429).
+    - Mã 5xx từ LocationIQ: Chuyển thành `AppException` (HTTP 502 Bad Gateway).
+    - Timeout kết nối/đọc: Chuyển thành `AppException` (HTTP 504 Gateway Timeout).
+- **Validation dữ liệu đầu vào:**
+  - Từ khóa tìm kiếm: Bắt buộc không rỗng, độ dài từ 2 đến 100 ký tự sau khi cắt tỉa khoảng trắng (`trimmed`).
+  - Số lượng kết quả (`limit`): Giới hạn trong khoảng 1 đến 20.
+  - Tọa độ: Kiểm tra chặt chẽ tính hữu hạn (`isFinite`) và phạm vi hợp lệ trên Trái Đất (Vĩ độ: [-90.0, 90.0], Kinh độ: [-180.0, 180.0]).
+
+---
+
+### 20.3. Đánh giá Frontend (Flutter Mobile)
+- **Giao diện và luồng tìm kiếm:**
+  - Giao diện `LocationPickerSheet` tuân thủ nghiêm ngặt Design System Material 3, màu sắc nhận diện `AppColors.primary` (Rausch #FF385C).
+  - Thanh tìm kiếm đặt nổi trên bản đồ, hỗ trợ xóa nhanh bằng một chạm (Clear icon).
+  - Bộ phím tắt phân loại lân cận (`ActionChip`): Gần đây, Tham quan, Ăn uống, Cà phê, Lưu trú, cho phép tìm nhanh POI mà không cần gõ phím.
+  - Khung kết quả tìm kiếm giới hạn chiều cao tối đa 220px, có chỉ báo tiến trình xoay tròn khi đang truy vấn và hiển thị biểu tượng trạng thái rỗng thân thiện khi không tìm thấy kết quả.
+- **Kiểm soát Request & Debounce:**
+  - Kỹ thuật Debounce với thời gian chờ 400ms (`_debounceTimer`): Khi người dùng gõ phím liên tục, timer cũ bị hủy ngay lập tức, ngăn ngừa việc gửi bão request lên server.
+  - Tự động hủy tìm kiếm và đóng bảng kết quả khi từ khóa còn dưới 2 ký tự.
+  - **Chống Race Condition (Kết quả cũ ghi đè kết quả mới):** Sử dụng cơ chế biến đếm định danh `_searchRequestId` và `_reverseGeocodeRequestId`. Khi một phản hồi mạng trả về trễ hơn so với thao tác mới nhất của người dùng, điều kiện `if (!mounted || requestId != _searchRequestId) return;` sẽ loại bỏ phản hồi cũ, bảo đảm giao diện không bao giờ bị ghi đè dữ liệu sai lệch.
+- **Tích hợp bản đồ & Ghim tọa độ:**
+  - Bản đồ nhúng `AppMapView` vận hành mượt mà với `flutter_map` v7.
+  - Khi người dùng chọn một địa điểm từ danh sách tìm kiếm: Bản đồ tự động kích hoạt hoạt ảnh di chuyển camera `_mapController.move(point, 15.0)` đến đúng tọa độ và đặt pin marker.
+  - **Khả năng ghim thủ công (Zero-API Pin Drop Resilience):** Khi người dùng chạm vào bất kỳ điểm nào trên bản đồ, hệ thống đặt ngay marker tại tọa độ đó với tên mặc định là *"Vị trí đã ghim"* (`MANUAL_PIN`). Một request reverse-geocoding được phát đi ngầm để lấy địa chỉ mô tả, nhưng **tuyệt đối không ghi đè tên do người dùng đặt và không gán placeId của địa điểm lân cận vào ghim thủ công**. Người dùng có thể nhấn nút chỉnh sửa để đặt lại tên theo ý muốn.
+- **Xử lý thiếu dữ liệu và Trạng thái vòng đời:**
+  - Tọa độ thiếu hoặc không hợp lệ: Phương thức `_selectSearchResult` chủ động bắt lỗi `ArgumentError` hoặc kiểm tra bounds, thông báo yêu cầu người dùng ghim vị trí thủ công thay vì gây sập ứng dụng (crash).
+  - Vòng đời giao diện: Khi đóng bottom sheet (bằng nút Hủy hoặc nút Đóng), sheet trả về `null` và giữ nguyên trạng thái biểu mẫu của `ActivityFormDialog` mà không làm mất dữ liệu người dùng đang nhập dở.
+
+---
+
+### 20.4. Đánh giá Database và Quan hệ dữ liệu
+- **Cấu trúc bảng liên quan:**
+  - **Bảng `destinations`:** Đóng vai trò là danh mục địa điểm dùng chung chuẩn hóa do quản trị viên (Admin) biên tập hoặc nạp từ seed data ban đầu. Lưu trữ các cột: `destination_id`, `name`, `address`, `description`, `image_url`, `latitude`, `longitude`, `status`. Bảng này không lưu trữ các trường phụ thuộc nhà cung cấp như `place_id` hay `location_provider`.
+  - **Bảng `activities`:** Lưu trữ hoạt động lịch trình của người dùng. Đã được mở rộng với các cột: `custom_location_name` (varchar 150), `custom_address` (varchar 255), `latitude` (decimal 10,7), `longitude` (decimal 10,7), `place_id` (varchar 100), `location_provider` (varchar 30), `image_url` (varchar 500). Có chỉ mục chuyên biệt `idx_activities_coordinates` trên cặp `(latitude, longitude)`.
+- **Quan hệ dữ liệu & Mô hình 3 trạng thái độc quyền (Mutual Exclusivity):**
+  - Tầng nghiệp vụ `ItineraryServiceImpl.applyLocation` cưỡng chế nghiêm ngặt 3 trạng thái:
+    - **Trạng thái 1 (Catalog Destination):** `destination_id != null`. Toàn bộ các trường `custom_*`, `latitude`, `longitude`, `place_id`, `location_provider` bị xóa về `null`. Tọa độ và thông tin hiển thị được tham chiếu sống từ bảng `destinations`.
+    - **Trạng thái 2 (Custom Location):** `destination_id = null`. Cặp tọa độ `latitude` và `longitude` là bắt buộc đồng thời (`Atomic coordinate pair validation`). Các trường tên vị trí tùy chỉnh, địa chỉ, placeId và nhà cung cấp (`LOCATION_IQ` hoặc `MANUAL_PIN`) được lưu trực tiếp trên dòng hoạt động.
+    - **Trạng thái 3 (No Location):** `destination_id = null` và toàn bộ các trường vị trí tùy chỉnh đều bằng `null`. Hoạt động vẫn được lưu trữ bình thường nhưng không hiển thị ghim trên bản đồ.
+- **Đánh giá tính toàn vẹn và khả năng tránh trùng lặp:**
+  - **Tận dụng bảng hiện tại:** Hoàn toàn tận dụng cấu trúc hiện có mà không cần tạo bảng mới, phù hợp tiêu chí không can thiệp schema không cần thiết.
+  - **Khả năng phân biệt nguồn gốc:** Hệ thống phân biệt rõ ràng giữa vị trí từ nhà cung cấp (`location_provider = 'LOCATION_IQ'`) và tọa độ do người dùng tự ghim (`location_provider = 'MANUAL_PIN'`).
+  - **Hạn chế về tránh trùng lặp (Deduplication):** Chưa có cơ chế phát hiện hoặc tái sử dụng một Custom Location giữa các người dùng hoặc giữa các hoạt động khác nhau. Cùng một quán cà phê nếu hai người dùng ghim sẽ tạo ra hai bản ghi tọa độ độc lập trong bảng `activities`.
+  - **Tính tương thích ngược:** Tương thích 100% với dữ liệu lịch trình cũ. Các hoạt động tạo từ các phiên bản trước chỉ dùng `destination_id` hoặc không có địa điểm tiếp tục hoạt động hoàn hảo mà không cần chạy migration sửa đổi dữ liệu cũ.
+
+---
+
+### 20.5. Đánh giá Tích hợp tổng thể và Hệ sinh thái
+- **Khả năng tương thích giữa các chức năng:**
+  - **Bản đồ lịch trình (`ItineraryMapScreen`):** Đọc tọa độ thông qua các getter hiệu dụng (`activity.effectiveLatitude`, `activity.effectiveLongitude`). Dù hoạt động thuộc State 1 (Catalog) hay State 2 (Custom), bản đồ đều nhận diện chính xác và hiển thị marker đúng vị trí.
+  - **Thuật toán phân tán tọa độ trùng (`Co-Located Coordinate Jitter`):** Khi nhiều hoạt động trong cùng một ngày diễn ra tại cùng một vị trí (ví dụ ăn sáng và ăn tối tại cùng khách sạn), thuật toán `ItineraryMapHelper` tự động phân tán nhẹ bán kính ~18m để các marker không đè lấp lên nhau.
+  - **Tính toán lộ trình (`RouteServiceImpl`):** Trích xuất tọa độ điểm dừng từ cả Catalog và Custom Location một cách đồng nhất, hỗ trợ định tuyến đường bộ qua OpenRouteService (với bộ nhớ đệm Caffeine 12h) và tự động chuyển về đường thẳng Haversine khi gặp sự cố.
+  - **Dẫn đường ngoài ứng dụng:** Tọa độ của địa điểm tìm kiếm được chuyển tiếp chính xác vào URL deep-link dẫn đường Google Maps: `https://www.google.com/maps/dir/?api=1&destination={lat},{lon}`.
+- **Những điểm làm tốt:**
+  - Triển khai nguyên tắc **Kiến trúc phi chi phí (Strictly Free & Cost-Controlled)** xuất sắc: Sử dụng hoàn toàn thư viện mã nguồn mở và gói miễn phí (CARTO Basemaps, LocationIQ Free Tier, OpenRouteService Standard Tier, Leaflet/Flutter Map).
+  - Tự chủ tính năng cốt lõi (Core Feature Independence): Không phụ thuộc sinh tử vào bên thứ ba. Người dùng vẫn tạo được lịch trình, ghim vị trí, xem bản đồ và tính khoảng cách ngay cả khi mất mạng internet quốc tế hoặc hết hạn ngạch API.
+  - Trải nghiệm người dùng mượt mà, không giật lag nhờ phân lớp bộ nhớ đệm (Caffeine Cache) và cơ chế debounce/hủy request hợp lý.
+- **Những điểm chưa hợp lý:**
+  - **Sự phân mảnh giữa Catalog và Search:** Tính năng tìm kiếm trên bản đồ chưa hợp nhất với danh mục nội bộ `destinations`. Nếu người dùng tìm một điểm đã có sẵn trong cơ sở dữ liệu (ví dụ: "Bà Nà Hills"), hệ thống sẽ tạo một Custom Location mới thay vì gợi ý liên kết với Destination đã chuẩn hóa kèm ảnh đại diện đẹp từ admin.
+  - **Ngữ cảnh tỉnh/thành chỉ là văn bản gợi ý:** Việc ghép chuỗi `query + ", " + locationContext` mang tính thiên vị độ liên quan (relevance bias) chứ không phải ranh giới hành chính cứng (bounding polygon). Một số địa điểm trùng tên nổi tiếng ở tỉnh khác vẫn có thể xuất hiện trong kết quả.
+
+---
+
+### 20.6. Kết quả kiểm thử thực tế và Bảng đối chiếu kịch bản
+
+#### A. Tổng hợp kết quả kiểm thử tự động (Automated Verification)
+- **Backend Test Suite (Maven / JUnit 5 / SpringBootTest):**
+  - Toàn bộ test suite backend: **200 / 200 tests PASS (100% Green, thời gian chạy: 47.5s)**.
+  - Bộ kiểm thử chuyên biệt cho Place Search & Location (`LocationServiceTest`, `ActivityLocationTest`): **48 / 48 tests PASS (100% Green, thời gian chạy: 21.6s)**.
+- **Frontend Mobile Test Suite (Flutter Test):**
+  - Toàn bộ test suite mobile: **333 / 333 tests PASS (100% Green, thời gian chạy: 40s)**.
+  - Bộ kiểm thử chuyên biệt cho Map & Location (`location_repository_test`, `location_picker_test`, `activity_location_model_test`, `itinerary_activity_management_test`, `itinerary_map_test`): **95 / 95 tests PASS (100% Green)**.
+- **Static Analysis (Kiểm tra mã tĩnh):**
+  - Flutter Mobile: `flutter analyze` đạt **0 errors, 0 warnings, 0 issues** (31.0s).
+  - Flutter Web: `flutter analyze` đạt **0 errors, 0 warnings, 0 issues** (4.0s).
+
+#### B. Đánh giá chi tiết 10 kịch bản thực tế
+
+| Kịch bản đánh giá | Đã xử lý trong code? | Có test chứng minh? | Kết quả kiểm thử thực tế | Vấn đề còn tồn tại |
+| :--- | :---: | :---: | :--- | :--- |
+| **1. Tìm kiếm địa điểm nổi tiếng (Bà Nà Hills)** | Có | Có | **ĐẠT.** Backend gọi LocationIQ Autocomplete với `countrycodes=vn`. Trả về danh sách kết quả chứa tên, địa chỉ, tọa độ chính xác. | Nếu chưa cấu hình `LOCATION_IQ_API_KEY`, trả về danh sách rỗng `[]` thay vì lỗi. |
+| **2. Tìm kiếm tiếng Việt có dấu** | Có | Có | **ĐẠT.** URI builder mã hóa UTF-8 an toàn; cache key hỗ trợ chuỗi Unicode; Mobile hiển thị đầy đủ dấu tiếng Việt. | `accept-language` trên LocationIQ Autocomplete cố định là `en` nên một số kết quả có thể hiển thị dạng không dấu. |
+| **3. Tìm kiếm bằng tiếng Anh** | Có | Có | **ĐẠT.** "Ba Na Hills", "Sword Lake" tìm kiếm chính xác nhờ LocationIQ nhận diện tên quốc tế. | Không có. |
+| **4. Từ khóa không có kết quả** | Có | Có | **ĐẠT.** LocationIQ trả về 404 được bắt và chuyển thành mảng rỗng `[]` (HTTP 200). Mobile hiển thị: *"Không tìm thấy địa điểm phù hợp"*. | Không có. |
+| **5. Từ khóa rất ngắn (< 2 ký tự) hoặc gõ liên tục** | Có | Có | **ĐẠT.** Mobile chặn không gọi API nếu < 2 ký tự. Backend kiểm tra độ dài 2..100 ký tự (trả 400 nếu vi phạm). Debounce 400ms và `_searchRequestId` ngăn chặn triệt để bão request và race condition. | Không có. |
+| **6. Chọn địa điểm và xác nhận** | Có | Có | **ĐẠT.** Bản đồ di chuyển đến vị trí chọn, pin marker hiển thị, xác nhận cập nhật biểu mẫu hoạt động và lưu thành công vào MySQL ở State 2. | Không có. |
+| **7. Tìm kiếm địa điểm đã có trong database** | Chưa hoàn thiện | Có (riêng rẽ) | **CẢNH BÁO.** Tìm kiếm bản đồ chỉ truy vấn LocationIQ, không tìm trong bảng `destinations`. Địa điểm được lưu dưới dạng Custom Location thay vì ánh xạ `destination_id`. | Chưa có cơ chế tìm kiếm hợp nhất (Unified Search) giữa Catalog nội bộ và Online POI. |
+| **8. Ghim tọa độ thủ công khi không tìm thấy** | Có | Có | **ĐẠT.** Chạm bản đồ đặt marker ngay lập tức (`MANUAL_PIN`). Reverse-geocode descriptive ngầm lấy địa chỉ. Mất mạng vẫn xác nhận lưu tọa độ bình thường (Zero-API resilience). | Không có. |
+| **9. Nhà cung cấp lỗi hoặc hết quota (429, 5xx, timeout)** | Có | Có | **ĐẠT.** Backend bắt 429 ném `RateLimitExceededException`; bắt 5xx ném 502; timeout ném 504. Mobile hiển thị thông báo lỗi thân thiện, không crash màn hình; người dùng vẫn ghim tay được. | Không có cơ chế tự động chuyển sang nhà cung cấp phụ (do chủ trương không dùng API trả phí và không lạm dụng máy chủ cộng đồng). |
+| **10. Địa điểm thiếu thông tin hoặc sai tọa độ** | Có | Có | **ĐẠT.** Backend parse tọa độ kiểm tra `isFinite` và bounds [-90, 90], [-180, 180]. Mobile validate tọa độ trước khi ghim; nếu thiếu hiển thị thông báo yêu cầu ghim tay; nếu thiếu tên fallback về *"Vị trí đã ghim"*. | Không có. |
+
+---
+
+### 20.7. Danh sách vấn đề phát hiện và Phân loại mức độ nghiêm trọng
+
+#### 1. Mức độ CRITICAL (Nghiêm trọng — Ảnh hưởng bảo mật)
+- **Vấn đề C-01: Rò rỉ các API Key và Secret thực tế trong tài liệu Git (`Travel_Planner/README.md`)**
+  - **Mô tả:** Trong file `Travel_Planner/README.md` tại các dòng 11 đến 15, các khóa cấu hình thực tế gồm `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `OPENROUTESERVICE_API_KEY`, và `LOCATION_IQ_API_KEY` bị ghi trực tiếp dưới dạng câu lệnh PowerShell và đã được đẩy lên lịch sử Git (commit `2109d8f`).
+  - **Nguyên nhân:** Đưa cấu hình môi trường phát triển cục bộ vào tài liệu hướng dẫn chạy mà không che giấu thông tin nhạy cảm.
+  - **Vị trí code:** `Travel_Planner/README.md#L11-L15`.
+  - **Ảnh hưởng:** Bất kỳ ai có quyền truy cập kho mã nguồn đều có thể lấy các khóa này để gọi dịch vụ, dẫn đến nguy cơ cạn kiệt quota miễn phí hoặc lộ tài nguyên media trên Cloudinary.
+  - **Hướng khắc phục đề xuất:**
+    1. Lập tức truy cập trang quản trị của Cloudinary, OpenRouteService và LocationIQ để **thu hồi (Revoke/Rotate)** các khóa bị lộ và cấp khóa mới.
+    2. Xóa các giá trị thực tế khỏi `README.md`, thay thế bằng chuỗi giả định mẫu (ví dụ: `your_api_key_here`).
+    3. Hướng dẫn khai báo qua file `.env` hoặc biến môi trường cục bộ và đảm bảo file chứa khóa nằm trong `.gitignore`.
+
+#### 2. Mức độ HIGH (Chức năng chính chưa tối ưu)
+- **Vấn đề H-01: Thiếu cơ chế tìm kiếm hợp nhất (Unified Search) giữa Catalog Destinations và Online Places**
+  - **Mô tả:** Trong `LocationPickerSheet`, thanh tìm kiếm chỉ truy vấn duy nhất nhà cung cấp ngoài `LocationIQ` qua `/api/locations/search`. Nó hoàn toàn bỏ qua danh mục điểm đến có sẵn trong bảng `destinations` của cơ sở dữ liệu.
+  - **Nguyên nhân:** Kiến trúc hiện tại phân tách độc lập hai luồng: Chọn danh mục từ Dropdown và Tìm kiếm vị trí tự do từ bản đồ.
+  - **Vị trí code:** `LocationController.java`, `LocationPickerSheet.dart#L224`.
+  - **Ảnh hưởng:** Người dùng tìm kiếm một địa điểm nổi tiếng đã được Admin chuẩn hóa (ví dụ: "Bà Nà Hills") trên bản đồ sẽ vô tình tạo một điểm tùy chỉnh (Custom Location) không có ảnh đại diện và mô tả chính thức từ hệ thống, gây phân mảnh dữ liệu.
+  - **Hướng khắc phục đề xuất:** Triển khai endpoint tìm kiếm hợp nhất `GET /api/locations/unified-search` hoặc tích hợp kết quả từ `DestinationRepository` lên đầu danh sách kết quả của `LocationPickerSheet` với huy hiệu nhận diện riêng (badge "Danh mục").
+
+#### 3. Mức độ MEDIUM (Trải nghiệm và Xử lý tình huống)
+- **Vấn đề M-01: Định vị theo ngữ cảnh tỉnh/thành chỉ mang tính gợi ý văn bản (Textual Bias)**
+  - **Mô tả:** Hàm `_queryWithLocationContext` ghép chuỗi `query + ", " + locationContext`.
+  - **Nguyên nhân:** LocationIQ Autocomplete không hỗ trợ bounding polygon dạng hành chính phức tạp mà chỉ nhận chuỗi văn bản hoặc tọa độ tâm.
+  - **Vị trí code:** `location_picker_sheet.dart#L260-L271`.
+  - **Ảnh hưởng:** Nếu người dùng gõ từ khóa chung chung, LocationIQ có thể trả về các địa điểm ở tỉnh thành khác nếu địa điểm đó có độ phổ biến cao hơn trên bản đồ OSM toàn quốc.
+  - **Hướng khắc phục đề xuất:** Bổ sung tham số `viewbox` hoặc `bounded=1` trong truy vấn LocationIQ khi biết trước tọa độ trung tâm và bán kính của điểm đến trong lịch trình.
+- **Vấn đề M-02: Tham số ngôn ngữ `accept-language` trên Autocomplete bị gán cứng là `en`**
+  - **Mô tả:** Trong `LocationIqGeocodingProvider.java#L89`, query parameter `accept-language` được đặt là `"en"` thay vì `"vi"`.
+  - **Nguyên nhân:** Tránh lỗi tương thích tham số chuỗi nhiều ngôn ngữ trên endpoint Autocomplete của LocationIQ.
+  - **Vị trí code:** `LocationIqGeocodingProvider.java#L89`.
+  - **Ảnh hưởng:** Một số địa danh hiển thị trên kết quả gợi ý có thể bị chuyển tự tiếng Anh hoặc mất dấu tiếng Việt tự nhiên.
+  - **Hướng khắc phục đề xuất:** Kiểm tra và cấu hình `accept-language=vi` nếu nhà cung cấp hỗ trợ đơn mã ngôn ngữ tiếng Việt cho Việt Nam.
+
+#### 4. Mức độ LOW (Tối ưu hóa và Tiện ích)
+- **Vấn đề L-01: Bộ nhớ đệm Caffeine in-memory bị mất khi khởi động lại server**
+  - **Mô tả:** Caffeine cache lưu trữ trong RAM của tiến trình Spring Boot.
+  - **Nguyên nhân:** Thiết kế đơn giản cho môi trường đơn máy chủ (Single Instance).
+  - **Vị trí code:** `LocationServiceImpl.java#L35-L48`.
+  - **Ảnh hưởng:** Mỗi lần restart server backend, các truy vấn cũ sẽ phải gọi lại LocationIQ, tiêu tốn một lượng nhỏ quota trong ngày.
+  - **Hướng khắc phục đề xuất:** Chấp nhận cho giai đoạn đồ án/MVP; xem xét chuyển sang Redis khi triển khai hệ thống phân tán đa phiên bản.
+- **Vấn đề L-02: Tính năng tìm kiếm địa điểm xung quanh (`Nearby`) đang tắt mặc định**
+  - **Mô tả:** Biến `app.map.geocoding.nearby-enabled` mặc định là `false`. Khi bấm các chip phân loại, backend trả về mã 503.
+  - **Vị trí code:** `application.properties#L40`, `LocationIqGeocodingProvider.java#L149-L151`.
+  - **Ảnh hưởng:** Người dùng không sử dụng được tính năng gợi ý nhanh các quán ăn, quán cà phê lân cận trên bản đồ nếu người quản trị chưa chủ động bật biến môi trường.
+  - **Hướng khắc phục đề xuất:** Giữ nguyên cho bản miễn phí; chỉ bật khi dự án có quota API ổn định.
+
+---
+
+### 20.8. Đánh giá mức độ hoàn thiện
+
+| Thành phần chức năng | Mức độ hoàn thiện | Nhận xét chi tiết |
+| :--- | :---: | :--- |
+| **Backend Place Search** | **Hoàn thành** | Đầy đủ API search, reverse-geocode, nearby; tích hợp LocationIQ thực tế; tiền kiểm tra tham số, sanitize dữ liệu, xử lý lỗi upstream và cấu hình timeout chuẩn mực. |
+| **Frontend Place Search** | **Hoàn thành** | Giao diện công thái học cao; hỗ trợ debounce 400ms, hủy request rác, chống race condition kết quả cũ ghi đè; hiển thị đầy đủ các trạng thái loading, empty, error. |
+| **Map Integration** | **Hoàn thành** | Tích hợp mượt mà `flutter_map` v7 với CARTO Basemaps raster tiles; di chuyển camera chính xác; hỗ trợ ghim thủ công độc lập (Zero-API resilience); thuật toán chống đè marker hiệu quả. |
+| **Database Integration** | **Hoàn thành** | Mô hình 3 trạng thái độc quyền (Catalog / Custom / None) thực thi nghiêm ngặt; đảm bảo tương thích 100% dữ liệu lịch trình cũ; không làm bẩn bảng catalog. |
+| **Error Handling & Resilience** | **Hoàn thành** | Xử lý triệt để các mã lỗi 404, 429, 5xx, timeout; không bao giờ gây sập ứng dụng (zero crash); thông báo lỗi bằng tiếng Việt thân thiện với người dùng. |
+| **Testing & Quality** | **Hoàn thành** | Kiểm thử tự động đạt 100% (200/200 backend tests, 333/333 mobile tests); tĩnh học mã nguồn đạt 0 lỗi/cảnh báo trên cả Mobile và Web. |
+| **Security & API Quota** | **Hoàn thành một phần** | Bộ đệm Caffeine và Bucket4j rate limiting kiểm soát quota rất tốt; **tuy nhiên bị trừ điểm nặng do rò rỉ API key trong file README.md trên Git**. |
+
+---
+
+### 20.9. Lộ trình cải thiện đề xuất
+
+#### Nhóm 1: Bắt buộc phải xử lý ngay (P0 - Immediate)
+1. **Thu hồi và xoay vòng toàn bộ API Key bị rò rỉ:** Thay thế `LOCATION_IQ_API_KEY`, `OPENROUTESERVICE_API_KEY`, `CLOUDINARY_API_KEY`/`SECRET` trên dashboard của các nhà cung cấp.
+2. **Làm sạch file `Travel_Planner/README.md`:** Xóa vĩnh viễn các chuỗi khóa nhạy cảm khỏi tài liệu, thay bằng hướng dẫn thiết lập biến môi trường chuẩn.
+
+#### Nhóm 2: Nên cải thiện cho phiên bản phát hành tiếp theo (P1 - High Priority)
+1. **Hợp nhất tìm kiếm (Unified Search):** Cho phép `LocationPickerSheet` tìm kiếm song song trong bảng `destinations` của hệ thống để ưu tiên hiển thị các điểm đến chính thức đã có sẵn ảnh và mô tả.
+2. **Cấu hình Bounding Box / Viewbox:** Bổ sung giới hạn tọa độ hộp chữ nhật (Viewbox) quanh thành phố của chuyến đi để tăng độ chính xác địa phương, khắc phục triệt để tình trạng trả về địa điểm trùng tên ở tỉnh khác.
+3. **Thử nghiệm ngôn ngữ tiếng Việt:** Đánh giá lại tham số `accept-language=vi` trên LocationIQ để đảm bảo tên địa điểm trả về giữ đúng dấu tiếng Việt.
+
+#### Nhóm 3: Có thể phát triển trong tương lai khi có nhu cầu mở rộng (P2 - Future Enhancement)
+1. **Mô hình bảng trung gian `places`:** Khi có nhu cầu xây dựng kho địa điểm người dùng đóng góp (Community Places), chuẩn hóa địa điểm thành bảng riêng để tránh lặp dữ liệu trong `activities`.
+2. **Chuyển đổi bộ nhớ đệm sang Redis:** Áp dụng khi triển khai hệ thống backend đa máy chủ (Multi-instance load balancing).
+3. **Cơ chế Fallback nhiều nhà cung cấp:** Tích hợp thêm nhà cung cấp định vị dự phòng miễn phí (như Geoapify hoặc Goong bản thử nghiệm) khi có sự phê duyệt chính thức từ chủ dự án.
+
+---
+
+### 20.10. Kết luận đánh giá
+
+1. **Chức năng tìm kiếm địa điểm hiện tại đã đủ điều kiện sử dụng chưa?**
+   - **TRẢ LỜI: ĐÃ ĐỦ ĐIỀU KIỆN SỬ DỤNG VỀ MẶT TÍNH NĂNG VÀ NGHIỆP VỤ.**
+   - Hệ thống hoạt động rất ổn định, mượt mà, gọi API thực tế của LocationIQ, có giao diện tìm kiếm và chọn bản đồ trực quan, hỗ trợ ghim thủ công độc lập và tương thích hoàn hảo với cơ sở dữ liệu cũng như tính năng định tuyến. Tuy nhiên, **trước khi đưa vào môi trường thực tế, BẮT BUỘC phải thực hiện xoay vòng khóa API bị lộ trong tài liệu README.md**.
+
+2. **Kiến trúc hiện tại có phù hợp để tiếp tục phát triển không?**
+   - **TRẢ LỜI: HOÀN TOÀN PHÙ HỢP.**
+   - Kiến trúc phân lớp của Backend với `GeocodingProvider` và `RoutingProvider` giúp phân tách rành mạch mã nguồn với nhà cung cấp bên ngoài.
+   - Mô hình 3 trạng thái vị trí trên `Activity` giải quyết triệt để bài toán kết hợp giữa danh mục dùng chung và địa điểm ghim tự do mà không làm vỡ các ràng buộc quan hệ hay dữ liệu cũ.
+   - Kiến trúc miễn phí (Free-first) với `flutter_map` và CARTO Basemaps bảo vệ dự án khỏi các rủi ro phát sinh chi phí ngoài ý muốn.
+
+3. **Những vấn đề nào cần giải quyết trước khi xem là hoàn thiện?**
+   - Xoay vòng và xóa các API Key trong tài liệu `README.md`.
+   - Kết nối tìm kiếm danh mục nội bộ vào chung giao diện tìm kiếm bản đồ (Unified Search) để người dùng không bị phân mảnh trải nghiệm.
+
+4. **Có cần thay đổi công nghệ hoặc nhà cung cấp không?**
+   - **TRẢ LỜI: KHÔNG CẦN THAY ĐỔI CÔNG NGHỆ HOẶC NHÀ CUNG CẤP Ở THỜI ĐIỂM HIỆN TẠI.**
+   - Sự kết hợp giữa **LocationIQ (Geocoding/Search)** + **CARTO Basemaps (Bản đồ nền)** + **OpenRouteService (Tuyến đường)** + **Google Maps (Chỉ đường ngoài ứng dụng)** là giải pháp tối ưu nhất hiện nay đáp ứng trọn vẹn yêu cầu: **Chi phí 0 VNĐ, chất lượng dữ liệu tốt tại Việt Nam, không yêu cầu thẻ tín dụng quốc tế và tuân thủ pháp lý/điều khoản phi thương mại của đồ án.**
+
+---
+*Báo cáo Audit hoàn thành ngày 05/11/2026 bởi Antigravity Engine.*
+
+---
+
+## 21. Bổ sung: Triển khai Cải tiến Ngôn ngữ Tiếng Việt và Khả năng Tìm kiếm POI (05/11/2026)
+
+### 21.1. Mục tiêu và Phạm vi thực hiện
+Triển khai giải quyết triệt để 2 vấn đề trọng tâm theo yêu cầu:
+1. **Ưu tiên kết quả tiếng Việt:** Cấu hình và ưu tiên tiếng Việt tự nhiên cho kết quả tìm kiếm, reverse geocoding và gợi ý lân cận; giữ nguyên tên thương hiệu gốc, không dịch sai lệch và hỗ trợ tốt cả từ khóa có dấu lẫn không dấu.
+2. **Cải thiện tìm kiếm địa điểm cụ thể (POI):** Khắc phục tình trạng không tìm thấy tiệm bánh, quán cà phê, nhà thuốc, siêu thị hoặc tên chuỗi thương hiệu cụ thể; tối ưu hóa phạm vi tìm kiếm theo ngữ cảnh chuyến đi và loại bỏ các kết quả trùng lặp.
+
+### 21.2. Các giải pháp đã triển khai
+1. **Cấu hình & Tích hợp Backend (Spring Boot):**
+   - Bổ sung cấu hình `app.map.geocoding.language=${GEOCODING_LANGUAGE:vi}` trong `application.properties` và `MapProperties.java`.
+   - Cập nhật `LocationIqGeocodingProvider.java`:
+     - Truyền `accept-language=vi` cho tất cả các endpoint (`/autocomplete`, `/reverse`, `/nearby`).
+     - Tối ưu hóa định vị không gian: thay vì truyền `lat`/`lon` (vốn bị LocationIQ autocomplete bỏ qua), hệ thống tự động tính toán hình hộp bao (`viewbox`) quanh tọa độ trung tâm với $\Delta = 0.15^\circ \approx 16.6\text{km}$, đi kèm `bounded=0` và `importancesort=0` để ưu tiên các địa điểm gần khung nhìn nhất mà không loại bỏ các POI quan trọng.
+     - Nâng cấp bộ phân tích `parseLocationItem`: Ưu tiên trường `address.name:vi` khi có bản dịch tiếng Việt chính thức, sau đó fallback tuần tự về `display_place`, `address.name`, `display_name` và giữ nguyên tên thương hiệu quốc tế (Starbucks, Pizza 4P's, Highlands Coffee).
+     - Trích xuất loại địa điểm cụ thể (`type` như `bakery`, `cafe`, `pharmacy`, `supermarket`, `restaurant`) làm `category` thay vì nhóm chung chung (`class` như `shop`, `amenity`).
+     - Khử trùng lặp kết quả (Deduplication) dựa trên cặp nhận diện `placeId` và `normalized(name + lat + lon)`.
+2. **Tối ưu hóa Giao diện & Ngữ cảnh (Flutter Mobile):**
+   - Bổ sung bộ phân giải tọa độ trung tâm điểm đến `LocationPickerSheet.resolveContextCenter(locationContext)` hỗ trợ 15 trung tâm du lịch lớn tại Việt Nam (Hà Nội, TP.HCM, Đà Nẵng, Đà Lạt, Nha Trang, Hội An, Huế, Phú Quốc, Sa Pa, Hạ Long, Vũng Tàu, Cần Thơ, Ninh Bình, Quy Nhơn, Phan Thiết).
+   - Khi tạo hoạt động mới chưa có ghim (`initialCenter == null`), bản đồ và khung nhìn tự động căn giữa theo tọa độ thành phố của chuyến đi (zoom 13.0) thay vì trôi dạt về tọa độ trung tâm quốc gia (Gia Lai).
+   - Xây dựng hàm `LocationPickerSheet.formatQueryWithContext(query, locationContext)`:
+     - Nhận diện các truy vấn đã có tên thành phố (kể cả dạng rút gọn như "Hồ Chí Minh" khi context là "Thành phố Hồ Chí Minh") để tránh ghép chuỗi trùng lặp.
+     - Tự động bổ sung ngữ cảnh thành phố cho các từ khóa đơn lẻ (ví dụ: `tiệm bánh` -> `tiệm bánh, Thành phố Hồ Chí Minh`).
+     - Bảo toàn các truy vấn có định từ hành chính hoặc giới từ không gian (`quận`, `phường`, `gần`, `tại`, `ở`, dấu phẩy) để tận dụng `viewbox` mà không gây nghẽn bộ phân tích từ của nhà cung cấp.
+
+### 21.3. Kết quả Kiểm thử & Xác thực
+- **Backend Test Suite:** **207 / 207 tests passed (100% Green, bao gồm 7 test mới trong `VietnameseAndPoiSearchTests`)**.
+- **Mobile Test Suite:** **340 / 340 tests passed (100% Green, bao gồm 7 test mới trong `Phase 4 - Destination Context Resolution & Specific POI Query Formatting`)**.
+- **Static Analysis:** **0 issues trên cả Mobile và Web**.
+- **Xác thực thực tế qua API LocationIQ:**
+  - `tiệm bánh` tại TP.HCM -> Trả về Tiệm Bánh Mì 362, Tiệm Bánh Ngọt Pháp, Tiệm Bánh Xèo tại Quận 1, TP.HCM.
+  - `quan ca phe` (không dấu) tại Hà Nội -> Trả về Quán cà phê Wabi-Sabi, Quán cà phê Mùa Hè tại Hà Nội bằng tiếng Việt có dấu.
+  - `Starbucks` tại TP.HCM -> Trả về đúng chuỗi cà phê Starbucks tại Quận 1, bảo toàn tên riêng.
+  - `nhà thuốc` tại TP.HCM -> Trả về Nhà Thuốc Pharmacity với danh mục `pharmacy`.
+
+---
+
+## 22. Triển khai Cải tiến Toàn diện Hệ thống Tìm kiếm Địa điểm & Xếp hạng Ngữ nghĩa (05/11/2026)
+
+### 22.1. Phân tích Nguyên nhân Gốc rễ của Sai lệch Địa điểm
+1. **Tham số `importancesort=0` đảo lộn trọng số toàn cầu:**
+   - Khi truyền `importancesort=0` vào LocationIQ `/autocomplete`, nhà cung cấp ưu tiên tuyệt đối theo khoảng cách tới tâm viewport (0 km tại vị trí đang xem) và gạt bỏ hoàn toàn điểm số tầm quan trọng toàn cầu (`importance`).
+   - Hậu quả: Người dùng đứng tại TP.HCM gõ "Vũng Tàu" hoặc "Đà Lạt", hệ thống trả về quán ăn "Cơm Tấm An Giang / Vũng Tàu" hoặc "Đà Lạt Ơi" tại TP.HCM lên vị trí số 1 thay vì thành phố Vũng Tàu/Đà Lạt.
+2. **Hạn chế của Autocomplete so với Forward Geocoding:**
+   - Autocomplete chỉ xử lý chuỗi tiền tố (prefix matching), thiếu khả năng nhận diện ranh giới hành chính (`class=place`, `type=city`), thiếu thông tin bounding box và cấu trúc truy vấn tự nhiên ("Quán cà phê ở Đà Lạt").
+   - Forward Geocoding (`/v1/search`) của LocationIQ giải quyết hoàn hảo các truy vấn thực tế, trả về đầy đủ tọa độ, loại thực thể, ranh giới và điểm số `importance` cao (> 0.50 đối với các thành phố).
+3. **Loại bỏ Hardcode 15 Thành phố:**
+   - Danh sách 15 thành phố tĩnh trước đây được loại bỏ hoàn toàn, thay thế bằng cơ chế xử lý truy vấn động, chuẩn hóa không dấu và xếp hạng ngữ nghĩa.
+4. **Cải thiện Zoom Camera thích ứng:**
+   - Trước đây camera cố định zoom 15.0 cho mọi kết quả. Nay phân biệt rõ: chọn thành phố/địa danh hành chính sẽ zoom tổng quan (12.0); chọn POI chi tiết sẽ zoom cận cảnh (15.5).
+
+### 22.2. Các Thành phần Đã Triển khai
+
+1. **Backend – Spring Boot (Java 22):**
+   - **`LocationSearchResultResponse.java`:** Bổ sung các trường tương thích ngược: `type` (String), `importance` (Double), `boundingBox` (List<Double>).
+   - **`LocationIqGeocodingProvider.java`:**
+     - Nâng cấp tìm kiếm chính sang Forward Geocoding `/v1/search` với `accept-language=vi`, `addressdetails=1`, `normalizecity=1`, `dedupe=1`.
+     - Chỉ truyền `viewbox` đối với các dịch vụ chung chung không có tên địa danh tường minh; không truyền `importancesort=0` để bảo toàn trọng số địa danh.
+     - Fallback sang `/autocomplete` chỉ khi `/search` trả về 0 kết quả.
+   - **`HereGeocodingProvider.java`:** Triển khai độc lập tích hợp HERE Geocoding & Search v7 API (`/v1/geocode`, `/v1/discover`, `/v1/revgeocode`), kích hoạt qua `HERE_API_KEY`, tự động fallback an toàn khi chưa cấu hình.
+   - **`LocationRankingService` & `LocationRankingServiceImpl.java`:**
+     - Bộ máy chấm điểm và xếp hạng ngữ nghĩa độc lập.
+     - Chuẩn hóa tiếng Việt có dấu và không dấu qua `Normalizer.Form.NFD`.
+     - Phân loại ý định truy vấn: Hành chính/thành phố vs Dịch vụ/POI.
+     - Công thức tính điểm: Khớp tên chính xác (+70), thực thể hành chính khớp ý định thành phố (+55 vs -45 phạt quán ăn khi tìm thành phố), khớp loại dịch vụ (+45), tương thích khu vực (+40 vs -40), trọng số nhà cung cấp (+25 * importance), khoảng cách khung nhìn (+10 tối đa cho dịch vụ mở).
+     - Khử trùng lặp không gian dựa trên `placeId` và `normalized(name + lat_lon_rounded_110m)`.
+   - **`LocationServiceImpl.java`:** Tổng hợp kết quả đa nhà cung cấp (LocationIQ + HERE nếu có), xếp hạng và khử trùng lặp trước khi trả về.
+
+2. **Frontend – Flutter Mobile:**
+   - **`location_search_result.dart`:** Bổ sung `type`, `importance`, `boundingBox` và getter `isCityOrAdministrative`.
+   - **`location_picker_sheet.dart`:**
+     - Loại bỏ toàn bộ danh sách tọa độ tĩnh của 15 thành phố.
+     - Nâng cấp `formatQueryWithContext` với biểu thức chính quy Unicode-aware: `(^|[^\p{L}\p{N}])(quận|quan|huyện|huyen|phường|phuong|thị xã|thi xa|gần|gan|tại|tai|ở|o)([^\p{L}\p{N}]|$)`.
+     - Tự động tách tiền tố hành chính ("thành phố", "tỉnh", "tp.") để tránh lặp từ khóa.
+     - Di chuyển camera thích ứng (`isCityOrAdministrative ? 12.0 : 15.5`).
+
+### 22.3. Kết quả Kiểm thử & Xác nhận Thực tế
+- **Backend Full Tests:** **215 / 215 tests passed (100% Green, BUILD SUCCESS, thời gian: 61s)**.
+  - Bao gồm 5 test mới trong `LocationRankingServiceTest` và 3 test trong `HereGeocodingProviderTest`.
+- **Mobile Full Tests:** **339 / 339 tests passed (100% Green, thời gian: 54s)**.
+  - Bao gồm 25 test trong `location_picker_test.dart`.
+- **Static Analysis:** **0 issues (`flutter analyze --no-pub` hoàn toàn sạch)**.
+- **Thực nghiệm 16 truy vấn thực tế:** Đạt độ chính xác 16/16 đối với cả thành phố lớn, tên không dấu, danh thắng, thương hiệu chuỗi và truy vấn ngữ cảnh.
+
+---
+
+## 23. Triển khai Cơ chế Hiểu Truy vấn (Query Understanding) & Lọc Ranh giới Địa lý (Geographic Filtering) (05/11/2026 - Session 95)
+
+### 23.1. Phân tích Nguyên nhân Gốc rễ Sai lệch Phạm vi Địa lý
+- **Hiện tượng thực tế:** Khi tìm kiếm `cơm tấm Long Xuyên`, hệ thống trả về `Long Xuyên Quán 2 - Cơm Tấm Bánh Tằm Bì` nằm tại TP. Thủ Đức, TP. Hồ Chí Minh (cách Long Xuyên khoảng 175 km).
+- **Nguyên nhân cốt lõi:**
+  1. **Thiếu tầng phân rã ngữ nghĩa:** Hệ thống trước đây gửi toàn bộ chuỗi `cơm tấm Long Xuyên` lên provider như một chuỗi văn bản đơn lẻ, không phân biệt đâu là món ăn/dịch vụ cần tìm (`cơm tấm`) và đâu là địa danh giới hạn không gian (`Long Xuyên`).
+  2. **Không có bộ lọc không gian cứng:** Hệ thống cũ chỉ áp dụng cơ chế thưởng/phạt điểm số trong ranking; khi dữ liệu OSM tại Long Xuyên không có node trùng khớp chính xác từ ngữ, kết quả từ các tỉnh thành khác (do chứa chữ "Long Xuyên" trong tên quán) vẫn lọt qua và được trả về người dùng.
+  3. **Xung đột tên món đặc sản:** Các món ăn truyền thống có chứa tên địa phương (`bún bò Huế`, `phở Hà Nội`, `nem nướng Nha Trang`, `bánh khọt Vũng Tàu`) dễ bị cắt nhầm thành tìm kiếm tại địa phương đó nếu không có cơ chế bảo vệ danh từ ghép.
+
+### 23.2. Kiến trúc & Giải pháp Triển khai
+
+#### 1. Bộ máy Phân tích Truy vấn (`QueryUnderstandingService.java` & `QueryUnderstandingServiceImpl.java`)
+- **Phân loại Ý định (`SearchIntent`):** `POI_IN_LOCATION`, `LOCALITY`, `SPECIFIC_PLACE`, `GENERIC_POI`.
+- **DTOs chuyên dụng (`Travel_Planner/Travel_Planner/dto/location/`):**
+  - `ParsedLocationQuery`: `originalQuery`, `normalizedQuery`, `searchKeyword`, `locationQuery`, `placeCategory`, `searchIntent`.
+  - `GeographicTargetArea`: `queryName`, `resolvedName`, `centerLat`, `centerLon`, `boundingBox`, `maxRadiusKm`, `targetType`, `stateOrProvince`.
+- **Quy tắc phân tích:**
+  - Bảo vệ danh từ món ăn đặc sản (`PROTECTED_COMPOUND_DISHES`): Nhận diện các món như `bún bò Huế`, `phở Hà Nội`, `mì Quảng`, v.v. là `GENERIC_POI` không kèm địa danh, trừ khi người dùng thêm giới từ tường minh (ví dụ: `bún bò Huế ở Sài Gòn`).
+  - Tách giới từ rõ ràng (`PREPOSITION_PATTERN`): `ở`, `tại`, `gần`, `near`, `khu vực`, `quanh` và dấu phẩy `,`.
+  - Tách cú pháp ghép ngầm (`CATEGORY_PREFIXES`): Khớp các tiền tố thương mại/ẩm thực/lưu trú kết hợp phân tách theo từ nguyên bản (`cơm tấm Long Xuyên`, `cafe Đà Lạt`, `khách sạn Vũng Tàu`, `nhà hàng Quận 1`).
+  - Kiểm tra bộ bổ nghĩa món ăn (`FOOD_MODIFIERS`): Phân biệt các từ bổ nghĩa như `tấm`, `gà`, `bò`, `sườn`, `niêu`, `nướng` để các truy vấn như `cơm gà`, `cơm sườn`, `phở bò` không bị tách nhầm thành địa danh.
+  - Nhận diện đơn vị hành chính (`ADMINISTRATIVE_PREFIX_PATTERN`): Tự động phân loại `thành phố`, `tỉnh`, `quận`, `huyện` thành `LOCALITY`.
+
+#### 2. Quy trình Thực thi Hai Giai đoạn (`Two-Stage Execution Flow`)
+- **Giai đoạn A (Locality Geocoding):**
+  - Geocode địa danh `parsed.getLocationQuery()` để thu được tâm tọa độ, ranh giới hộp (`boundingBox`) và bán kính tối đa `maxRadiusKm` (thành phố: 15-20km, quận huyện: 8km, địa danh nhỏ: 3.5km).
+- **Giai đoạn B (In-Area Search & Spatial Filtering):**
+  - Gọi `primaryProvider.searchInArea(...)` với `viewbox` và `bounded=1` để gom các POI nằm gọn trong khu vực.
+  - Fallback tìm kiếm theo từ khóa gốc (ví dụ: `cơm` khi tìm `cơm tấm`) bên trong khu vực nếu dữ liệu OSM còn thưa thớt.
+  - Gọi tìm kiếm kết hợp có thiên vị tọa độ trung tâm địa danh.
+  - Gọi nhà cung cấp phụ (HERE) qua `/v1/discover` với `in=bbox` / `in=circle` nếu được cấu hình.
+
+#### 3. Bộ lọc Không gian & Ranh giới Địa lý Nghiêm ngặt (`GeographicFilterService.java`)
+- **Kiểm tra tọa độ hợp lệ:** Đảm bảo kinh độ, vĩ độ là số thực hữu hạn, nằm trong khoảng `[-90, 90]` và `[-180, 180]`.
+- **Kiểm tra khoảng cách Haversine:** Loại bỏ mọi ứng viên có khoảng cách tới tâm khu vực mục tiêu $> \text{maxRadiusKm} \times 1.25$.
+- **Kiểm tra Bounding Box:** Đảm bảo tọa độ nằm trong ranh giới hộp có dung sai đệm $\approx 2.7\text{ km}$.
+- **Kiểm tra Xung đột Tỉnh/Thành phố:** Nếu địa chỉ định dạng của ứng viên xuất hiện tên tỉnh/thành phố lớn khác (như `Thành phố Hồ Chí Minh`, `Hà Nội`, `Đà Nẵng`) không thuộc khu vực mục tiêu, ứng viên bị loại bỏ ngay lập tức.
+- **Dự phòng an toàn (Fallback):** Nếu khu vực không có POI nào trên bản đồ, hệ thống trả về chính thực thể địa danh mục tiêu, giúp camera bản đồ di chuyển chính xác về thành phố/khu vực yêu cầu, tuyệt đối không trả về quán ăn ở tỉnh thành khác.
+
+#### 4. Giao diện & Trải nghiệm Người dùng trên Flutter Mobile
+- `LocationPickerSheet`:
+  - Tiếp tục chuyển camera tức thì và mượt mà tới tọa độ đã chọn.
+  - Phóng to thích ứng: zoom `12.0` cho địa danh hành chính, zoom `15.5` cho địa điểm POI chi tiết.
+  - Giữ nguyên toàn bộ mô hình vị trí 3 trạng thái của Activity (`CATALOG`, `CUSTOM`, `NONE`), tính năng ghim thủ công `MANUAL_PIN` và hiển thị bản đồ nền raster CARTO/OSM.
+
+### 23.3. Kết quả Kiểm thử & Đo kiểm Thực nghiệm (Benchmark)
+- **Kiểm thử Đơn vị & Tích hợp Backend:**
+  - `QueryUnderstandingServiceTest`: **20/20 test passed** (kiểm tra đầy đủ các dạng truy vấn, từ không dấu, tiền tố, món ăn được bảo vệ, địa danh đơn lẻ).
+  - `GeographicFilterServiceTest`: **5/5 test passed** (kiểm tra giữ ứng viên đúng vùng, loại bỏ quán cách 175km tại TP.HCM, loại bỏ tọa độ lỗi, loại bỏ xung đột tỉnh thành, khử trùng lặp tọa độ).
+  - `LocationServiceTest`: **39/39 test passed** (kiểm tra luồng hai giai đoạn end-to-end và cơ chế fallback an toàn).
+  - Toàn bộ backend location test suite: **72 / 72 tests passed (100% Green, BUILD SUCCESS)**.
+- **Kiểm thử Frontend Flutter:**
+  - Toàn bộ mobile test suite: **339 / 339 tests passed (100% Green)**.
+  - Phân tích tĩnh: **`flutter analyze --no-pub` hoàn toàn sạch (0 issues found)**.
+- **Đo kiểm Thực nghiệm 7 Truy vấn Mục tiêu với Upstream API:**
+
+| STT | Truy vấn người dùng | Ý định nhận diện | Từ khóa POI | Khu vực mục tiêu | Kết quả Top 1 trả về | Tọa độ & Trạng thái |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | `Cơm tấm Long Xuyên` | `POI_IN_LOCATION` | Cơm tấm | Long Xuyên | Thành phố Long Xuyên, Tỉnh An Giang | `(10.37196, 105.41491)` - Quán TP.HCM (175km) bị loại bỏ hoàn toàn |
+| 2 | `Cơm tấm ở Long Xuyên` | `POI_IN_LOCATION` | Cơm tấm | Long Xuyên | Cơm Hai Thuế, Lương Văn Cù, Long Xuyên | `(10.37993, 105.44236)` - Đúng 100% tại Long Xuyên, An Giang |
+| 3 | `Cafe Đà Lạt` | `POI_IN_LOCATION` | Cafe | Đà Lạt | Cafe, Triệu Việt Vương, Đà Lạt, Lâm Đồng | `(11.93141, 108.42906)` - 5/5 quán đều tại Đà Lạt |
+| 4 | `Khách sạn Vũng Tàu` | `POI_IN_LOCATION` | Khách sạn | Vũng Tàu | Pacific Hotel Vung Tau, Lê Lợi, Vũng Tàu | `(10.34681, 107.07465)` - 5/5 khách sạn đều tại Vũng Tàu |
+| 5 | `Nhà hàng Quận 1` | `POI_IN_LOCATION` | Nhà hàng | Quận 1 | Nhà hàng HQ Choi Go Jip, Hàm Nghi, Quận 1 | `(10.77081, 106.69972)` - 5/5 nhà hàng tại Quận 1, TP.HCM |
+| 6 | `Tiệm bánh gần Hồ Gươm` | `POI_IN_LOCATION` | Tiệm bánh | Hồ Gươm | Cửa Hàng Bánh Mì Phố, Hoàn Kiếm, Hà Nội | `(21.03143, 105.85347)` - Tiệm bánh cách TP.HCM 1138km bị loại bỏ |
+| 7 | `Cơm tấm` | `GENERIC_POI` | Cơm tấm | Không chỉ định | Cơm Tấm, Lương Minh Nguyệt, TP.HCM | Theo khung nhìn bản đồ của người dùng tại TP.HCM |
+
+---
+
+## 24. Rà soát & Củng cố Hệ thống Tìm kiếm Địa điểm trên Thiết bị Thực (Session 96)
+
+### 24.1. Môi trường Kiểm thử Thiết bị Thật
+- **Thiết bị:** Samsung Galaxy A34 5G (`SM-A346E` / `RFCW8105T0H`), Android 16 (One UI), Flutter Engine sử dụng backend Impeller Vulkan.
+- **Ứng dụng:** `com.example.mobile` đang chạy trên thiết bị, hiển thị giao diện `LocationPickerSheet`.
+- **Hạ tầng Backend:** Spring Boot 4.1.1 (`/api/health` UP) kết nối MySQL 8.0.37 tại cổng 8080, chuyển tiếp qua `adb reverse tcp:8080 tcp:8080`.
+- **Dữ liệu Upstream:** LocationIQ Autocomplete/Search (`accept-language=vi`), HERE Geocoding Discover API, OpenRouteService.
+
+### 24.2. Các Cải tiến Kỹ thuật & Khắc phục Vấn đề Thực tế
+
+#### A. Khảo sát & Đính chính Khoảng cách Haversine
+- **Vấn đề rà soát:** Trong báo cáo Session 95, khoảng cách giữa tâm thành phố Long Xuyên `(10.37196, 105.41491)` và quán `Cơm Hai Thuế` `(10.37993, 105.44236)` được ghi nhận ước lượng `~1.2 km`.
+- **Đối chiếu toán học:**
+  $$\Delta\text{lat} = 10.37993 - 10.37196 = 0.00797^\circ \approx 0.886\text{ km}$$
+  $$\Delta\text{lon} = 105.44236 - 105.41491 = 0.02745^\circ \approx 3.006\text{ km}$$
+  $$\text{Khoảng cách Haversine thực tế} = \mathbf{3.13045\text{ km}}$$
+- **Kết luận:** Thuật toán trong `GeographicFilterServiceImpl.java` tính toán chính xác $3.13\text{ km}$, nhỏ hơn bán kính thành phố Long Xuyên ($15.0\text{ km}$). Quán `Cơm Hai Thuế` nằm hoàn toàn hợp lệ trong địa bàn Long Xuyên. Số liệu `~1.2 km` trước đó chỉ là ước tính ghi chép trong tài liệu báo cáo, không phải lỗi logic code.
+
+#### B. Phân biệt Rõ ràng Dự phòng Địa danh (Locality Fallback Disambiguation)
+- **Vấn đề:** Khi OpenStreetMap không có POI ẩm thực nào tại khu vực tìm kiếm, hệ thống kích hoạt cơ chế fallback trả về tâm địa danh, nhưng tên kết quả trả về `Long Xuyên` khiến người dùng dễ nhầm lẫn đây là tên một quán ăn.
+- **Giải pháp triển khai:**
+  - Bổ sung trường `Boolean isLocalityFallback` trong `LocationSearchResultResponse.java`.
+  - Cập nhật builder fallback trong `LocationServiceImpl.java`: đặt tên hiển thị dạng `Long Xuyên (Khu vực)`, gán `category: "locality"`, `type: "locality"`, `isLocalityFallback: true`.
+  - Cập nhật model Flutter `LocationSearchResult`: mở rộng `isCityOrAdministrative` bao gồm `locality` và `isLocalityFallback`.
+  - Nâng cấp giao diện `LocationPickerSheet`: hiển thị biểu tượng `Icons.location_city_outlined` kèm badge chip nhãn `Khu vực` hoặc `Địa danh`, ngăn chặn hoàn toàn việc người dùng nhầm lẫn ranh giới địa lý với cửa hàng kinh doanh.
+
+#### C. Lọc Bỏ Triệt để Danh mục Thương mại Không Tương thích (Semantic Filtering)
+- **Vấn đề:** Khi tìm món ăn (ví dụ `cơm tấm`), một số điểm bán lẻ viễn thông/điện tử có tên miền chứa đuôi `.com` (như `Ngocankhang.com`, `category: shop, type: mobile_phone`) từng bị lọt vào danh sách do thuật toán tìm kiếm chuỗi con không phân biệt từ.
+- **Giải pháp triển khai:**
+  - Định nghĩa tập hợp các danh mục không tương thích `INCOMPATIBLE_FOOD_TYPES` (`mobile_phone`, `electronics`, `car_repair`, `clothes`, `motorcycle`, `atm`, `bank`, `fuel`, v.v.).
+  - Trong `LocationRankingServiceImpl.java`: áp dụng mức phạt điểm nặng (`-100.0` điểm) cho các danh mục này khi ý định tìm kiếm là ẩm thực.
+  - Trong `LocationServiceImpl.java`: tại Giai đoạn B gom ứng viên, loại bỏ hoàn toàn các thực thể thuộc danh mục không tương thích trước khi chấm điểm và trả về.
+
+#### D. Tách biệt Ngữ cảnh Hành trình khi Tìm kiếm Tỉnh/Thành Khác
+- **Vấn đề:** Khi mở `LocationPickerSheet` từ một hành trình đang thuộc tỉnh An Giang, logic `formatQueryWithContext` tự động nối thêm `, An Giang` vào mọi truy vấn POI nếu người dùng không gõ từ `ở`/`tại`, dẫn đến tìm kiếm `cafe Đà Lạt` bị biến thành `cafe Đà Lạt, An Giang`.
+- **Giải pháp triển khai:**
+  - Bổ sung biểu thức chính quy `_knownRegionsPattern` nhận diện các thành phố/tỉnh du lịch phổ biến của Việt Nam (`đà lạt`, `vũng tàu`, `hà nội`, `sài gòn`, `đà nẵng`, `nha trang`, `huế`, `cần thơ`, `hải phòng`, `long xuyên`, `phú quốc`, v.v.).
+  - Khi câu truy vấn đã nêu rõ một địa danh du lịch cụ thể, hệ thống bỏ qua việc gán ngữ cảnh tỉnh thành mặc định của hành trình, giúp kết quả tìm kiếm đúng 100% với mong muốn của người dùng.
+
+### 24.3. Bảng Tổng hợp Kết quả Đo nghiệm Thực tế trên Thiết bị Thật
+
+| Nhóm | Truy vấn thực tế | Ý định | Khu vực mục tiêu | Kết quả hiển thị Top 1 | Tọa độ (Lat, Lon) | Phân loại | Đúng Địa Lý | Đúng Nhu Cầu | Camera Bản Đồ |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- | :---: | :---: | :---: |
+| A | `Cơm tấm Long Xuyên` | `POI_IN_LOCATION` | Long Xuyên, An Giang | `Long Xuyên (Khu vực)` | 10.37196, 105.41491 | `locality` | Đạt | Đạt (Không nhầm shop) | Zoom 12.0 |
+| A | `Cơm tấm ở Long Xuyên` | `POI_IN_LOCATION` | Long Xuyên, An Giang | `Cơm Hai Thuế` | 10.37993, 105.44236 | `fast_food` | Đạt (3.13 km) | Đạt (Cơm tấm) | Zoom 15.5 |
+| A | `Cafe Đà Lạt` | `POI_IN_LOCATION` | Đà Lạt, Lâm Đồng | `Cafe` (Triệu Việt Vương) | 11.93141, 108.42906 | `cafe` | Đạt (Đà Lạt) | Đạt (Cà phê) | Zoom 15.5 |
+| A | `Khách sạn Vũng Tàu` | `POI_IN_LOCATION` | Vũng Tàu | `Khách sạn Công Đoàn` | 10.34259, 107.07810 | `hotel` | Đạt (Vũng Tàu) | Đạt (Khách sạn) | Zoom 15.5 |
+| A | `Nhà hàng Quận 1` | `POI_IN_LOCATION` | Quận 1, TP.HCM | `Nhà Hàng El Gaucho` | 10.77803, 106.70363 | `restaurant` | Đạt (Quận 1) | Đạt (Nhà hàng) | Zoom 15.5 |
+| A | `Tiệm bánh gần Hồ Gươm` | `POI_IN_LOCATION` | Hồ Gươm, Hà Nội | `Cửa Hàng Bánh Mì Phố` | 21.03143, 105.85347 | `place` | Đạt (~0.3 km) | Đạt (Bánh mì) | Zoom 15.5 |
+| B | `Bún bò Huế` | `GENERIC_POI` | Toàn quốc (Ưu tiên Huế) | `Bún bò Huế` (Yết Kiêu, Huế) | 16.46583, 107.56726 | `restaurant` | Đạt | Đạt (Bún bò) | Zoom 15.5 |
+| B | `Phở Hà Nội` | `GENERIC_POI` | Toàn quốc (Ưu tiên HN) | `Phở hà nội` (Bà Triệu, HN) | 21.02532, 105.85169 | `restaurant` | Đạt | Đạt (Phở) | Zoom 15.5 |
+| B | `Cơm gà` | `GENERIC_POI` | Theo khung nhìn Viewport | `Cơm Gà` (Phan Văn Hân, TP.HCM) | 10.79411, 106.70428 | `restaurant` | Đạt | Đạt (Cơm gà) | Zoom 15.5 |
+| B | `Nem nướng Nha Trang` | `GENERIC_POI` | Toàn quốc (Món ăn) | `Nem nướng Nha Trang` (Hoàng Quốc Việt) | 21.04437, 105.79256 | `restaurant` | Đạt | Đạt (Nem nướng) | Zoom 15.5 |
+| B | `Bún bò Huế ở Sài Gòn` | `POI_IN_LOCATION` | Sài Gòn (TP.HCM) | `Bún Bò Huế Gia Hội` (Trần Cao Vân) | 10.78415, 106.69750 | `restaurant` | Đạt (TP.HCM) | Đạt (Bún bò Huế) | Zoom 15.5 |
+| C | `cơm gà` (Viewport TP.HCM) | `GENERIC_POI` | Khung nhìn Sài Gòn | `Cơm Gà` (Phan Văn Hân, TP.HCM) | 10.79411, 106.70428 | `restaurant` | Đạt | Đạt | Zoom 15.5 |
+| C | `cơm gà` (Viewport Nha Trang) | `GENERIC_POI` | Khung nhìn Nha Trang | `Cơm Gà` (Núi Một, Nha Trang) | 12.24527, 109.18929 | `restaurant` | Đạt | Đạt | Zoom 15.5 |
+
+### 24.4. Kiểm thử Tự động & Tính Ổn định
+- **Backend Test Suite:** `.\mvnw.cmd test -Dtest=LocationServiceTest,LocationRankingServiceTest,HereGeocodingProviderTest,QueryUnderstandingServiceTest,GeographicFilterServiceTest` $\rightarrow$ **72 / 72 tests passed (100% Green, BUILD SUCCESS)**.
+- **Frontend Test Suite:** `flutter test test/location_picker_test.dart` $\rightarrow$ **25 / 25 tests passed (100% Green)**. Toàn bộ dự án mobile: **339 / 339 tests passed**.
+- **Phân tích Mã nguồn:** `flutter analyze --no-pub` $\rightarrow$ **Không có cảnh báo, không có lỗi (0 issues found)**.
+- **Trạng thái Thiết bị Thật:** Ứng dụng duy trì hiệu năng 60fps mượt mà, không giật lag, không sập bộ nhớ (out-of-memory), camera di chuyển chính xác và hiển thị đầy đủ ghim địa điểm.
+
+
+

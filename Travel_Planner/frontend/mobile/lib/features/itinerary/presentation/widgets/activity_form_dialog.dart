@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/services/image_picker_service.dart';
+import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../location/data/location_repository.dart';
 import '../../../location/presentation/widgets/location_picker_sheet.dart';
@@ -96,9 +101,14 @@ class ActivityFormBottomSheet extends StatefulWidget {
 class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   late final LocationRepository _locationRepository;
+  late final ImagePickerService _imagePickerService;
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _costController;
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
+  String? _savedActivityImageUrl;
+  bool _imageChanged = false;
 
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
@@ -116,14 +126,27 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   double? _longitude;
   String? _placeId;
   String? _locationProvider;
+  String? _lastAutoFilledActivityName;
 
   bool get _isEditing => widget.initialActivity != null;
+
+  String? get _selectedDestinationImageUrl {
+    for (final destination in _availableDestinations) {
+      if (destination.destinationId == _selectedDestinationId) {
+        return destination.imageUrl;
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
-    _locationRepository = widget.locationRepository ??
+    _locationRepository =
+        widget.locationRepository ??
         LocationRepository(apiClient: widget.repository.apiClient);
+    _imagePickerService = DeviceImagePickerService();
+    _savedActivityImageUrl = widget.initialActivity?.imageUrl;
 
     _selectedDestinationId = widget.initialActivity?.destination?.destinationId;
     if (widget.initialActivity?.destination != null) {
@@ -182,7 +205,15 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
 
     if (result != null && mounted) {
       setState(() {
-        _selectedDestinationId = null; // Mutually exclusive: clears catalog destination
+        _selectedDestinationId =
+            null; // Mutually exclusive: clears catalog destination
+        final currentName = _nameController.text.trim();
+        final previousAutoName = _lastAutoFilledActivityName;
+        if (result.locationProvider != 'MANUAL_PIN' &&
+            (currentName.isEmpty || currentName == previousAutoName)) {
+          _nameController.text = result.locationName;
+          _lastAutoFilledActivityName = result.locationName;
+        }
         _customLocationName = result.locationName;
         _customAddress = result.address;
         _latitude = result.latitude;
@@ -191,6 +222,37 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
         _locationProvider = result.locationProvider;
       });
     }
+  }
+
+  Future<void> _pickActivityImage() async {
+    try {
+      final file = await _imagePickerService.pickImage();
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _selectedImage = file;
+        _selectedImageBytes = bytes;
+        _imageChanged = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể đọc ảnh đã chọn.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _removeActivityImage() {
+    setState(() {
+      _selectedImage = null;
+      _selectedImageBytes = null;
+      _savedActivityImageUrl = null;
+      _imageChanged = true;
+    });
   }
 
   void _clearCustomLocation() {
@@ -353,6 +415,16 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     final endTimeStr = _endTime != null ? _formatTimeOfDay(_endTime!) : null;
 
     try {
+      String? imageUrl;
+      if (_selectedImage != null && _selectedImageBytes != null) {
+        imageUrl = await widget.repository.uploadImage(
+          token,
+          bytes: _selectedImageBytes!,
+          filename: _selectedImage!.name,
+        );
+      } else if (_imageChanged) {
+        imageUrl = '';
+      }
       if (_isEditing) {
         final request = UpdateActivityRequest(
           name: name,
@@ -364,21 +436,14 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           customLocationName: _selectedDestinationId == null
               ? _customLocationName
               : null,
-          customAddress: _selectedDestinationId == null
-              ? _customAddress
-              : null,
-          latitude: _selectedDestinationId == null
-              ? _latitude
-              : null,
-          longitude: _selectedDestinationId == null
-              ? _longitude
-              : null,
-          placeId: _selectedDestinationId == null
-              ? _placeId
-              : null,
+          customAddress: _selectedDestinationId == null ? _customAddress : null,
+          latitude: _selectedDestinationId == null ? _latitude : null,
+          longitude: _selectedDestinationId == null ? _longitude : null,
+          placeId: _selectedDestinationId == null ? _placeId : null,
           locationProvider: _selectedDestinationId == null
               ? _locationProvider
               : null,
+          imageUrl: imageUrl,
         );
         await widget.repository.updateActivity(
           widget.itineraryId,
@@ -398,21 +463,14 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           customLocationName: _selectedDestinationId == null
               ? _customLocationName
               : null,
-          customAddress: _selectedDestinationId == null
-              ? _customAddress
-              : null,
-          latitude: _selectedDestinationId == null
-              ? _latitude
-              : null,
-          longitude: _selectedDestinationId == null
-              ? _longitude
-              : null,
-          placeId: _selectedDestinationId == null
-              ? _placeId
-              : null,
+          customAddress: _selectedDestinationId == null ? _customAddress : null,
+          latitude: _selectedDestinationId == null ? _latitude : null,
+          longitude: _selectedDestinationId == null ? _longitude : null,
+          placeId: _selectedDestinationId == null ? _placeId : null,
           locationProvider: _selectedDestinationId == null
               ? _locationProvider
               : null,
+          imageUrl: imageUrl,
         );
         await widget.repository.addActivity(
           widget.itineraryId,
@@ -769,8 +827,9 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                     color: AppColors.primary,
                                   ),
                                   tooltip: 'Đổi vị trí trên bản đồ',
-                                  onPressed:
-                                      _isLoading ? null : _openLocationPicker,
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _openLocationPicker,
                                 ),
                                 IconButton(
                                   icon: const Icon(
@@ -779,8 +838,9 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                     color: AppColors.muted,
                                   ),
                                   tooltip: 'Xóa vị trí',
-                                  onPressed:
-                                      _isLoading ? null : _clearCustomLocation,
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _clearCustomLocation,
                                 ),
                               ],
                             ),
@@ -814,11 +874,49 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                   ),
                                 ),
                               ),
-                              onPressed:
-                                  _isLoading ? null : _openLocationPicker,
+                              onPressed: _isLoading
+                                  ? null
+                                  : _openLocationPicker,
                             ),
                           ),
                         ],
+                        const SizedBox(height: 14),
+
+                        // Activity-specific cover image, falling back to the
+                        // selected catalog destination's cover for preview.
+                        const Text(
+                          'Ảnh đại diện hoạt động',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ImageUploadPreview(
+                          selectedBytes: _selectedImageBytes,
+                          imageUrl:
+                              _savedActivityImageUrl ??
+                              _selectedDestinationImageUrl,
+                          onPick: _isLoading ? null : _pickActivityImage,
+                          height: 112,
+                          buttonLabel: _selectedImageBytes == null
+                              ? 'Chọn ảnh đại diện'
+                              : 'Đổi ảnh đại diện',
+                        ),
+                        if (_selectedImageBytes != null ||
+                            (_savedActivityImageUrl?.trim().isNotEmpty ??
+                                false))
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: _isLoading
+                                  ? null
+                                  : _removeActivityImage,
+                              icon: const Icon(Icons.delete_outline, size: 17),
+                              label: const Text('Xóa ảnh hoạt động'),
+                            ),
+                          ),
                         const SizedBox(height: 14),
 
                         // Time Pickers Row
