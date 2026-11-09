@@ -1,6 +1,9 @@
 package Travel_Planner.Travel_Planner.repository;
 
 import Travel_Planner.Travel_Planner.model.Itinerary;
+import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
+import Travel_Planner.Travel_Planner.model.enums.UserStatus;
+import Travel_Planner.Travel_Planner.model.enums.Visibility;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -32,6 +35,10 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, 
     boolean existsByTitleAndUser_UserId(String title, Integer userId);
 
     List<Itinerary> findByUser_UserId(Integer userId);
+
+    @EntityGraph(attributePaths = {"user"})
+    Page<Itinerary> findByUser_UserIdAndVisibilityAndStatusAndUser_StatusOrderByCreatedAtDesc(
+            Integer userId, Visibility visibility, ItineraryStatus status, UserStatus userStatus, Pageable pageable);
 
     @Modifying
     @Query("update Itinerary i set i.commentCount = i.commentCount + 1 where i.itineraryId = :itineraryId")

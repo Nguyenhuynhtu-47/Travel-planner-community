@@ -8,6 +8,7 @@ import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
 import Travel_Planner.Travel_Planner.exception.UnauthorizedException;
 import Travel_Planner.Travel_Planner.model.*;
 import Travel_Planner.Travel_Planner.model.enums.DestinationStatus;
+import Travel_Planner.Travel_Planner.model.enums.CommentStatus;
 import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.model.enums.Visibility;
@@ -40,6 +41,7 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final DestinationRepository destinationRepository;
     private final FavoriteRepository favoriteRepository;
     private final SavedItineraryRepository savedItineraryRepository;
+    private final CommentRepository commentRepository;
 
     public ItineraryServiceImpl(
             ItineraryRepository itineraryRepository,
@@ -49,7 +51,8 @@ public class ItineraryServiceImpl implements ItineraryService {
             UserRepository userRepository,
             DestinationRepository destinationRepository,
             FavoriteRepository favoriteRepository,
-            SavedItineraryRepository savedItineraryRepository
+            SavedItineraryRepository savedItineraryRepository,
+            CommentRepository commentRepository
     ) {
         this.itineraryRepository = itineraryRepository;
         this.ratingRepository = ratingRepository;
@@ -59,6 +62,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         this.destinationRepository = destinationRepository;
         this.favoriteRepository = favoriteRepository;
         this.savedItineraryRepository = savedItineraryRepository;
+        this.commentRepository = commentRepository;
     }
 
     @Override
@@ -695,6 +699,19 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         int deletedDayNumber = dayToDelete.getDayNumber();
 
+        // Remove activity comments before hard-deleting activities, while preserving itinerary comments.
+        List<Integer> activityIds = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(dayId)
+                .stream().map(Activity::getActivityId).toList();
+        if (!activityIds.isEmpty()) {
+            long preservedCommentCount = commentRepository.countByActivity_ActivityIdInAndStatus(
+                    activityIds, CommentStatus.ACTIVE);
+            commentRepository.moveActivityCommentsToItinerary(activityIds, itinerary);
+            if (preservedCommentCount > 0) {
+                itinerary.setCommentCount(itinerary.getCommentCount() + Math.toIntExact(preservedCommentCount));
+                itineraryRepository.save(itinerary);
+            }
+        }
+
         // 1. Delete all activities belonging to this day first to respect foreign key constraint
         activityRepository.deleteByItineraryDay_DayId(dayId);
 
@@ -723,7 +740,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         if (itineraryId == null || dayId == null) {
             throw new BadRequestException("Mã lịch trình hoặc mã ngày không hợp lệ");
         }
-        findOwnedItinerary(itineraryId, currentUsername, "chỉnh sửa");
+        Itinerary itinerary = findOwnedItinerary(itineraryId, currentUsername, "chỉnh sửa");
 
         ItineraryDay day = itineraryDayRepository.findByDayIdAndItinerary_ItineraryId(dayId, itineraryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ngày không tồn tại hoặc không thuộc lịch trình này"));
@@ -793,13 +810,21 @@ public class ItineraryServiceImpl implements ItineraryService {
         if (itineraryId == null || dayId == null || activityId == null) {
             throw new BadRequestException("Mã lịch trình, ngày hoặc hoạt động không hợp lệ");
         }
-        findOwnedItinerary(itineraryId, currentUsername, "chỉnh sửa");
+        Itinerary itinerary = findOwnedItinerary(itineraryId, currentUsername, "chỉnh sửa");
 
         itineraryDayRepository.findByDayIdAndItinerary_ItineraryId(dayId, itineraryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ngày không tồn tại hoặc không thuộc lịch trình này"));
 
         Activity activity = activityRepository.findByActivityIdAndItineraryDay_DayId(activityId, dayId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hoạt động không tồn tại hoặc không thuộc ngày này"));
+
+        long preservedCommentCount = commentRepository.countByActivity_ActivityIdInAndStatus(
+                List.of(activityId), CommentStatus.ACTIVE);
+        commentRepository.moveActivityCommentsToItinerary(List.of(activityId), itinerary);
+        if (preservedCommentCount > 0) {
+            itinerary.setCommentCount(itinerary.getCommentCount() + Math.toIntExact(preservedCommentCount));
+            itineraryRepository.save(itinerary);
+        }
 
         int deletedOrder = activity.getDisplayOrder();
         activityRepository.delete(activity);

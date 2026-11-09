@@ -3,6 +3,9 @@ package Travel_Planner.Travel_Planner.repository;
 import Travel_Planner.Travel_Planner.model.Follow;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 import java.util.List;
 import java.util.Optional;
@@ -21,4 +24,12 @@ public interface FollowRepository extends JpaRepository<Follow, Integer> {
     long countByFollower_UserId(Integer followerId);
 
     long countByFollowing_UserId(Integer followingId);
+
+    @EntityGraph(attributePaths = {"follower"})
+    Page<Follow> findByFollowing_UserIdAndFollower_StatusOrderByCreatedAtDesc(Integer followingId,
+            Travel_Planner.Travel_Planner.model.enums.UserStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"following"})
+    Page<Follow> findByFollower_UserIdAndFollowing_StatusOrderByCreatedAtDesc(Integer followerId,
+            Travel_Planner.Travel_Planner.model.enums.UserStatus status, Pageable pageable);
 }
