@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -19,6 +21,8 @@ import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/itinerary_day_card.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../comments/presentation/widgets/itinerary_comments_section.dart';
+import '../../../profile/presentation/screens/public_profile_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../data/models/reorder_activity_item.dart';
 import '../widgets/reorder_activities_dialog.dart';
 import '../widgets/itinerary_map_preview_card.dart';
@@ -1207,6 +1211,13 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                     onDeleteActivity: isOwner
                         ? (act) => _handleDeleteActivity(itinerary, day, act)
                         : null,
+                    onActivityComments:
+                        itinerary.visibility == 'PUBLIC' &&
+                            (itinerary.status == 'ACTIVE' ||
+                                itinerary.status == 'PUBLISHED')
+                        ? (act) =>
+                              _openActivityComments(act.activityId, act.name)
+                        : null,
                     onReorderActivities: isOwner
                         ? () => _handleReorderActivities(itinerary, day)
                         : null,
@@ -1288,6 +1299,79 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
             SliverToBoxAdapter(child: _buildRatingSection(itinerary, isOwner)),
           ],
         ],
+      ),
+    );
+  }
+
+  void _openActivityComments(int activityId, String activityName) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) {
+        final mediaQuery = MediaQuery.of(context);
+        final availableHeight =
+            mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+          child: SizedBox(
+            height: availableHeight * 0.82,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.base,
+                    AppSpacing.md,
+                    AppSpacing.base,
+                    0,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          activityName,
+                          style: AppTextStyles.titleMd.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: ActivityCommentsSection(
+                      activityId: activityId,
+                      token: _effectiveToken,
+                      authNotifier: widget.authNotifier,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openCreatorProfile(int userId) {
+    final currentId = int.tryParse(
+      '${widget.authNotifier?.currentUser?['userId'] ?? ''}',
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => currentId == userId && widget.authNotifier != null
+            ? ProfileScreen(authNotifier: widget.authNotifier!)
+            : PublicProfileScreen(
+                userId: userId,
+                authNotifier: widget.authNotifier,
+              ),
       ),
     );
   }
@@ -1719,27 +1803,34 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (itinerary.creator != null) ...[
-                    Row(
-                      children: [
-                        _creatorAvatar(itinerary.creator!.avatar),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            itinerary.creator!.displayName != 'anonymous'
-                                ? 'Tạo bởi ${itinerary.creator!.displayName}'
-                                : (itinerary.creator!.userId != 0
-                                      ? 'Tạo bởi Người dùng #${itinerary.creator!.userId}'
-                                      : 'Tạo bởi người dùng ẩn danh'),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
+                    InkWell(
+                      onTap: itinerary.creator!.userId == 0
+                          ? null
+                          : () =>
+                                _openCreatorProfile(itinerary.creator!.userId),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Row(
+                        children: [
+                          _creatorAvatar(itinerary.creator!.avatar),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              itinerary.creator!.displayName != 'anonymous'
+                                  ? 'Tạo bởi ${itinerary.creator!.displayName}'
+                                  : (itinerary.creator!.userId != 0
+                                        ? 'Tạo bởi Người dùng #${itinerary.creator!.userId}'
+                                        : 'Tạo bởi người dùng ẩn danh'),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 4),
                   ],
