@@ -160,6 +160,14 @@ Current inventory of API endpoints:
 | Reviews | POST | `/api/itineraries/{id}/ratings` | Authenticated | Submit itinerary rating | Planned |
 | Comments | GET | `/api/itineraries/{id}/comments` | Public | List active comments on a public active itinerary (paginated) | Implemented |
 | Comments | POST | `/api/itineraries/{id}/comments` | Authenticated | Post a comment on a public active itinerary | Implemented |
+| Comments | GET/POST | `/api/activities/{activityId}/comments` | Public read / authenticated write | List or create activity comments | Implemented |
+| Comments | GET/POST | `/api/comments/{commentId}/replies` | Public read / authenticated write | List a paginated thread or reply to the addressed parent | Implemented |
+| Comments | PUT/DELETE | `/api/comments/{commentId}` | Authenticated owner/admin | Edit or soft-delete a comment | Implemented |
+| Public User | GET | `/api/users/{userId}/public-profile` | Public | Read allowlisted profile and follow state | Implemented |
+| Public User | GET | `/api/users/{userId}/itineraries` | Public | List public active itineraries (paginated) | Implemented |
+| Follow | POST/DELETE | `/api/users/{userId}/follow` | Authenticated | Idempotent follow/unfollow | Implemented |
+| Follow | GET | `/api/users/{userId}/followers` | Public | List active followers (paginated) | Implemented |
+| Follow | GET | `/api/users/{userId}/following` | Public | List active followed users (paginated) | Implemented |
 | Admin | GET | `/api/admin/dashboard` | Admin | Administrative metrics dashboard | Planned |
 | Admin | GET | `/api/admin/users` | Admin | List and manage users | Planned |
 | Admin | PUT | `/api/admin/moderation` | Admin | Moderate reported content/trips | Planned |
@@ -173,6 +181,15 @@ Current inventory of API endpoints:
 - **Create:** `POST /api/itineraries/{id}/comments` requires a Bearer JWT and accepts `{"content":"..."}`. Content must not be blank. Returns `201 Created` with `CommentResponse` containing `commentId`, `content`, `creator` (`userId`, `username`, `fullName`, `avatar`), `createdAt`, and `updatedAt`.
 - Both operations only expose active, public itineraries whose owner account is active. Missing, private, or non-active itineraries return `404`; missing authentication returns `401`; invalid content returns `400`.
 - Creating a comment persists an `ACTIVE` record and increments the itinerary comment counter in the same transaction. Comment editing/deletion and eligibility based on itinerary reuse remain unspecified and are not included.
+
+### Community comments, public profiles and follows
+
+- Itinerary comment routes above remain backward compatible. Activity roots use `GET/POST /api/activities/{activityId}/comments`; only activity comments for an `ACTIVE` + `PUBLIC` itinerary with an active owner are visible.
+- Replies use `GET/POST /api/comments/{commentId}/replies?page=0&size=10`. POST treats `commentId` as the immediate parent, stores the parent FK, resolves the root through the parent chain, and returns a paginated flat thread. Reply pages are queried in the database using `rootCommentId`; the server does not load a whole tree before paging.
+- `PUT/DELETE /api/comments/{commentId}` requires an active authenticated account and the comment owner or an admin. Delete is soft; a deleted parent with active descendants remains as a placeholder. `CommentResponse` retains old fields and adds parent/root IDs, reply count, deletion state, reply-to creator, and target type/id.
+- Public profile uses `GET /api/users/{userId}/public-profile`; the response is an allowlist and must not include email, phone, address, role, status, or password. Public itineraries are filtered to `PUBLIC` + `ACTIVE` and active owners.
+- Follow writes derive the follower from the authenticated principal; self-follow is rejected. Repeated follow/unfollow calls are idempotent. Followers/following results contain public user summaries and are database-paginated.
+- Schema fields are mapped by JPA/Hibernate `ddl-auto=update`; existing comment roots with `root_comment_id = NULL` remain roots (`parent_comment_id IS NULL`) and resolve their root ID to their own `commentId`. No startup backfill or migration runner is configured.
 
 ### 10.1. List Authenticated User's Itineraries
 - **Path:** `GET /api/user/itineraries`

@@ -5042,6 +5042,14 @@ Addressed 2 UI and layout requirements for the Rating module in the Mobile appli
   - Result: **No issues found! (0 errors, 0 warnings, 0 hints)**.
 - **Physical Device Stability:** Real Samsung device remained responsive with zero ANRs, zero memory crashes, and zero rendering glitches throughout the entire test session.
 
+### 97. Community Comments, Threads, and Public Profiles (2026-11-09)
+- Audited the active Git branch and working tree before implementation. Preserved all existing user changes; did not stage, commit, reset, or alter provider configuration.
+- Updated the community implementation plan and API contract before source changes. Kept Hibernate/JPA `ddl-auto=update` as the sole schema mechanism; removed the unconfigured SQL backfill script after confirming legacy roots can be handled without it.
+- Added paginated itinerary/activity comment threads, nested parent/root handling, public-profile/follow endpoints, legacy activity-comment compatibility, and Flutter comment/profile UI using shared theme and state widgets.
+- Backend verification: `./mvnw.cmd -q -Dtest=CommentThreadServiceTest,PublicUserServiceTest,ActivityCommentPreservationTest test` passed. No integration tests or database DDL/DML were run because no isolated MySQL test database was available.
+- Flutter verification: `flutter analyze --no-pub` passed. Focused comment/profile tests passed earlier (6 tests). Full `flutter test` completed with 339 passing and 4 failing tests: two rating-layout expectations and two activity-reordering expectations. The failures are outside the focused comment/profile test files; the full-suite failures remain unresolved.
+- `git diff --check` passed with a line-ending warning only. The physical MySQL schema and Android-device behavior were not verified in this task.
+
 
 
 
