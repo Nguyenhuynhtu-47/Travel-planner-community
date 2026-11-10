@@ -5050,6 +5050,39 @@ Addressed 2 UI and layout requirements for the Rating module in the Mobile appli
 - Flutter verification: `flutter analyze --no-pub` passed. Focused comment/profile tests passed earlier (6 tests). Full `flutter test` completed with 339 passing and 4 failing tests: two rating-layout expectations and two activity-reordering expectations. The failures are outside the focused comment/profile test files; the full-suite failures remain unresolved.
 - `git diff --check` passed with a line-ending warning only. The physical MySQL schema and Android-device behavior were not verified in this task.
 
+### 98. Security Audit & Environment Variables Standardization (2026-11-10)
+- **Objective:** Comprehensive security audit across Backend Spring Boot, Flutter Mobile, and Flutter Web; centralize secret management into standardized `.env` and `.env.example` templates; decouple sensitive credentials from source code; update gitignore rules to prevent accidental credential leakage; and report historical commit exposures.
+- **Audited Credential Findings & Historical Exposure:**
+  - `Travel_Planner/README.md` previously committed real API credentials into Git history across past commits:
+    - `b32eec8`: Cloudinary Cloud Name, API Key, and API Secret.
+    - `2109d8f`: LocationIQ API Key.
+    - `a278609`: TomTom Places API Key.
+    - `fd26c19`: OpenRouteService API Key.
+    - `45bc3fe` & `1808c14`: CARTO Basemaps API Key.
+    - Recommendation: Rotate/revoke leaked third-party API credentials on respective provider consoles.
+  - Working tree had `Travel_Planner/.env` containing credentials formatted as PowerShell environment variables (`$env:KEY="VAL"`), which was untracked due to the lack of a root `.gitignore`.
+- **Environment Standardization & Code Updates:**
+  - Standardized `.env` and `.env.example` at repository root (`.env`, `.env.example`), in `Travel_Planner/` (`.env`, `.env.example`), and created public-only frontend template in `Travel_Planner/frontend/.env.example`.
+  - Grouped and commented variables by responsibility: Database, JWT Security, Server & CORS, Cloudinary, Geocoding (LocationIQ/HERE/TomTom), Routing (OpenRouteService), and Public Frontend (API Base URL, CARTO Basemaps tile key).
+  - Backend Spring Boot configuration (`application.properties` and `src/test/resources/application.properties`):
+    - Added `spring.config.import=optional:file:.env[.properties],optional:file:../.env[.properties],optional:file:../../.env[.properties]` enabling automatic, zero-dependency `.env` loading from either backend directory, `Travel_Planner`, or repository root.
+    - Parameterized `spring.datasource.url` to `${DB_URL:...}` and `${DB_TEST_URL:...}` with local fallbacks.
+    - Parameterized `server.port` to `${SERVER_PORT:8080}`.
+    - Preserved existing safe defaults and environment variable resolution (`CLOUDINARY_*`, `LOCATION_IQ_*`, `OPENROUTESERVICE_*`, `TOMTOM_*`, `JWT_*`).
+  - Frontend Mobile & Web:
+    - Confirmed zero server secrets are referenced or embedded in Flutter client source code. Geocoding, routing, and image uploads remain strictly proxied through backend Spring Boot endpoints.
+    - CARTO Basemaps key and API Base URL continue to be passed via standard compile-time/run-time parameters (`--dart-define` or `--dart-define-from-file`).
+- **Git Protection & Tracking Audit:**
+  - Created repository root `.gitignore` ignoring `.env`, `.env.*`, `*.env` (preserving `!.env.example`), `application-local.*`, `local.properties`, `secrets/`, `credentials/`, `*.pem`, `*.key`.
+  - Reinforced `.gitignore` in `Travel_Planner/backend/`, `Travel_Planner/frontend/mobile/`, and `Travel_Planner/frontend/web/`.
+  - Audited Git index via `git ls-files`; verified no `.env` or sensitive secret files are currently tracked in Git index.
+- **Verification Performed:**
+  - Backend compile & tests: `.\mvnw.cmd test "-Dtest=LocationServiceTest,LocationRankingServiceTest,HereGeocodingProviderTest,CloudinaryImageUploadServiceTest,JwtTokenProviderTest,HealthControllerTest"` (58/58 tests passed, BUILD SUCCESS in 30.7s).
+  - Flutter Mobile analysis: `flutter analyze --no-pub` passed (0 errors, 0 warnings, ran in 97.8s).
+  - Flutter Mobile tests: `flutter test test/widget_test.dart test/location_picker_test.dart` (23/23 tests passed).
+  - Flutter Web analysis: `flutter analyze --no-pub` passed (0 errors, 0 warnings, ran in 6.2s).
+  - Flutter Web tests: `flutter test` (39/39 tests passed).
+  - Git status check: `git check-ignore -v Travel_Planner/.env` confirmed ignored; `.env.example` ready to be committed; working tree clean of accidental changes; no commits or pushes performed.
 
 
 

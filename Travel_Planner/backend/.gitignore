@@ -36,3 +36,13 @@ build/
 .env
 .env.*
 !.env.example
+
+# Local configuration
+application-local.properties
+application-local.yml
+
+# Credentials
+secrets/
+credentials/
+*.pem
+*.key

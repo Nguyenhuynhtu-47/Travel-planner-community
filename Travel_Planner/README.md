@@ -1,36 +1,33 @@
 Hướng dẫn khởi chạy từng thành phần
 
+### Cấu hình biến môi trường và bảo mật (.env)
+
+Dự án quản lý tập trung các biến môi trường và thông tin xác thực thông qua file `.env`. Backend Spring Boot tự động nạp các biến cấu hình từ file `.env` thông qua cơ chế `spring.config.import` khi khởi chạy.
+
+1. **Khởi tạo file `.env`:**
+   Sao chép từ file mẫu `.env.example`:
+   ```powershell
+   Copy-Item .env.example .env
+   # Hoặc nếu đang ở thư mục Travel_Planner:
+   Copy-Item .env.example .env
+   ```
+
+2. **Cập nhật thông tin cấu hình:**
+   Điền thông tin kết nối Database, Cloudinary, LocationIQ, OpenRouteService, TomTom... vào `.env`.
+   > **Lưu ý bảo mật:** Tuyệt đối không commit file `.env` chứa credential thật vào Git (file đã được bảo vệ trong `.gitignore`).
+
+---
+
 ### 1. Khởi chạy Backend (Spring Boot)
 
-### Cấu hình upload ảnh Cloudinary (local)
+Backend tự động đọc thông tin xác thực từ file `.env` hoặc từ biến môi trường hệ điều hành:
 
-Backend ký yêu cầu upload bằng credential từ biến môi trường. Không đặt API secret trong Flutter, application.properties hoặc Git.
-
-Trong PowerShell, khai báo các biến trước khi khởi động backend:
-
-$env:CLOUDINARY_CLOUD_NAME="rk7uzrlv"
-$env:CLOUDINARY_API_KEY="959193589611582"
-$env:CLOUDINARY_API_SECRET="WQABx6A8CdWfEfWULvGdMtkOJmQ"
-$env:OPENROUTESERVICE_API_KEY="eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjU5NjY0MjQ4MjFlOTQxYTlhNjhlY2MxMGQ2YjM2OTI5IiwiaCI6Im11cm11cjY0In0="
-$env:LOCATION_IQ_API_KEY ="pk.389b51ce02c4aa985d31e9a38e8c68f8"
-
-$env:TOMTOM_SEARCH_ENABLED="true"
-$env:TOMTOM_API_KEY="VI65jPYTHTz5Sp5TLJOlH9rA1jTeYNXo"
-
-cd Travel_Planner/backend
-.\mvnw.cmd spring-boot:run
-
-Endpoint upload yêu cầu JWT: POST /api/media/images với multipart field file.
-Chấp nhận JPEG, PNG hoặc WebP tối đa 5 MiB; response chứa secureUrl.
-
-1. Mở cửa sổ dòng lệnh (Terminal/PowerShell) và cd vào thư mục `backend`:
-
+1. Mở cửa sổ dòng lệnh (Terminal/PowerShell) và chuyển vào thư mục `backend`:
    ```powershell
    cd Travel_Planner/backend
    ```
 
 2. (Tùy chọn) Chạy bộ kiểm thử tự động để xác nhận toàn bộ hệ thống hoạt động:
-
    ```powershell
    .\mvnw.cmd test
    ```
@@ -42,6 +39,10 @@ Chấp nhận JPEG, PNG hoặc WebP tối đa 5 MiB; response chứa secureUrl.
 
 - Backend sẽ khởi chạy tại: **`http://localhost:8080`**
 - Kiểm tra trạng thái dịch vụ (Health Check): `http://localhost:8080/api/health`
+
+### Cấu hình upload ảnh Cloudinary
+Endpoint upload yêu cầu JWT: `POST /api/media/images` với multipart field `file`.
+Chấp nhận JPEG, PNG hoặc WebP tối đa 5 MiB; response chứa `secureUrl`. Backend ký trực tiếp yêu cầu upload bằng credentials từ `.env` (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`).
 
 ### Dữ liệu mẫu khởi tạo (Seed Data)
 
@@ -117,15 +118,3 @@ adb devices
 ```powershell
 adb reverse tcp:8080 tcp:8080 hoặc  & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:8080 tcp:8080
 ```
-
-```powershell
-flutter run -d RFCW8105T0H --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=CARTO_API_KEY=cb1_50v4_1_dae5edd4bc34213361f4c15b
-```
-
-Hoặc
-
-```powershell
-flutter run -d guirtwmvobovzpl7 --dart-define=API_BASE_URL=http://localhost:8080 --dart-define=CARTO_API_KEY=cb1_50v4_1_dae5edd4bc34213361f4c15b
-```
-
----
