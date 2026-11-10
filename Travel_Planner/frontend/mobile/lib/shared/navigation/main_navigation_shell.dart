@@ -71,7 +71,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             exploreNotifier: widget.exploreNotifier,
             onProfileTap: () => _onDestinationTapped(4),
           ),
-          const CommunityScreen(),
+          CommunityScreen(authNotifier: widget.authNotifier),
           CreateItineraryScreen(
             authNotifier: widget.authNotifier,
             repository: widget.itineraryRepository,

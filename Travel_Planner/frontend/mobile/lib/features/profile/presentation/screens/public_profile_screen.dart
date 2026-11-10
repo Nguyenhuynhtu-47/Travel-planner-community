@@ -12,6 +12,9 @@ import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../data/models/public_profile.dart';
 import '../../data/models/public_user_summary.dart';
 import '../../data/public_profile_repository.dart';
+import '../../../messaging/data/messaging_repository.dart';
+import '../../../messaging/data/messaging_realtime_client.dart';
+import '../../../messaging/presentation/screens/chat_screen.dart';
 import 'profile_screen.dart';
 import 'public_user_list_screen.dart';
 
@@ -40,6 +43,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   bool _loading = true;
   bool _loadingMore = false;
   bool _followBusy = false;
+  bool _relationshipBusy = false;
+  final MessagingRepository _messaging = MessagingRepository();
   String? _error, _moreError;
   String? get _token => widget.authNotifier?.token;
 
@@ -158,6 +163,166 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
+  Future<void> _relationshipAction(String action) async {
+    final token = _token;
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đăng nhập để kết nối với người dùng.')),
+      );
+      return;
+    }
+    if (_relationshipBusy) return;
+    setState(() => _relationshipBusy = true);
+    try {
+      final status = _profile?.friendshipStatus;
+      final direction = _profile?.friendRequestDirection;
+      if (action == 'send')
+        await _messaging.sendFriendRequest(widget.userId, token);
+      if (action == 'accept') {
+        final requests = await _messaging.requests(token, 'received');
+        final match = requests.content
+            .where((item) => item.otherUser.userId == widget.userId)
+            .firstOrNull;
+        if (match != null)
+          await _messaging.acceptFriendRequest(match.friendshipId, token);
+      }
+      if (action == 'cancel' || action == 'decline') {
+        final requests = await _messaging.requests(
+          token,
+          direction == 'received' ? 'received' : 'sent',
+        );
+        final match = requests.content
+            .where((item) => item.otherUser.userId == widget.userId)
+            .firstOrNull;
+        if (match != null) {
+          if (action == 'cancel')
+            await _messaging.cancelFriendRequest(match.friendshipId, token);
+          else
+            await _messaging.declineFriendRequest(match.friendshipId, token);
+        }
+      }
+      if (action == 'unfriend' && status == 'ACCEPTED')
+        await _messaging.unfriend(widget.userId, token);
+      await _load();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể cập nhật quan hệ bạn bè.')),
+        );
+    } finally {
+      if (mounted) setState(() => _relationshipBusy = false);
+    }
+  }
+
+  Future<void> _openConversation() async {
+    final token = _token;
+    if (token == null || widget.authNotifier == null) return;
+    try {
+      final conversation = await _messaging.openDirect(widget.userId, token);
+      final realtime = MessagingRealtimeClient()
+        ..connect(
+          token,
+          '${widget.authNotifier!.currentUser?['userId'] ?? ''}',
+        );
+      if (!mounted) {
+        realtime.dispose();
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatScreen(
+            authNotifier: widget.authNotifier!,
+            repository: _messaging,
+            realtime: realtime,
+            conversation: conversation,
+          ),
+        ),
+      );
+
+      _load();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bạn chưa thể nhắn tin cho người dùng này.'),
+          ),
+        );
+    }
+  }
+
+  Widget _relationshipActions(PublicProfile profile) {
+    if (profile.isOwnProfile || widget.authNotifier == null)
+      return const SizedBox.shrink();
+    final direction = profile.friendRequestDirection;
+    final pending = profile.friendshipStatus == 'PENDING';
+    final accepted = profile.friendshipStatus == 'ACCEPTED';
+    final actions = <Widget>[];
+    if (profile.canMessage)
+      actions.add(
+        OutlinedButton.icon(
+          onPressed: _relationshipBusy ? null : _openConversation,
+          icon: const Icon(Icons.chat_bubble_outline),
+          label: const Text('Nhắn tin'),
+        ),
+      );
+    if (accepted)
+      actions.add(
+        TextButton(
+          onPressed: _relationshipBusy
+              ? null
+              : () => _relationshipAction('unfriend'),
+          child: const Text('Bạn bè · Hủy kết bạn'),
+        ),
+      );
+    else if (pending && direction == 'received') {
+      actions.addAll([
+        FilledButton(
+          onPressed: _relationshipBusy
+              ? null
+              : () => _relationshipAction('accept'),
+          child: const Text('Chấp nhận'),
+        ),
+        TextButton(
+          onPressed: _relationshipBusy
+              ? null
+              : () => _relationshipAction('decline'),
+          child: const Text('Từ chối'),
+        ),
+      ]);
+    } else if (pending && direction == 'sent')
+      actions.add(
+        OutlinedButton(
+          onPressed: _relationshipBusy
+              ? null
+              : () => _relationshipAction('cancel'),
+          child: const Text('Hủy lời mời'),
+        ),
+      );
+    else if (profile.canSendFriendRequest)
+      actions.add(
+        FilledButton(
+          onPressed: _relationshipBusy
+              ? null
+              : () => _relationshipAction('send'),
+          child: const Text('Thêm bạn bè'),
+        ),
+      );
+    if (_relationshipBusy)
+      actions.add(
+        const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: actions,
+    );
+  }
+
   Future<void> _openUsers(bool followers) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -206,7 +371,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         ),
       );
     }
-    final handleDisplay = profile.effectiveHandle.isNotEmpty ? profile.effectiveHandle : 'user';
+    final handleDisplay = profile.effectiveHandle.isNotEmpty
+        ? profile.effectiveHandle
+        : 'user';
     final name = profile.fullName?.trim().isNotEmpty == true
         ? profile.fullName!.trim()
         : '@$handleDisplay';
@@ -291,6 +458,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                         )
                       : Text(_following ? 'Đang theo dõi' : 'Theo dõi'),
                 ),
+              ),
+            if (!profile.isOwnProfile)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: _relationshipActions(profile),
               ),
             if (profile.isOwnProfile && widget.authNotifier != null)
               Padding(

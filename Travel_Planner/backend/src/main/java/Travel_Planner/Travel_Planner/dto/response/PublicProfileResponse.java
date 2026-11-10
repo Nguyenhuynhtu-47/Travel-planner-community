@@ -19,4 +19,8 @@ public class PublicProfileResponse {
     private long followingCount;
     @JsonProperty("isFollowing") private boolean isFollowing;
     @JsonProperty("isOwnProfile") private boolean isOwnProfile;
+    private String friendshipStatus;
+    private String friendRequestDirection;
+    private Boolean canMessage;
+    private Boolean canSendFriendRequest;
 }
