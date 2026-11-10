@@ -1,4 +1,4 @@
-﻿# 04 — Backend API và realtime
+# 04 — Backend API và realtime
 
 ## 1. Chọn kiến trúc
 
@@ -17,7 +17,7 @@ Tất cả writes cần JWT + ACTIVE user; pagination validate/cap size; các qu
 | POST | /api/conversations/direct | recipientUserId → conversation summary | Tạo hoặc trả conversation cũ; policy/block/friendship kiểm tra |
 | GET | /api/conversations?page=&size= | page conversation summary | Chỉ hội thoại của actor; sắp xếp last activity desc |
 | GET | /api/conversations/{id}/messages?beforeSequence=&size= | page messages | Member only; keyset pagination |
-| POST | /api/conversations/{id}/messages | clientMessageId, content → saved MessageResponse | sender từ principal; unique idempotency |
+| POST | /api/conversations/{id}/messages | clientMessageId, content (tối đa 4.000 ký tự) → saved MessageResponse | sender từ principal; unique idempotency |
 | POST | /api/conversations/{id}/read | lastReadSequence → read state | member only; cursor monotonic, message belongs to chat |
 | GET | /api/users/me/messaging-settings | settings | authenticated self |
 | PUT | /api/users/me/messaging-settings | inboundPolicy → settings | authenticated self |
@@ -46,7 +46,7 @@ PublicProfileResponse may add contextual fields such as friendshipState, canMess
 
 ### Event envelope
 
-eventId, type, occurredAt, conversationId and payload. MESSAGE_CREATED payload includes persisted messageId, sequenceNumber, clientMessageId, sender safe summary, content, createdAt; recipients are precisely conversation’s two members. CONVERSATION_UPDATED can carry conversation summary; READ_CURSOR_UPDATED carries actor and cursor only to the other member. Avoid broadcasting email/private profile fields. REST list remains authoritative for unread count.
+eventId, type, occurredAt, conversationId and payload. MESSAGE_CREATED payload includes persisted messageId, sequenceNumber, clientMessageId, sender safe summary, content, createdAt; recipients are precisely conversation’s two members. CONVERSATION_UPDATED can carry conversation summary; READ_CURSOR_UPDATED carries actor and cursor only to the other member as the basic read receipt. Avoid broadcasting email/private profile fields. REST list remains authoritative for unread count.
 
 ## 4. Persist-then-publish and recovery
 
@@ -73,4 +73,3 @@ Candidate client: stomp_dart_client (Pub currently documents Mobile/Web platform
 Alternatives: raw WebSocket has less protocol overhead but requires custom reconnect/framing/dispatch/auth conventions; SSE is server→client only and still needs REST sends, but native browser auth/reconnect semantics differ from Flutter mobile; polling is simpler but violates desired immediacy/load requirement. STOMP selected for structured broker destinations, heartbeat, user queues and Spring integration.
 
 Push is separate: FCM/APNs/Web Push are needed for OS notifications when app is backgrounded/terminated; socket does not guarantee that. Official Flutter FCM docs distinguish foreground/background/terminated handling and platform setup: [Receive messages in Flutter apps](https://firebase.google.com/docs/cloud-messaging/flutter/receive-messages). Defer push.
-

@@ -5268,3 +5268,12 @@ Addressed 2 UI and layout requirements for the Rating module in the Mobile appli
     - Mobile: `flutter analyze` 0 issues; `flutter test` 8 / 8 tests passed in `user_handle_test.dart` and `public_profile_screen_test.dart`.
     - Web: `flutter analyze` 0 issues; `flutter test` 39 / 39 tests passed.
     - Scope integrity: `git diff --check` passed cleanly; no git commits or pushes performed.
+
+## 2026-11-10 — Realtime Chat and Friendship, Phase 3
+
+- Implemented additive JPA models, repositories, REST services/controllers, WebSocket/STOMP authentication, after-commit user-queue events, message privacy, friendships, blocking, read cursors, peer read-cursor restoration, idempotency, pagination, and configured Development limits.
+- Added the Flutter Mobile messaging data layer, shared STOMP client with exponential reconnect backoff, community inbox/friends/requests UI, chat screen, privacy/block settings, and Public Profile actions. Preserved the five-tab navigation and notifications route.
+- Added backend unit tests for privacy policies and in-process rate limiting, plus Flutter messaging model tests.
+- Verification: backend test compilation succeeded (190 main and 29 test sources); targeted backend tests passed (3); targeted Flutter model/navigation tests passed (19). The full Flutter suite reported 360 passed and 3 unrelated Explore/Rating UI failures. Flutter `analyze --no-fatal-infos` exited 0 after the final scroll adjustment, with 39 informational style/deprecation findings.
+- Database safety: did not launch Spring or allow Hibernate DDL because the Development database target and a verified restorable backup were not confirmed. MySQL schema, Spring context, concurrency, real STOMP, mobile builds, and two-account manual flows remain unverified.
+- No commits or pushes were created. Next: confirm Development DB and restore-capable backup, then verify schema and run isolated MySQL/WebSocket integration and two-device manual tests.

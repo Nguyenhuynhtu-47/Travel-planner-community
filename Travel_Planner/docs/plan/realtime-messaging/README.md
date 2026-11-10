@@ -1,24 +1,28 @@
-﻿# Kế hoạch nhắn tin realtime và kết bạn
+# Kế hoạch và triển khai nhắn tin realtime, kết bạn
 
-**Trạng thái:** Giai đoạn 2 — plan đã cập nhật theo các quyết định được người dùng phê duyệt; chưa triển khai code.  
-**Ngày cập nhật:** 2026-11-10  
-**Phạm vi tài liệu:** chỉ thư mục docs/plan/realtime-messaging.
+**Trạng thái:** Đã có source implementation Giai đoạn 3; phần xác minh MySQL, Spring integration và kiểm thử hai thiết bị còn chờ.
+**Ngày cập nhật:** 2026-11-10
+**Branch:** `feature/realtime-messaging`
 
-## Kết luận
+## Phạm vi
 
-MVP dự kiến gồm chat 1-1 bằng văn bản, danh sách hội thoại, lịch sử phân trang, realtime khi ứng dụng đang kết nối, trạng thái chưa đọc, friendship hai chiều, thiết lập nhận tin và chặn người dùng. Follow hiện tại tiếp tục độc lập. Mobile dùng REST cho thao tác và đồng bộ, Spring WebSocket/STOMP chỉ đẩy sự kiện sau khi dữ liệu đã commit. Web chat, push notification, chat nhóm/tệp đính kèm, typing và online presence nằm ngoài MVP.
+MVP chat 1-1 bằng văn bản, danh sách hội thoại/lịch sử phân trang, unread/read cursor, friendship, policy nhận tin và block. REST lưu/gửi; STOMP chỉ phát sự kiện sau commit. Giữ Follow độc lập. Chat Web, push notification khi app đóng, nhóm, file, typing và online presence nằm ngoài phạm vi.
 
-Các quyết định đã được xác nhận cho phạm vi lập kế hoạch: đây là dự án Development; giữ Hibernate/JPA với ddl-auto=update trong Development; cho phép bổ sung bảng chat qua entity/JPA; không dùng Flyway, Liquibase hoặc baseline; không đổi cấu hình quản lý schema toàn cục; bảo toàn dữ liệu và chức năng đang có; không sửa/xóa UserHandleBackfillRunner. Đây là quyết định kiến trúc cho lần triển khai feature này, không phải xác nhận đã thay đổi cấu hình hoặc database.
+## Quyết định
 
-Tổ chức dữ liệu đề xuất dùng sáu bảng mới: conversations, messages, conversation_read_states, friendships, user_messaging_settings, user_blocks. Thứ tự trong từng chat được quản lý bằng sequence tăng dần theo conversation, cấp trong transaction sau khi khóa row conversation; không suy ra thứ tự commit từ auto-increment message_id. Chi tiết ở 03.
+- Development tiếp tục dùng JPA/Hibernate với `ddl-auto=update`; không Flyway/Liquibase hoặc schema framework mới.
+- Không xóa/reset dữ liệu cũ; không sửa UserHandleBackfillRunner hoặc Follow.
+- `FRIENDS_ONLY` mặc định; `EVERYONE` cho người lạ mở chat; `NOBODY` chặn tin mới kể cả bạn bè.
+- Request ngược chiều không tự accept; block/unfriend giữ lịch sử; backend kiểm tra lại privacy mỗi lần gửi.
+- Tin nhắn tối đa 4.000 ký tự. Các giới hạn Development: 30 tin/phút/user, 5 WebSocket sessions/user, frame 65.536 bytes, send buffer 524.288 bytes, send time limit 15.000 ms.
 
-## Trạng thái phê duyệt
+## Báo cáo và checklist
 
-- **Đã chốt:** scope phát triển chat/friendship; Development dùng Hibernate/JPA và ddl-auto=update; được thêm bảng chat; không thêm Flyway/Liquibase/baseline; giữ nguyên dữ liệu/chức năng hiện có và UserHandleBackfillRunner; chỉ cập nhật plan ở Giai đoạn 2.
-- **Đề xuất nghiệp vụ cần duyệt trước implementation:** chính sách nhận tin mặc định FRIENDS_ONLY; hành vi tin nhắn người lạ; auto-accept lời mời ngược; giữ history khi block/unfriend; read cursor; giới hạn nội dung; retry/pagination; thư viện STOMP Flutter.
-- **Chưa thực hiện:** không tạo entity, dependency, API, migration/SQL, DDL/DML, thay đổi source, chạy test/build hoặc kết nối database.
+- [Báo cáo triển khai Giai đoạn 3](IMPLEMENTATION-REPORT.md)
+- [Checklist triển khai cuối](10-FINAL-IMPLEMENTATION-CHECKLIST.md)
+- Checklist chỉ đánh dấu những gì đã được xác minh. Database target/backup, schema thật, MySQL concurrency, WebSocket integration và manual test hai thiết bị hiện vẫn chưa xác minh.
 
-## Tài liệu
+## Tài liệu kế hoạch
 
 1. [01 — Audit hiện trạng](01-CURRENT-SYSTEM-AUDIT.md)
 2. [02 — Yêu cầu và phạm vi](02-REQUIREMENTS-AND-SCOPE.md)
@@ -32,8 +36,4 @@ Tổ chức dữ liệu đề xuất dùng sáu bảng mới: conversations, mes
 10. [10 — Checklist triển khai cuối](10-FINAL-IMPLEMENTATION-CHECKLIST.md)
 11. [11 — Decision record](11-DECISION-RECORD.md)
 
-## Ghi chú phạm vi
-
-Tài liệu trạng thái dự án và entity-generation cũ mô tả phạm vi trước khi chat được chấp thuận. Giai đoạn 2 ghi nhận phần mở rộng này chỉ cho feature chat/friendship; không tự ý viết lại tài liệu quy tắc chung trong lượt hiện tại. Khi bắt đầu implementation, đồng bộ tài liệu chính thức trong phạm vi được cho phép và chỉ sửa những điều khoản thật sự xung đột. Không biến điều này thành thay đổi các feature/schema khác.
-
-AGENTS.md yêu cầu cập nhật development log cho thay đổi tài liệu. Yêu cầu Giai đoạn 2 giới hạn chỉnh sửa ở thư mục plan này, nên development log bên ngoài thư mục không được sửa.
+Giai đoạn 2 chỉ cập nhật plan; Giai đoạn 3 đã triển khai source theo các quyết định trên. Không khởi chạy ứng dụng để Hibernate thay đổi MySQL trước khi xác nhận đúng Development DB và có backup kiểm thử phục hồi được.

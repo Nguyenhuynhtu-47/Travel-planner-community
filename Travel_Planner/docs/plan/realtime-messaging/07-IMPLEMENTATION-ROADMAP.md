@@ -1,4 +1,4 @@
-﻿# 07 — Roadmap triển khai tuần tự
+# 07 — Roadmap triển khai tuần tự
 
 **Trạng thái:** Plan cập nhật theo phê duyệt Giai đoạn 2; code chưa bắt đầu. Chỉ plan folder được phép chỉnh trong Giai đoạn 2.
 
@@ -8,7 +8,7 @@
 
 ## Phase 2 — Chốt hành vi sản phẩm và kiểm tra điều kiện Development
 
-Trước implementation, xác nhận các đề xuất chưa được duyệt trong 11: inbound policy mặc định, stranger inbox, friendship inverse request, block/unfriend history, read receipts, giới hạn message. Kiểm tra cấu hình đang dùng, phiên bản MySQL, schema/user id types, khả năng Hibernate mapping constraint và backup/restore. Không thay đổi schema manager đã chốt: Development JPA/Hibernate ddl-auto=update; không Flyway/Liquibase/baseline; giữ nguyên UserHandleBackfillRunner.
+Các mặc định nghiệp vụ đã chốt ở Giai đoạn 3: FRIENDS_ONLY, EVERYONE gửi trực tiếp, không auto-accept request ngược, giữ history khi block/unfriend, unread/read receipt cơ bản và message tối đa 4.000 ký tự. Chỉ còn chốt cấu hình rate/payload/session cụ thể. Kiểm tra cấu hình đang dùng, phiên bản MySQL, schema/user id types, khả năng Hibernate mapping constraint và backup/restore. Không thay đổi schema manager đã chốt: Development JPA/Hibernate ddl-auto=update; không Flyway/Liquibase/baseline; giữ nguyên UserHandleBackfillRunner.
 
 **Exit:** quyết định nghiệp vụ được ghi nhận; DB target đúng là Development; backup khôi phục được; không có xung đột entity/schema cần migration framework.
 

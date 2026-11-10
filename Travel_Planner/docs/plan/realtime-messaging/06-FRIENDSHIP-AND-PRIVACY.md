@@ -1,4 +1,4 @@
-﻿# 06 — Friendship, Follow và privacy
+# 06 — Friendship, Follow và privacy
 
 ## 1. Quan hệ khác nhau
 
@@ -22,7 +22,7 @@ Transitions:
 - PENDING → NONE khi requester hủy (xóa row hoặc reset; contract cần chốt).
 - ACCEPTED → NONE khi một trong hai unfriend.
 - REJECTED → PENDING khi một bên gửi lời mời mới sau cooldown/policy.
-- Nếu A có pending tới B và B gửi ngược lại: đề xuất coi là accept intent, chuyển cùng row sang ACCEPTED; tránh hai pending đối nghịch. Nếu request đã REJECTED, không auto-accept request cũ.
+- Nếu A có pending tới B và B gửi ngược lại: không tự động accept; trả trạng thái conflict/pending request hiện có và yêu cầu người nhận thao tác Chấp nhận hoặc Từ chối.
 - Hai thao tác cùng lúc được serialize theo canonical user pair/conditional update; unique pair là guard cuối. Không dựa pre-check trong service.
 
 Acceptance là quan hệ idempotent; double accept trả trạng thái hiện tại hoặc 409 consistent. Request duplicate cùng chiều trả existing pending. Target không active, self request, block hoặc already friend trả lỗi domain phù hợp, không tạo row.
@@ -35,7 +35,7 @@ Acceptance là quan hệ idempotent; double accept trả trạng thái hiện t�
 | FRIENDS_ONLY (default) | Không gửi; có thể gửi friend request | Được gửi | Chỉ mở khi ACCEPTED | history giữ; send yêu cầu vẫn là friend |
 | NOBODY | Không gửi | Không gửi | Không mở/gửi | history giữ; send bị chặn |
 
-Policy mặc định FRIENDS_ONLY là đề xuất giảm spam, nhưng là quyết định sản phẩm cần owner phê duyệt. Với EVERYONE, strangers gửi thẳng inbox ở MVP; chưa có message request inbox. Nếu trải nghiệm cần chấp nhận tin nhắn riêng, phải thêm trạng thái request conversation và luồng UI/API riêng.
+Policy mặc định FRIENDS_ONLY đã được người dùng chốt. Với EVERYONE, strangers gửi thẳng inbox ở MVP; chưa có message request inbox. Nếu trải nghiệm cần chấp nhận tin nhắn riêng, phải thêm trạng thái request conversation và luồng UI/API riêng.
 
 Settings là owner-only. Backend kiểm tra inboundPolicy của recipient mỗi lần mở/gửi; friendship ACCEPTED chỉ thỏa FRIENDS_ONLY. Mọi hướng block chặn. Không cho tạo conversation nếu policy đang cấm. Existing conversation/history không bị xóa; khi policy đổi, thao tác send được đánh giá theo rule mới. Có thể trả 403 generic “Không thể gửi tin nhắn cho người dùng này”.
 

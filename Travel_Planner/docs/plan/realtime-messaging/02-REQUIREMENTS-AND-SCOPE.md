@@ -1,6 +1,6 @@
-﻿# 02 — Yêu cầu và phạm vi MVP
+# 02 — Yêu cầu và phạm vi MVP
 
-**Trạng thái:** phạm vi chat/friendship được chấp thuận để lập kế hoạch; các hành vi đánh dấu đề xuất vẫn cần quyết định sản phẩm trước khi code.
+**Trạng thái:** scope và mặc định nghiệp vụ MVP đã được người dùng chốt trong Giai đoạn 3.
 
 ## 1. Mục tiêu
 
@@ -19,17 +19,17 @@ Cho phép người dùng đã đăng nhập kết nối với tác giả lịch 
 - Gửi text, timestamp, sender identity, trạng thái pending/sent/failed ở client.
 - Server persist trước, sau commit broadcast message event.
 - Keyset pagination lịch sử theo sequence riêng của conversation; dedupe retry/reconnect bằng client message UUID.
-- Unread count và optional receipt/seen từ read cursor.
+- Unread count và read receipt cơ bản từ read cursor.
 - Friendship request, accept, decline, cancel, unfriend, friend list, sent/received lists.
 - Privacy EVERYONE / FRIENDS_ONLY / NOBODY.
 - Block/unblock tối thiểu để chống quấy rối.
 - Loading/empty/error/retry; đổi mạng, token hết hạn, đổi tài khoản, background/resume lifecycle.
 
-### Đề xuất nghiệp vụ mặc định
+### Mặc định nghiệp vụ đã chốt ở Giai đoạn 3
 
-- Privacy mặc định FRIENDS_ONLY; người dùng có thể đổi sang EVERYONE hoặc NOBODY.
+- Privacy mặc định FRIENDS_ONLY; người dùng có thể đổi sang EVERYONE hoặc NOBODY. EVERYONE cho phép người lạ nhắn trực tiếp; NOBODY chặn tin mới kể cả từ bạn bè.
 - Nếu EVERYONE, người lạ có thể mở chat trực tiếp. Nếu FRIENDS_ONLY, phải có friendship ACCEPTED. Nếu NOBODY, không ai gửi được tin mới.
-- Không có message-request inbox ở MVP. Friend request là con đường xin kết nối; có thể mở message requests sau nếu cần sàng lọc người lạ.
+- Không có message-request inbox ở MVP.
 - Cài đặt được kiểm tra khi tạo direct conversation và trước mỗi lần gửi tin, kể cả conversation cũ. Đổi privacy không xóa hội thoại/lịch sử, nhưng có thể tạm chặn gửi đến khi điều kiện lại thỏa.
 - Không hiển thị online/typing, không push khi app đóng, không voice/video/group chat, attachments, edit/unsend, search message, encryption E2E trong MVP.
 
@@ -58,6 +58,4 @@ Cho phép người dùng đã đăng nhập kết nối với tác giả lịch 
 10. Logout/account switch/401 đóng socket, bỏ subscription và xóa state của tài khoản trước.
 11. App không thêm bottom-nav tab mới; 5 destination hiện tại và Web tests vẫn hoạt động.
 
-Giới hạn body/rate/connection là giá trị cấu hình cần chốt khi implementation; đề xuất text 1–4,000 ký tự, payload JSON nhỏ và rate limit cấu hình được, không hardcode vào UI.
-
-
+Giới hạn body/rate/connection là giá trị cấu hình cần chốt khi implementation; text tối đa 4.000 ký tự, payload JSON nhỏ và rate limit cấu hình được, không hardcode vào UI.

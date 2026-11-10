@@ -1,4 +1,4 @@
-﻿# 10 — Checklist triển khai cuối
+# 10 — Checklist triển khai cuối
 
 Checklist này áp dụng trước khi bắt đầu code và trước khi kết thúc implementation. Các mục chưa được xác minh không được đánh dấu hoàn thành theo suy đoán.
 
@@ -13,11 +13,11 @@ Checklist này áp dụng trước khi bắt đầu code và trước khi kết 
 
 ## B. Cần chốt trước implementation
 
-- [ ] Xác nhận inbound policy mặc định, EVERYONE/F​​RIENDS_ONLY/NOBODY và quyền người lạ vào inbox.
-- [ ] Xác nhận reverse pending friendship được auto-accept hay yêu cầu thao tác accept rõ ràng.
-- [ ] Xác nhận block/unfriend xử lý friendship/history và inbox thế nào.
-- [ ] Chốt read state/receipt và chính sách hiện trạng thái đã đọc.
-- [ ] Chốt message length, rate limit, payload/session limits.
+- [x] FRIENDS_ONLY mặc định; EVERYONE cho phép nhắn trực tiếp; NOBODY chặn tin mới cả từ bạn bè.
+- [x] Request ngược chiều không auto-accept; người nhận phải chủ động accept.
+- [x] Block/unfriend giữ lịch sử chat; backend kiểm lại quyền mỗi lần gửi.
+- [x] Có unread count và read receipt cơ bản theo read cursor.
+- [x] Nội dung text tối đa 4.000 ký tự. Rate/payload/session values cần cấu hình Development rõ ràng.
 - [ ] Kiểm tra schema MySQL thực tế, kiểu user_id/FK, profile được chạy và DB đúng là Development.
 - [ ] Tạo và kiểm tra backup/restore; tuyệt đối không lấy DB duy nhất làm test DB.
 - [ ] Xác minh Hibernate mapping tạo unique/index/constraint cần thiết; nếu thiếu thì ghi decision bổ sung trước khi triển khai.
@@ -60,3 +60,16 @@ Checklist này áp dụng trước khi bắt đầu code và trước khi kết 
 - [ ] Chỉ hoàn tất sau khi các vấn đề mở đã được quyết định và tài liệu thay đổi đồng bộ.
 
 
+
+
+## F. Giai đoạn 3 — trạng thái đã xác minh ngày 2026-11-10
+
+- [x] Đã tạo entities/repositories/services/controllers/DTO cho 6 bảng chat; Backend test-compile thành công.
+- [x] Đã thêm STOMP auth/interceptor, user queue và event sau commit; source compile thành công.
+- [x] Đã thêm Flutter models/repository/screens và nối Community/PublicProfile; model + bottom navigation tests pass.
+- [x] Unit test privacy/rate-limit backend pass (3 test, không kết nối DB).
+- [ ] Chưa chạy Hibernate cập nhật schema; DB Development và bản backup restore chưa được xác minh.
+- [ ] Chưa chạy Spring context, MySQL test DB, DB constraints/index verification hoặc concurrency tests.
+- [ ] Chưa kiểm tra STOMP integration thật, Android/iOS build hoặc manual test hai tài khoản.
+- [ ] Full Flutter test chưa xanh: 360 pass, 3 fail ở Explore fallback và 2 Rating UI layout test ngoài feature messaging.
+- [x] `flutter analyze --no-fatal-infos` exit code 0 sau lần chỉnh ChatScreen; còn 39 informational findings về brace style/deprecated `RadioListTile`, không còn warning/error.
