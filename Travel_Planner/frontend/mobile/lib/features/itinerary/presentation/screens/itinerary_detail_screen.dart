@@ -26,6 +26,7 @@ import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../data/models/reorder_activity_item.dart';
 import '../widgets/reorder_activities_dialog.dart';
 import '../widgets/itinerary_map_preview_card.dart';
+import 'activity_detail_screen.dart';
 import 'edit_itinerary_screen.dart';
 import 'itinerary_map_screen.dart';
 import '../../../social/data/social_repository.dart';
@@ -393,6 +394,22 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
         ),
       );
     }
+  }
+
+  void _handleViewActivityDetail(
+    ActivityDetail activity,
+    ItineraryDayDetail day,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ActivityDetailScreen(
+          activity: activity,
+          dayNumber: day.dayNumber,
+          dayTitle: day.title,
+          itineraryTitle: _notifier.itineraryDetail?.title,
+        ),
+      ),
+    );
   }
 
   Future<void> _handleReorderActivities(
@@ -1194,38 +1211,40 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 itemCount: displayedDays.length,
                 itemBuilder: (context, index) {
                   final day = displayedDays[index];
-                  return ItineraryDayCard(
-                    day: day,
-                    onEdit: isOwner
-                        ? () => _handleEditDay(itinerary, day)
-                        : null,
-                    onDelete: isOwner
-                        ? () => _handleDeleteDay(itinerary, day)
-                        : null,
-                    onAddActivity: isOwner
-                        ? () => _handleAddActivity(itinerary, day)
-                        : null,
-                    onEditActivity: isOwner
-                        ? (act) => _handleEditActivity(itinerary, day, act)
-                        : null,
-                    onDeleteActivity: isOwner
-                        ? (act) => _handleDeleteActivity(itinerary, day, act)
-                        : null,
-                    onActivityComments:
-                        itinerary.visibility == 'PUBLIC' &&
-                            (itinerary.status == 'ACTIVE' ||
-                                itinerary.status == 'PUBLISHED')
-                        ? (act) =>
-                              _openActivityComments(act.activityId, act.name)
-                        : null,
-                    onReorderActivities: isOwner
-                        ? () => _handleReorderActivities(itinerary, day)
-                        : null,
-                    onSaveActivityOrder: isOwner
-                        ? (items) =>
-                              _handleSaveActivityOrder(itinerary, day, items)
-                        : null,
-                  );
+                    return ItineraryDayCard(
+                      day: day,
+                      onEdit: isOwner
+                          ? () => _handleEditDay(itinerary, day)
+                          : null,
+                      onDelete: isOwner
+                          ? () => _handleDeleteDay(itinerary, day)
+                          : null,
+                      onAddActivity: isOwner
+                          ? () => _handleAddActivity(itinerary, day)
+                          : null,
+                      onEditActivity: isOwner
+                          ? (act) => _handleEditActivity(itinerary, day, act)
+                          : null,
+                      onDeleteActivity: isOwner
+                          ? (act) => _handleDeleteActivity(itinerary, day, act)
+                          : null,
+                      onActivityTap: (act) =>
+                          _handleViewActivityDetail(act, day),
+                      onActivityComments: !isOwner &&
+                              itinerary.visibility == 'PUBLIC' &&
+                              (itinerary.status == 'ACTIVE' ||
+                                  itinerary.status == 'PUBLISHED')
+                          ? (act) =>
+                                _openActivityComments(act.activityId, act.name)
+                          : null,
+                      onReorderActivities: isOwner
+                          ? () => _handleReorderActivities(itinerary, day)
+                          : null,
+                      onSaveActivityOrder: isOwner
+                          ? (items) =>
+                                _handleSaveActivityOrder(itinerary, day, items)
+                          : null,
+                    );
                 },
               ),
             ),
@@ -1289,13 +1308,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
           if ((itinerary.status == 'ACTIVE' ||
                   itinerary.status == 'PUBLISHED') &&
               itinerary.visibility == 'PUBLIC') ...[
-            SliverToBoxAdapter(
-              child: ItineraryCommentsSection(
-                itineraryId: itinerary.itineraryId,
-                token: _effectiveToken,
-                authNotifier: widget.authNotifier,
+            if (!isOwner)
+              SliverToBoxAdapter(
+                child: ItineraryCommentsSection(
+                  itineraryId: itinerary.itineraryId,
+                  token: _effectiveToken,
+                  authNotifier: widget.authNotifier,
+                ),
               ),
-            ),
             SliverToBoxAdapter(child: _buildRatingSection(itinerary, isOwner)),
           ],
         ],

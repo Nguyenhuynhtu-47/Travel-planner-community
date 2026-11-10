@@ -9,6 +9,7 @@ class ActivityTimelineItem extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onComments;
+  final VoidCallback? onTap;
 
   const ActivityTimelineItem({
     super.key,
@@ -17,6 +18,7 @@ class ActivityTimelineItem extends StatelessWidget {
     this.onEdit,
     this.onDelete,
     this.onComments,
+    this.onTap,
   });
 
   String _formatCost(double cost) {
@@ -85,75 +87,80 @@ class ActivityTimelineItem extends StatelessWidget {
                       (activity.estimatedCost != null &&
                           activity.estimatedCost! > 0) ||
                       onEdit != null ||
-                      onDelete != null)
+                      onDelete != null ||
+                      onTap != null)
                     Row(
                       children: [
                         Expanded(
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              if (timeFormatted != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceSoft,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: AppColors.hairline,
+                          child: InkWell(
+                            onTap: onTap,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                if (timeFormatted != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
                                     ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.access_time,
-                                        size: 12,
-                                        color: AppColors.textSecondary,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceSoft,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: AppColors.hairline,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        timeFormatted,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.access_time,
+                                          size: 12,
+                                          color: AppColors.textSecondary,
                                         ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          timeFormatted,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                if (activity.estimatedCost != null &&
+                                    activity.estimatedCost! > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF0FDF4),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: const Color(0xFFBBF7D0),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              if (activity.estimatedCost != null &&
-                                  activity.estimatedCost! > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF0FDF4),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: const Color(0xFFBBF7D0),
+                                    ),
+                                    child: Text(
+                                      _formatCost(activity.estimatedCost!),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.success,
+                                      ),
                                     ),
                                   ),
-                                  child: Text(
-                                    _formatCost(activity.estimatedCost!),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.success,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                        if (onEdit != null || onDelete != null)
+                        if (onEdit != null || onDelete != null || onTap != null)
                           SizedBox(
                             width: 24,
                             height: 24,
@@ -165,7 +172,9 @@ class ActivityTimelineItem extends StatelessWidget {
                               ),
                               padding: EdgeInsets.zero,
                               onSelected: (value) {
-                                if (value == 'edit' && onEdit != null) {
+                                if (value == 'view' && onTap != null) {
+                                  onTap!();
+                                } else if (value == 'edit' && onEdit != null) {
                                   onEdit!();
                                 } else if (value == 'delete' &&
                                     onDelete != null) {
@@ -173,6 +182,17 @@ class ActivityTimelineItem extends StatelessWidget {
                                 }
                               },
                               itemBuilder: (context) => [
+                                if (onTap != null)
+                                  const PopupMenuItem<String>(
+                                    value: 'view',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.visibility_outlined, size: 16),
+                                        SizedBox(width: 8),
+                                        Text('Xem chi tiết'),
+                                      ],
+                                    ),
+                                  ),
                                 if (onEdit != null)
                                   const PopupMenuItem<String>(
                                     value: 'edit',
@@ -212,183 +232,196 @@ class ActivityTimelineItem extends StatelessWidget {
 
                   const SizedBox(height: 6),
 
-                  // Name
-                  Text(
-                    activity.name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                  // Information body (tappable to view details)
+                  InkWell(
+                    onTap: onTap,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Name
+                          Text(
+                            activity.name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+
+                          // Description
+                          if (activity.description != null &&
+                              activity.description!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              activity.description!.trim(),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textBody,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+
+                          // Destination card (Catalog Destination)
+                          if (activity.destination != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceSoft,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.hairlineSoft),
+                              ),
+                              child: Row(
+                                children: [
+                                  if (activityImageUrl != null &&
+                                      activityImageUrl.trim().isNotEmpty) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Image.network(
+                                        activityImageUrl.trim(),
+                                        width: 56,
+                                        height: 56,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) =>
+                                            _destinationPlaceholder(),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                  ] else ...[
+                                    _destinationPlaceholder(),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          activity.destination!.name,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        if (activity.destination!.address != null &&
+                                            activity.destination!.address!
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            activity.destination!.address!.trim(),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                        if (activity.destination!.description != null &&
+                                            activity.destination!.description!
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            activity.destination!.description!.trim(),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textBody,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ] else if (activity.customLocationName != null ||
+                              activity.latitude != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceSoft,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.hairlineSoft),
+                              ),
+                              child: Row(
+                                children: [
+                                  if (activityImageUrl != null &&
+                                      activityImageUrl.trim().isNotEmpty)
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Image.network(
+                                        activityImageUrl.trim(),
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) =>
+                                            _destinationPlaceholder(),
+                                      ),
+                                    )
+                                  else
+                                    _customLocationPlaceholder(),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          activity.customLocationName ??
+                                              'Vị trí đã ghim',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (activity.customAddress != null &&
+                                            activity.customAddress!
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            activity.customAddress!.trim(),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ] else if (activity.latitude != null &&
+                                            activity.longitude != null) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${activity.latitude!.toStringAsFixed(4)}, ${activity.longitude!.toStringAsFixed(4)}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-
-                  // Description
-                  if (activity.description != null &&
-                      activity.description!.trim().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      activity.description!.trim(),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textBody,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-
-                  // Destination card (Catalog Destination)
-                  if (activity.destination != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceSoft,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.hairlineSoft),
-                      ),
-                      child: Row(
-                        children: [
-                          if (activityImageUrl != null &&
-                              activityImageUrl.trim().isNotEmpty) ...[
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Image.network(
-                                activityImageUrl.trim(),
-                                width: 56,
-                                height: 56,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    _destinationPlaceholder(),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                          ] else ...[
-                            _destinationPlaceholder(),
-                            const SizedBox(width: 8),
-                          ],
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  activity.destination!.name,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                if (activity.destination!.address != null &&
-                                    activity.destination!.address!
-                                        .trim()
-                                        .isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    activity.destination!.address!.trim(),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                                if (activity.destination!.description != null &&
-                                    activity.destination!.description!
-                                        .trim()
-                                        .isNotEmpty) ...[
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    activity.destination!.description!.trim(),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textBody,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else if (activity.customLocationName != null ||
-                      activity.latitude != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceSoft,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.hairlineSoft),
-                      ),
-                      child: Row(
-                        children: [
-                          if (activityImageUrl != null &&
-                              activityImageUrl.trim().isNotEmpty)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Image.network(
-                                activityImageUrl.trim(),
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    _destinationPlaceholder(),
-                              ),
-                            )
-                          else
-                            _customLocationPlaceholder(),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  activity.customLocationName ??
-                                      'Vị trí đã ghim',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (activity.customAddress != null &&
-                                    activity.customAddress!
-                                        .trim()
-                                        .isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    activity.customAddress!.trim(),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ] else if (activity.latitude != null &&
-                                    activity.longitude != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${activity.latitude!.toStringAsFixed(4)}, ${activity.longitude!.toStringAsFixed(4)}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                   if (onComments != null)
                     Align(
                       alignment: Alignment.centerLeft,

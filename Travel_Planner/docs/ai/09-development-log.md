@@ -5084,5 +5084,34 @@ Addressed 2 UI and layout requirements for the Rating module in the Mobile appli
   - Flutter Web tests: `flutter test` (39/39 tests passed).
   - Git status check: `git check-ignore -v Travel_Planner/.env` confirmed ignored; `.env.example` ready to be committed; working tree clean of accidental changes; no commits or pushes performed.
 
+### 99. Personal Itinerary Comments Suppression & Activity Detail View Feature (2026-11-10)
+- **Objective:**
+  1. Hide the comment UI completely from personal itinerary editing screens (`isOwner == true`), removing activity-level comment buttons and the itinerary-level comments section without affecting public itinerary view mode (`isOwner == false`) or database comment storage.
+  2. Implement a dedicated, read-only Activity Detail screen (`ActivityDetailScreen`) accessible by tapping an activity or choosing "Xem chi tiết" from its action menu, displaying all available activity fields (title, description, image, place name, address, map preview & coordinates, duration, estimated cost, day/order context) in full alignment with the Travel Planner design system.
+- **Files Created / Modified:**
+  - `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/activity_detail_screen.dart` (Created): Standalone read-only screen for displaying complete activity details, calculating human-readable duration, formatting costs, embedding `AppMapView` with coordinate markers, providing external navigation links, and gracefully handling missing images or locations.
+  - `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_timeline_item.dart` (Modified): Added `onTap` callback with tappable `InkWell` on activity details and added 'Xem chi tiết' item to `PopupMenuButton` without gesture conflicts.
+  - `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/itinerary_day_card.dart` (Modified): Added `onActivityTap` parameter and wired it down to `ActivityTimelineItem`.
+  - `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart` (Modified): Suppressed `onActivityComments` and `ItineraryCommentsSection` when `isOwner == true`; wired `onActivityTap` to navigate to `ActivityDetailScreen`.
+  - `Travel_Planner/frontend/mobile/test/activity_detail_screen_test.dart` (Created): Comprehensive test suite covering duration calculation, cost formatting, all 8 required interaction cases, null/empty state handling, popup menu actions, and comment visibility validation.
+- **Technical Decisions & Changes:**
+  - **Comment Suppression in Edit Mode:**
+    - In `ItineraryDetailScreen`, `onActivityComments` is conditioned on `!isOwner && itinerary.visibility == 'PUBLIC' && ...`. When the owner edits their personal itinerary (`isOwner == true`), `onActivityComments` is `null`, hiding the "Bình luận hoạt động" button in `ActivityTimelineItem`.
+    - In `ItineraryDetailScreen`, `ItineraryCommentsSection` at the bottom of the scroll view is conditioned on `if (!isOwner)`, removing the comment input field, comment list, and reply threads from the editing screen.
+    - Verified that public viewers (`isOwner == false`) continue to see and interact with both activity comments and itinerary comments as expected.
+  - **Activity Detail View Implementation:**
+    - Tapping an activity's title, description, time badge, or location card opens `ActivityDetailScreen` directly.
+    - The 3-dot popup menu on each activity includes 'Xem chi tiết' (`Icons.visibility_outlined`), allowing users to explicitly choose to view details alongside existing 'Sửa hoạt động' and 'Xóa hoạt động' options.
+    - Supported fields: `name`, `description`, `imageUrl` / `destination.imageUrl`, `effectiveLocationName`, `effectiveAddress`, `effectiveLatitude` / `effectiveLongitude` (GPS text + `AppMapView` marker + external Google Maps directions link via `NavigationLauncherHelper`), `timeRangeFormatted`, calculated duration string (`calculateDuration`), `estimatedCost` (`formatCost`), `activityType`, `displayOrder`, and day context (`dayNumber`, `dayTitle`).
+    - Handled empty and edge cases: clean UI when image or location is missing, no empty placeholder boxes, and graceful `AppEmptyState` when activity is null.
+    - Read-only contract: no mutations or form inputs exist on the detail screen; back button pops back cleanly without altering itinerary state.
+- **Verification Performed:**
+  - `flutter analyze` on `Travel_Planner/frontend/mobile`: 0 errors, 0 warnings, 0 hints (ran in 4.4s).
+  - Test suite in `test/activity_detail_screen_test.dart`: 13/13 tests passed (100% green).
+  - Regression test suite (`test/itinerary_detail_test.dart`, `test/activity_location_model_test.dart`, `test/features/comments/comments_notifier_test.dart`, `test/features/comments/comment_thread_widget_test.dart`, `test/my_itineraries_test.dart`, `test/widget_test.dart`): 41/41 tests passed.
+  - No database schema or backend API changes were needed.
+  - No Git commits or pushes were performed.
+
+
 
 
