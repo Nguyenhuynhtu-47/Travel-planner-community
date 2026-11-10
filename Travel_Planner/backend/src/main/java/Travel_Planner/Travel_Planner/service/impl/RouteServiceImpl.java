@@ -122,19 +122,11 @@ public class RouteServiceImpl implements RouteService {
         List<WaypointCoordinate> coordinates = new ArrayList<>();
 
         for (Activity activity : activities) {
-            BigDecimal lat = null;
-            BigDecimal lon = null;
-            String locationName = null;
-
-            if (activity.getDestination() != null) {
-                lat = activity.getDestination().getLatitude();
-                lon = activity.getDestination().getLongitude();
-                locationName = activity.getDestination().getName();
-            } else if (activity.getLatitude() != null && activity.getLongitude() != null) {
-                lat = activity.getLatitude();
-                lon = activity.getLongitude();
-                locationName = activity.getCustomLocationName() != null ? activity.getCustomLocationName() : "Vị trí đã ghim";
-            }
+            BigDecimal lat = activity.getLatitude();
+            BigDecimal lon = activity.getLongitude();
+            String locationName = activity.getLocationName() != null
+                    ? activity.getLocationName()
+                    : (activity.getCustomLocationName() != null ? activity.getCustomLocationName() : activity.getName());
 
             if (isValidCoordinate(lat, lon)) {
                 validWaypointResponses.add(RouteWaypointResponse.builder()

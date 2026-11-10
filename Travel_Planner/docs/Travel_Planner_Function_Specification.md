@@ -114,10 +114,20 @@ Thông tin dự kiến:
 - Xử lý dữ liệu hoạt động khi ngày bị xóa hoặc thay đổi.
 
 ### Quản lý địa điểm và hoạt động
-- Thêm, sửa, xóa địa điểm/hoạt động.
-- Sắp xếp thứ tự hoạt động.
-- Có thể lưu thời gian dự kiến, ghi chú và chi phí nếu mô hình dữ liệu hỗ trợ.
-- Hiển thị vị trí trên bản đồ khi có dữ liệu tọa độ.
+- Thêm, sửa, xóa hoạt động trong ngày lịch trình.
+- Sắp xếp thứ tự hoạt động (hỗ trợ kéo thả và đổi thứ tự).
+- **Kiến trúc vị trí hoạt động thống nhất (Authoritative Activity Location Snapshot - Phase 1 & 1.1 Hardened):**
+  - Hoạt động (`Activity`) là nguồn dữ liệu chính thức duy nhất (Single Source of Truth) cho vị trí của chính nó.
+  - Mỗi Activity tự lưu snapshot vị trí độc lập: `location_name`, `location_address`, `latitude`, `longitude`, `place_id`, `location_provider`.
+  - Quyền dữ liệu một chiều (Unidirectional Data Authority): Các trường `location_name` và `location_address` là authoritative. Các cột legacy `custom_location_name` và `custom_address` chỉ đóng vai trò mirror tương thích ngược cho client cũ và không bao giờ được phép ghi đè lên trường authoritative.
+  - Khóa `destination_id` là trường tham chiếu tùy chọn (nullable), không quyết định tọa độ của Activity. Khi cập nhật hoạt động giữ nguyên `destination_id`, snapshot tọa độ hiện tại của Activity được bảo toàn tuyệt đối, không bị ghi đè bởi tọa độ danh mục Destination.
+  - Việc Admin sửa, ẩn (HIDDEN) hoặc xóa Destination trong danh mục không làm thay đổi hay mất vị trí đã lưu của Activity.
+  - Mobile Client Hardening: Các getter `effectiveLatitude`, `effectiveLongitude` và `hasCoordinates` trên Mobile hoạt động độc lập và chỉ đọc trực tiếp từ snapshot tọa độ của Activity, tuyệt đối không fallback sang tọa độ Destination. Đồng thời, `effectiveLocationName` (`locationName ?? customLocationName`) và `effectiveAddress` (`locationAddress ?? customAddress`) chỉ đọc từ dữ liệu vị trí của Activity, **tuyệt đối loại bỏ fallback sang `destination?.name` hoặc `destination?.address`**, bảo đảm Activity snapshot là nguồn dữ liệu vị trí duy nhất không bị Destination thay thế ngầm. Timeline và thẻ lịch trình sử dụng luồng hiển thị thống nhất cho cả hoạt động Map Picker và hoạt động gắn catalog.
+  - Migration Concurrency & Startup Safety: `ActivityLocationMigrationRunner` quản lý một JDBC `Connection` vật lý duy nhất xuyên suốt quá trình thực thi nhằm bảo đảm phạm vi phiên (session/connection scope) của MySQL Advisory Lock (`GET_LOCK` / `RELEASE_LOCK`). Runner triển khai cơ chế retry có giới hạn (bounded retry) với timeout từng lần thử. Nếu không lấy được lock sau thời gian retry: runner tiến hành kiểm tra độc lập xem schema và invariants đã được hoàn thành 100% bởi node khác hay chưa; nếu schema/invariants chưa hoàn thiện, runner **ngay lập tức chặn đứng quá trình khởi động ứng dụng (fail application startup)** bằng ngoại lệ `IllegalStateException` để ngăn ngừa ứng dụng hoạt động với schema chắp vá hoặc dữ liệu không đồng nhất. Migration tuyệt đối không bao giờ chạy DDL/DML mà không nắm giữ lock, và lock luôn được giải phóng trong khối `finally` trên chính kết nối vật lý đã xin lock. Cơ chế tương thích mượt mà với H2/non-MySQL, kiểm tra metadata bảng/cột, validate tọa độ `[-90, 90]` và `[-180, 180]`, bảo đảm tính lũy kế (idempotent) không bao giờ ghi đè snapshot đã được người dùng chỉnh sửa.
+  - Giao diện thêm/sửa hoạt động thống nhất một khu vực duy nhất sử dụng **Map Picker** (tìm kiếm địa điểm trực tuyến, reverse geocoding, ghim tọa độ thủ công, chỉnh sửa hoặc xóa vị trí đã ghim). Không sử dụng dropdown chọn catalog Destination gây phân mảnh UX.
+  - Hoạt động không có vị trí: cho phép các trường tọa độ/địa điểm NULL; khi người dùng chỉ chỉnh sửa tên, mô tả, chi phí hoặc thời gian, snapshot vị trí cũ được bảo toàn nguyên vẹn.
+- Có thể lưu thời gian dự kiến, ghi chú và chi phí.
+- Hiển thị vị trí trên bản đồ và tính toán chỉ đường (Route Calculation) trực tiếp từ tọa độ snapshot của Activity.
 
 ### Chỉnh sửa và xóa
 - Chủ sở hữu được chỉnh sửa hoặc xóa lịch trình của mình.
@@ -177,14 +187,13 @@ Cho phép kết hợp nhiều điều kiện và xóa bộ lọc đang áp dụn
 
 ## 8. Bản đồ và địa điểm
 
-- Hiển thị các địa điểm trên bản đồ nếu có dữ liệu vị trí.
-- Kết hợp danh sách địa điểm và bản đồ.
-- Hiển thị thông tin địa điểm như tên, địa chỉ, mô tả và vị trí nếu dữ liệu có sẵn.
-- Xử lý trường hợp bản đồ không tải được.
-- Admin có thể xem, thêm, cập nhật hoặc xử lý địa điểm theo quyền.
-- Kiểm tra các lịch trình đang tham chiếu khi xóa/ẩn địa điểm.
-
-**Cần xác nhận:** nhà cung cấp bản đồ, nguồn dữ liệu địa điểm, API key, chi phí và giới hạn sử dụng.
+- Hiển thị các điểm dừng hoạt động trên bản đồ dựa trên tọa độ snapshot lưu trữ trực tiếp trong từng `Activity`.
+- Kết hợp danh sách hoạt động trong ngày và bản đồ hiển thị trực quan (marker có số thứ tự, màu sắc theo ngày).
+- Hiển thị thông tin địa điểm: tên địa điểm (`location_name`), địa chỉ (`location_address`), nhà cung cấp (`location_provider`).
+- Xử lý trường hợp bản đồ không tải được hoặc thiếu API key (banner cảnh báo mượt mà, không crash ứng dụng).
+- Tích hợp tìm kiếm địa điểm đa nguồn (TomTom, LocationIQ, OpenStreetMap) và chuyển đổi tọa độ ngược (Reverse Geocoding).
+- Bảng danh mục `destinations` do Admin quản lý đóng vai trò kho dữ liệu khám phá và gợi ý (Explore / Catalog). Việc quản lý Destination tách biệt hoàn toàn với vị trí Activity của người dùng: sửa hoặc ẩn Destination không làm hỏng dữ liệu bản đồ hoặc chỉ đường của Activity.
+- Tính toán tuyến đường (Routing) và chỉ đường nhiều ngày lấy tọa độ trực tiếp từ snapshot của Activity mà không phụ thuộc vào trạng thái Destination trong danh mục.
 
 ## 9. Đánh giá và bình luận
 

@@ -31,8 +31,8 @@
 | 5 | Itinerary Days & Activities (Add/Edit/Delete days + activities, two-pass reorder) | **COMPLETED** | `ItineraryController` day+activity endpoints, `ItineraryDayCard`, `ActivityFormDialog`, `ReorderActivitiesDialog`, day+activity management tests |
 | 6 | Destination Catalog (Public read, Admin CRUD, coordinates) | **COMPLETED** | `DestinationController`, `AdminDestinationController`, `AdminDestinationsScreen` (web), destination management tests |
 | 7 | Map Integration — Map Rendering (flutter_map, CARTO Voyager tiles, attribution) | **COMPLETED** | `flutter_map: ^7.0.2` in pubspec, `AppBaseMap`, `AppMapView`, `WebMapView`, map smoke tests |
-| 8 | Map Integration — Activity Location Picking (catalog + online search + pin on map) | **COMPLETED** | `LocationController` search/reverse-geocode, `LocationPickerSheet`, `ActivityFormDialog` with location picker, `Activity` entity has lat/lng + custom fields |
-| 9 | Map Integration — Route Calculation (ORS backend proxy, in-memory cache, Haversine fallback) | **COMPLETED** | `RouteController`, `RouteServiceImpl`, `OpenRouteServiceRoutingProvider`, `RouteRepository`, `ItineraryMapScreen`, route tests |
+| 8 | Map Integration — Activity Location Architecture (Authoritative Activity Location Snapshot, Map Picker, backfilled database) | **COMPLETED (Phase 1 & 1.1 Final Acceptance)** | `Activity` entity authoritative `location_*` snapshot (unidirectional sync, legacy mirror). `ActivityLocationMigrationRunner` with single-connection MySQL advisory locking (`GET_LOCK`/`RELEASE_LOCK`), bounded retry with timeout, fail-startup protection against incomplete schemas, coordinate bounds validation, and safe idempotency. `ItineraryServiceImpl.applyLocation` destination isolation. Mobile client (`activity_detail.dart`, `activity_form_dialog.dart`, `activity_timeline_item.dart`, `itinerary_day_card.dart`) completely decoupled from Destination coordinate, name, and address fallbacks (`effectiveLocationName` / `effectiveAddress` strictly isolated). 298 Backend tests PASS (exit code 0), 364 Mobile tests PASS (3 pre-existing failed tests preserved, exit code 1), 39 Web tests PASS (exit code 0). |
+| 9 | Map Integration — Route Calculation (Direct Activity snapshot waypoint extraction, ORS backend proxy, in-memory cache, Haversine fallback) | **COMPLETED** | `RouteController`, `RouteServiceImpl` (direct snapshot extraction decoupled from Destination status), `OpenRouteServiceRoutingProvider`, `RouteRepository`, `ItineraryMapScreen`, route tests |
 | 10 | Map Integration — Itinerary Map View (markers, polylines, day-filter, navigation deep-link) | **COMPLETED** | `ItineraryMapScreen`, `ItineraryMapPreviewCard`, `NavigationLauncherHelper`, `ItineraryMapHelper`, map view tests |
 | 11 | Image Upload (Cloudinary, SHA-1 signed, magic bytes check, mobile + web) | **COMPLETED** | `ImageUploadController`, `CloudinaryImageUploadService`, `ImagePickerService`, upload tests |
 | 12 | Comments (Read list + Create, paginated, in itinerary detail) | **COMPLETED** | `CommentController`, `CommentServiceImpl`, `CommentsNotifier`, `ItineraryCommentsSection` |
@@ -220,6 +220,30 @@ P4-W5 ─────────────────► P4-W6 (Moderation)
 
 **Parallel development possible:**
 - Backend (P2-R1, P2-F1, P2-SA1) and Web Admin (P4-W1, P4-W3) can proceed simultaneously.
+
+---
+
+### Location & Map Architecture Roadmap (6-Phase Implementation)
+
+To ensure high architectural rigor, zero regression, and prevent monolithic unverified PRs, the location system follows a strict sequential roadmap:
+
+1. **Phase 1 & 1.1: Activity Location Hardening (COMPLETED & ACCEPTANCE READY):**
+   - Authoritative snapshot on `Activity` entity (`location_name`, `location_address`, `latitude`, `longitude`, `place_id`, `location_provider`).
+   - Mobile getters (`effectiveLocationName`, `effectiveAddress`, `effectiveLatitude`, `effectiveLongitude`) completely decoupled from Destination fallbacks.
+   - Idempotent `ActivityLocationMigrationRunner` using a single physical JDBC connection for session-scoped MySQL advisory locking (`GET_LOCK`/`RELEASE_LOCK`), with bounded retries, startup failure (`IllegalStateException`) on lock acquisition timeout with incomplete schema, and independent completeness verification.
+   - 100% of 121 activities backfilled with complete snapshots; 0 half-null, 0 invalid coords, 0 destination coordinate dependencies. 298 backend tests PASS.
+2. **Phase 2: Place Catalog (STRICT SCOPE — NEXT PHASE):**
+   - Centralized `places` catalog (`place_id`, `name`, `address`, `latitude`, `longitude`, `category`, `provider`, etc.).
+   - Admin & Public CRUD/search endpoints for catalog places.
+   - **Strict Scope Boundary:** Phase 2 is strictly limited to Place Catalog. It does NOT include `administrative_areas` or `user_saved_places`.
+3. **Phase 3: Administrative Areas:**
+   - Administrative hierarchy (`administrative_areas`: provinces, districts, wards) and regional bounding boxes.
+4. **Phase 4: User Saved Places:**
+   - Personal bookmarks and custom collections (`user_saved_places`).
+5. **Phase 5: Clone & Personalize Itinerary:**
+   - Forking itineraries with independent snapshot retention.
+6. **Phase 6: Explore-to-Itinerary Integration:**
+   - Direct injection of Explore places into itinerary timeline days.
 
 ---
 

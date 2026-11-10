@@ -146,10 +146,15 @@ public class RouteServiceTest {
                 .title("Ngày 2: Nghỉ ngơi")
                 .build());
 
-        // Stop 1: Catalog Destination
+        // Stop 1: Catalog Destination (with snapshot coordinates)
         act1 = activityRepository.save(Activity.builder()
                 .itineraryDay(day1)
                 .destination(catalogDestination)
+                .locationName(catalogDestination.getName())
+                .locationAddress(catalogDestination.getAddress())
+                .latitude(catalogDestination.getLatitude())
+                .longitude(catalogDestination.getLongitude())
+                .locationProvider("DESTINATION_CATALOG")
                 .name("Dạo Hồ Xuân Hương")
                 .displayOrder(1)
                 .startTime(LocalTime.of(8, 0))
@@ -233,6 +238,41 @@ public class RouteServiceTest {
 
             // Excluded act3NoLoc
             assertFalse(response.getWaypoints().stream().anyMatch(w -> w.getName().contains("Nghỉ ngơi")));
+        }
+
+        @Test
+        @DisplayName("Routing succeeds using activity snapshot coordinates even if linked destination is HIDDEN or deleted")
+        void testRoutingSucceedsWhenDestinationIsHidden() {
+            catalogDestination.setStatus(DestinationStatus.HIDDEN);
+            destinationRepository.save(catalogDestination);
+
+            RoutingProvider mockProvider = mock(RoutingProvider.class);
+            when(mockProvider.getProviderName()).thenReturn("OPEN_ROUTE_SERVICE");
+            when(mockProvider.isConfigured()).thenReturn(true);
+            when(mockProvider.calculateRoute(eq("driving"), anyList()))
+                    .thenReturn(new CachedRouteResult(
+                            "ACTUAL_ROAD",
+                            "OPEN_ROUTE_SERVICE",
+                            2500.0,
+                            2400.0,
+                            480.0,
+                            List.of(List.of(108.43856, 11.94041), List.of(108.43542, 11.94212))
+                    ));
+
+            RouteServiceImpl service = new RouteServiceImpl(
+                    itineraryRepository, itineraryDayRepository, activityRepository,
+                    mockProvider, mapProperties
+            );
+
+            RouteResponse response = service.calculateDayRoute(
+                    publicItinerary.getItineraryId(), day1.getDayId(), "driving", ownerUser.getUsername()
+            );
+
+            assertNotNull(response);
+            assertEquals("SUCCESS", response.getStatus());
+            assertEquals(2, response.getWaypoints().size());
+            assertEquals(act1.getLatitude(), response.getWaypoints().get(0).getLatitude());
+            assertEquals(act1.getLongitude(), response.getWaypoints().get(0).getLongitude());
         }
 
         @Test
@@ -409,6 +449,9 @@ public class RouteServiceTest {
                     .itineraryDay(privateDay)
                     .name("Điểm 1")
                     .destination(catalogDestination)
+                    .locationName(catalogDestination.getName())
+                    .latitude(catalogDestination.getLatitude())
+                    .longitude(catalogDestination.getLongitude())
                     .displayOrder(1)
                     .build());
             activityRepository.save(Activity.builder()

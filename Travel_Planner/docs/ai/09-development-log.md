@@ -5277,3 +5277,254 @@ Addressed 2 UI and layout requirements for the Rating module in the Mobile appli
 - Verification: backend test compilation succeeded (190 main and 29 test sources); targeted backend tests passed (3); targeted Flutter model/navigation tests passed (19). The full Flutter suite reported 360 passed and 3 unrelated Explore/Rating UI failures. Flutter `analyze --no-fatal-infos` exited 0 after the final scroll adjustment, with 39 informational style/deprecation findings.
 - Database safety: did not launch Spring or allow Hibernate DDL because the Development database target and a verified restorable backup were not confirmed. MySQL schema, Spring context, concurrency, real STOMP, mobile builds, and two-account manual flows remain unverified.
 - No commits or pushes were created. Next: confirm Development DB and restore-capable backup, then verify schema and run isolated MySQL/WebSocket integration and two-device manual tests.
+
+
+## 2026-11-10 — Refactor Activity Location Storage: Unified Location Data Architecture
+
+### 1. Architectural Transformation
+- **Authoritative Activity Location Snapshot:** Transitioned the architecture so that `Activity` is the single authoritative source of truth for its own location. Each activity stores: `location_name`, `location_address`, `latitude`, `longitude`, `place_id`, `location_provider`.
+- **Role of Destination Decoupled:** The `destinations` table is strictly preserved as an admin-managed catalog for Explore and catalog features. `destination_id` in `Activity` is an optional reference key (nullable), not the primary source of coordinates. Admin edits, hides (`HIDDEN`), or deletes on Destination never alter, invalidate, or corrupt existing Activity location snapshots.
+- **Unified Mobile UX:** Removed the Destination catalog dropdown from the Activity Form (`ActivityFormDialog`). Unified the location experience around a single Map Picker sheet (online search, reverse geocoding, manual pin drop, and selected location card with edit and clear actions).
+
+### 2. Database Schema & Migration
+- **Schema Normalization:** Added columns `location_name VARCHAR(150)` and `location_address VARCHAR(255)` to the `activities` table in both `travel_planner` (development) and `travel_planner_test` (test) MySQL databases.
+- **Safe Data Backfill:**
+  - Backfilled 10 custom activities to populate `location_name` and `location_address`.
+  - Backfilled 111 destination-based activities with authoritative snapshot data from `destinations` table (`location_name = d.name`, `location_address = d.address`, `latitude = d.latitude`, `longitude = d.longitude`, `place_id = CONCAT('dest_', d.destination_id)`, `location_provider = 'DESTINATION_CATALOG'`).
+  - Verified 121 / 121 activities in the database now have complete, valid location snapshots with 0 unpaired coordinates and 0 out-of-bounds coordinates.
+- **Startup Migration Runner:** Implemented [`ActivityLocationMigrationRunner.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/ActivityLocationMigrationRunner.java) as a Spring `@Order(2)` `ApplicationRunner` to idempotently check database column existence, perform backfill, and validate invariants on every startup.
+
+### 3. Backend Implementation
+- [`Activity.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Activity.java): Added `locationName` and `locationAddress`. Retained legacy fields `customLocationName` and `customAddress` with bidirectional synchronization in `@PrePersist` and `@PreUpdate` to guarantee zero-downtime backward compatibility.
+- [`CreateActivityRequest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/CreateActivityRequest.java) & [`UpdateActivityRequest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/UpdateActivityRequest.java): Added `locationName`, `locationAddress`, `clearLocation` flag, getter bridges, and validation.
+- [`ActivityResponse.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/ActivityResponse.java): Serializes `locationName` and `locationAddress` alongside mirrored legacy fields.
+- [`ItineraryServiceImpl.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/ItineraryServiceImpl.java): Refactored `applyLocation` to support:
+  1. Authoritative snapshot persistence from Map Picker coordinates.
+  2. Snapshotting from catalog destination without overwriting custom coordinates.
+  3. Explicit location clearing when `clearLocation: true`.
+  4. Partial update preservation: updating name, description, cost, or times without sending location fields preserves the existing location snapshot untouched.
+  5. Atomic coordinate validation: latitude and longitude must both be present or both null; bounds `[-90, 90]` and `[-180, 180]` strictly validated.
+  6. Rejection of conflicting inputs or venue names without coordinates.
+- [`RouteServiceImpl.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/RouteServiceImpl.java): Waypoint coordinates and location names are extracted directly from `Activity` entity snapshots (`getLatitude()`, `getLongitude()`, `getLocationName()`). Decoupled completely from `Destination` status.
+- [`DataSeeder.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/DataSeeder.java): Updated to populate authoritative snapshot fields directly during database seeding.
+
+### 4. Flutter Mobile Implementation
+- [`activity_detail.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/data/models/activity_detail.dart): Added `locationName` and `locationAddress`. Effective getters (`effectiveLocationName`, `effectiveAddress`, `effectiveLatitude`, `effectiveLongitude`) prioritize activity snapshot over destination.
+- [`create_activity_request.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/data/models/create_activity_request.dart) & [`update_activity_request.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/data/models/update_activity_request.dart): Serializes both new and legacy fields and `clearLocation`.
+- [`activity_form_dialog.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart): Removed destination dropdown. Implemented unified Map Picker UX with selected location card (edit / clear actions) and safe preservation on partial updates.
+- [`activity_timeline_item.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_timeline_item.dart): Uses effective location getters for UI display.
+
+### 5. Automated Verification Results
+- **Backend:** `cd Travel_Planner\backend && .\mvnw.cmd test`
+  - **287 / 287 PASS** (0 failures, 0 errors, 1 min 9 s).
+  - [`ActivityLocationTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ActivityLocationTest.java): **22 / 22 PASS** covering all 15 location lifecycle scenarios (search result snapshot, manual pin, null location, partial update preservation, active change, explicit clear, atomic coord validation, coordinate bounds, legacy retrieval, independent routing, destination HIDDEN resilience, destination modification isolation, and destination soft-delete isolation).
+  - [`RouteServiceTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/RouteServiceTest.java): **15 / 15 PASS** confirming snapshot routing and resilience against hidden destinations.
+- **Flutter Mobile:** `cd Travel_Planner\frontend\mobile && flutter test`
+  - **363 PASS**, 3 pre-existing ignored test failures (`explore_test.dart: CreatorSummary falls back to username`, `rating_ui_layout_test.dart: Dialog renders cleanly without RenderFlex overflow`, `rating_ui_layout_test.dart: CommentsSection is rendered BEFORE RatingSection`).
+  - `flutter analyze`: 0 errors, 0 warnings, 39 informational style/deprecation notices in untouched screens.
+- **Flutter Web:** `cd Travel_Planner\frontend\web && flutter test`
+  - **39 / 39 PASS** (0 failures, 0 errors).
+  - `flutter analyze`: 0 issues found (clean).
+
+### 6. Scope Integrity
+- Working tree uncommitted on branch `develop` (HEAD: `7d86338`).
+- No Git commits or pushes were created.
+- Zero-downtime backward compatibility preserved: legacy column mirrors and JSON aliases remain fully functional.
+
+## 2026-11-10 — Phase 1.1: Audit & Hardening Activity Location Architecture
+
+### 1. Objectives & Architectural Context
+Following Phase 1, Phase 1.1 conducted a comprehensive audit and hardening of the unified Activity location architecture:
+- Reaffirmed `Activity` as the sole authoritative source of truth for location snapshots (`location_name`, `location_address`, `latitude`, `longitude`, `place_id`, `location_provider`).
+- Prevented catalog Destination modifications, status changes (`HIDDEN`), or deletions from mutating, corrupting, or deleting Activity snapshots.
+- Hardened database migration runner with distributed concurrency locking, metadata verification, and coordinate bound guards.
+- Enforced unidirectional data authority in backend entities and DTOs.
+- Eliminated Destination coordinate fallbacks on Flutter Mobile to prevent ghost coordinates and catalog bleed-through.
+- Maintained strict scope boundaries: zero Phase 2 artifacts (`places`, `administrative_areas`, etc.), zero Git commits or pushes.
+
+### 2. Hardening Details
+
+#### 2.1 Backend Migration Hardening (`ActivityLocationMigrationRunner.java`)
+- **MySQL Advisory Locking:** Implemented `SELECT GET_LOCK('activity_location_migration_lock', 10)` before executing DDL/DML, and `SELECT RELEASE_LOCK(...)` in `finally`, with an engine-agnostic fallback for non-MySQL test environments.
+- **Table Existence Verification:** Added `tableExists(meta, catalog, "activities")` check to prevent execution errors when running before table creation.
+- **Non-Destructive Backfill:** Step 1 copies legacy `custom_location_name` to `location_name` ONLY when `location_name IS NULL`. Step 2 backfills from linked destinations ONLY when Activity coordinates are null AND Destination coordinates are strictly within `[-90.0, 90.0]` and `[-180.0, 180.0]`. Existing activity location names and addresses are preserved via `COALESCE`.
+- **Pre-Backfill Audit:** Detects and warns about activities referencing destinations with null or out-of-bounds coordinates, skipping them safely without creating corrupted snapshots.
+- **Post-Migration Invariant Validation:** Runs SQL assertions for total activities, located activities, half-null coordinate pairs, and out-of-bounds coordinates, logging critical errors if any invariant is violated.
+
+#### 2.2 Unidirectional Authority & Service Hardening
+- [`Activity.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/Activity.java): `syncLocationFields()` ensures `locationName` and `locationAddress` are authoritative. Legacy fields `customLocationName` and `customAddress` are strictly backward-compatibility mirrors and can never overwrite non-null authoritative values.
+- [`ItineraryServiceImpl.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/ItineraryServiceImpl.java): In `applyLocation()`, when updating an activity with matching `destinationId`, existing snapshot coordinates are preserved rather than re-copied from the catalog destination, guaranteeing catalog edits do not mutate user itinerary snapshots.
+
+#### 2.3 Mobile Client Hardening
+- [`activity_detail.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/data/models/activity_detail.dart): `effectiveLatitude` and `effectiveLongitude` strictly return `latitude` and `longitude` from the Activity snapshot. Removed `?? destination?.latitude` coordinate fallback. `hasCoordinates` strictly requires `latitude != null && longitude != null`.
+- [`activity_form_dialog.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart): Form state initialization reads `act.effectiveLocationName`, `act.effectiveAddress`, `act.latitude`, `act.longitude` without destination coordinate fallbacks.
+- [`activity_timeline_item.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_timeline_item.dart): Consolidated separated `destination != null` vs custom location branches into a unified location card displaying `effectiveLocationName` / `effectiveAddress` / `hasCoordinates`, with catalog description rendered conditionally.
+- [`itinerary_day_card.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/itinerary_day_card.dart): Replaced `act.destination != null` with `act.effectiveLocationName != null && act.effectiveLocationName.trim().isNotEmpty` so activities created via Map Picker display their location badge properly.
+
+### 3. Automated Verification Results
+- **Backend:** `cd Travel_Planner\backend && .\mvnw.cmd test`
+  - **293 / 293 PASS** (0 failures, 0 errors, 1 min 1 s).
+  - [`ActivityLocationMigrationRunnerTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ActivityLocationMigrationRunnerTest.java): **4 / 4 PASS** (idempotency, non-overwriting of custom snapshots, skipping invalid destination coordinates, and valid destination backfill).
+  - [`ActivityLocationTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ActivityLocationTest.java): **24 / 24 PASS** (including destination update isolation and entity unidirectional authority).
+- **Flutter Mobile:** `cd Travel_Planner\frontend\mobile && flutter test`
+  - **364 PASS**, 3 pre-existing ignored test failures (`explore_test.dart: CreatorSummary falls back to username`, `rating_ui_layout_test.dart: Dialog renders cleanly without RenderFlex overflow`, `rating_ui_layout_test.dart: CommentsSection is rendered BEFORE RatingSection`).
+  - Added new model test in `activity_location_model_test.dart` (10 / 10 PASS).
+  - Map & Route tests: `itinerary_map_test.dart` + `itinerary_route_test.dart`: **48 / 48 PASS**.
+  - `flutter analyze`: 0 errors, 0 warnings.
+- **Flutter Web:** `cd Travel_Planner\frontend\web && flutter test`
+  - **39 / 39 PASS** (0 failures, 0 errors).
+  - `flutter analyze`: 0 issues found (clean).
+
+### 4. Database Verification (Actual Metrics)
+- **Database `travel_planner` (Local / Development):**
+  - Total activities: 121
+  - Activities with `location_name`: 121 (100%)
+  - Activities with `location_address`: 121 (100%)
+  - Activities with valid coordinate pairs: 121 (100%)
+  - Half-null coordinate pairs: 0
+  - Out-of-bounds coordinates: 0
+  - Activities with `place_id`: 121 (100%)
+  - Activities with `location_provider`: 121 (100%)
+  - Activities with `destination_id`: 111 (10 custom activities created without destination_id)
+  - Orphaned `destination_id`: 0
+  - Activities depending on Destination for coordinates: 0
+- **Database `travel_planner_test`:** Clean schema, integration tests execute and clean up cleanly.
+
+### 5. Scope & Git Integrity
+- Branch: `develop` (HEAD: `7d86338`).
+- Working tree uncommitted. No Git commits or pushes were performed.
+- Zero Phase 2 artifacts created (`places`, `administrative_areas`, `user_saved_places`).
+
+## 2026-11-10 — Phase 1.1 Final Verification & Hardening (Issues A, B, C)
+
+### 1. Verification Scope & Resolved Issues
+A final architectural review was performed on Phase 1.1 to close three key architectural concerns before proceeding to Phase 2:
+
+#### 1.1 Issue A — Elimination of Destination Fallbacks in Activity Snapshot Getters
+- In [`activity_detail.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/itinerary/data/models/activity_detail.dart):
+  - Refactored `effectiveLocationName` to `locationName ?? customLocationName`. Removed `?? destination?.name`.
+  - Refactored `effectiveAddress` to `locationAddress ?? customAddress`. Removed `?? destination?.address`.
+  - Re-verified `effectiveLatitude => latitude;` and `effectiveLongitude => longitude;`. Removed any possibility of inheriting coordinates, names, or addresses from Destination.
+- Updated unit tests in [`activity_location_model_test.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/activity_location_model_test.dart):
+  - Proved that an Activity without snapshot data returns `null` for `effectiveLocationName` and `effectiveAddress` even if a linked Destination has valid name and address.
+  - Proved that coordinates are strictly `null` when snapshot coordinates are absent.
+- Updated mock payloads in [`itinerary_detail_test.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/itinerary_detail_test.dart) to reflect authoritative activity snapshots.
+
+#### 1.2 Issue B — MySQL Advisory Lock Connection-Level Safety
+- Identified critical flaw in pooled `JdbcTemplate` advisory locking: `SELECT GET_LOCK()` and `RELEASE_LOCK()` operate within MySQL connection/session scope; separate pooled calls acquire and release locks on different physical connections, invalidating mutual exclusion.
+- Refactored [`ActivityLocationMigrationRunner.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/ActivityLocationMigrationRunner.java):
+  - Obtains a single dedicated physical JDBC connection (`dataSource.getConnection()`).
+  - Calls `PreparedStatement stmt = conn.prepareStatement("SELECT GET_LOCK(?, ?)")` with configurable timeout (`lockTimeoutSeconds`, default 10s).
+  - Explicit timeout safety: if `GET_LOCK` returns `0` or `null` (lock held by another session), logs a descriptive warning and immediately aborts migration (`return`). The runner **never** proceeds concurrently.
+  - Retains the exact same physical `Connection` across all DDL metadata checks, `ALTER TABLE` statements, `UPDATE` backfill queries, and post-migration invariant validations.
+  - Releases lock via `SELECT RELEASE_LOCK(?)` on the exact same `Connection` inside a `finally` block.
+  - Propagates fatal database errors as `RuntimeException` rather than silently swallowing them.
+  - Supports non-MySQL environments gracefully (bypassing `GET_LOCK` for H2).
+- Added genuine integration test in [`ActivityLocationMigrationRunnerTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ActivityLocationMigrationRunnerTest.java):
+  - Removed `@Transactional` annotation to avoid InnoDB row lock contention between Spring test transactions and raw JDBC connections.
+  - Added `runner_whenLockHeldByAnotherSession_abortsSafelyWithoutConcurrentExecution()`: an external session acquires `GET_LOCK` with timeout 0; the migration runner attempts execution with 1s timeout, aborts safely without error or concurrent migration, and the external session releases the lock.
+
+#### 1.3 Issue C — Strict Scope Enforcement for Phase 2
+- Re-confirmed sequential roadmap: Phase 1.1 Hardening -> Phase 2: Place Catalog -> Phase 3: Administrative Areas -> Phase 4: Saved Places -> Phase 5: Clone Itinerary -> Phase 6: Explore-to-Itinerary Integration.
+- Confirmed that Phase 2 is strictly scoped to Place Catalog (`places` table, CRUD, category, coordinates, address, place_id, provider).
+- Verified zero Phase 2, 3, or 4 tables, models, or APIs (`places`, `administrative_areas`, `user_saved_places`) exist in the current working tree.
+
+### 2. Comprehensive Quality Gate & Test Results
+- **Backend Tests:** `cd Travel_Planner\backend && .\mvnw.cmd test`
+  - **294 / 294 PASS** (0 failures, 0 errors, 1 min 3 s).
+  - [`ActivityLocationMigrationRunnerTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ActivityLocationMigrationRunnerTest.java): **5 / 5 PASS** (including concurrent lock abort test).
+  - [`ActivityLocationTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ActivityLocationTest.java): **24 / 24 PASS**.
+- **Mobile Tests:** `cd Travel_Planner\frontend\mobile && flutter test`
+  - **364 PASS**, 3 pre-existing ignored failures (`explore_test.dart`, 2 in `rating_ui_layout_test.dart`).
+  - [`activity_location_model_test.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/activity_location_model_test.dart): **10 / 10 PASS**.
+  - [`activity_detail_screen_test.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/activity_detail_screen_test.dart): **13 / 13 PASS**.
+  - [`itinerary_detail_test.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/itinerary_detail_test.dart): **14 / 14 PASS**.
+  - `flutter analyze`: 0 errors, 0 warnings (clean).
+- **Web Tests:** `cd Travel_Planner\frontend\web && flutter test`
+  - **39 / 39 PASS** (0 failures, 0 errors).
+  - `flutter analyze`: No issues found (clean).
+
+### 3. Real Database Verification (MySQL `travel_planner`)
+- Total activities: 121
+- Complete snapshots (`location_name` + `latitude` + `longitude`): 121 (100%)
+- Half-null coordinate pairs: 0
+- Coordinates out of bounds: 0
+- Provider distribution: DESTINATION_CATALOG: 111, LOCATION_IQ: 6, TOMTOM: 4.
+- Activities depending on Destination for location: 0
+
+### 4. Git Status & Safety
+- Working tree uncommitted on branch `develop` (HEAD: `7d86338`).
+- Zero Git commits or pushes executed.
+- All changes safely staged for user acceptance.
+
+## 2026-11-11 — Phase 1.1 Final Acceptance Fixes & Advisory Lock Hardening
+
+### 1. Objectives & Resolved Items
+Addressed the three final architectural items required before final acceptance of Phase 1.1:
+
+#### 1.1 Advisory Lock Contention, Bounded Retries & Startup Protection
+- **Vulnerability Addressed:** Previously, if `GET_LOCK()` returned 0 or null, `ActivityLocationMigrationRunner` simply logged a warning and returned, allowing a second node to begin serving traffic while the database schema was still in an incomplete or migrating state.
+- **Hardening in [`ActivityLocationMigrationRunner.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/ActivityLocationMigrationRunner.java):**
+  - Implemented `acquireLockWithRetries(conn)`: retries lock acquisition with bounded attempts (`maxLockRetries = 3`, `lockTimeoutSeconds = 5`, `retryDelayMs = 500`).
+  - Implemented `isSchemaAndInvariantsComplete(conn, meta, catalog)`: if the lock cannot be acquired after all retries, the runner independently validates whether the required schema and migration invariants are already 100% complete:
+    1. Table `activities` exists.
+    2. Columns `location_name` and `location_address` exist.
+    3. 0 unmigrated legacy custom location rows (`WHERE custom_location_name IS NOT NULL AND location_name IS NULL`).
+    4. 0 unmigrated destination rows with valid destination coordinates.
+    5. 0 half-null coordinate pairs.
+    6. 0 out-of-bounds coordinates.
+  - If schema and invariants are fully complete, it allows application startup to proceed safely.
+  - If schema or invariants are incomplete or unverified, it throws `IllegalStateException("Failed to acquire migration advisory lock within retry window, and schema/migration invariants are incomplete or unverified. Aborting startup to protect data integrity.")`, failing application startup to prevent traffic execution on a corrupted schema.
+  - Migration statements (`ALTER TABLE`, `UPDATE activities`) **never** execute without holding the lock.
+  - The lock is always released on the exact same physical `Connection` in a `finally` block.
+
+#### 1.2 Real MySQL Integration Test Verification
+- Inspected the backend test configuration:
+  - Driver: `com.mysql.cj.jdbc.Driver`
+  - URL: `jdbc:mysql://localhost:3306/travel_planner_test`
+  - Database Product: MySQL 8.0.37
+- Verified that all lock concurrency tests in [`ActivityLocationMigrationRunnerTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/ActivityLocationMigrationRunnerTest.java) run against **real MySQL** using **two independent physical connections** (`com.mysql.cj.jdbc.ConnectionImpl`) from the DataSource pool, invoking real `SELECT GET_LOCK(...)` and `SELECT RELEASE_LOCK(...)`.
+- Added 5 distinct tests targeting the required scenarios:
+  1. `test1_successfulLockAcquisitionAndMigration`: Successful lock acquisition, migration execution, and verification that external connection can immediately acquire lock afterwards.
+  2. `test2_lockContentionFollowedBySuccessfulAcquisition`: External connection holds lock, background thread releases after 400ms, runner acquires on retry and completes migration.
+  3. `test3_lockAcquisitionTimeout_failsStartupWhenIncomplete`: External connection holds lock, schema is incomplete, runner times out and throws `IllegalStateException`.
+  4. `test4_migrationFailure_guaranteesLockRelease`: Fatal database error during migration throws `RuntimeException`, but lock is guaranteed released in `finally` (proven by immediate acquisition on external connection).
+  5. `test5_noMigrationExecutionWhenLockUnavailable`: External connection holds lock, runner cannot acquire lock, verifies unmigrated database rows remain strictly untouched (no DDL/DML executed).
+- All 9 tests in `ActivityLocationMigrationRunnerTest` pass.
+
+#### 1.3 Test Count Reconciliation
+- **RouteServiceTest:**
+  - Explaining count change (15 vs 13): `RouteServiceTest.java` contains 15 `@Test` methods across 4 nested classes (`CachingTests` [3], `CoreRoutingTests` [8], `SecurityTests` [2], `ValidationTests` [2]).
+  - The previous summary mistakenly summed 3 + 8 + 2 = 13 (omitting `ValidationTests`).
+  - Confirmed via `git diff origin/develop`: 0 tests were deleted, renamed, disabled, or moved. 1 test (`testRoutingSucceedsWhenDestinationIsHidden`) was added during Phase 1. All 15 tests execute and pass.
+- **Mobile Deferred Tests:**
+  - Accurately reported status:
+    1. `test/explore_test.dart: CreatorSummary falls back to username`: **FAILED**
+    2. `test/features/social/rating_ui_layout_test.dart: Dialog renders cleanly without RenderFlex overflow`: **FAILED**
+    3. `test/features/social/rating_ui_layout_test.dart: CommentsSection is rendered BEFORE RatingSection`: **FAILED**
+  - These 3 pre-existing tests were preserved without modification.
+  - Overall mobile suite: 364 PASSED, 3 FAILED, 0 SKIPPED. Process exit code: 1.
+
+### 2. Comprehensive Quality Gate & Process Exit Codes
+- **Backend Tests:** `.\mvnw.cmd test`
+  - Result: **298 / 298 PASS** (0 failures, 0 errors, 0 skipped, 1 min 0 s).
+  - Process exit code: **0**.
+- **Mobile Tests:** `flutter test`
+  - Result: **364 PASS, 3 FAILED, 0 SKIPPED**.
+  - Process exit code: **1**.
+  - `flutter analyze`: **0 errors, 0 warnings** (clean).
+- **Web Tests:** `flutter test`
+  - Result: **39 / 39 PASS** (0 failures, 0 errors, 0 skipped).
+  - Process exit code: **0**.
+  - `flutter analyze`: **0 issues found** (exit code 0).
+
+### 3. Database Integrity & Snapshots
+- Local MySQL `travel_planner`: 121 activities, 100% snapshot complete, 0 half-null, 0 out-of-bounds, 0 destination coordinate dependencies.
+
+### 4. Git & Working Tree Safety
+- Branch: `develop` (HEAD: `7d86338`).
+- Working tree uncommitted. Zero Git commits or pushes executed.
+- All modifications preserved and verified.
+
+
+

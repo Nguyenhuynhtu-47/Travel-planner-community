@@ -14,7 +14,6 @@ import '../../../location/presentation/widgets/location_picker_sheet.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/activity_detail.dart';
 import '../../data/models/create_activity_request.dart';
-import '../../data/models/destination_summary.dart';
 import '../../data/models/update_activity_request.dart';
 
 /// Opens a mobile-optimized modal bottom sheet to add or edit an activity.
@@ -115,29 +114,20 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   bool _isLoading = false;
   String? _timeErrorMessage;
 
-  int? _selectedDestinationId;
-  List<DestinationSummary> _availableDestinations = [];
-  bool _loadingDestinations = false;
-
-  // Custom location state (mutually exclusive with _selectedDestinationId)
-  String? _customLocationName;
-  String? _customAddress;
+  int? _destinationId;
+  String? _locationName;
+  String? _locationAddress;
   double? _latitude;
   double? _longitude;
   String? _placeId;
   String? _locationProvider;
   String? _lastAutoFilledActivityName;
+  bool _locationCleared = false;
 
   bool get _isEditing => widget.initialActivity != null;
 
-  String? get _selectedDestinationImageUrl {
-    for (final destination in _availableDestinations) {
-      if (destination.destinationId == _selectedDestinationId) {
-        return destination.imageUrl;
-      }
-    }
-    return null;
-  }
+  String? get _selectedDestinationImageUrl =>
+      widget.initialActivity?.destination?.imageUrl;
 
   @override
   void initState() {
@@ -148,20 +138,15 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     _imagePickerService = DeviceImagePickerService();
     _savedActivityImageUrl = widget.initialActivity?.imageUrl;
 
-    _selectedDestinationId = widget.initialActivity?.destination?.destinationId;
-    if (widget.initialActivity?.destination != null) {
-      _availableDestinations = [widget.initialActivity!.destination!];
-    }
-    _fetchDestinations();
-
-    // If editing an activity without destination, initialize custom location state
-    if (_selectedDestinationId == null && widget.initialActivity != null) {
-      _customLocationName = widget.initialActivity!.customLocationName;
-      _customAddress = widget.initialActivity!.customAddress;
-      _latitude = widget.initialActivity!.latitude;
-      _longitude = widget.initialActivity!.longitude;
-      _placeId = widget.initialActivity!.placeId;
-      _locationProvider = widget.initialActivity!.locationProvider;
+    if (widget.initialActivity != null) {
+      final act = widget.initialActivity!;
+      _destinationId = act.destination?.destinationId;
+      _locationName = act.effectiveLocationName;
+      _locationAddress = act.effectiveAddress;
+      _latitude = act.latitude;
+      _longitude = act.longitude;
+      _placeId = act.placeId;
+      _locationProvider = act.locationProvider;
     }
 
     _nameController = TextEditingController(
@@ -196,8 +181,8 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
       context,
       repository: _locationRepository,
       initialCenter: initialCenter,
-      initialName: _customLocationName,
-      initialAddress: _customAddress,
+      initialName: _locationName,
+      initialAddress: _locationAddress,
       initialPlaceId: _placeId,
       initialProvider: _locationProvider,
       token: widget.authNotifier.token,
@@ -205,8 +190,8 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
 
     if (result != null && mounted) {
       setState(() {
-        _selectedDestinationId =
-            null; // Mutually exclusive: clears catalog destination
+        _destinationId = null;
+        _locationCleared = false;
         final currentName = _nameController.text.trim();
         final previousAutoName = _lastAutoFilledActivityName;
         if (result.locationProvider != 'MANUAL_PIN' &&
@@ -214,8 +199,8 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           _nameController.text = result.locationName;
           _lastAutoFilledActivityName = result.locationName;
         }
-        _customLocationName = result.locationName;
-        _customAddress = result.address;
+        _locationName = result.locationName;
+        _locationAddress = result.address;
         _latitude = result.latitude;
         _longitude = result.longitude;
         _placeId = result.placeId;
@@ -255,40 +240,17 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     });
   }
 
-  void _clearCustomLocation() {
+  void _clearLocation() {
     setState(() {
-      _customLocationName = null;
-      _customAddress = null;
+      _locationName = null;
+      _locationAddress = null;
       _latitude = null;
       _longitude = null;
       _placeId = null;
       _locationProvider = null;
+      _destinationId = null;
+      _locationCleared = true;
     });
-  }
-
-  Future<void> _fetchDestinations() async {
-    setState(() => _loadingDestinations = true);
-    try {
-      final list = await widget.repository.getDestinations(
-        token: widget.authNotifier.token,
-      );
-      if (mounted) {
-        setState(() {
-          final merged = <int, DestinationSummary>{};
-          if (widget.initialActivity?.destination != null) {
-            merged[widget.initialActivity!.destination!.destinationId] =
-                widget.initialActivity!.destination!;
-          }
-          for (final d in list) {
-            merged[d.destinationId] = d;
-          }
-          _availableDestinations = merged.values.toList();
-          _loadingDestinations = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loadingDestinations = false);
-    }
   }
 
   @override
@@ -429,21 +391,20 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
         final request = UpdateActivityRequest(
           name: name,
           description: description.isNotEmpty ? description : null,
-          destinationId: _selectedDestinationId,
+          destinationId: _locationCleared ? null : _destinationId,
           startTime: startTimeStr,
           endTime: endTimeStr,
           cost: rawCost,
-          customLocationName: _selectedDestinationId == null
-              ? _customLocationName
-              : null,
-          customAddress: _selectedDestinationId == null ? _customAddress : null,
-          latitude: _selectedDestinationId == null ? _latitude : null,
-          longitude: _selectedDestinationId == null ? _longitude : null,
-          placeId: _selectedDestinationId == null ? _placeId : null,
-          locationProvider: _selectedDestinationId == null
-              ? _locationProvider
-              : null,
+          locationName: _locationCleared ? null : _locationName,
+          locationAddress: _locationCleared ? null : _locationAddress,
+          customLocationName: _locationCleared ? null : _locationName,
+          customAddress: _locationCleared ? null : _locationAddress,
+          latitude: _locationCleared ? null : _latitude,
+          longitude: _locationCleared ? null : _longitude,
+          placeId: _locationCleared ? null : _placeId,
+          locationProvider: _locationCleared ? null : _locationProvider,
           imageUrl: imageUrl,
+          clearLocation: _locationCleared,
         );
         await widget.repository.updateActivity(
           widget.itineraryId,
@@ -456,20 +417,18 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
         final request = CreateActivityRequest(
           name: name,
           description: description.isNotEmpty ? description : null,
-          destinationId: _selectedDestinationId,
+          destinationId: _destinationId,
           startTime: startTimeStr,
           endTime: endTimeStr,
           cost: rawCost,
-          customLocationName: _selectedDestinationId == null
-              ? _customLocationName
-              : null,
-          customAddress: _selectedDestinationId == null ? _customAddress : null,
-          latitude: _selectedDestinationId == null ? _latitude : null,
-          longitude: _selectedDestinationId == null ? _longitude : null,
-          placeId: _selectedDestinationId == null ? _placeId : null,
-          locationProvider: _selectedDestinationId == null
-              ? _locationProvider
-              : null,
+          locationName: _locationName,
+          locationAddress: _locationAddress,
+          customLocationName: _locationName,
+          customAddress: _locationAddress,
+          latitude: _latitude,
+          longitude: _longitude,
+          placeId: _placeId,
+          locationProvider: _locationProvider,
           imageUrl: imageUrl,
         );
         await widget.repository.addActivity(
@@ -667,94 +626,15 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                         const SizedBox(height: 12),
 
                         // Destination Dropdown (Optional)
-                        DropdownButtonFormField<int?>(
-                          initialValue: _selectedDestinationId,
-                          isExpanded: true,
-                          decoration: InputDecoration(
-                            labelText: 'Điểm đến / Địa điểm (tùy chọn)',
-                            hintText: _loadingDestinations
-                                ? 'Đang tải danh sách điểm đến...'
-                                : 'Chọn địa điểm liên kết...',
-                            hintStyle: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.muted,
-                            ),
-                            filled: true,
-                            fillColor: AppColors.surfaceSoft,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: AppColors.hairline,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: AppColors.hairline,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: AppColors.primary,
-                                width: 1.5,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
+                        const Text(
+                          'Vị trí hoạt động',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
                           ),
-                          items: [
-                            const DropdownMenuItem<int?>(
-                              value: null,
-                              child: Text(
-                                'Không liên kết địa điểm',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                            ..._availableDestinations.map(
-                              (dest) => DropdownMenuItem<int?>(
-                                value: dest.destinationId,
-                                child: Text(
-                                  dest.name +
-                                      (dest.address != null &&
-                                              dest.address!.isNotEmpty
-                                          ? ' (${dest.address})'
-                                          : ''),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                          onChanged: _isLoading
-                              ? null
-                              : (val) {
-                                  setState(() {
-                                    _selectedDestinationId = val;
-                                    if (val != null) {
-                                      // Mutually exclusive: selecting catalog destination clears custom location
-                                      _customLocationName = null;
-                                      _customAddress = null;
-                                      _latitude = null;
-                                      _longitude = null;
-                                      _placeId = null;
-                                      _locationProvider = null;
-                                    }
-                                  });
-                                },
                         ),
-                        const SizedBox(height: 8),
-
-                        // Custom Location Card or Pick on Map Button
+                        const SizedBox(height: 6),
                         if (_latitude != null && _longitude != null) ...[
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -787,7 +667,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        _customLocationName ?? 'Vị trí đã ghim',
+                                        _locationName ?? 'Vị trí đã chọn',
                                         style: const TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w700,
@@ -796,11 +676,11 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      if (_customAddress != null &&
-                                          _customAddress!.isNotEmpty) ...[
+                                      if (_locationAddress != null &&
+                                          _locationAddress!.isNotEmpty) ...[
                                         const SizedBox(height: 2),
                                         Text(
-                                          _customAddress!,
+                                          _locationAddress!,
                                           style: const TextStyle(
                                             fontSize: 11,
                                             color: AppColors.textSecondary,
@@ -840,7 +720,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                   tooltip: 'Xóa vị trí',
                                   onPressed: _isLoading
                                       ? null
-                                      : _clearCustomLocation,
+                                      : _clearLocation,
                                 ),
                               ],
                             ),

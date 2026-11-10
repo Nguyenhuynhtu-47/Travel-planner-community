@@ -1084,7 +1084,7 @@ public class DataSeeder implements CommandLineRunner {
     private void saveActivityIfNotExists(ItineraryDay day, int order, String name, String desc,
                                          LocalTime start, LocalTime end, BigDecimal cost, Destination destination) {
         if (!activityRepository.existsByItineraryDay_DayIdAndDisplayOrder(day.getDayId(), order)) {
-            activityRepository.save(Activity.builder()
+            Activity.ActivityBuilder builder = Activity.builder()
                     .itineraryDay(day)
                     .destination(destination)
                     .name(name)
@@ -1092,8 +1092,20 @@ public class DataSeeder implements CommandLineRunner {
                     .startTime(start)
                     .endTime(end)
                     .cost(cost)
-                    .displayOrder(order)
-                    .build());
+                    .displayOrder(order);
+
+            if (destination != null) {
+                builder.locationName(destination.getName())
+                        .locationAddress(destination.getAddress())
+                        .customLocationName(destination.getName())
+                        .customAddress(destination.getAddress())
+                        .latitude(destination.getLatitude())
+                        .longitude(destination.getLongitude())
+                        .placeId("dest_" + destination.getDestinationId())
+                        .locationProvider("DESTINATION_CATALOG");
+            }
+
+            activityRepository.save(builder.build());
         }
     }
 

@@ -157,7 +157,7 @@ class ActivityLocationTest {
     // ==========================================
 
     @Test
-    @DisplayName("State 1: Catalog Destination - destinationId set, all custom location fields null")
+    @DisplayName("State 1: Catalog Destination - destinationId set, snapshots location from destination")
     void createActivity_catalogDestination_success() throws Exception {
         CreateActivityRequest request = CreateActivityRequest.builder()
                 .name("Tham quan Chùa Cầu")
@@ -177,22 +177,17 @@ class ActivityLocationTest {
                 .andExpect(jsonPath("$.name").value("Tham quan Chùa Cầu"))
                 .andExpect(jsonPath("$.destination.destinationId").value(activeDestination.getDestinationId()))
                 .andExpect(jsonPath("$.destination.name").value("Chùa Cầu Hội An"))
-                .andExpect(jsonPath("$.customLocationName").doesNotExist())
-                .andExpect(jsonPath("$.customAddress").doesNotExist())
-                .andExpect(jsonPath("$.latitude").doesNotExist())
-                .andExpect(jsonPath("$.longitude").doesNotExist())
-                .andExpect(jsonPath("$.placeId").doesNotExist())
-                .andExpect(jsonPath("$.locationProvider").doesNotExist());
+                .andExpect(jsonPath("$.locationName").value("Chùa Cầu Hội An"))
+                .andExpect(jsonPath("$.latitude").value(activeDestination.getLatitude().doubleValue()))
+                .andExpect(jsonPath("$.longitude").value(activeDestination.getLongitude().doubleValue()));
 
         Activity saved = activityRepository.findAll().get(0);
         assertNotNull(saved.getDestination());
         assertEquals(activeDestination.getDestinationId(), saved.getDestination().getDestinationId());
-        assertNull(saved.getCustomLocationName());
-        assertNull(saved.getCustomAddress());
-        assertNull(saved.getLatitude());
-        assertNull(saved.getLongitude());
-        assertNull(saved.getPlaceId());
-        assertNull(saved.getLocationProvider());
+        assertEquals(activeDestination.getName(), saved.getLocationName());
+        assertEquals(activeDestination.getAddress(), saved.getLocationAddress());
+        assertEquals(activeDestination.getLatitude(), saved.getLatitude());
+        assertEquals(activeDestination.getLongitude(), saved.getLongitude());
     }
 
     @Test
@@ -466,7 +461,7 @@ class ActivityLocationTest {
     // ==========================================
 
     @Test
-    @DisplayName("Transition: Custom Location -> Catalog Destination cleanly clears all custom fields")
+    @DisplayName("Transition: Custom Location -> Catalog Destination snapshots catalog destination location into activity")
     void updateActivity_transitionCustomToCatalogDestination_clearsStaleCustomFields() throws Exception {
         // Step 1: Create an activity with custom location
         Activity activity = activityRepository.save(Activity.builder()
@@ -485,12 +480,6 @@ class ActivityLocationTest {
         UpdateActivityRequest updateRequest = UpdateActivityRequest.builder()
                 .name("Chuyển sang Chùa Cầu")
                 .destinationId(activeDestination.getDestinationId())
-                .customLocationName(null)
-                .customAddress(null)
-                .latitude(null)
-                .longitude(null)
-                .placeId(null)
-                .locationProvider(null)
                 .build();
 
         mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
@@ -501,23 +490,21 @@ class ActivityLocationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Chuyển sang Chùa Cầu"))
                 .andExpect(jsonPath("$.destination.destinationId").value(activeDestination.getDestinationId()))
-                .andExpect(jsonPath("$.customLocationName").doesNotExist())
-                .andExpect(jsonPath("$.customAddress").doesNotExist())
-                .andExpect(jsonPath("$.latitude").doesNotExist())
-                .andExpect(jsonPath("$.longitude").doesNotExist())
-                .andExpect(jsonPath("$.placeId").doesNotExist())
-                .andExpect(jsonPath("$.locationProvider").doesNotExist());
+                .andExpect(jsonPath("$.locationName").value(activeDestination.getName()))
+                .andExpect(jsonPath("$.locationAddress").value(activeDestination.getAddress()))
+                .andExpect(jsonPath("$.latitude").value(activeDestination.getLatitude().doubleValue()))
+                .andExpect(jsonPath("$.longitude").value(activeDestination.getLongitude().doubleValue()))
+                .andExpect(jsonPath("$.locationProvider").value("DESTINATION_CATALOG"));
 
-        // Verify database entity is completely devoid of stale custom location data
+        // Verify database entity holds snapshot of destination location
         Activity updated = activityRepository.findById(activity.getActivityId()).orElseThrow();
         assertNotNull(updated.getDestination());
         assertEquals(activeDestination.getDestinationId(), updated.getDestination().getDestinationId());
-        assertNull(updated.getCustomLocationName());
-        assertNull(updated.getCustomAddress());
-        assertNull(updated.getLatitude());
-        assertNull(updated.getLongitude());
-        assertNull(updated.getPlaceId());
-        assertNull(updated.getLocationProvider());
+        assertEquals(activeDestination.getName(), updated.getLocationName());
+        assertEquals(activeDestination.getAddress(), updated.getLocationAddress());
+        assertEquals(activeDestination.getLatitude(), updated.getLatitude());
+        assertEquals(activeDestination.getLongitude(), updated.getLongitude());
+        assertEquals("DESTINATION_CATALOG", updated.getLocationProvider());
     }
 
     @Test
@@ -565,7 +552,7 @@ class ActivityLocationTest {
     }
 
     @Test
-    @DisplayName("Transition: Custom Location -> No Location cleanly clears all location data")
+    @DisplayName("Transition: Custom Location -> No Location cleanly clears all location data when clearLocation=true")
     void updateActivity_transitionCustomToNoLocation_clearsAllLocationFields() throws Exception {
         Activity activity = activityRepository.save(Activity.builder()
                 .itineraryDay(testDay)
@@ -578,10 +565,7 @@ class ActivityLocationTest {
 
         UpdateActivityRequest updateRequest = UpdateActivityRequest.builder()
                 .name("Chuyển thành không có vị trí")
-                .destinationId(null)
-                .customLocationName(null)
-                .latitude(null)
-                .longitude(null)
+                .clearLocation(true)
                 .build();
 
         mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
@@ -598,8 +582,168 @@ class ActivityLocationTest {
         Activity updated = activityRepository.findById(activity.getActivityId()).orElseThrow();
         assertNull(updated.getDestination());
         assertNull(updated.getCustomLocationName());
+        assertNull(updated.getLocationName());
         assertNull(updated.getLatitude());
         assertNull(updated.getLongitude());
+    }
+
+    @Test
+    @DisplayName("Scenario 4: Partial update without location fields preserves existing snapshot")
+    void updateActivity_partialUpdateWithoutLocation_preservesExistingSnapshot() throws Exception {
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Tên ban đầu")
+                .locationName("Địa điểm gốc")
+                .locationAddress("Địa chỉ gốc")
+                .latitude(new BigDecimal("15.8770000"))
+                .longitude(new BigDecimal("108.3300000"))
+                .placeId("place_orig")
+                .locationProvider("TOMTOM")
+                .displayOrder(1)
+                .build());
+
+        // Update ONLY name and cost - no location fields and clearLocation=false
+        UpdateActivityRequest updateRequest = UpdateActivityRequest.builder()
+                .name("Tên mới sau cập nhật")
+                .cost(new BigDecimal("120000.00"))
+                .build();
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
+                        testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Tên mới sau cập nhật"))
+                .andExpect(jsonPath("$.cost").value(120000.00))
+                .andExpect(jsonPath("$.locationName").value("Địa điểm gốc"))
+                .andExpect(jsonPath("$.locationAddress").value("Địa chỉ gốc"))
+                .andExpect(jsonPath("$.latitude").value(15.8770000))
+                .andExpect(jsonPath("$.longitude").value(108.3300000))
+                .andExpect(jsonPath("$.placeId").value("place_orig"))
+                .andExpect(jsonPath("$.locationProvider").value("TOMTOM"));
+
+        Activity reloaded = activityRepository.findById(activity.getActivityId()).orElseThrow();
+        assertEquals("Tên mới sau cập nhật", reloaded.getName());
+        assertEquals("Địa điểm gốc", reloaded.getLocationName());
+        assertEquals("Địa chỉ gốc", reloaded.getLocationAddress());
+        assertEquals(new BigDecimal("15.8770000"), reloaded.getLatitude());
+        assertEquals(new BigDecimal("108.3300000"), reloaded.getLongitude());
+        assertEquals("place_orig", reloaded.getPlaceId());
+        assertEquals("TOMTOM", reloaded.getLocationProvider());
+    }
+
+    @Test
+    @DisplayName("Scenario 5: Active change of location updates snapshot")
+    void updateActivity_changeLocation_updatesSnapshot() throws Exception {
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Hoạt động đổi vị trí")
+                .locationName("Vị trí cũ")
+                .locationAddress("Địa chỉ cũ")
+                .latitude(new BigDecimal("15.8770000"))
+                .longitude(new BigDecimal("108.3300000"))
+                .displayOrder(1)
+                .build());
+
+        UpdateActivityRequest updateRequest = UpdateActivityRequest.builder()
+                .name("Hoạt động đổi vị trí")
+                .locationName("Vị trí mới")
+                .locationAddress("Địa chỉ mới")
+                .latitude(new BigDecimal("16.0500000"))
+                .longitude(new BigDecimal("108.2000000"))
+                .placeId("tomtom_new_456")
+                .locationProvider("TOMTOM")
+                .build();
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
+                        testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locationName").value("Vị trí mới"))
+                .andExpect(jsonPath("$.locationAddress").value("Địa chỉ mới"))
+                .andExpect(jsonPath("$.latitude").value(16.0500000))
+                .andExpect(jsonPath("$.longitude").value(108.2000000))
+                .andExpect(jsonPath("$.placeId").value("tomtom_new_456"))
+                .andExpect(jsonPath("$.locationProvider").value("TOMTOM"));
+    }
+
+    @Test
+    @DisplayName("Scenario 12: Destination HIDDEN - Activity remains viewable and editable")
+    void activityWithHiddenDestination_viewableAndEditable() throws Exception {
+        // Step 1: Create activity linking active destination with snapshot
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Xem chùa cầu")
+                .destination(activeDestination)
+                .locationName(activeDestination.getName())
+                .locationAddress(activeDestination.getAddress())
+                .latitude(activeDestination.getLatitude())
+                .longitude(activeDestination.getLongitude())
+                .placeId("dest_" + activeDestination.getDestinationId())
+                .locationProvider("DESTINATION_CATALOG")
+                .displayOrder(1)
+                .build());
+
+        // Step 2: Admin hides the destination
+        activeDestination.setStatus(DestinationStatus.HIDDEN);
+        destinationRepository.save(activeDestination);
+
+        // Step 3: Activity is still viewable
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId())
+                        .header("Authorization", ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].locationName").value("Chùa Cầu Hội An"))
+                .andExpect(jsonPath("$.days[0].activities[0].latitude").value(activeDestination.getLatitude().doubleValue()))
+                .andExpect(jsonPath("$.days[0].activities[0].longitude").value(activeDestination.getLongitude().doubleValue()));
+
+        // Step 4: Activity is still editable without error (independent snapshot)
+        UpdateActivityRequest editRequest = UpdateActivityRequest.builder()
+                .name("Xem chùa cầu (đã đổi tên)")
+                .build();
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
+                        testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(editRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Xem chùa cầu (đã đổi tên)"))
+                .andExpect(jsonPath("$.locationName").value("Chùa Cầu Hội An"));
+    }
+
+    @Test
+    @DisplayName("Scenario 13 & 14: Destination modified or soft-deleted - Activity snapshot is unchanged")
+    void destinationModifiedOrDeleted_activitySnapshotRemainsUnchanged() throws Exception {
+        // Activity snapshot saved
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Chụp ảnh di tích")
+                .destination(activeDestination)
+                .locationName(activeDestination.getName())
+                .locationAddress(activeDestination.getAddress())
+                .latitude(activeDestination.getLatitude())
+                .longitude(activeDestination.getLongitude())
+                .placeId("dest_" + activeDestination.getDestinationId())
+                .locationProvider("DESTINATION_CATALOG")
+                .displayOrder(1)
+                .build());
+
+        // Admin modifies destination drastically
+        activeDestination.setName("Tên Hoàn Toàn Khác");
+        activeDestination.setAddress("Địa chỉ mới khác hẳn");
+        activeDestination.setLatitude(new BigDecimal("10.0000000"));
+        activeDestination.setLongitude(new BigDecimal("105.0000000"));
+        destinationRepository.save(activeDestination);
+
+        // Activity snapshot remains strictly unchanged
+        Activity reloaded = activityRepository.findById(activity.getActivityId()).orElseThrow();
+        assertEquals("Chùa Cầu Hội An", reloaded.getLocationName());
+        assertEquals("Đường Nguyễn Thị Minh Khai, Phường Minh An, Hội An", reloaded.getLocationAddress());
+        assertEquals(new BigDecimal("15.8771120"), reloaded.getLatitude());
+        assertEquals(new BigDecimal("108.3259830"), reloaded.getLongitude());
     }
 
     // ==========================================
@@ -687,5 +831,67 @@ class ActivityLocationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ==========================================
+    // 6. PHASE 1.1 HARDENING: DESTINATION ISOLATION & PRESERVATION
+    // ==========================================
+
+    @Test
+    @DisplayName("Hardening: Updating activity with same destinationId preserves snapshot coordinates even if catalog destination changes")
+    void updateActivity_withSameDestinationId_preservesSnapshotCoordinates() throws Exception {
+        // Given an activity with its own snapshot coordinates
+        Activity existing = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .destination(activeDestination)
+                .name("Khám phá Chùa Cầu")
+                .locationName("Chùa Cầu Snapshot Name")
+                .locationAddress("Chùa Cầu Snapshot Address")
+                .latitude(new BigDecimal("15.8771120"))
+                .longitude(new BigDecimal("108.3259830"))
+                .placeId("dest_" + activeDestination.getDestinationId())
+                .locationProvider("DESTINATION_CATALOG")
+                .displayOrder(1)
+                .build());
+
+        // Catalog destination coordinates are altered by admin
+        activeDestination.setLatitude(new BigDecimal("16.0000000"));
+        activeDestination.setLongitude(new BigDecimal("109.0000000"));
+        destinationRepository.save(activeDestination);
+
+        // When user updates general info but passes the same destinationId
+        UpdateActivityRequest updateReq = UpdateActivityRequest.builder()
+                .name("Khám phá Chùa Cầu (Đã đổi tên)")
+                .destinationId(activeDestination.getDestinationId())
+                .build();
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
+                        testItinerary.getItineraryId(), testDay.getDayId(), existing.getActivityId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Khám phá Chùa Cầu (Đã đổi tên)"))
+                // Assert snapshot coordinates are preserved, NOT overwritten by catalog destination's new coords!
+                .andExpect(jsonPath("$.latitude").value(15.877112))
+                .andExpect(jsonPath("$.longitude").value(108.325983))
+                .andExpect(jsonPath("$.locationName").value("Chùa Cầu Snapshot Name"));
+    }
+
+    @Test
+    @DisplayName("Hardening: Entity syncLocationFields enforces unidirectional authority (locationName cannot be overwritten by customLocationName)")
+    void activityEntity_unidirectionalAuthority_enforced() {
+        Activity act = new Activity();
+        act.setLocationName("Authoritative Name");
+        act.setLocationAddress("Authoritative Address");
+        act.setCustomLocationName("Old Custom Name");
+        act.setCustomAddress("Old Custom Address");
+
+        act.syncLocationFields();
+
+        org.junit.jupiter.api.Assertions.assertEquals("Authoritative Name", act.getLocationName());
+        org.junit.jupiter.api.Assertions.assertEquals("Authoritative Address", act.getLocationAddress());
+        org.junit.jupiter.api.Assertions.assertEquals("Authoritative Name", act.getCustomLocationName());
+        org.junit.jupiter.api.Assertions.assertEquals("Authoritative Address", act.getCustomAddress());
     }
 }

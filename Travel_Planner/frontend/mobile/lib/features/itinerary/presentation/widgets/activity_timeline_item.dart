@@ -265,8 +265,10 @@ class ActivityTimelineItem extends StatelessWidget {
                             ),
                           ],
 
-                          // Destination card (Catalog Destination)
-                          if (activity.destination != null) ...[
+                          // Unified Location card (authoritative snapshot + catalog destination info)
+                          if ((activity.effectiveLocationName != null &&
+                                  activity.effectiveLocationName!.trim().isNotEmpty) ||
+                              activity.hasCoordinates) ...[
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.all(10),
@@ -283,16 +285,20 @@ class ActivityTimelineItem extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(6),
                                       child: Image.network(
                                         activityImageUrl.trim(),
-                                        width: 56,
-                                        height: 56,
+                                        width: 48,
+                                        height: 48,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, _, _) =>
-                                            _destinationPlaceholder(),
+                                            activity.destination != null
+                                                ? _destinationPlaceholder()
+                                                : _customLocationPlaceholder(),
                                       ),
                                     ),
                                     const SizedBox(width: 10),
                                   ] else ...[
-                                    _destinationPlaceholder(),
+                                    activity.destination != null
+                                        ? _destinationPlaceholder()
+                                        : _customLocationPlaceholder(),
                                     const SizedBox(width: 8),
                                   ],
                                   Expanded(
@@ -300,20 +306,23 @@ class ActivityTimelineItem extends StatelessWidget {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          activity.destination!.name,
+                                          activity.effectiveLocationName ??
+                                              'Vị trí đã ghim',
                                           style: const TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                             color: AppColors.textPrimary,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        if (activity.destination!.address != null &&
-                                            activity.destination!.address!
+                                        if (activity.effectiveAddress != null &&
+                                            activity.effectiveAddress!
                                                 .trim()
                                                 .isNotEmpty) ...[
                                           const SizedBox(height: 2),
                                           Text(
-                                            activity.destination!.address!.trim(),
+                                            activity.effectiveAddress!.trim(),
                                             style: const TextStyle(
                                               fontSize: 11,
                                               color: AppColors.textSecondary,
@@ -321,8 +330,18 @@ class ActivityTimelineItem extends StatelessWidget {
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
+                                        ] else if (activity.effectiveLatitude != null &&
+                                            activity.effectiveLongitude != null) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${activity.effectiveLatitude!.toStringAsFixed(4)}, ${activity.effectiveLongitude!.toStringAsFixed(4)}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
                                         ],
-                                        if (activity.destination!.description != null &&
+                                        if (activity.destination?.description != null &&
                                             activity.destination!.description!
                                                 .trim()
                                                 .isNotEmpty) ...[
@@ -335,80 +354,6 @@ class ActivityTimelineItem extends StatelessWidget {
                                             ),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ] else if (activity.customLocationName != null ||
-                              activity.latitude != null) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceSoft,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.hairlineSoft),
-                              ),
-                              child: Row(
-                                children: [
-                                  if (activityImageUrl != null &&
-                                      activityImageUrl.trim().isNotEmpty)
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: Image.network(
-                                        activityImageUrl.trim(),
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) =>
-                                            _destinationPlaceholder(),
-                                      ),
-                                    )
-                                  else
-                                    _customLocationPlaceholder(),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          activity.customLocationName ??
-                                              'Vị trí đã ghim',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (activity.customAddress != null &&
-                                            activity.customAddress!
-                                                .trim()
-                                                .isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            activity.customAddress!.trim(),
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ] else if (activity.latitude != null &&
-                                            activity.longitude != null) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '${activity.latitude!.toStringAsFixed(4)}, ${activity.longitude!.toStringAsFixed(4)}',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.textSecondary,
-                                            ),
                                           ),
                                         ],
                                       ],

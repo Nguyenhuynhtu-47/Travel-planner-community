@@ -28,6 +28,12 @@ public class UpdateActivityRequest {
 
     private Integer destinationId;
 
+    @Size(max = 150, message = "Tên địa điểm tối đa 150 ký tự")
+    private String locationName;
+
+    @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
+    private String locationAddress;
+
     @Size(max = 150, message = "Tên địa điểm tùy chỉnh tối đa 150 ký tự")
     private String customLocationName;
 
@@ -57,4 +63,18 @@ public class UpdateActivityRequest {
 
     @DecimalMin(value = "0.0", message = "Chi phí không được âm")
     private BigDecimal cost;
+
+    private Boolean clearLocation;
+
+    public String getLocationName() {
+        return locationName != null ? locationName : customLocationName;
+    }
+
+    public String getLocationAddress() {
+        return locationAddress != null ? locationAddress : customAddress;
+    }
+
+    public boolean isLocationCleared() {
+        return Boolean.TRUE.equals(clearLocation);
+    }
 }

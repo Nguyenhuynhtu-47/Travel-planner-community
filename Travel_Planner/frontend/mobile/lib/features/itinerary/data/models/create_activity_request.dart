@@ -5,6 +5,8 @@ class CreateActivityRequest {
   final String? startTime;
   final String? endTime;
   final double? cost;
+  final String? locationName;
+  final String? locationAddress;
   final String? customLocationName;
   final String? customAddress;
   final double? latitude;
@@ -20,6 +22,8 @@ class CreateActivityRequest {
     this.startTime,
     this.endTime,
     this.cost,
+    this.locationName,
+    this.locationAddress,
     this.customLocationName,
     this.customAddress,
     this.latitude,
@@ -40,10 +44,16 @@ class CreateActivityRequest {
       if (endTime != null && endTime!.trim().isNotEmpty)
         'endTime': _ensureSeconds(endTime!.trim()),
       if (cost != null) 'cost': cost,
-      if (customLocationName != null && customLocationName!.trim().isNotEmpty)
-        'customLocationName': customLocationName!.trim(),
-      if (customAddress != null && customAddress!.trim().isNotEmpty)
-        'customAddress': customAddress!.trim(),
+      if ((locationName ?? customLocationName) != null &&
+          (locationName ?? customLocationName)!.trim().isNotEmpty) ...{
+        'locationName': (locationName ?? customLocationName)!.trim(),
+        'customLocationName': (locationName ?? customLocationName)!.trim(),
+      },
+      if ((locationAddress ?? customAddress) != null &&
+          (locationAddress ?? customAddress)!.trim().isNotEmpty) ...{
+        'locationAddress': (locationAddress ?? customAddress)!.trim(),
+        'customAddress': (locationAddress ?? customAddress)!.trim(),
+      },
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (placeId != null && placeId!.trim().isNotEmpty)

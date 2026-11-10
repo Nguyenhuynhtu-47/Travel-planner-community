@@ -10,6 +10,8 @@ class ActivityDetail {
   final double? estimatedCost;
   final int displayOrder;
   final DestinationSummary? destination;
+  final String? locationName;
+  final String? locationAddress;
   final String? customLocationName;
   final String? customAddress;
   final double? latitude;
@@ -28,6 +30,8 @@ class ActivityDetail {
     this.estimatedCost,
     required this.displayOrder,
     this.destination,
+    this.locationName,
+    this.locationAddress,
     this.customLocationName,
     this.customAddress,
     this.latitude,
@@ -59,8 +63,10 @@ class ActivityDetail {
       destination: rawDest is Map
           ? DestinationSummary.fromJson(Map<String, dynamic>.from(rawDest))
           : null,
-      customLocationName: json['customLocationName']?.toString(),
-      customAddress: json['customAddress']?.toString(),
+      locationName: (json['locationName'] ?? json['customLocationName'])?.toString(),
+      locationAddress: (json['locationAddress'] ?? json['customAddress'])?.toString(),
+      customLocationName: (json['customLocationName'] ?? json['locationName'])?.toString(),
+      customAddress: (json['customAddress'] ?? json['locationAddress'])?.toString(),
       latitude: json['latitude'] is num
           ? (json['latitude'] as num).toDouble()
           : num.tryParse(json['latitude']?.toString() ?? '')?.toDouble(),
@@ -95,19 +101,25 @@ class ActivityDetail {
     return null;
   }
 
-  /// Whether the activity has coordinates from either a catalog destination or custom location.
+  /// Whether the activity has coordinates from its snapshot.
   bool get hasCoordinates =>
       effectiveLatitude != null && effectiveLongitude != null;
 
-  /// Effective latitude: catalog destination coordinates take precedence if present, else custom coordinates.
-  double? get effectiveLatitude => destination?.latitude ?? latitude;
+  /// Authoritative latitude: strictly from activity snapshot coordinates.
+  double? get effectiveLatitude => latitude;
 
-  /// Effective longitude: catalog destination coordinates take precedence if present, else custom coordinates.
-  double? get effectiveLongitude => destination?.longitude ?? longitude;
+  /// Authoritative longitude: strictly from activity snapshot coordinates.
+  double? get effectiveLongitude => longitude;
 
-  /// Effective display location name: catalog destination name if present, else custom location name.
-  String? get effectiveLocationName => destination?.name ?? customLocationName;
+  /// Authoritative display location name: strictly from activity snapshot
+  /// (locationName takes precedence, falling back to legacy customLocationName for backward compatibility).
+  /// Does NOT borrow name from Destination catalog.
+  String? get effectiveLocationName =>
+      locationName ?? customLocationName;
 
-  /// Effective display address: catalog destination address if present, else custom address.
-  String? get effectiveAddress => destination?.address ?? customAddress;
+  /// Authoritative display address: strictly from activity snapshot
+  /// (locationAddress takes precedence, falling back to legacy customAddress for backward compatibility).
+  /// Does NOT borrow address from Destination catalog.
+  String? get effectiveAddress =>
+      locationAddress ?? customAddress;
 }

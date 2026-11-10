@@ -856,7 +856,7 @@ void main() {
     );
 
     testWidgets(
-      'Selecting a catalog destination clears custom location fields (State 1)',
+      'Activity Form has single unified location picker without destination dropdown',
       (tester) async {
         tester.view.physicalSize = const Size(400, 900);
         tester.view.devicePixelRatio = 1.0;
@@ -865,22 +865,14 @@ void main() {
 
         final initialActivity = const ActivityDetail(
           activityId: 55,
-          name: 'Hoạt động có custom location',
+          name: 'Hoạt động có location',
           displayOrder: 1,
-          customLocationName: 'Vị trí cũ',
+          locationName: 'Vị trí đã lưu',
           latitude: 10.0,
           longitude: 106.0,
         );
 
-        final fakeCrudRepo = FakeItineraryCrudRepository(
-          destinations: const [
-            DestinationSummary(
-              destinationId: 99,
-              name: 'Điểm Đến Danh Mục',
-              address: 'Địa chỉ mẫu',
-            ),
-          ],
-        );
+        final fakeCrudRepo = FakeItineraryCrudRepository();
         final fakeLocRepo = FakeLocationRepository();
         final fakeAuth = FakeAuthNotifier();
 
@@ -909,27 +901,19 @@ void main() {
         await tester.tap(find.text('Open Edit Form'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Vị trí cũ'), findsOneWidget);
+        // Single location area: displays saved location, no catalog dropdown
+        expect(find.text('Vị trí đã lưu'), findsOneWidget);
+        expect(find.text('Không liên kết địa điểm'), findsNothing);
+        expect(find.byType(DropdownButtonFormField<int?>), findsNothing);
 
-        // Open dropdown and pick catalog destination
-        await tester.tap(find.text('Không liên kết địa điểm'));
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.textContaining('Điểm Đến Danh Mục').last);
-        await tester.pumpAndSettle();
-
-        // Custom location card disappears!
-        expect(find.text('Vị trí cũ'), findsNothing);
-
-        // Save changes
+        // Save changes without touching location
         await tester.tap(find.widgetWithText(ElevatedButton, 'Lưu thay đổi'));
         await tester.pumpAndSettle();
 
         expect(fakeCrudRepo.lastUpdateRequest, isNotNull);
-        expect(fakeCrudRepo.lastUpdateRequest!.destinationId, 99);
-        expect(fakeCrudRepo.lastUpdateRequest!.customLocationName, isNull);
-        expect(fakeCrudRepo.lastUpdateRequest!.latitude, isNull);
-        expect(fakeCrudRepo.lastUpdateRequest!.longitude, isNull);
+        expect(fakeCrudRepo.lastUpdateRequest!.locationName, 'Vị trí đã lưu');
+        expect(fakeCrudRepo.lastUpdateRequest!.latitude, 10.0);
+        expect(fakeCrudRepo.lastUpdateRequest!.longitude, 106.0);
       },
     );
 

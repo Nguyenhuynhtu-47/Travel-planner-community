@@ -28,6 +28,12 @@ public class CreateActivityRequest {
 
     private Integer destinationId;
 
+    @Size(max = 150, message = "Tên địa điểm tối đa 150 ký tự")
+    private String locationName;
+
+    @Size(max = 255, message = "Địa chỉ tối đa 255 ký tự")
+    private String locationAddress;
+
     @Size(max = 150, message = "Tên địa điểm tùy chỉnh tối đa 150 ký tự")
     private String customLocationName;
 
@@ -57,4 +63,12 @@ public class CreateActivityRequest {
 
     @DecimalMin(value = "0.0", message = "Chi phí không được âm")
     private BigDecimal cost;
+
+    public String getLocationName() {
+        return locationName != null ? locationName : customLocationName;
+    }
+
+    public String getLocationAddress() {
+        return locationAddress != null ? locationAddress : customAddress;
+    }
 }

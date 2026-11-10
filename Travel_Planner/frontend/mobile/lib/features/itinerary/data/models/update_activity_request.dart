@@ -5,6 +5,8 @@ class UpdateActivityRequest {
   final String? startTime;
   final String? endTime;
   final double? cost;
+  final String? locationName;
+  final String? locationAddress;
   final String? customLocationName;
   final String? customAddress;
   final double? latitude;
@@ -12,6 +14,7 @@ class UpdateActivityRequest {
   final String? placeId;
   final String? locationProvider;
   final String? imageUrl;
+  final bool? clearLocation;
 
   const UpdateActivityRequest({
     required this.name,
@@ -20,6 +23,8 @@ class UpdateActivityRequest {
     this.startTime,
     this.endTime,
     this.cost,
+    this.locationName,
+    this.locationAddress,
     this.customLocationName,
     this.customAddress,
     this.latitude,
@@ -27,6 +32,7 @@ class UpdateActivityRequest {
     this.placeId,
     this.locationProvider,
     this.imageUrl,
+    this.clearLocation,
   });
 
   Map<String, dynamic> toJson() {
@@ -43,14 +49,30 @@ class UpdateActivityRequest {
           ? _ensureSeconds(endTime!.trim())
           : null,
       'cost': cost ?? 0.0,
+      'locationName':
+          (locationName != null && locationName!.trim().isNotEmpty)
+              ? locationName!.trim()
+              : (customLocationName != null && customLocationName!.trim().isNotEmpty)
+                  ? customLocationName!.trim()
+                  : null,
+      'locationAddress':
+          (locationAddress != null && locationAddress!.trim().isNotEmpty)
+              ? locationAddress!.trim()
+              : (customAddress != null && customAddress!.trim().isNotEmpty)
+                  ? customAddress!.trim()
+                  : null,
       'customLocationName':
           (customLocationName != null && customLocationName!.trim().isNotEmpty)
-          ? customLocationName!.trim()
-          : null,
+              ? customLocationName!.trim()
+              : (locationName != null && locationName!.trim().isNotEmpty)
+                  ? locationName!.trim()
+                  : null,
       'customAddress':
           (customAddress != null && customAddress!.trim().isNotEmpty)
-          ? customAddress!.trim()
-          : null,
+              ? customAddress!.trim()
+              : (locationAddress != null && locationAddress!.trim().isNotEmpty)
+                  ? locationAddress!.trim()
+                  : null,
       'latitude': latitude,
       'longitude': longitude,
       'placeId': (placeId != null && placeId!.trim().isNotEmpty)
@@ -61,6 +83,7 @@ class UpdateActivityRequest {
           ? locationProvider!.trim()
           : null,
       'imageUrl': imageUrl?.trim(),
+      if (clearLocation != null) 'clearLocation': clearLocation,
     };
   }
 

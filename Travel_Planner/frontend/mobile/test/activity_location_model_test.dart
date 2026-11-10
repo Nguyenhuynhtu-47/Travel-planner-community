@@ -11,6 +11,10 @@ void main() {
         activityId: 1,
         name: 'Thăm Chùa Cầu',
         displayOrder: 1,
+        locationName: 'Chùa Cầu Hội An',
+        locationAddress: 'Nguyễn Thị Minh Khai, Hội An',
+        latitude: 15.877112,
+        longitude: 108.325983,
         destination: const DestinationSummary(
           destinationId: 101,
           name: 'Chùa Cầu Hội An',
@@ -86,9 +90,38 @@ void main() {
       expect(activity.customAddress, isNull);
       expect(activity.latitude, isNull);
       expect(activity.longitude, isNull);
-      expect(activity.hasCoordinates, isTrue);
-      expect(activity.effectiveLatitude, 21.028511);
-      expect(activity.effectiveLongitude, 105.854444);
+      // Hardened architecture: Activity snapshot is sole source of location data (coordinates, name, address).
+      // Missing Activity snapshot fields do NOT silently inherit from Destination catalog!
+      expect(activity.hasCoordinates, isFalse);
+      expect(activity.effectiveLatitude, isNull);
+      expect(activity.effectiveLongitude, isNull);
+      expect(activity.effectiveLocationName, isNull);
+      expect(activity.effectiveAddress, isNull);
+    });
+
+    test('State 4: Activity without snapshot data does NOT borrow location name, address, or coordinates from Destination', () {
+      const activity = ActivityDetail(
+        activityId: 99,
+        name: 'Hoạt động có catalog nhưng không có snapshot vị trí',
+        displayOrder: 1,
+        destination: DestinationSummary(
+          destinationId: 200,
+          name: 'Chợ Bến Thành',
+          address: 'Quận 1, TP.HCM',
+          latitude: 10.772,
+          longitude: 106.698,
+        ),
+      );
+
+      // Strictly isolated: Activity location getters return null
+      expect(activity.hasCoordinates, isFalse);
+      expect(activity.effectiveLatitude, isNull);
+      expect(activity.effectiveLongitude, isNull);
+      expect(activity.effectiveLocationName, isNull);
+      expect(activity.effectiveAddress, isNull);
+      // Destination object remains accessible as supplementary catalog info
+      expect(activity.destination?.name, 'Chợ Bến Thành');
+      expect(activity.destination?.address, 'Quận 1, TP.HCM');
     });
 
     test('ActivityDetail.fromJson parses custom location fields correctly', () {

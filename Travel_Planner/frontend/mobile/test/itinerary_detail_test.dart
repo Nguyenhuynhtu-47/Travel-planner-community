@@ -869,6 +869,8 @@ Map<String, dynamic> _detailResponse(int id) => {
         {
           'activityId': 10,
           'name': 'Bà Nà Hills',
+          'locationName': 'Bà Nà Hills',
+          'locationAddress': 'Đà Nẵng',
           'startTime': '08:00:00',
           'endTime': '12:00:00',
           'cost': 1234000,

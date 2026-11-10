@@ -1177,32 +1177,18 @@ void main() {
     );
 
     testWidgets(
-      'ActivityFormDialog loads destinations and submits with destinationId',
+      'ActivityFormDialog renders unified location picker and submits activity',
       (tester) async {
-        int? submittedDestinationId;
+        String? submittedName;
         final mockClient = MockClient((request) async {
-          if (request.url.path == '/api/destinations') {
-            return http.Response(
-              jsonEncode([
-                {
-                  'destinationId': 88,
-                  'name': 'Thung Lũng Tình Yêu',
-                  'address': 'Phường 8, Đà Lạt',
-                },
-              ]),
-              200,
-              headers: {'content-type': 'application/json; charset=utf-8'},
-            );
-          }
           if (request.url.path.endsWith('/activities') &&
               request.method == 'POST') {
             final body = jsonDecode(request.body) as Map<String, dynamic>;
-            submittedDestinationId = body['destinationId'] as int?;
+            submittedName = body['name'] as String?;
             return http.Response(
               jsonEncode({
                 'activityId': 999,
                 'name': body['name'],
-                'destinationId': submittedDestinationId,
                 'orderIndex': 0,
               }),
               201,
@@ -1244,7 +1230,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Thêm hoạt động mới'), findsOneWidget);
-        expect(find.text('Điểm đến / Địa điểm (tùy chọn)'), findsOneWidget);
+        expect(find.text('Vị trí hoạt động'), findsOneWidget);
+        expect(find.text('Chọn vị trí trên bản đồ'), findsOneWidget);
 
         // Enter activity name
         await tester.enterText(
@@ -1252,19 +1239,11 @@ void main() {
           'Dạo chơi ngắm cảnh',
         );
 
-        // Select destination from dropdown
-        await tester.tap(find.text('Không liên kết địa điểm'));
-        await tester.pumpAndSettle();
-
-        expect(find.textContaining('Thung Lũng Tình Yêu'), findsWidgets);
-        await tester.tap(find.textContaining('Thung Lũng Tình Yêu').last);
-        await tester.pumpAndSettle();
-
         // Submit
         await tester.tap(find.widgetWithText(ElevatedButton, 'Thêm hoạt động'));
         await tester.pumpAndSettle();
 
-        expect(submittedDestinationId, equals(88));
+        expect(submittedName, equals('Dạo chơi ngắm cảnh'));
       },
     );
   });

@@ -73,6 +73,10 @@ void main() {
             startTime: '10:30',
             endTime: '12:00',
             estimatedCost: 60000.0,
+            locationName: 'Quán Cà Phê Tùng',
+            locationAddress: '06 Khu Hòa Bình, Đà Lạt',
+            latitude: 11.9404,
+            longitude: 108.4385,
             destination: const DestinationSummary(
               destinationId: 501,
               name: 'Quán Cà Phê Tùng',

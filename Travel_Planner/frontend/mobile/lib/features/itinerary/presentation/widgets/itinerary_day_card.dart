@@ -657,7 +657,8 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                 ),
                 if (act.timeRangeFormatted != null ||
                     (act.estimatedCost != null && act.estimatedCost! > 0) ||
-                    act.destination != null) ...[
+                    (act.effectiveLocationName != null &&
+                        act.effectiveLocationName!.trim().isNotEmpty)) ...[
                   const SizedBox(height: 2),
                   Wrap(
                     spacing: 6,
@@ -692,7 +693,8 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                             color: AppColors.success,
                           ),
                         ),
-                      if (act.destination != null)
+                      if (act.effectiveLocationName != null &&
+                          act.effectiveLocationName!.trim().isNotEmpty)
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -705,7 +707,7 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 120),
                               child: Text(
-                                act.destination!.name,
+                                act.effectiveLocationName!.trim(),
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: AppColors.textSecondary,

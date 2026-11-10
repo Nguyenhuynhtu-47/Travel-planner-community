@@ -763,9 +763,9 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .displayOrder(nextOrder)
                 .build();
 
-        applyLocation(activity, request.getDestinationId(), request.getCustomLocationName(),
-                request.getCustomAddress(), request.getLatitude(), request.getLongitude(),
-                request.getPlaceId(), request.getLocationProvider());
+        applyLocation(activity, request.getDestinationId(), request.getLocationName(),
+                request.getLocationAddress(), request.getLatitude(), request.getLongitude(),
+                request.getPlaceId(), request.getLocationProvider(), false, false);
         activity.setImageUrl(validateActivityImageUrl(request.getImageUrl()));
 
         activity = activityRepository.save(activity);
@@ -796,9 +796,9 @@ public class ItineraryServiceImpl implements ItineraryService {
             activity.setCost(request.getCost());
         }
 
-        applyLocation(activity, request.getDestinationId(), request.getCustomLocationName(),
-                request.getCustomAddress(), request.getLatitude(), request.getLongitude(),
-                request.getPlaceId(), request.getLocationProvider());
+        applyLocation(activity, request.getDestinationId(), request.getLocationName(),
+                request.getLocationAddress(), request.getLatitude(), request.getLongitude(),
+                request.getPlaceId(), request.getLocationProvider(), true, request.isLocationCleared());
         if (request.getImageUrl() != null) {
             activity.setImageUrl(validateActivityImageUrl(request.getImageUrl()));
         }
@@ -947,6 +947,9 @@ public class ItineraryServiceImpl implements ItineraryService {
                     .build();
         }
 
+        String effectiveName = activity.getLocationName() != null ? activity.getLocationName() : activity.getCustomLocationName();
+        String effectiveAddress = activity.getLocationAddress() != null ? activity.getLocationAddress() : activity.getCustomAddress();
+
         return ActivityResponse.builder()
                 .activityId(activity.getActivityId())
                 .name(activity.getName())
@@ -956,8 +959,10 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .cost(activity.getCost())
                 .displayOrder(activity.getDisplayOrder())
                 .destination(destinationResponse)
-                .customLocationName(activity.getCustomLocationName())
-                .customAddress(activity.getCustomAddress())
+                .locationName(effectiveName)
+                .locationAddress(effectiveAddress)
+                .customLocationName(effectiveName)
+                .customAddress(effectiveAddress)
                 .latitude(activity.getLatitude())
                 .longitude(activity.getLongitude())
                 .placeId(activity.getPlaceId())
@@ -973,36 +978,19 @@ public class ItineraryServiceImpl implements ItineraryService {
 
     private void applyLocation(Activity activity,
                                Integer destinationId,
-                               String customLocationName,
-                               String customAddress,
+                               String locationName,
+                               String locationAddress,
                                BigDecimal latitude,
                                BigDecimal longitude,
                                String placeId,
-                               String locationProvider) {
-        String trimmedName = trimToNull(customLocationName);
-        String trimmedAddress = trimToNull(customAddress);
-        String trimmedPlaceId = trimToNull(placeId);
-        String trimmedProvider = trimToNull(locationProvider);
-
-        boolean hasCoordinates = latitude != null || longitude != null;
-        boolean hasAnyCustomField = hasCoordinates || trimmedName != null || trimmedAddress != null
-                || trimmedPlaceId != null || trimmedProvider != null;
-
-        // 1. Mutual exclusivity between Catalog Destination and Custom Location
-        if (destinationId != null && hasAnyCustomField) {
-            throw new BadRequestException("Không thể đồng thời chỉ định địa điểm từ danh mục và tọa độ tùy chỉnh");
-        }
-
-        // State 1: Catalog Destination (destinationId != null, all custom fields cleared)
-        if (destinationId != null) {
-            Destination destination = destinationRepository.findById(destinationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Địa điểm không tồn tại"));
-            if (destination.getStatus() != DestinationStatus.ACTIVE
-                    && !destination.getDestinationId().equals(activity.getDestination() == null
-                        ? null : activity.getDestination().getDestinationId())) {
-                throw new BadRequestException("Địa điểm này hiện không khả dụng");
-            }
-            activity.setDestination(destination);
+                               String locationProvider,
+                               boolean isUpdate,
+                               boolean isLocationCleared) {
+        // 1. Explicit clear of location
+        if (isLocationCleared) {
+            activity.setDestination(null);
+            activity.setLocationName(null);
+            activity.setLocationAddress(null);
             activity.setCustomLocationName(null);
             activity.setCustomAddress(null);
             activity.setLatitude(null);
@@ -1012,49 +1000,122 @@ public class ItineraryServiceImpl implements ItineraryService {
             return;
         }
 
-        // State 2: Custom Location (destinationId == null, latitude and longitude mandatory)
-        if (hasAnyCustomField) {
-            // Atomic coordinate pair validation
-            if (latitude == null || longitude == null) {
-                if ((latitude == null && longitude != null) || (latitude != null && longitude == null)) {
-                    throw new BadRequestException("Tọa độ latitude và longitude phải được cung cấp đồng thời");
-                }
-                throw new BadRequestException("Tọa độ latitude và longitude là bắt buộc khi sử dụng địa điểm tùy chỉnh");
-            }
+        String trimmedName = trimToNull(locationName);
+        String trimmedAddress = trimToNull(locationAddress);
+        String trimmedPlaceId = trimToNull(placeId);
+        String trimmedProvider = trimToNull(locationProvider);
 
-            // Coordinate bounds validation
+        boolean hasCoordinates = (latitude != null || longitude != null);
+        boolean hasAnyLocationField = hasCoordinates || trimmedName != null || trimmedAddress != null
+                || trimmedPlaceId != null || trimmedProvider != null;
+
+        // 1b. Disallow conflicting destination catalog and custom coordinates in request
+        if (destinationId != null && hasCoordinates) {
+            throw new BadRequestException("Không thể đồng thời chỉ định địa điểm từ danh mục và tọa độ tùy chỉnh");
+        }
+
+        // 1c. Custom venue name without coordinates is disallowed
+        if (destinationId == null && (trimmedName != null || trimmedAddress != null) && !hasCoordinates) {
+            throw new BadRequestException("Tọa độ latitude và longitude là bắt buộc khi sử dụng địa điểm tùy chỉnh");
+        }
+
+        // 2. Validate atomic coordinates: latitude and longitude must both be present or both null
+        if ((latitude == null && longitude != null) || (latitude != null && longitude == null)) {
+            throw new BadRequestException("Tọa độ latitude và longitude phải được cung cấp đồng thời");
+        }
+
+        // 3. Validate coordinate bounds if coordinates are provided
+        if (latitude != null && longitude != null) {
             if (latitude.compareTo(MIN_LATITUDE) < 0 || latitude.compareTo(MAX_LATITUDE) > 0) {
                 throw new BadRequestException("Tọa độ vĩ độ (latitude) phải nằm trong khoảng từ -90.0 đến 90.0");
             }
             if (longitude.compareTo(MIN_LONGITUDE) < 0 || longitude.compareTo(MAX_LONGITUDE) > 0) {
                 throw new BadRequestException("Tọa độ kinh độ (longitude) phải nằm trong khoảng từ -180.0 đến 180.0");
             }
+        }
 
-            if (trimmedName != null && trimmedName.length() > 150) {
-                throw new BadRequestException("Tên địa điểm tùy chỉnh tối đa 150 ký tự");
-            }
-            if (trimmedAddress != null && trimmedAddress.length() > 255) {
-                throw new BadRequestException("Địa chỉ tùy chỉnh tối đa 255 ký tự");
-            }
-            if (trimmedPlaceId != null && trimmedPlaceId.length() > 100) {
-                throw new BadRequestException("Mã địa điểm (placeId) tối đa 100 ký tự");
-            }
-            if (trimmedProvider != null && trimmedProvider.length() > 30) {
-                throw new BadRequestException("Nhà cung cấp vị trí tối đa 30 ký tự");
-            }
+        // 4. Validate string field lengths
+        if (trimmedName != null && trimmedName.length() > 150) {
+            throw new BadRequestException("Tên địa điểm tùy chỉnh tối đa 150 ký tự");
+        }
+        if (trimmedAddress != null && trimmedAddress.length() > 255) {
+            throw new BadRequestException("Địa chỉ tùy chỉnh tối đa 255 ký tự");
+        }
+        if (trimmedPlaceId != null && trimmedPlaceId.length() > 100) {
+            throw new BadRequestException("Mã địa điểm (placeId) tối đa 100 ký tự");
+        }
+        if (trimmedProvider != null && trimmedProvider.length() > 30) {
+            throw new BadRequestException("Nhà cung cấp vị trí tối đa 30 ký tự");
+        }
 
-            activity.setDestination(null);
+        // Case A: Coordinates explicitly provided -> authoritative activity location snapshot
+        if (latitude != null && longitude != null) {
+            activity.setLocationName(trimmedName);
+            activity.setLocationAddress(trimmedAddress);
             activity.setCustomLocationName(trimmedName);
             activity.setCustomAddress(trimmedAddress);
             activity.setLatitude(latitude);
             activity.setLongitude(longitude);
             activity.setPlaceId(trimmedPlaceId);
-            activity.setLocationProvider(trimmedProvider);
+            activity.setLocationProvider(trimmedProvider != null ? trimmedProvider : "MANUAL_PIN");
+
+            if (destinationId != null) {
+                Destination dest = destinationRepository.findById(destinationId).orElse(null);
+                activity.setDestination(dest);
+            } else {
+                activity.setDestination(null);
+            }
             return;
         }
 
-        // State 3: No Location (destinationId == null && all custom fields null)
+        // Case B: destinationId provided without coordinates -> snapshot from catalog
+        if (destinationId != null) {
+            Destination destination = destinationRepository.findById(destinationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Địa điểm không tồn tại"));
+            Integer currentDestId = activity.getDestination() != null ? activity.getDestination().getDestinationId() : null;
+            if (destination.getStatus() != DestinationStatus.ACTIVE && !destination.getDestinationId().equals(currentDestId)) {
+                throw new BadRequestException("Địa điểm này hiện không khả dụng");
+            }
+
+            // If updating an activity already linked to this destination with an established snapshot,
+            // preserve existing snapshot coordinates to avoid accidental overwrites from catalog changes.
+            if (isUpdate && currentDestId != null && currentDestId.equals(destinationId)
+                    && activity.getLatitude() != null && activity.getLongitude() != null) {
+                activity.setDestination(destination);
+                if (trimmedName != null) {
+                    activity.setLocationName(trimmedName);
+                    activity.setCustomLocationName(trimmedName);
+                }
+                if (trimmedAddress != null) {
+                    activity.setLocationAddress(trimmedAddress);
+                    activity.setCustomAddress(trimmedAddress);
+                }
+                return;
+            }
+
+            activity.setDestination(destination);
+            String nameToUse = trimmedName != null ? trimmedName : destination.getName();
+            String addressToUse = trimmedAddress != null ? trimmedAddress : destination.getAddress();
+            activity.setLocationName(nameToUse);
+            activity.setLocationAddress(addressToUse);
+            activity.setCustomLocationName(nameToUse);
+            activity.setCustomAddress(addressToUse);
+            activity.setLatitude(destination.getLatitude());
+            activity.setLongitude(destination.getLongitude());
+            activity.setPlaceId(trimmedPlaceId != null ? trimmedPlaceId : "dest_" + destination.getDestinationId());
+            activity.setLocationProvider(trimmedProvider != null ? trimmedProvider : "DESTINATION_CATALOG");
+            return;
+        }
+
+        // Case C: Update request without location changes -> preserve existing activity location snapshot
+        if (isUpdate && !hasAnyLocationField && destinationId == null) {
+            return;
+        }
+
+        // Case D: Creating with no location or updating with empty location
         activity.setDestination(null);
+        activity.setLocationName(null);
+        activity.setLocationAddress(null);
         activity.setCustomLocationName(null);
         activity.setCustomAddress(null);
         activity.setLatitude(null);

@@ -23,6 +23,8 @@ public class ActivityResponse {
     private BigDecimal cost;
     private Integer displayOrder;
     private DestinationResponse destination;
+    private String locationName;
+    private String locationAddress;
     private String customLocationName;
     private String customAddress;
     private BigDecimal latitude;

@@ -58,6 +58,12 @@ public class Activity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "location_name", length = 150)
+    private String locationName;
+
+    @Column(name = "location_address", length = 255)
+    private String locationAddress;
+
     @Column(name = "custom_location_name", length = 150)
     private String customLocationName;
 
@@ -105,10 +111,32 @@ public class Activity {
         if (this.cost == null) {
             this.cost = BigDecimal.ZERO;
         }
+        syncLocationFields();
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+        syncLocationFields();
+    }
+
+    public void syncLocationFields() {
+        // Authoritative source of truth is locationName / locationAddress.
+        // Legacy custom_* columns mirror authoritative fields for database-level backward compatibility.
+        if (this.locationName != null) {
+            this.customLocationName = this.locationName;
+        } else if (this.customLocationName != null) {
+            this.locationName = this.customLocationName;
+        } else {
+            this.customLocationName = null;
+        }
+
+        if (this.locationAddress != null) {
+            this.customAddress = this.locationAddress;
+        } else if (this.customAddress != null) {
+            this.locationAddress = this.customAddress;
+        } else {
+            this.customAddress = null;
+        }
     }
 }
