@@ -104,7 +104,7 @@ class CommentsNotifier extends ChangeNotifier {
           final root = comments[rootIndex];
           comments[rootIndex] = ItineraryComment(
             commentId: root.commentId, content: root.content, userId: root.userId,
-            username: root.username, fullName: root.fullName, avatar: root.avatar,
+            handle: root.handle, username: root.username, fullName: root.fullName, avatar: root.avatar,
             createdAt: root.createdAt, updatedAt: root.updatedAt,
             parentCommentId: root.parentCommentId, rootCommentId: root.rootCommentId,
             replyCount: root.replyCount + 1, deleted: root.deleted,
@@ -174,7 +174,7 @@ class CommentsNotifier extends ChangeNotifier {
       final old = _findComment(commentId);
       if (old != null) {
         _replaceComment(ItineraryComment(commentId: old.commentId, content: 'Bình luận đã bị xóa',
-          userId: old.userId, username: old.username, fullName: old.fullName, avatar: old.avatar,
+          userId: old.userId, handle: old.handle, username: old.username, fullName: old.fullName, avatar: old.avatar,
           createdAt: old.createdAt, updatedAt: old.updatedAt, parentCommentId: old.parentCommentId,
           rootCommentId: old.rootCommentId, replyCount: old.replyCount, deleted: true));
         if (old.parentCommentId != null) _decrementRootReplyCount(old.rootCommentId);
@@ -205,7 +205,7 @@ class CommentsNotifier extends ChangeNotifier {
     if (index < 0) return;
     final root = comments[index];
     comments[index] = ItineraryComment(commentId: root.commentId, content: root.content,
-      userId: root.userId, username: root.username, fullName: root.fullName, avatar: root.avatar,
+      userId: root.userId, handle: root.handle, username: root.username, fullName: root.fullName, avatar: root.avatar,
       createdAt: root.createdAt, updatedAt: root.updatedAt, rootCommentId: root.rootCommentId,
       replyCount: root.replyCount > 0 ? root.replyCount - 1 : 0, deleted: root.deleted);
   }

@@ -2,6 +2,7 @@ class ItineraryComment {
   final int commentId;
   final String content;
   final int? userId;
+  final String? handle;
   final String? username;
   final String? fullName;
   final String? avatar;
@@ -20,6 +21,7 @@ class ItineraryComment {
     required this.commentId,
     required this.content,
     this.userId,
+    this.handle,
     this.username,
     this.fullName,
     this.avatar,
@@ -35,6 +37,16 @@ class ItineraryComment {
     this.targetId,
   });
 
+  String get displayName {
+    if (fullName != null && fullName!.trim().isNotEmpty) {
+      return fullName!.trim();
+    }
+    if (handle != null && handle!.trim().isNotEmpty) {
+      return '@${handle!.trim()}';
+    }
+    return 'Người dùng';
+  }
+
   factory ItineraryComment.fromJson(Map<String, dynamic> json) {
     final creator = json['creator'] is Map
         ? Map<String, dynamic>.from(json['creator'] as Map)
@@ -44,6 +56,7 @@ class ItineraryComment {
       commentId: rawId is num ? rawId.toInt() : int.tryParse('$rawId') ?? 0,
       content: json['content']?.toString() ?? '',
       userId: creator['userId'] is num ? (creator['userId'] as num).toInt() : null,
+      handle: creator['handle']?.toString(),
       username: creator['username']?.toString(),
       fullName: creator['fullName']?.toString(),
       avatar: creator['avatar']?.toString(),
@@ -57,7 +70,9 @@ class ItineraryComment {
           ? ((json['replyToCreator'] as Map)['userId'] as num).toInt()
           : null,
       replyToName: (json['replyToCreator'] as Map?)?['fullName']?.toString() ??
-          (json['replyToCreator'] as Map?)?['username']?.toString(),
+          ((json['replyToCreator'] as Map?)?['handle'] != null
+              ? '@${(json['replyToCreator'] as Map)['handle']}'
+              : (json['replyToCreator'] as Map?)?['username']?.toString()),
       targetType: json['targetType']?.toString(),
       targetId: (json['targetId'] as num?)?.toInt(),
     );

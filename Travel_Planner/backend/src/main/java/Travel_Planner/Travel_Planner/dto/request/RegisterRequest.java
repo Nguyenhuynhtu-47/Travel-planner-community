@@ -22,6 +22,9 @@ public class RegisterRequest {
     @Pattern(regexp = "^[a-zA-Z0-9_.]+$", message = "Tên đăng nhập chỉ được chứa chữ cái, số, dấu gạch dưới và dấu chấm")
     private String username;
 
+    @Pattern(regexp = "^$|^@?[a-zA-Z0-9_.]{3,30}$", message = "Handle phải từ 3 đến 30 ký tự, chỉ chứa chữ cái, chữ số, dấu gạch dưới và dấu chấm")
+    private String handle;
+
     @NotBlank(message = "Email không được để trống")
     @Email(message = "Email không đúng định dạng")
     @Size(max = 100, message = "Email tối đa 100 ký tự")

@@ -13,6 +13,7 @@ import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
 import Travel_Planner.Travel_Planner.service.AuthService;
+import Travel_Planner.Travel_Planner.service.UserHandleService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,14 +24,17 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserHandleService userHandleService;
 
     public AuthServiceImpl(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider) {
+            JwtTokenProvider jwtTokenProvider,
+            UserHandleService userHandleService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.userHandleService = userHandleService;
     }
 
     @Override
@@ -47,8 +51,19 @@ public class AuthServiceImpl implements AuthService {
             throw new ConflictException("Email đã được sử dụng");
         }
 
+        String handle;
+        if (request.getHandle() != null && !request.getHandle().isBlank()) {
+            handle = userHandleService.normalize(request.getHandle());
+            if (userRepository.existsByHandle(handle)) {
+                throw new ConflictException("Định danh (@handle) này đã được sử dụng");
+            }
+        } else {
+            handle = userHandleService.generateUniqueHandle(request.getFullName(), null);
+        }
+
         User user = User.builder()
                 .username(username)
+                .handle(handle)
                 .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName().trim())
@@ -117,6 +132,7 @@ public class AuthServiceImpl implements AuthService {
         return UserResponse.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
+                .handle(user.getHandle())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .role(user.getRole())

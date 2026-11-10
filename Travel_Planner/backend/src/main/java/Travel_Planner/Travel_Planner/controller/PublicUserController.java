@@ -8,34 +8,46 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/users/{userId}")
+@RequestMapping("/api/users")
 public class PublicUserController {
     private final PublicUserService users;
     public PublicUserController(PublicUserService users) { this.users = users; }
-    @GetMapping("/public-profile")
+
+    @GetMapping("/{userId:[0-9]+}/public-profile")
     public ResponseEntity<PublicProfileResponse> profile(@PathVariable Integer userId,
             @AuthenticationPrincipal UserDetails viewer) {
         return ResponseEntity.ok(users.getProfile(userId, viewer == null ? null : viewer.getUsername()));
     }
-    @GetMapping("/itineraries")
+
+    @GetMapping(value = {"/by-handle/{handle}", "/by-handle/{handle}/public-profile"})
+    public ResponseEntity<PublicProfileResponse> profileByHandle(@PathVariable String handle,
+            @AuthenticationPrincipal UserDetails viewer) {
+        return ResponseEntity.ok(users.getProfileByHandle(handle, viewer == null ? null : viewer.getUsername()));
+    }
+
+    @GetMapping("/{userId:[0-9]+}/itineraries")
     public ResponseEntity<PageResponse<ItinerarySummaryResponse>> itineraries(@PathVariable Integer userId,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="10") int size) {
         return ResponseEntity.ok(users.getItineraries(userId, page, size));
     }
-    @PostMapping("/follow")
+
+    @PostMapping("/{userId:[0-9]+}/follow")
     public ResponseEntity<Void> follow(@PathVariable Integer userId, @AuthenticationPrincipal UserDetails viewer) {
         users.follow(userId, viewer == null ? null : viewer.getUsername()); return ResponseEntity.noContent().build();
     }
-    @DeleteMapping("/follow")
+
+    @DeleteMapping("/{userId:[0-9]+}/follow")
     public ResponseEntity<Void> unfollow(@PathVariable Integer userId, @AuthenticationPrincipal UserDetails viewer) {
         users.unfollow(userId, viewer == null ? null : viewer.getUsername()); return ResponseEntity.noContent().build();
     }
-    @GetMapping("/followers")
+
+    @GetMapping("/{userId:[0-9]+}/followers")
     public ResponseEntity<PageResponse<PublicUserSummaryResponse>> followers(@PathVariable Integer userId,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
         return ResponseEntity.ok(users.getFollowers(userId, page, size));
     }
-    @GetMapping("/following")
+
+    @GetMapping("/{userId:[0-9]+}/following")
     public ResponseEntity<PageResponse<PublicUserSummaryResponse>> following(@PathVariable Integer userId,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
         return ResponseEntity.ok(users.getFollowing(userId, page, size));

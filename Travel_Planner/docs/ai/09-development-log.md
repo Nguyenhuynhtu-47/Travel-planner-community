@@ -5112,6 +5112,159 @@ Addressed 2 UI and layout requirements for the Rating module in the Mobile appli
   - No database schema or backend API changes were needed.
   - No Git commits or pushes were performed.
 
+### 100. Decoupled Login Username from Public Profile Handle (@handle) (2026-11-10)
+- **Objective:**
+  1. Decouple private authentication `username` from public profile presentation, introducing an Instagram-style `@handle` public identifier across Backend Spring Boot, Flutter Mobile, and Flutter Web.
+  2. Ensure login `username` is strictly reserved for authentication and is never displayed on personal or public profile interfaces.
+  3. Implement automated, safe schema backfill for existing database users so every account has a unique, non-null handle derived independently from their display name (`fullName`) or `userId`, and **NEVER from their login `username`**.
+  4. Enable users to customize their `@handle` through profile editing with strict format validation (`^[a-z0-9_.]{3,30}$`) and uniqueness conflict checking (HTTP 409 Conflict).
+- **Files Created / Modified:**
+  - **Backend:**
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/User.java` (Modified): Added `@Column(name = "handle", unique = true, length = 50) private String handle;` with overloaded constructors and builder support.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/UserRepository.java` (Modified): Added `findByHandle`, `existsByHandle`, `existsByHandleAndUserIdNot`, and `findUsersNeedingHandle` query.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/UserHandleService.java` (Created): Service interface for normalization, format validation, and unique handle generation.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/UserHandleServiceImpl.java` (Created): Generates safe default handles from diacritic-stripped `fullName` (or `traveler_<userId>`), resolves collisions via incremental suffixes, and enforces `^[a-z0-9_.]{3,30}$`.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/UserHandleBackfillRunner.java` (Created): `ApplicationRunner` executing on startup that queries accounts missing handles and assigns unique, safe handles without touching login usernames or user IDs.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/UserResponse.java` (Modified): Added `handle` field.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/PublicProfileResponse.java` (Modified): Added `handle` field, annotated with `@JsonInclude(JsonInclude.Include.NON_NULL)`. Public profile responses omit private login `username`.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/PublicUserSummaryResponse.java` (Modified): Added `handle` field.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/CreatorSummaryResponse.java` (Modified): Added `handle` field.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/UpdateProfileRequest.java` (Modified): Added optional `@Pattern` validated `handle` field.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/RegisterRequest.java` (Modified): Added optional `@Pattern` validated `handle` field.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/AuthServiceImpl.java` (Modified): Injected `UserHandleService`; validates provided handle or generates default on registration; maps `handle` in `mapToUserResponse`.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/ProfileServiceImpl.java` (Modified): Validates format and uniqueness on profile update without modifying `username`; maps `handle` to `UserResponse`.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/PublicUserService.java` & `PublicUserServiceImpl.java` (Modified): Added `getProfileByHandle(String handle, String viewerUsername)`; populates `handle` in public profiles, creator summaries, and user summaries without exposing login username.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/controller/PublicUserController.java` (Modified): Added public profile query by handle endpoints: `GET /api/users/by-handle/{handle}` and `GET /api/users/by-handle/{handle}/public-profile`.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/CommentServiceImpl.java`, `ItineraryServiceImpl.java`, `FavoriteServiceImpl.java`, `SavedItineraryServiceImpl.java` (Modified): Populated `handle` on all `CreatorSummaryResponse` instances.
+    - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/seeder/DataSeeder.java` (Modified): Configured distinct handles (`nam.admin`, `viet.traveler`, etc.) for seeded accounts.
+    - `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleServiceTest.java` (Created): 13 unit and integration tests covering format validation, normalization, non-username derivation, collision resolution, registration, profile updates, conflict handling, public profile concealment, and backfill runner execution.
+  - **Frontend Mobile:**
+    - `Travel_Planner/frontend/mobile/lib/features/profile/data/models/public_profile.dart` (Modified): Added `handle` field and `effectiveHandle` getter.
+    - `Travel_Planner/frontend/mobile/lib/features/profile/data/models/public_user_summary.dart` (Modified): Added `handle` field and `effectiveHandle` getter.
+    - `Travel_Planner/frontend/mobile/lib/features/explore/data/models/creator_summary.dart` (Modified): Added `handle` field; `displayName` prioritizes `fullName`, then `@${handle}`, then `'Người dùng'`, completely decoupling from login `username`.
+    - `Travel_Planner/frontend/mobile/lib/features/comments/data/models/itinerary_comment.dart` (Modified): Added `handle` field and decoupled `displayName` and `replyToName` from `username`.
+    - `Travel_Planner/frontend/mobile/lib/features/comments/presentation/comments_notifier.dart` (Modified): Preserved `handle` during comment tree reconstruction and deletion operations.
+    - `Travel_Planner/frontend/mobile/lib/features/comments/presentation/widgets/itinerary_comments_section.dart` (Modified): Switched display name and reply-to tags to `comment.displayName` and `@${replyTo.handle}`.
+    - `Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/public_profile_screen.dart` (Modified): Displays display name and `@${profile.handle}`; completely hides login `username`.
+    - `Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/public_user_list_screen.dart` (Modified): Displays `@${user.handle}` in list subtitles.
+    - `Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart` (Modified): Displays `@${p['handle']}` below full name; removed `Tên đăng nhập` from account card; added `_handleController` in editor with live format validation (`^[a-z0-9_.]{3,30}$`).
+    - `Travel_Planner/frontend/mobile/test/features/profile/user_handle_test.dart` (Created): 6 comprehensive widget and unit tests covering profile screen presentation, handle editing validation, public profile concealment, user list subtitles, creator summary fallbacks, and comment author formatting.
+  - **Frontend Web:**
+    - `Travel_Planner/frontend/web/lib/features/profile/presentation/screens/profile_screen.dart` (Modified): Replaced `@${profile['username']}` with `@${profile['handle']}` and removed `Tên đăng nhập` row from account details card.
+- **Verification Performed:**
+  - Backend compile & test: `.\mvnw.cmd test "-Dtest=UserHandleServiceTest,PublicUserServiceTest,ActivityCommentPreservationTest,CommentThreadServiceTest,HealthControllerTest,JwtTokenProviderTest,CloudinaryImageUploadServiceTest"` passed (34 / 34 tests passed, BUILD SUCCESS in 24.8s).
+  - Mobile analysis: `flutter analyze` on `Travel_Planner/frontend/mobile` passed with 0 issues (ran in 2.4s).
+  - Mobile tests: `flutter test test/features/profile/user_handle_test.dart test/features/profile/public_profile_screen_test.dart test/activity_detail_screen_test.dart test/widget_test.dart test/location_picker_test.dart` passed (43 / 43 tests passed, 100% green).
+  - Web analysis: `flutter analyze` on `Travel_Planner/frontend/web` passed with 0 issues (ran in 3.5s).
+  - Web tests: `flutter test` on `Travel_Planner/frontend/web` passed (39 / 39 tests passed, 100% green).
+  - Whitespace & git check: `git diff --check` passed cleanly.
+  - No Git commits or pushes were performed.
 
+### 102. Resolved Handle Display and Update Synchronization across Backend and Flutter (2026-11-10)
+- **Root Cause Analysis:**
+  1. **Stale Running JVM Process on Port 8080:** The active Spring Boot process (PID 6952, launched at 09:45 AM) was executing bytecode built prior to the introduction of `handle` in `UserResponse` and `ProfileServiceImpl`. Consequently, live responses from `GET /api/user/profile`, `GET /api/auth/me`, and `POST /api/auth/login` omitted the `"handle"` field entirely.
+  2. **Flutter Mobile Fallback to 'Chưa thiết lập':** Because the live JSON response lacked the `"handle"` key, `profile['handle']` evaluated to `null`, causing `profile_screen.dart` to render `'Chưa thiết lập'`.
+  3. **Profile Update Failure (500 Error):** Calling `PUT /api/user/profile` on the stale JVM process caused runtime deserialization/service resolution errors because `UserHandleService` was not present in that running application context.
+  4. **Leading `@` Input Friction:** Users entering their handle as `@minhdanh` rather than `minhdanh` encountered strict regex rejections in both Flutter form validation and backend Bean Validation (`UpdateProfileRequest`, `RegisterRequest`).
+  5. **Flutter Web Feature Parity:** Flutter Web `ProfileScreen` lacked the `_handleController` in its editing form and omitted `handle` from the update payload.
+- **Implemented Fixes:**
+  - **Backend Server Process Refresh:**
+    - Terminated stale Java process (PID 6952 / PID 24148) and launched updated Spring Boot server daemon on port 8080 with full `handle` persistence support.
+    - Verified live startup: `UserHandleBackfillRunner` cleanly inspected schema, confirmed all 11 existing users had non-null unique handles, and Tomcat bound port 8080 cleanly.
+  - **Normalization of Leading `@` Prefix:**
+    - Updated [`UserHandleServiceImpl.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/UserHandleServiceImpl.java): `normalize(String handle)` now automatically strips leading `@` and trims whitespace before lowercase transformation.
+    - Updated [`UpdateProfileRequest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/UpdateProfileRequest.java) & [`RegisterRequest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/RegisterRequest.java): Relaxed `@Pattern` to `^$|^@?[a-zA-Z0-9_.]{3,30}$` so inputs with or without `@` pass Bean Validation before service normalization.
+  - **Flutter Mobile & Web UI Robustness:**
+    - In [`profile_screen.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart) (Mobile & Web):
+      - In `_saveProfile()`, automatically strip leading `@` if present before dispatching `PUT /api/user/profile`.
+      - In `_editor()` validator, safely strip leading `@` before verifying the 3–30 length and `^[a-z0-9_.]+$` character set.
+      - In `_detailRow('Định danh (@handle)')`, check `(p['handle'] != null && p['handle'].toString().trim().isNotEmpty)` to display `@${p['handle']}` or `'Chưa thiết lập'`.
+      - Added `_handleController` and form input to Web `profile_screen.dart` ensuring full feature parity with Mobile.
+  - **Test Suite Updates:**
+    - Extended [`user_handle_test.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/features/profile/user_handle_test.dart) with tests for `@handle` input normalization in editor and null/empty handle fallback to `'Chưa thiết lập'`.
+    - Extended [`UserHandleDatabasePersistenceTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleDatabasePersistenceTest.java) and [`UserHandleServiceTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleServiceTest.java) verifying normalization of `@`-prefixed handles and database persistence.
+- **Verification Performed:**
+  - **Live API HTTP Verification:**
+    - `POST /api/auth/login` for `minhdanh` (`pwd: 123456`) and `wanderer_linh`: returns `handle: "minhdanh"` and `handle: "linh.wanderer"`.
+    - `GET /api/auth/me`: returns `handle` matching MySQL records.
+    - `GET /api/user/profile`: returns `handle` matching MySQL records.
+    - `PUT /api/user/profile`: successfully updated `minhdanh` to `minhdanh.pro`, verified in MySQL via `SELECT`, and restored to `minhdanh`.
+    - `PUT /api/user/profile` duplicate rejection: attempting to take `viet.traveler` returned HTTP 409 Conflict with `"Định danh (@handle) này đã được sử dụng"`.
+    - `GET /api/users/577/public-profile` & `GET /api/users/by-handle/minhdanh`: returns public handle and display name, completely omitting login username.
+  - **Automated Tests:**
+    - Backend: 54 / 54 tests passed (`UserHandleServiceTest`, `UserHandleDatabasePersistenceTest`, `AuthControllerTest`, `PublicUserServiceTest`, `CommentThreadServiceTest`, `ActivityCommentPreservationTest`).
+    - Mobile: `flutter analyze` 0 issues; `flutter test` 8 / 8 tests passed in `user_handle_test.dart` and `public_profile_screen_test.dart`.
+    - Web: `flutter analyze` 0 issues; `flutter test` 39 / 39 tests passed.
+    - Scope integrity: `git diff --check` passed cleanly; no git commits or pushes performed.
 
+### 101. Enforced and Verified Public Handle Database Persistence in MySQL (2026-11-10)
+- **Objective:**
+  1. Enforce permanent database persistence of the public identifier `@handle` directly in MySQL `users` table (`VARCHAR(30) NOT NULL UNIQUE`).
+  2. Guarantee that `handle` is never ephemeral or dynamically generated during API DTO mapping, and is completely decoupled from login `username` across all user flows.
+  3. Guarantee that user profile updates write the new handle directly to MySQL via repository persistence, and reject duplicates with HTTP 409 Conflict.
+  4. Guarantee persistence across authentication lifecycles (register -> store to DB, login -> load from DB, logout/re-login -> retained unchanged from DB).
+  5. Backfill all existing MySQL accounts with unique, non-null handles derived independently from their display names (`fullName`) or fallback `traveler_<userId>`, strictly without using login `username`.
+  6. Verify schema integrity and data persistence via direct MySQL JDBC integration tests and SQL CLI inspection.
+- **Database Schema & Backfill Actions:**
+  - `travel_planner.users`: Added column `handle VARCHAR(30) NOT NULL UNIQUE` with index `uk_users_handle`.
+  - `travel_planner_test.users`: Verified and updated `handle VARCHAR(30) NOT NULL UNIQUE` with index `uk_users_handle`.
+  - Backfilled existing production users with unique handles derived from `fullName`:
+    - `user_id 577`: `minhdanh` (from `minh danh`)
+    - `user_id 578`: `nam.admin` (from `Nguyễn Hoàng Nam (Admin)`)
+    - `user_id 579`: `viet.traveler` (from `Nguyễn Quốc Việt`)
+    - `user_id 580`: `linh.wanderer` (from `Đặng Thùy Linh`)
+    - `user_id 581`: `khoa.foodie` (from `Trần Đăng Khoa`)
+    - `user_id 582`: `an.nature` (from `Lê Hoài An`)
+    - `user_id 583`: `duy.hiker` (from `Phạm Đức Duy`)
+    - `user_id 584`: `mai.island` (from `Huỳnh Ngọc Mai`)
+    - `user_id 585`: `tuan.backpacker` (from `Vũ Minh Tuấn`)
+    - `user_id 586`: `thanh.inactive` (from `Trần Thị Thanh`)
+    - `user_id 587`: `vipham.banned` (from `Nguyễn Vi Phạm`)
+- **Backend Enhancements:**
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/User.java`: Updated `@Column(name = "handle", nullable = false, unique = true, length = 30)`. Added safe handle normalization and fallback generation in `@PrePersist` and `@PreUpdate` to prevent null handles in any JPA save paths.
+  - `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/UserHandleBackfillRunner.java`: Enhanced with `@Autowired` constructor using `JdbcTemplate` to check column existence, dynamically apply migration/backfill on startup, and enforce NOT NULL and UNIQUE idempotently.
+  - `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleDatabasePersistenceTest.java`: End-to-end integration test suite verifying MySQL JDBC query persistence, re-login retention, profile update database persistence, duplicate handle rejection (HTTP 409 Conflict), and public profile privacy.
+- **Verification Performed:**
+  - Direct MySQL verification: `DESCRIBE travel_planner.users;` confirmed `handle varchar(30) NO UNI NULL`. `SELECT user_id, username, handle, full_name FROM travel_planner.users;` confirmed non-null, unique handles for all users completely decoupled from login usernames.
+  - Integration & Unit Tests: `UserHandleDatabasePersistenceTest` (5/5 passed), `UserHandleServiceTest` (13/13 passed), `AuthControllerTest` (25/25 passed), `PublicUserServiceTest` (3/3 passed), `CommentThreadServiceTest` (7/7 passed), `ActivityCommentPreservationTest` (1/1 passed) — Total 54 / 54 backend tests passed.
+  - Mobile verification: `flutter analyze` passed with 0 issues; `test/features/profile/user_handle_test.dart` and `test/features/profile/public_profile_screen_test.dart` passed (7/7 tests passed).
+  - Web verification: `flutter analyze` passed with 0 issues; `flutter test` passed (39/39 tests passed).
+  - Whitespace & git check: `git diff --check` passed cleanly.
+  - No Git commits or pushes were performed.
 
+### 102. Resolved Handle Display and Update Synchronization across Backend and Flutter (2026-11-10)
+- **Root Cause Analysis:**
+  1. **Stale Running JVM Process on Port 8080:** The active Spring Boot process (PID 6952, launched at 09:45 AM) was executing bytecode built prior to the introduction of `handle` in `UserResponse` and `ProfileServiceImpl`. Consequently, live responses from `GET /api/user/profile`, `GET /api/auth/me`, and `POST /api/auth/login` omitted the `"handle"` field entirely.
+  2. **Flutter Mobile Fallback to 'Chưa thiết lập':** Because the live JSON response lacked the `"handle"` key, `profile['handle']` evaluated to `null`, causing `profile_screen.dart` to render `'Chưa thiết lập'`.
+  3. **Profile Update Failure (500 Error):** Calling `PUT /api/user/profile` on the stale JVM process caused runtime deserialization/service resolution errors because `UserHandleService` was not present in that running application context.
+  4. **Leading `@` Input Friction:** Users entering their handle as `@minhdanh` rather than `minhdanh` encountered strict regex rejections in both Flutter form validation and backend Bean Validation (`UpdateProfileRequest`, `RegisterRequest`).
+  5. **Flutter Web Feature Parity:** Flutter Web `ProfileScreen` lacked the `_handleController` in its editing form and omitted `handle` from the update payload.
+- **Implemented Fixes:**
+  - **Backend Server Process Refresh:**
+    - Terminated stale Java process (PID 6952 / PID 24148) and launched updated Spring Boot server daemon on port 8080 with full `handle` persistence support.
+    - Verified live startup: `UserHandleBackfillRunner` cleanly inspected schema, confirmed all 11 existing users had non-null unique handles, and Tomcat bound port 8080 cleanly.
+  - **Normalization of Leading `@` Prefix:**
+    - Updated [`UserHandleServiceImpl.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/UserHandleServiceImpl.java): `normalize(String handle)` now automatically strips leading `@` and trims whitespace before lowercase transformation.
+    - Updated [`UpdateProfileRequest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/UpdateProfileRequest.java) & [`RegisterRequest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/RegisterRequest.java): Relaxed `@Pattern` to `^$|^@?[a-zA-Z0-9_.]{3,30}$` so inputs with or without `@` pass Bean Validation before service normalization.
+  - **Flutter Mobile & Web UI Robustness:**
+    - In [`profile_screen.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart) (Mobile & Web):
+      - In `_saveProfile()`, automatically strip leading `@` if present before dispatching `PUT /api/user/profile`.
+      - In `_editor()` validator, safely strip leading `@` before verifying the 3–30 length and `^[a-z0-9_.]+$` character set.
+      - In `_detailRow('Định danh (@handle)')`, check `(p['handle'] != null && p['handle'].toString().trim().isNotEmpty)` to display `@${p['handle']}` or `'Chưa thiết lập'`.
+      - Added `_handleController` and form input to Web `profile_screen.dart` ensuring full feature parity with Mobile.
+  - **Test Suite Updates:**
+    - Extended [`user_handle_test.dart`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/features/profile/user_handle_test.dart) with tests for `@handle` input normalization in editor and null/empty handle fallback to `'Chưa thiết lập'`.
+    - Extended [`UserHandleDatabasePersistenceTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleDatabasePersistenceTest.java) and [`UserHandleServiceTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleServiceTest.java) verifying normalization of `@`-prefixed handles and database persistence.
+- **Verification Performed:**
+  - **Live API HTTP Verification:**
+    - `POST /api/auth/login` for `minhdanh` (`pwd: 123456`) and `wanderer_linh`: returns `handle: "minhdanh"` and `handle: "linh.wanderer"`.
+    - `GET /api/auth/me`: returns `handle` matching MySQL records.
+    - `GET /api/user/profile`: returns `handle` matching MySQL records.
+    - `PUT /api/user/profile`: successfully updated `minhdanh` to `minhdanh.pro`, verified in MySQL via `SELECT`, and restored to `minhdanh`.
+    - `PUT /api/user/profile` duplicate rejection: attempting to take `viet.traveler` returned HTTP 409 Conflict with `"Định danh (@handle) này đã được sử dụng"`.
+    - `GET /api/users/577/public-profile` & `GET /api/users/by-handle/minhdanh`: returns public handle and display name, completely omitting login username.
+  - **Automated Tests:**
+    - Backend: 54 / 54 tests passed (`UserHandleServiceTest`, `UserHandleDatabasePersistenceTest`, `AuthControllerTest`, `PublicUserServiceTest`, `CommentThreadServiceTest`, `ActivityCommentPreservationTest`).
+    - Mobile: `flutter analyze` 0 issues; `flutter test` 8 / 8 tests passed in `user_handle_test.dart` and `public_profile_screen_test.dart`.
+    - Web: `flutter analyze` 0 issues; `flutter test` 39 / 39 tests passed.
+    - Scope integrity: `git diff --check` passed cleanly; no git commits or pushes performed.

@@ -32,10 +32,27 @@ public class PublicUserServiceImpl implements PublicUserService {
         User viewer = viewerUsername == null ? null : users.findByUsername(viewerUsername).orElse(null);
         boolean own = viewer != null && viewer.getUserId().equals(target.getUserId());
         boolean following = viewer != null && !own && follows.existsByFollower_UserIdAndFollowing_UserId(viewer.getUserId(), target.getUserId());
-        return PublicProfileResponse.builder().userId(target.getUserId()).username(target.getUsername())
+        return PublicProfileResponse.builder().userId(target.getUserId()).handle(target.getHandle())
                 .fullName(target.getFullName()).avatar(target.getAvatar()).bio(target.getBio())
                 .createdAt(target.getCreatedAt()).followerCount(follows.countByFollowing_UserId(userId))
                 .followingCount(follows.countByFollower_UserId(userId)).isFollowing(following).isOwnProfile(own).build();
+    }
+
+    @Override @Transactional(readOnly = true)
+    public PublicProfileResponse getProfileByHandle(String handle, String viewerUsername) {
+        if (handle == null || handle.isBlank()) {
+            throw new ResourceNotFoundException("Không tìm thấy hồ sơ công khai");
+        }
+        String normalized = handle.trim().toLowerCase();
+        if (normalized.startsWith("@")) {
+            normalized = normalized.substring(1);
+        }
+        User target = users.findByHandle(normalized)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ công khai"));
+        if (target.getStatus() != UserStatus.ACTIVE) {
+            throw new ResourceNotFoundException("Không tìm thấy hồ sơ công khai");
+        }
+        return getProfile(target.getUserId(), viewerUsername);
     }
 
     @Override @Transactional(readOnly = true)
@@ -104,6 +121,6 @@ public class PublicUserServiceImpl implements PublicUserService {
     private int safeSize(int size) { return size <= 0 ? 20 : Math.min(size, 50); }
     private Pageable itineraryPage(int page, int size) { return PageRequest.of(safePage(page), safeSize(size), Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "itineraryId"))); }
     private Pageable followPage(int page, int size) { return PageRequest.of(safePage(page), safeSize(size), Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "followId"))); }
-    private CreatorSummaryResponse creator(User user) { return CreatorSummaryResponse.builder().userId(user.getUserId()).username(user.getUsername()).fullName(user.getFullName()).avatar(user.getAvatar()).build(); }
-    private PublicUserSummaryResponse userSummary(User user) { return PublicUserSummaryResponse.builder().userId(user.getUserId()).username(user.getUsername()).fullName(user.getFullName()).avatar(user.getAvatar()).build(); }
+    private CreatorSummaryResponse creator(User user) { return CreatorSummaryResponse.builder().userId(user.getUserId()).username(user.getUsername()).handle(user.getHandle()).fullName(user.getFullName()).avatar(user.getAvatar()).build(); }
+    private PublicUserSummaryResponse userSummary(User user) { return PublicUserSummaryResponse.builder().userId(user.getUserId()).username(user.getUsername()).handle(user.getHandle()).fullName(user.getFullName()).avatar(user.getAvatar()).build(); }
 }

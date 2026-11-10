@@ -35,6 +35,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
+  final _handleController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _bioController = TextEditingController();
@@ -66,6 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     widget.authNotifier.removeListener(_handleAuthChanged);
     _fullNameController.dispose();
+    _handleController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _bioController.dispose();
@@ -81,6 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _fillFields(Map<String, dynamic> p) {
     _fullNameController.text = p['fullName']?.toString() ?? '';
+    _handleController.text = p['handle']?.toString() ?? '';
     _selectedAvatar = null;
     _selectedAvatarBytes = null;
     _phoneController.text = p['phone']?.toString() ?? '';
@@ -232,8 +235,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
       failedOperation = 'lưu thông tin hồ sơ';
+      final rawHandle = _handleController.text.trim().toLowerCase();
+      final cleanHandle = rawHandle.startsWith('@')
+          ? rawHandle.substring(1).trim()
+          : rawHandle;
       final profile = await _repository.updateProfile(token, {
         'fullName': _fullNameController.text.trim(),
+        'handle': cleanHandle,
         'avatar': avatarUrl ?? '',
         'phone': _phoneController.text.trim(),
         'address': _addressController.text.trim(),
@@ -523,7 +531,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 4),
             Center(
               child: Text(
-                '@${p['username'] ?? ''}',
+                p['handle'] != null && p['handle'].toString().isNotEmpty
+                    ? '@${p['handle']}'
+                    : '',
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
@@ -573,7 +583,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _sectionHeader('Thông tin tài khoản'),
             const SizedBox(height: 12),
             _infoCard([
-              _detailRow('Tên đăng nhập', p['username']),
+              _detailRow(
+                'Định danh (@handle)',
+                (p['handle'] != null &&
+                        p['handle'].toString().trim().isNotEmpty)
+                    ? '@${p['handle'].toString().trim()}'
+                    : 'Chưa thiết lập',
+              ),
               _detailRow('Email', p['email']),
               _detailRow('Vai trò', p['role']),
               _detailRow('Trạng thái tài khoản', p['status']),
@@ -710,6 +726,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 validator: (v) => v == null || v.trim().isEmpty
                     ? 'Vui lòng nhập họ và tên'
                     : null,
+              ),
+              const SizedBox(height: 16),
+              AppTextField(
+                label: 'Định danh công khai (@handle)',
+                hint: 'Ví dụ: minhdanh.travel',
+                controller: _handleController,
+                textInputAction: TextInputAction.next,
+                errorText: _validationErrors?['handle'],
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Vui lòng nhập định danh handle';
+                  }
+                  var trimmed = v.trim().toLowerCase();
+                  if (trimmed.startsWith('@')) {
+                    trimmed = trimmed.substring(1).trim();
+                  }
+                  if (trimmed.length < 3 || trimmed.length > 30) {
+                    return 'Handle phải từ 3 đến 30 ký tự';
+                  }
+                  if (!RegExp(r'^[a-z0-9_.]+$').hasMatch(trimmed)) {
+                    return 'Chỉ chấp nhận chữ thường, số, dấu chấm và gạch dưới';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               ImageUploadPreview(

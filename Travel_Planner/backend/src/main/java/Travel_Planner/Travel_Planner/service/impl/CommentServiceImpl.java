@@ -258,7 +258,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     private CreatorSummaryResponse creator(User user) {
-        return CreatorSummaryResponse.builder().userId(user.getUserId()).username(user.getUsername())
+        return CreatorSummaryResponse.builder().userId(user.getUserId()).username(user.getUsername()).handle(user.getHandle())
                 .fullName(user.getFullName()).avatar(user.getAvatar()).build();
     }
 }

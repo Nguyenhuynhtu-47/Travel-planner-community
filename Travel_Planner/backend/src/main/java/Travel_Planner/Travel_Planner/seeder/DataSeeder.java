@@ -117,6 +117,7 @@ public class DataSeeder implements CommandLineRunner {
         List<User> userDefinitions = List.of(
                 User.builder()
                         .username("admin_master")
+                        .handle("nam.admin")
                         .password(encodedPassword)
                         .email("admin@travelplanner.local")
                         .role(Role.ADMIN)
@@ -129,6 +130,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("traveler_viet")
+                        .handle("viet.traveler")
                         .password(encodedPassword)
                         .email("viet.nguyen@travelplanner.local")
                         .role(Role.USER)
@@ -141,6 +143,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("wanderer_linh")
+                        .handle("linh.wanderer")
                         .password(encodedPassword)
                         .email("linh.dan@travelplanner.local")
                         .role(Role.USER)
@@ -153,6 +156,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("foodie_khoa")
+                        .handle("khoa.foodie")
                         .password(encodedPassword)
                         .email("khoa.tran@travelplanner.local")
                         .role(Role.USER)
@@ -165,6 +169,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("nature_an")
+                        .handle("an.nature")
                         .password(encodedPassword)
                         .email("an.le@travelplanner.local")
                         .role(Role.USER)
@@ -177,6 +182,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("hiker_duy")
+                        .handle("duy.hiker")
                         .password(encodedPassword)
                         .email("duy.pham@travelplanner.local")
                         .role(Role.USER)
@@ -189,6 +195,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("island_mai")
+                        .handle("mai.island")
                         .password(encodedPassword)
                         .email("mai.huynh@travelplanner.local")
                         .role(Role.USER)
@@ -201,6 +208,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("backpacker_tuan")
+                        .handle("tuan.backpacker")
                         .password(encodedPassword)
                         .email("tuan.vu@travelplanner.local")
                         .role(Role.USER)
@@ -213,6 +221,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("inactive_user")
+                        .handle("thanh.inactive")
                         .password(encodedPassword)
                         .email("inactive@travelplanner.local")
                         .role(Role.USER)
@@ -225,6 +234,7 @@ public class DataSeeder implements CommandLineRunner {
                         .build(),
                 User.builder()
                         .username("banned_spammer")
+                        .handle("vipham.banned")
                         .password(encodedPassword)
                         .email("spammer@travelplanner.local")
                         .role(Role.USER)

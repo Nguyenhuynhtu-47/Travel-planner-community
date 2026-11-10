@@ -5,7 +5,9 @@ import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.text.Normalizer;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -20,8 +22,15 @@ public class User {
     public User(Integer userId, String username, String password, String email, Role role,
                 UserStatus status, String avatar, String fullName, String phone, String address,
                 String bio, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(userId, username, null, password, email, role, status, avatar, fullName, phone, address, bio, createdAt, updatedAt);
+    }
+
+    public User(Integer userId, String username, String handle, String password, String email, Role role,
+                UserStatus status, String avatar, String fullName, String phone, String address,
+                String bio, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.userId = userId;
         this.username = username;
+        this.handle = handle;
         this.password = password;
         this.email = email;
         this.role = role;
@@ -42,6 +51,9 @@ public class User {
 
     @Column(name = "username", nullable = false, unique = true, length = 50)
     private String username;
+
+    @Column(name = "handle", nullable = false, unique = true, length = 30)
+    private String handle;
 
     @Column(name = "password", nullable = false, length = 255)
     private String password;
@@ -90,10 +102,30 @@ public class User {
         if (this.status == null) {
             this.status = UserStatus.ACTIVE;
         }
+        if (this.handle == null || this.handle.trim().isEmpty()) {
+            String base = "traveler";
+            if (this.fullName != null && !this.fullName.trim().isEmpty()) {
+                String normalized = Normalizer.normalize(this.fullName.trim(), Normalizer.Form.NFD)
+                        .replaceAll("\\p{M}", "")
+                        .replace('đ', 'd')
+                        .replace('Đ', 'd')
+                        .toLowerCase()
+                        .replaceAll("[^a-z0-9_.]", "");
+                if (normalized.length() >= 3) {
+                    base = normalized.length() > 20 ? normalized.substring(0, 20) : normalized;
+                }
+            }
+            this.handle = base + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 6);
+        } else {
+            this.handle = this.handle.trim().toLowerCase();
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+        if (this.handle != null) {
+            this.handle = this.handle.trim().toLowerCase();
+        }
     }
 }

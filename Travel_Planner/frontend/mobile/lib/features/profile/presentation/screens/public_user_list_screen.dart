@@ -139,9 +139,10 @@ class _PublicUserListScreenState extends State<PublicUserListScreen> {
                   );
                 }
                 final user = _users[index];
+                final handleDisplay = user.effectiveHandle.isNotEmpty ? user.effectiveHandle : 'user';
                 final displayName = user.fullName?.trim().isNotEmpty == true
                     ? user.fullName!.trim()
-                    : user.username;
+                    : '@$handleDisplay';
                 return ListTile(
                   minLeadingWidth: AppSpacing.xl,
                   leading: CircleAvatar(
@@ -153,7 +154,7 @@ class _PublicUserListScreenState extends State<PublicUserListScreen> {
                         : const Icon(Icons.person_outline),
                   ),
                   title: Text(displayName),
-                  subtitle: Text('@${user.username}'),
+                  subtitle: Text('@$handleDisplay'),
                   onTap: () => widget.onUserSelected(user),
                 );
               },

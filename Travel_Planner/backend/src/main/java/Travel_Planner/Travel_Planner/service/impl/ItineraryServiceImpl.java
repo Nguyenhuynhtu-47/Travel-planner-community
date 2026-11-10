@@ -296,6 +296,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             creator = CreatorSummaryResponse.builder()
                     .userId(item.getUser().getUserId())
                     .username(item.getUser().getUsername())
+                    .handle(item.getUser().getHandle())
                     .fullName(item.getUser().getFullName())
                     .avatar(item.getUser().getAvatar())
                     .build();
@@ -376,6 +377,7 @@ public class ItineraryServiceImpl implements ItineraryService {
             creator = CreatorSummaryResponse.builder()
                     .userId(itinerary.getUser().getUserId())
                     .username(itinerary.getUser().getUsername())
+                    .handle(itinerary.getUser().getHandle())
                     .fullName(itinerary.getUser().getFullName())
                     .avatar(itinerary.getUser().getAvatar())
                     .build();
@@ -552,6 +554,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         CreatorSummaryResponse creator = CreatorSummaryResponse.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
+                .handle(user.getHandle())
                 .fullName(user.getFullName())
                 .avatar(user.getAvatar())
                 .build();

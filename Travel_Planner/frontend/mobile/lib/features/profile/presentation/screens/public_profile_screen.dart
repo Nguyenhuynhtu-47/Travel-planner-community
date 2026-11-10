@@ -206,9 +206,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         ),
       );
     }
+    final handleDisplay = profile.effectiveHandle.isNotEmpty ? profile.effectiveHandle : 'user';
     final name = profile.fullName?.trim().isNotEmpty == true
         ? profile.fullName!.trim()
-        : profile.username;
+        : '@$handleDisplay';
     return Scaffold(
       appBar: AppBar(title: Text(name)),
       body: RefreshIndicator(
@@ -239,7 +240,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             ),
             Center(
               child: Text(
-                '@${profile.username}',
+                '@$handleDisplay',
                 style: AppTextStyles.bodySm.copyWith(
                   color: AppColors.textSecondary,
                 ),

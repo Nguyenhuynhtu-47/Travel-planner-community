@@ -14,6 +14,7 @@ import lombok.Setter;
 public class CreatorSummaryResponse {
     private Integer userId;
     private String username;
+    private String handle;
     private String fullName;
     private String avatar;
 }

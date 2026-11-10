@@ -1,5 +1,6 @@
 class PublicProfile {
   final int userId;
+  final String handle;
   final String username;
   final String? fullName;
   final String? avatar;
@@ -12,7 +13,8 @@ class PublicProfile {
 
   const PublicProfile({
     required this.userId,
-    required this.username,
+    this.handle = '',
+    this.username = '',
     this.fullName,
     this.avatar,
     this.bio,
@@ -23,8 +25,11 @@ class PublicProfile {
     this.isOwnProfile = false,
   });
 
+  String get effectiveHandle => handle.isNotEmpty ? handle : username;
+
   factory PublicProfile.fromJson(Map<String, dynamic> json) => PublicProfile(
     userId: (json['userId'] as num?)?.toInt() ?? 0,
+    handle: json['handle']?.toString() ?? json['username']?.toString() ?? '',
     username: json['username']?.toString() ?? '',
     fullName: json['fullName']?.toString(),
     avatar: json['avatar']?.toString(),
@@ -36,9 +41,10 @@ class PublicProfile {
     isOwnProfile: json['isOwnProfile'] == true,
   );
 
-  PublicProfile copyWith({int? followerCount, bool? isFollowing}) =>
+  PublicProfile copyWith({int? followerCount, bool? isFollowing, String? handle}) =>
       PublicProfile(
         userId: userId,
+        handle: handle ?? this.handle,
         username: username,
         fullName: fullName,
         avatar: avatar,

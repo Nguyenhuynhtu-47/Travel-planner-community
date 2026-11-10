@@ -197,7 +197,7 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
             children: [
               Expanded(
                 child: Text(
-                  'Đang trả lời ${_replyTo!.fullName ?? _replyTo!.username ?? 'người dùng'}',
+                  'Đang trả lời ${_replyTo!.fullName ?? (_replyTo!.handle != null ? '@${_replyTo!.handle}' : 'người dùng')}',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -308,9 +308,7 @@ class _CommentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = comment.fullName?.trim().isNotEmpty == true
-        ? comment.fullName!.trim()
-        : comment.username ?? 'Người dùng';
+    final name = comment.displayName;
     final date = comment.createdAt?.toLocal();
     final timeLabel = date == null
         ? ''

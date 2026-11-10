@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 
 public interface PublicUserService {
     PublicProfileResponse getProfile(Integer userId, String viewerUsername);
+    PublicProfileResponse getProfileByHandle(String handle, String viewerUsername);
     PageResponse<ItinerarySummaryResponse> getItineraries(Integer userId, int page, int size);
     void follow(Integer userId, String username);
     void unfollow(Integer userId, String username);

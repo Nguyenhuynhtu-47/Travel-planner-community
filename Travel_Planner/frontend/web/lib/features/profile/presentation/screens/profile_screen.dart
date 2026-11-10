@@ -19,6 +19,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
+  final _handleController = TextEditingController();
   final _avatarController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
@@ -48,6 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _fullNameController.dispose();
+    _handleController.dispose();
     _avatarController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -57,6 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _fillFields(Map<String, dynamic> profile) {
     _fullNameController.text = profile['fullName']?.toString() ?? '';
+    _handleController.text = profile['handle']?.toString() ?? '';
     _avatarController.text = profile['avatar']?.toString() ?? '';
     _phoneController.text = profile['phone']?.toString() ?? '';
     _addressController.text = profile['address']?.toString() ?? '';
@@ -110,8 +113,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
+      final rawHandle = _handleController.text.trim().toLowerCase();
+      final cleanHandle = rawHandle.startsWith('@')
+          ? rawHandle.substring(1).trim()
+          : rawHandle;
       final profile = await _repository.updateProfile(token, {
         'fullName': _fullNameController.text.trim(),
+        'handle': cleanHandle,
         'avatar': _avatarController.text.trim(),
         'phone': _phoneController.text.trim(),
         'address': _addressController.text.trim(),
@@ -367,7 +375,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 4),
                   Center(
                     child: Text(
-                      '@${profile['username'] ?? ''}',
+                      profile['handle'] != null && profile['handle'].toString().isNotEmpty
+                          ? '@${profile['handle']}'
+                          : '',
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
@@ -417,7 +427,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _sectionHeader('Thông tin tài khoản'),
                   const SizedBox(height: 12),
                   _infoCard([
-                    _detailRow('Tên đăng nhập', profile['username']),
+                    _detailRow(
+                      'Định danh (@handle)',
+                      (profile['handle'] != null &&
+                              profile['handle'].toString().trim().isNotEmpty)
+                          ? '@${profile['handle'].toString().trim()}'
+                          : 'Chưa thiết lập',
+                    ),
                     _detailRow('Email', profile['email']),
                     _detailRow('Vai trò', profile['role']),
                     _detailRow('Trạng thái tài khoản', profile['status']),
@@ -553,6 +569,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           value == null || value.trim().isEmpty
                           ? 'Vui lòng nhập họ và tên'
                           : null,
+                    ),
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      label: 'Định danh công khai (@handle)',
+                      hint: 'Ví dụ: minhdanh.travel',
+                      controller: _handleController,
+                      textInputAction: TextInputAction.next,
+                      errorText: _validationErrors?['handle'],
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Vui lòng nhập định danh handle';
+                        }
+                        var trimmed = value.trim().toLowerCase();
+                        if (trimmed.startsWith('@')) {
+                          trimmed = trimmed.substring(1).trim();
+                        }
+                        if (trimmed.length < 3 || trimmed.length > 30) {
+                          return 'Handle phải từ 3 đến 30 ký tự';
+                        }
+                        if (!RegExp(r'^[a-z0-9_.]+$').hasMatch(trimmed)) {
+                          return 'Chỉ chấp nhận chữ thường, số, dấu chấm và gạch dưới';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     AppTextField(

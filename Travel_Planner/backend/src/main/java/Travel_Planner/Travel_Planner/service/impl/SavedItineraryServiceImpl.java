@@ -211,6 +211,7 @@ public class SavedItineraryServiceImpl implements SavedItineraryService {
             creator = CreatorSummaryResponse.builder()
                     .userId(item.getUser().getUserId())
                     .username(item.getUser().getUsername())
+                    .handle(item.getUser().getHandle())
                     .fullName(item.getUser().getFullName())
                     .avatar(item.getUser().getAvatar())
                     .build();
