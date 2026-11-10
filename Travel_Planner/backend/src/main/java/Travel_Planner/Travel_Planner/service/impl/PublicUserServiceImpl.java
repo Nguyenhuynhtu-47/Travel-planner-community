@@ -8,6 +8,8 @@ import Travel_Planner.Travel_Planner.model.*;
 import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.PublicUserService;
+import Travel_Planner.Travel_Planner.service.FriendshipService;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,23 +23,36 @@ public class PublicUserServiceImpl implements PublicUserService {
     private final FollowRepository follows;
     private final ItineraryRepository itineraries;
     private final RatingRepository ratings;
-    public PublicUserServiceImpl(UserRepository users, FollowRepository follows,
-            ItineraryRepository itineraries, RatingRepository ratings) {
-        this.users = users; this.follows = follows; this.itineraries = itineraries; this.ratings = ratings;
+    private final FriendshipService friendships;
+
+    @Autowired
+    public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
+            RatingRepository ratings, FriendshipService friendships) {
+        this.users = users;
+        this.follows = follows;
+        this.itineraries = itineraries;
+        this.ratings = ratings;
+        this.friendships = friendships;
     }
 
+    public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
+            RatingRepository ratings) {
+        this(users, follows, itineraries, ratings, null);
+    }
     @Override @Transactional(readOnly = true)
     public PublicProfileResponse getProfile(Integer userId, String viewerUsername) {
         User target = activeTarget(userId);
         User viewer = viewerUsername == null ? null : users.findByUsername(viewerUsername).orElse(null);
         boolean own = viewer != null && viewer.getUserId().equals(target.getUserId());
         boolean following = viewer != null && !own && follows.existsByFollower_UserIdAndFollowing_UserId(viewer.getUserId(), target.getUserId());
+        Travel_Planner.Travel_Planner.dto.response.RelationshipContextResponse context = context(target, viewer);
         return PublicProfileResponse.builder().userId(target.getUserId()).handle(target.getHandle())
                 .fullName(target.getFullName()).avatar(target.getAvatar()).bio(target.getBio())
                 .createdAt(target.getCreatedAt()).followerCount(follows.countByFollowing_UserId(userId))
-                .followingCount(follows.countByFollower_UserId(userId)).isFollowing(following).isOwnProfile(own).build();
+                .followingCount(follows.countByFollower_UserId(userId)).isFollowing(following).isOwnProfile(own)
+                .friendshipStatus(context.getFriendshipStatus()).friendRequestDirection(context.getFriendRequestDirection())
+                .canMessage(context.isCanMessage()).canSendFriendRequest(context.isCanSendFriendRequest()).build();
     }
-
     @Override @Transactional(readOnly = true)
     public PublicProfileResponse getProfileByHandle(String handle, String viewerUsername) {
         if (handle == null || handle.isBlank()) {
@@ -106,6 +121,13 @@ public class PublicUserServiceImpl implements PublicUserService {
                 userId, UserStatus.ACTIVE, followPage(page, size)).map(f -> userSummary(f.getFollowing())));
     }
 
+    private Travel_Planner.Travel_Planner.dto.response.RelationshipContextResponse context(User target, User viewer) {
+        if (friendships == null || viewer == null) {
+            return Travel_Planner.Travel_Planner.dto.response.RelationshipContextResponse.builder()
+                    .canMessage(false).canSendFriendRequest(false).build();
+        }
+        return friendships.relationshipContext(viewer.getUserId(), target.getUserId());
+    }
     private User activeTarget(Integer id) {
         User user = users.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ công khai"));
         if (user.getStatus() != UserStatus.ACTIVE) throw new ResourceNotFoundException("Không tìm thấy hồ sơ công khai");
