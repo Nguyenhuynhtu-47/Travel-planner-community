@@ -10,6 +10,10 @@ class PublicProfile {
   final int followingCount;
   final bool isFollowing;
   final bool isOwnProfile;
+  final String? friendshipStatus;
+  final String? friendRequestDirection;
+  final bool canMessage;
+  final bool canSendFriendRequest;
 
   const PublicProfile({
     required this.userId,
@@ -23,6 +27,10 @@ class PublicProfile {
     this.followingCount = 0,
     this.isFollowing = false,
     this.isOwnProfile = false,
+    this.friendshipStatus,
+    this.friendRequestDirection,
+    this.canMessage = false,
+    this.canSendFriendRequest = false,
   });
 
   String get effectiveHandle => handle.isNotEmpty ? handle : username;
@@ -39,20 +47,31 @@ class PublicProfile {
     followingCount: (json['followingCount'] as num?)?.toInt() ?? 0,
     isFollowing: json['isFollowing'] == true,
     isOwnProfile: json['isOwnProfile'] == true,
+    friendshipStatus: json['friendshipStatus']?.toString(),
+    friendRequestDirection: json['friendRequestDirection']?.toString(),
+    canMessage: json['canMessage'] == true,
+    canSendFriendRequest: json['canSendFriendRequest'] == true,
   );
 
-  PublicProfile copyWith({int? followerCount, bool? isFollowing, String? handle}) =>
-      PublicProfile(
-        userId: userId,
-        handle: handle ?? this.handle,
-        username: username,
-        fullName: fullName,
-        avatar: avatar,
-        bio: bio,
-        createdAt: createdAt,
-        followerCount: followerCount ?? this.followerCount,
-        followingCount: followingCount,
-        isFollowing: isFollowing ?? this.isFollowing,
-        isOwnProfile: isOwnProfile,
-      );
+  PublicProfile copyWith({
+    int? followerCount,
+    bool? isFollowing,
+    String? handle,
+  }) => PublicProfile(
+    userId: userId,
+    handle: handle ?? this.handle,
+    username: username,
+    fullName: fullName,
+    avatar: avatar,
+    bio: bio,
+    createdAt: createdAt,
+    followerCount: followerCount ?? this.followerCount,
+    followingCount: followingCount,
+    isFollowing: isFollowing ?? this.isFollowing,
+    isOwnProfile: isOwnProfile,
+    friendshipStatus: friendshipStatus,
+    friendRequestDirection: friendRequestDirection,
+    canMessage: canMessage,
+    canSendFriendRequest: canSendFriendRequest,
+  );
 }
