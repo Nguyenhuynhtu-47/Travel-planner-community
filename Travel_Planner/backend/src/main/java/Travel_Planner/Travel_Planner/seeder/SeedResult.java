@@ -9,6 +9,7 @@ import lombok.ToString;
 @ToString
 public class SeedResult {
     private final long usersCount;
+    private final long placesCount;
     private final long destinationsCount;
     private final long itinerariesCount;
     private final long daysCount;

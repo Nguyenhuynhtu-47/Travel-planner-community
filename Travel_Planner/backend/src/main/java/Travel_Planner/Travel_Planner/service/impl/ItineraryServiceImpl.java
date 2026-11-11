@@ -7,7 +7,6 @@ import Travel_Planner.Travel_Planner.exception.ForbiddenException;
 import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
 import Travel_Planner.Travel_Planner.exception.UnauthorizedException;
 import Travel_Planner.Travel_Planner.model.*;
-import Travel_Planner.Travel_Planner.model.enums.DestinationStatus;
 import Travel_Planner.Travel_Planner.model.enums.CommentStatus;
 import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
@@ -38,18 +37,19 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final ItineraryDayRepository itineraryDayRepository;
     private final ActivityRepository activityRepository;
     private final UserRepository userRepository;
-    private final DestinationRepository destinationRepository;
+    private final PlaceRepository placeRepository;
     private final FavoriteRepository favoriteRepository;
     private final SavedItineraryRepository savedItineraryRepository;
     private final CommentRepository commentRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public ItineraryServiceImpl(
             ItineraryRepository itineraryRepository,
             RatingRepository ratingRepository,
             ItineraryDayRepository itineraryDayRepository,
             ActivityRepository activityRepository,
             UserRepository userRepository,
-            DestinationRepository destinationRepository,
+            PlaceRepository placeRepository,
             FavoriteRepository favoriteRepository,
             SavedItineraryRepository savedItineraryRepository,
             CommentRepository commentRepository
@@ -59,7 +59,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         this.itineraryDayRepository = itineraryDayRepository;
         this.activityRepository = activityRepository;
         this.userRepository = userRepository;
-        this.destinationRepository = destinationRepository;
+        this.placeRepository = placeRepository;
         this.favoriteRepository = favoriteRepository;
         this.savedItineraryRepository = savedItineraryRepository;
         this.commentRepository = commentRepository;
@@ -763,9 +763,9 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .displayOrder(nextOrder)
                 .build();
 
-        applyLocation(activity, request.getDestinationId(), request.getLocationName(),
-                request.getLocationAddress(), request.getLatitude(), request.getLongitude(),
-                request.getPlaceId(), request.getLocationProvider(), false, false);
+        applyLocation(activity, request.getDestinationId(), request.getCanonicalPlaceId(),
+                request.getLocationName(), request.getLocationAddress(), request.getLatitude(),
+                request.getLongitude(), request.getPlaceId(), request.getLocationProvider(), false, false);
         activity.setImageUrl(validateActivityImageUrl(request.getImageUrl()));
 
         activity = activityRepository.save(activity);
@@ -796,9 +796,9 @@ public class ItineraryServiceImpl implements ItineraryService {
             activity.setCost(request.getCost());
         }
 
-        applyLocation(activity, request.getDestinationId(), request.getLocationName(),
-                request.getLocationAddress(), request.getLatitude(), request.getLongitude(),
-                request.getPlaceId(), request.getLocationProvider(), true, request.isLocationCleared());
+        applyLocation(activity, request.getDestinationId(), request.getCanonicalPlaceId(),
+                request.getLocationName(), request.getLocationAddress(), request.getLatitude(),
+                request.getLongitude(), request.getPlaceId(), request.getLocationProvider(), true, request.isLocationCleared());
         if (request.getImageUrl() != null) {
             activity.setImageUrl(validateActivityImageUrl(request.getImageUrl()));
         }
@@ -933,17 +933,21 @@ public class ItineraryServiceImpl implements ItineraryService {
     }
 
     private ActivityResponse mapToActivityResponse(Activity activity) {
-        DestinationResponse destinationResponse = null;
-        if (activity.getDestination() != null) {
-            Destination dest = activity.getDestination();
-            destinationResponse = DestinationResponse.builder()
-                    .destinationId(dest.getDestinationId())
-                    .name(dest.getName())
-                    .address(dest.getAddress())
-                    .description(dest.getDescription())
-                    .imageUrl(dest.getImageUrl())
-                    .latitude(dest.getLatitude())
-                    .longitude(dest.getLongitude())
+        Long canonicalPlaceId = null;
+        PlaceResponse placeResponse = null;
+        if (activity.getPlace() != null) {
+            Place p = activity.getPlace();
+            canonicalPlaceId = p.getPlaceId();
+            placeResponse = PlaceResponse.builder()
+                    .placeId(p.getPlaceId())
+                    .name(p.getName())
+                    .address(p.getAddress())
+                    .description(p.getDescription())
+                    .imageUrl(p.getImageUrl())
+                    .latitude(p.getLatitude())
+                    .longitude(p.getLongitude())
+                    .category(p.getCategory())
+                    .status(p.getStatus())
                     .build();
         }
 
@@ -958,7 +962,8 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .endTime(activity.getEndTime())
                 .cost(activity.getCost())
                 .displayOrder(activity.getDisplayOrder())
-                .destination(destinationResponse)
+                .canonicalPlaceId(canonicalPlaceId)
+                .place(placeResponse)
                 .locationName(effectiveName)
                 .locationAddress(effectiveAddress)
                 .customLocationName(effectiveName)
@@ -978,6 +983,7 @@ public class ItineraryServiceImpl implements ItineraryService {
 
     private void applyLocation(Activity activity,
                                Integer destinationId,
+                               Long canonicalPlaceId,
                                String locationName,
                                String locationAddress,
                                BigDecimal latitude,
@@ -988,7 +994,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                                boolean isLocationCleared) {
         // 1. Explicit clear of location
         if (isLocationCleared) {
-            activity.setDestination(null);
+            activity.setPlace(null);
             activity.setLocationName(null);
             activity.setLocationAddress(null);
             activity.setCustomLocationName(null);
@@ -1005,17 +1011,21 @@ public class ItineraryServiceImpl implements ItineraryService {
         String trimmedPlaceId = trimToNull(placeId);
         String trimmedProvider = trimToNull(locationProvider);
 
-        boolean hasCoordinates = (latitude != null || longitude != null);
-        boolean hasAnyLocationField = hasCoordinates || trimmedName != null || trimmedAddress != null
-                || trimmedPlaceId != null || trimmedProvider != null;
+        // If legacy destinationId provided, map to canonicalPlaceId
+        if (canonicalPlaceId == null && destinationId != null) {
+            canonicalPlaceId = destinationId.longValue();
+        }
 
-        // 1b. Disallow conflicting destination catalog and custom coordinates in request
-        if (destinationId != null && hasCoordinates) {
+        boolean hasCoordinates = (latitude != null || longitude != null);
+        boolean hasCatalogSelection = (canonicalPlaceId != null);
+
+        // 1b. Disallow conflicting catalog selection and custom coordinates in request
+        if (hasCatalogSelection && hasCoordinates) {
             throw new BadRequestException("Không thể đồng thời chỉ định địa điểm từ danh mục và tọa độ tùy chỉnh");
         }
 
         // 1c. Custom venue name without coordinates is disallowed
-        if (destinationId == null && (trimmedName != null || trimmedAddress != null) && !hasCoordinates) {
+        if (!hasCatalogSelection && (trimmedName != null || trimmedAddress != null) && !hasCoordinates) {
             throw new BadRequestException("Tọa độ latitude và longitude là bắt buộc khi sử dụng địa điểm tùy chỉnh");
         }
 
@@ -1059,29 +1069,39 @@ public class ItineraryServiceImpl implements ItineraryService {
             activity.setPlaceId(trimmedPlaceId);
             activity.setLocationProvider(trimmedProvider != null ? trimmedProvider : "MANUAL_PIN");
 
-            if (destinationId != null) {
-                Destination dest = destinationRepository.findById(destinationId).orElse(null);
-                activity.setDestination(dest);
+            if (canonicalPlaceId != null && placeRepository != null) {
+                Place p = placeRepository.findById(canonicalPlaceId).orElse(null);
+                activity.setPlace(p);
             } else {
-                activity.setDestination(null);
+                activity.setPlace(null);
             }
             return;
         }
 
-        // Case B: destinationId provided without coordinates -> snapshot from catalog
-        if (destinationId != null) {
-            Destination destination = destinationRepository.findById(destinationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Địa điểm không tồn tại"));
-            Integer currentDestId = activity.getDestination() != null ? activity.getDestination().getDestinationId() : null;
-            if (destination.getStatus() != DestinationStatus.ACTIVE && !destination.getDestinationId().equals(currentDestId)) {
+        // Case B: Catalog selection provided without coordinates -> snapshot from catalog
+        if (canonicalPlaceId != null) {
+            Place place = null;
+            if (placeRepository != null) {
+                place = placeRepository.findById(canonicalPlaceId).orElse(null);
+            }
+
+            if (place == null) {
+                throw new ResourceNotFoundException("Địa điểm không tồn tại");
+            }
+
+            // Check availability
+            Long currentPlaceId = activity.getPlace() != null ? activity.getPlace().getPlaceId() : null;
+            if (place.getStatus() != Travel_Planner.Travel_Planner.model.enums.PlaceStatus.ACTIVE
+                    && (currentPlaceId == null || !currentPlaceId.equals(place.getPlaceId()))) {
                 throw new BadRequestException("Địa điểm này hiện không khả dụng");
             }
 
-            // If updating an activity already linked to this destination with an established snapshot,
+            // If updating an activity already linked to this catalog place with an established snapshot,
             // preserve existing snapshot coordinates to avoid accidental overwrites from catalog changes.
-            if (isUpdate && currentDestId != null && currentDestId.equals(destinationId)
-                    && activity.getLatitude() != null && activity.getLongitude() != null) {
-                activity.setDestination(destination);
+            boolean isSamePlace = (currentPlaceId != null && currentPlaceId.equals(place.getPlaceId()));
+
+            if (isUpdate && isSamePlace && activity.getLatitude() != null && activity.getLongitude() != null) {
+                activity.setPlace(place);
                 if (trimmedName != null) {
                     activity.setLocationName(trimmedName);
                     activity.setCustomLocationName(trimmedName);
@@ -1093,27 +1113,29 @@ public class ItineraryServiceImpl implements ItineraryService {
                 return;
             }
 
-            activity.setDestination(destination);
-            String nameToUse = trimmedName != null ? trimmedName : destination.getName();
-            String addressToUse = trimmedAddress != null ? trimmedAddress : destination.getAddress();
+            activity.setPlace(place);
+            String nameToUse = trimmedName != null ? trimmedName : place.getName();
+            String addressToUse = trimmedAddress != null ? trimmedAddress : place.getAddress();
             activity.setLocationName(nameToUse);
             activity.setLocationAddress(addressToUse);
             activity.setCustomLocationName(nameToUse);
             activity.setCustomAddress(addressToUse);
-            activity.setLatitude(destination.getLatitude());
-            activity.setLongitude(destination.getLongitude());
-            activity.setPlaceId(trimmedPlaceId != null ? trimmedPlaceId : "dest_" + destination.getDestinationId());
-            activity.setLocationProvider(trimmedProvider != null ? trimmedProvider : "DESTINATION_CATALOG");
+            activity.setLatitude(place.getLatitude());
+            activity.setLongitude(place.getLongitude());
+            activity.setPlaceId(trimmedPlaceId != null ? trimmedPlaceId : "place_" + place.getPlaceId());
+            activity.setLocationProvider(trimmedProvider != null ? trimmedProvider : "PLACE_CATALOG");
             return;
         }
 
         // Case C: Update request without location changes -> preserve existing activity location snapshot
-        if (isUpdate && !hasAnyLocationField && destinationId == null) {
+        boolean hasAnyLocationField = hasCoordinates || trimmedName != null || trimmedAddress != null
+                || trimmedPlaceId != null || trimmedProvider != null;
+        if (isUpdate && !hasAnyLocationField && !hasCatalogSelection) {
             return;
         }
 
         // Case D: Creating with no location or updating with empty location
-        activity.setDestination(null);
+        activity.setPlace(null);
         activity.setLocationName(null);
         activity.setLocationAddress(null);
         activity.setCustomLocationName(null);

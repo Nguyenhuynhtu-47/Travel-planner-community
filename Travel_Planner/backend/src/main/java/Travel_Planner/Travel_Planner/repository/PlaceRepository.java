@@ -19,7 +19,13 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
 
     Optional<Place> findByPlaceIdAndStatus(Long placeId, PlaceStatus status);
 
-    Optional<Place> findBySourceDestinationId(Integer sourceDestinationId);
+    Optional<Place> findByName(String name);
+
+    List<Place> findAllByName(String name);
+
+    Optional<Place> findByNameAndAddress(String name, String address);
+
+    boolean existsByName(String name);
 
     Page<Place> findByStatus(PlaceStatus status, Pageable pageable);
 

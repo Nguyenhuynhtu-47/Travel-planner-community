@@ -48,7 +48,7 @@ class ItineraryCrudTest {
     private ActivityRepository activityRepository;
 
     @Autowired
-    private DestinationRepository destinationRepository;
+    private PlaceRepository placeRepository;
 
     @Autowired
     private RatingRepository ratingRepository;
@@ -68,7 +68,7 @@ class ItineraryCrudTest {
     private User otherUser;
     private String ownerToken;
     private String otherToken;
-    private Destination activeDestination;
+    private Place activePlace;
 
     @BeforeEach
     void setUp() {
@@ -102,13 +102,14 @@ class ItineraryCrudTest {
         ownerToken = "Bearer " + jwtTokenProvider.generateToken(ownerUser);
         otherToken = "Bearer " + jwtTokenProvider.generateToken(otherUser);
 
-        activeDestination = destinationRepository.save(Destination.builder()
+        activePlace = placeRepository.save(Place.builder()
                 .name("Hồ Xuân Hương")
                 .address("Trung tâm TP. Đà Lạt")
                 .description("Hồ nước đẹp giữa lòng Đà Lạt")
+                .category(PlaceCategory.ATTRACTION)
                 .latitude(new BigDecimal("11.9404192"))
                 .longitude(new BigDecimal("108.4583132"))
-                .status(DestinationStatus.ACTIVE)
+                .status(PlaceStatus.ACTIVE)
                 .build());
     }
 
@@ -122,7 +123,7 @@ class ItineraryCrudTest {
         itineraryDayRepository.deleteAll();
         ratingRepository.deleteAll();
         itineraryRepository.deleteAll();
-        destinationRepository.deleteAll();
+        placeRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -421,8 +422,8 @@ class ItineraryCrudTest {
     }
 
     @Test
-    @DisplayName("9. Add activity with destination AND activity without destination (null destinationId supported)")
-    void testActivityWithAndWithoutDestination() throws Exception {
+    @DisplayName("9. Add activity with canonical place AND activity without place (null canonicalPlaceId supported)")
+    void testActivityWithAndWithoutPlace() throws Exception {
         Itinerary trip = itineraryRepository.save(Itinerary.builder()
                 .title("Trip Hoạt Động")
                 .location("Đà Lạt")
@@ -436,11 +437,11 @@ class ItineraryCrudTest {
         ItineraryDay day1 = itineraryDayRepository.save(ItineraryDay.builder()
                 .itinerary(trip).dayNumber(1).title("Ngày 1").build());
 
-        // 1. Add activity WITH destination
+        // 1. Add activity WITH place
         CreateActivityRequest act1Req = CreateActivityRequest.builder()
                 .name("Dạo bờ hồ Xuân Hương")
                 .description("Ngắm cảnh và đạp vịt")
-                .destinationId(activeDestination.getDestinationId())
+                .canonicalPlaceId(activePlace.getPlaceId())
                 .startTime(LocalTime.of(8, 0))
                 .endTime(LocalTime.of(10, 0))
                 .cost(new BigDecimal("50000"))
@@ -453,13 +454,13 @@ class ItineraryCrudTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Dạo bờ hồ Xuân Hương"))
                 .andExpect(jsonPath("$.displayOrder").value(1))
-                .andExpect(jsonPath("$.destination.name").value("Hồ Xuân Hương"));
+                .andExpect(jsonPath("$.place.name").value("Hồ Xuân Hương"));
 
-        // 2. Add activity WITHOUT destination (null destinationId)
+        // 2. Add activity WITHOUT place (null canonicalPlaceId)
         CreateActivityRequest act2Req = CreateActivityRequest.builder()
                 .name("Nghỉ trưa tự do tại khách sạn")
                 .description("Không cần vị trí bản đồ")
-                .destinationId(null)
+                .canonicalPlaceId(null)
                 .startTime(LocalTime.of(12, 0))
                 .endTime(LocalTime.of(13, 30))
                 .cost(BigDecimal.ZERO)
@@ -472,13 +473,13 @@ class ItineraryCrudTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Nghỉ trưa tự do tại khách sạn"))
                 .andExpect(jsonPath("$.displayOrder").value(2))
-                .andExpect(jsonPath("$.destination").doesNotExist());
+                .andExpect(jsonPath("$.place").doesNotExist());
 
         // Verify in database
         List<Activity> activities = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(day1.getDayId());
         assertEquals(2, activities.size());
-        assertNotNull(activities.get(0).getDestination());
-        assertNull(activities.get(1).getDestination());
+        assertNotNull(activities.get(0).getPlace());
+        assertNull(activities.get(1).getPlace());
     }
 
     @Test

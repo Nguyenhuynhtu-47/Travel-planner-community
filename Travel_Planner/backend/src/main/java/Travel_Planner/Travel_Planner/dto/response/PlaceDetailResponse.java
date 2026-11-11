@@ -27,7 +27,6 @@ public class PlaceDetailResponse {
     private BigDecimal longitude;
     private PlaceCategory category;
     private PlaceStatus status;
-    private Integer sourceDestinationId;
     private List<PlaceProviderMappingResponse> providerMappings;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

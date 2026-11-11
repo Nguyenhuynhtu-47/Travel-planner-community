@@ -89,7 +89,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/activities/{activityId:[0-9]+}/comments").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/users/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/itineraries/{id:[0-9]+}/ratings").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/destinations", "/api/destinations/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/places", "/api/places/**").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

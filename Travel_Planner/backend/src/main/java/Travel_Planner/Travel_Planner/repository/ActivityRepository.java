@@ -9,16 +9,18 @@ import java.util.List;
 
 @Repository
 public interface ActivityRepository extends JpaRepository<Activity, Integer> {
-    @EntityGraph(attributePaths = {"destination"})
+    @EntityGraph(attributePaths = {"place"})
     List<Activity> findByItineraryDay_DayIdInOrderByDisplayOrderAsc(List<Integer> dayIds);
 
     boolean existsByItineraryDay_DayIdAndDisplayOrder(Integer dayId, Integer displayOrder);
 
-    @EntityGraph(attributePaths = {"destination"})
+    @EntityGraph(attributePaths = {"place"})
     List<Activity> findByItineraryDay_DayIdOrderByDisplayOrderAsc(Integer dayId);
 
-    @EntityGraph(attributePaths = {"destination"})
+    @EntityGraph(attributePaths = {"place"})
     java.util.Optional<Activity> findByActivityIdAndItineraryDay_DayId(Integer activityId, Integer dayId);
+
+    long countByPlace_PlaceId(Long placeId);
 
     void deleteByItineraryDay_DayId(Integer dayId);
 

@@ -7,8 +7,9 @@ import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
 import Travel_Planner.Travel_Planner.exception.RoutingProviderException;
 import Travel_Planner.Travel_Planner.exception.UnauthorizedException;
 import Travel_Planner.Travel_Planner.model.*;
-import Travel_Planner.Travel_Planner.model.enums.DestinationStatus;
 import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
+import Travel_Planner.Travel_Planner.model.enums.PlaceCategory;
+import Travel_Planner.Travel_Planner.model.enums.PlaceStatus;
 import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.model.enums.Visibility;
@@ -62,7 +63,7 @@ public class RouteServiceTest {
     private ActivityRepository activityRepository;
 
     @Autowired
-    private DestinationRepository destinationRepository;
+    private PlaceRepository placeRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -84,7 +85,7 @@ public class RouteServiceTest {
     private ItineraryDay day1;
     private ItineraryDay day2;
 
-    private Destination catalogDestination;
+    private Place catalogPlace;
     private Activity act1;
     private Activity act2;
     private Activity act3NoLoc;
@@ -116,12 +117,13 @@ public class RouteServiceTest {
         ownerToken = "Bearer " + jwtTokenProvider.generateToken(ownerUser);
         otherToken = "Bearer " + jwtTokenProvider.generateToken(otherUser);
 
-        catalogDestination = destinationRepository.save(Destination.builder()
+        catalogPlace = placeRepository.save(Place.builder()
                 .name("Hồ Xuân Hương")
                 .address("Trung tâm Đà Lạt")
+                .category(PlaceCategory.ATTRACTION)
                 .latitude(new BigDecimal("11.9404100"))
                 .longitude(new BigDecimal("108.4385600"))
-                .status(DestinationStatus.ACTIVE)
+                .status(PlaceStatus.ACTIVE)
                 .build());
 
         publicItinerary = itineraryRepository.save(Itinerary.builder()
@@ -146,15 +148,15 @@ public class RouteServiceTest {
                 .title("Ngày 2: Nghỉ ngơi")
                 .build());
 
-        // Stop 1: Catalog Destination (with snapshot coordinates)
+        // Stop 1: Catalog Place (with snapshot coordinates)
         act1 = activityRepository.save(Activity.builder()
                 .itineraryDay(day1)
-                .destination(catalogDestination)
-                .locationName(catalogDestination.getName())
-                .locationAddress(catalogDestination.getAddress())
-                .latitude(catalogDestination.getLatitude())
-                .longitude(catalogDestination.getLongitude())
-                .locationProvider("DESTINATION_CATALOG")
+                .place(catalogPlace)
+                .locationName(catalogPlace.getName())
+                .locationAddress(catalogPlace.getAddress())
+                .latitude(catalogPlace.getLatitude())
+                .longitude(catalogPlace.getLongitude())
+                .locationProvider("PLACE_CATALOG")
                 .name("Dạo Hồ Xuân Hương")
                 .displayOrder(1)
                 .startTime(LocalTime.of(8, 0))
@@ -192,7 +194,7 @@ public class RouteServiceTest {
         activityRepository.deleteAll();
         itineraryDayRepository.deleteAll();
         itineraryRepository.deleteAll();
-        destinationRepository.deleteAll();
+        placeRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -241,10 +243,10 @@ public class RouteServiceTest {
         }
 
         @Test
-        @DisplayName("Routing succeeds using activity snapshot coordinates even if linked destination is HIDDEN or deleted")
-        void testRoutingSucceedsWhenDestinationIsHidden() {
-            catalogDestination.setStatus(DestinationStatus.HIDDEN);
-            destinationRepository.save(catalogDestination);
+        @DisplayName("Routing succeeds using activity snapshot coordinates even if linked place is HIDDEN or deleted")
+        void testRoutingSucceedsWhenPlaceIsHidden() {
+            catalogPlace.setStatus(PlaceStatus.HIDDEN);
+            placeRepository.save(catalogPlace);
 
             RoutingProvider mockProvider = mock(RoutingProvider.class);
             when(mockProvider.getProviderName()).thenReturn("OPEN_ROUTE_SERVICE");
@@ -448,10 +450,10 @@ public class RouteServiceTest {
             activityRepository.save(Activity.builder()
                     .itineraryDay(privateDay)
                     .name("Điểm 1")
-                    .destination(catalogDestination)
-                    .locationName(catalogDestination.getName())
-                    .latitude(catalogDestination.getLatitude())
-                    .longitude(catalogDestination.getLongitude())
+                    .place(catalogPlace)
+                    .locationName(catalogPlace.getName())
+                    .latitude(catalogPlace.getLatitude())
+                    .longitude(catalogPlace.getLongitude())
                     .displayOrder(1)
                     .build());
             activityRepository.save(Activity.builder()

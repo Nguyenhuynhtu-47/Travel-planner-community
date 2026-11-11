@@ -16,8 +16,7 @@ import java.util.List;
         @Index(name = "idx_places_normalized_name", columnList = "normalized_name"),
         @Index(name = "idx_places_category", columnList = "category"),
         @Index(name = "idx_places_status", columnList = "status"),
-        @Index(name = "idx_places_coords", columnList = "latitude, longitude"),
-        @Index(name = "idx_places_source_dest", columnList = "source_destination_id")
+        @Index(name = "idx_places_coords", columnList = "latitude, longitude")
 })
 @Getter
 @Setter
@@ -61,9 +60,6 @@ public class Place {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private PlaceStatus status = PlaceStatus.ACTIVE;
-
-    @Column(name = "source_destination_id")
-    private Integer sourceDestinationId;
 
     @OneToMany(mappedBy = "place", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default

@@ -25,7 +25,6 @@ public class PlaceResponse {
     private BigDecimal longitude;
     private PlaceCategory category;
     private PlaceStatus status;
-    private Integer sourceDestinationId;
     private Double distanceKm;
 }
 

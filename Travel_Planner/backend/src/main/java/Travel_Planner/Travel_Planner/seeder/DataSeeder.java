@@ -31,7 +31,8 @@ public class DataSeeder implements CommandLineRunner {
 
     private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
-    private final DestinationRepository destinationRepository;
+    private final PlaceRepository placeRepository;
+    private final PlaceProviderMappingRepository placeProviderMappingRepository;
     private final ItineraryRepository itineraryRepository;
     private final ItineraryDayRepository itineraryDayRepository;
     private final ActivityRepository activityRepository;
@@ -45,7 +46,8 @@ public class DataSeeder implements CommandLineRunner {
 
     public DataSeeder(PasswordEncoder passwordEncoder,
                       UserRepository userRepository,
-                      DestinationRepository destinationRepository,
+                      PlaceRepository placeRepository,
+                      PlaceProviderMappingRepository placeProviderMappingRepository,
                       ItineraryRepository itineraryRepository,
                       ItineraryDayRepository itineraryDayRepository,
                       ActivityRepository activityRepository,
@@ -58,7 +60,8 @@ public class DataSeeder implements CommandLineRunner {
                       OfflineDownloadRepository offlineDownloadRepository) {
         this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
-        this.destinationRepository = destinationRepository;
+        this.placeRepository = placeRepository;
+        this.placeProviderMappingRepository = placeProviderMappingRepository;
         this.itineraryRepository = itineraryRepository;
         this.itineraryDayRepository = itineraryDayRepository;
         this.activityRepository = activityRepository;
@@ -87,15 +90,16 @@ public class DataSeeder implements CommandLineRunner {
     @Transactional
     public SeedResult seedData() {
         Map<String, User> userMap = seedUsers();
-        Map<String, Destination> destinationMap = seedDestinations();
+        Map<String, Place> placeMap = seedPlaces();
         Map<String, Itinerary> itineraryMap = seedItineraries(userMap);
-        seedDaysAndActivities(itineraryMap, destinationMap);
+        seedDaysAndActivities(itineraryMap, placeMap);
         seedSocialInteractions(userMap, itineraryMap);
         synchronizeItineraryCounters(itineraryMap);
 
         return SeedResult.builder()
                 .usersCount(userRepository.count())
-                .destinationsCount(destinationRepository.count())
+                .placesCount(placeRepository.count())
+                .destinationsCount(placeRepository.count())
                 .itinerariesCount(itineraryRepository.count())
                 .daysCount(itineraryDayRepository.count())
                 .activitiesCount(activityRepository.count())
@@ -265,235 +269,296 @@ public class DataSeeder implements CommandLineRunner {
         return map;
     }
 
-    private Map<String, Destination> seedDestinations() {
-        Map<String, Destination> map = new LinkedHashMap<>();
+    private Map<String, Place> seedPlaces() {
+        Map<String, Place> map = new LinkedHashMap<>();
 
-        List<Destination> list = List.of(
-                Destination.builder()
+        List<Place> list = List.of(
+                Place.builder()
                         .name("Hồ Hoàn Kiếm & Phố Cổ Hà Nội")
                         .address("Hoàn Kiếm, Hà Nội")
                         .description("Trái tim của thủ đô nghìn năm văn hiến, nổi tiếng với Tháp Rùa, Cầu Thê Húc, Đền Ngọc Sơn và 36 phố phường nhộn nhịp.")
                         .imageUrl("https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&q=80")
                         .latitude(new BigDecimal("21.0285110"))
                         .longitude(new BigDecimal("105.8544441"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Văn Miếu - Quốc Tử Giám")
                         .address("58 Quốc Tử Giám, Đống Đa, Hà Nội")
                         .description("Trường đại học đầu tiên của Việt Nam, biểu tượng của tinh hoa Nho học và truyền thống hiếu học ngàn đời.")
                         .imageUrl("https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=800&q=80")
                         .latitude(new BigDecimal("21.0293500"))
                         .longitude(new BigDecimal("105.8360500"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Vịnh Hạ Long")
                         .address("TP. Hạ Long, Quảng Ninh")
                         .description("Di sản thiên nhiên thế giới UNESCO với hàng nghìn hòn đảo đá vôi kỳ vĩ nhô lên giữa làn nước xanh ngọc bích.")
                         .imageUrl("https://images.unsplash.com/photo-1528127269322-539801943592?w=800&q=80")
                         .latitude(new BigDecimal("20.9100500"))
                         .longitude(new BigDecimal("107.1839000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Đỉnh Fansipan - Nóc Nhà Đông Dương")
                         .address("Sa Pa, Lào Cai")
                         .description("Đỉnh núi cao nhất bán đảo Đông Dương ở độ cao 3.143m, điểm đến trekking và săn mây huyền thoại.")
                         .imageUrl("https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=800&q=80")
                         .latitude(new BigDecimal("22.3033990"))
                         .longitude(new BigDecimal("103.7751050"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Bản Cát Cát")
                         .address("San Sả Hồ, Sa Pa, Lào Cai")
                         .description("Bản làng cổ của người H'Mông với cối xay nước, suối Mường Hoa thơ mộng và trang phục thổ cẩm rực rỡ.")
                         .imageUrl("https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80")
                         .latitude(new BigDecimal("22.3312000"))
                         .longitude(new BigDecimal("103.8329000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Quần thể danh thắng Tràng An")
                         .address("Hoa Lư, Ninh Bình")
                         .description("Di sản hỗn hợp văn hóa và thiên nhiên thế giới, nổi bật với hệ thống hang động xuyên thủy và thung lũng đá vôi ngập nước.")
                         .imageUrl("https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&q=80")
                         .latitude(new BigDecimal("20.2589000"))
                         .longitude(new BigDecimal("105.9083000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Đại Nội Huế (Hoàng Thành)")
                         .address("Thuận Thành, TP. Huế, Thừa Thiên Huế")
                         .description("Kinh đô cuối cùng của các triều đại phong kiến Việt Nam dưới triều Nguyễn, lưu giữ kiến trúc cung đình tinh xảo.")
                         .imageUrl("https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&q=80")
                         .latitude(new BigDecimal("16.4699500"))
                         .longitude(new BigDecimal("107.5794800"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Chùa Thiên Mụ")
                         .address("Đồi Hà Khê, Kim Long, TP. Huế")
                         .description("Ngôi chùa cổ kính hơn 400 năm tuổi soi bóng bên dòng sông Hương êm đềm, biểu tượng tâm linh xứ Huế.")
                         .imageUrl("https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=800&q=80")
                         .latitude(new BigDecimal("16.4528000"))
                         .longitude(new BigDecimal("107.5452000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Phố Cổ Hội An")
                         .address("Minh An, TP. Hội An, Quảng Nam")
                         .description("Đô thị cổ thương cảng quốc tế sầm uất thế kỷ 16-17, lung linh trong ánh đèn lồng rực rỡ và những mái ngói rêu phong.")
                         .imageUrl("https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800&q=80")
                         .latitude(new BigDecimal("15.8800580"))
                         .longitude(new BigDecimal("108.3380470"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Rừng Dừa Bảy Mẫu")
                         .address("Cẩm Thanh, Hội An, Quảng Nam")
                         .description("Vùng sinh thái sông nước độc đáo với trải nghiệm chèo thuyền thúng xoay điệu nghệ giữa bạt ngàn dừa nước.")
                         .imageUrl("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80")
                         .latitude(new BigDecimal("15.8672000"))
                         .longitude(new BigDecimal("108.3719000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Bà Nà Hills & Cầu Vàng")
                         .address("Hòa Ninh, Hòa Vang, TP. Đà Nẵng")
                         .description("Khu du lịch trên đỉnh núi Chúa nổi tiếng toàn cầu với Cầu Vàng được đôi bàn tay khổng lồ rêu phong nâng đỡ.")
                         .imageUrl("https://images.unsplash.com/photo-1569154941061-e231b4725ef1?w=800&q=80")
                         .latitude(new BigDecimal("15.9988500"))
                         .longitude(new BigDecimal("107.9961600"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Bán Đảo Sơn Trà & Chùa Linh Ứng")
                         .address("Hoàng Sa, Thọ Quang, Sơn Trà, TP. Đà Nẵng")
                         .description("Lá phổi xanh của Đà Nẵng nơi có tượng Phật Bà Quan Âm cao 67m hướng ra biển Đông và loài voọc chà vá chân nâu quý hiếm.")
                         .imageUrl("https://images.unsplash.com/photo-1570789210967-2cac24afeb00?w=800&q=80")
                         .latitude(new BigDecimal("16.1001000"))
                         .longitude(new BigDecimal("108.2778000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Hồ Xuân Hương & Quảng Trường Lâm Viên")
                         .address("Phường 1, TP. Đà Lạt, Lâm Đồng")
                         .description("Biểu tượng của thành phố ngàn hoa với khối nụ hoa Atiso và đóa hoa dã quỳ khổng lồ bằng kính màu rực rỡ.")
                         .imageUrl("https://images.unsplash.com/photo-1513415564515-763d91423bdd?w=800&q=80")
                         .latitude(new BigDecimal("11.9398800"))
                         .longitude(new BigDecimal("108.4449800"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Đồi Chè Cầu Đất")
                         .address("Thôn Cầu Đất, Xuân Trường, TP. Đà Lạt")
                         .description("Đồi chè trăm tuổi xanh mướt ngút ngàn, điểm săn mây bình minh tuyệt đẹp cùng các tuabin gió khổng lồ.")
                         .imageUrl("https://images.unsplash.com/photo-1544644181-1484b3fdfc62?w=800&q=80")
                         .latitude(new BigDecimal("11.9056000"))
                         .longitude(new BigDecimal("108.5442000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Chợ Bến Thành & Phố Đi Bộ Nguyễn Huệ")
                         .address("Quận 1, TP. Hồ Chí Minh")
                         .description("Trung tâm văn hóa ẩm thực và thương mại sầm uất bậc nhất Sài Gòn, nơi hội tụ nhịp sống hiện đại và di sản lịch sử.")
                         .imageUrl("https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&q=80")
                         .latitude(new BigDecimal("10.7725300"))
                         .longitude(new BigDecimal("106.6980400"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Bưu Điện Trung Tâm Sài Gòn")
                         .address("02 Công xã Paris, Bến Nghé, Quận 1, TP. Hồ Chí Minh")
                         .description("Công trình kiến trúc Pháp cổ kính xây dựng cuối thế kỷ 19, điểm check-in lịch sử và gửi bưu thiếp lưu niệm.")
                         .imageUrl("https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=80")
                         .latitude(new BigDecimal("10.7797800"))
                         .longitude(new BigDecimal("106.6999600"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Bãi Sao Phú Quốc")
                         .address("Ấp Bãi Sao, An Thới, TP. Phú Quốc, Kiên Giang")
                         .description("Một trong những bãi biển đẹp nhất Phú Quốc với bờ cát trắng mịn như kem và hàng dừa nghiêng soi bóng nước trong vắt.")
                         .imageUrl("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80")
                         .latitude(new BigDecimal("10.0543000"))
                         .longitude(new BigDecimal("104.0322000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Quần đảo An Thới & Cáp treo Hòn Thơm")
                         .address("An Thới, TP. Phú Quốc, Kiên Giang")
                         .description("Cáp treo ba dây vượt biển dài nhất thế giới nối sang đảo Hòn Thơm và cụm đảo hoang sơ lặn ngắm san hô tự nhiên.")
                         .imageUrl("https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&q=80")
                         .latitude(new BigDecimal("9.9998000"))
                         .longitude(new BigDecimal("104.0189000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Chợ Nổi Cái Răng")
                         .address("Sông Cần Thơ, Cái Răng, TP. Cần Thơ")
                         .description("Chợ nổi đặc trưng của miền Tây Nam Bộ với hàng trăm ghe xuồng buôn bán nông sản, bún riêu trên sông buổi sáng sớm.")
                         .imageUrl("https://images.unsplash.com/photo-1569154941061-e231b4725ef1?w=800&q=80")
                         .latitude(new BigDecimal("10.0035000"))
                         .longitude(new BigDecimal("105.7483000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Bãi Biển Mỹ Khê & Cầu Rồng")
                         .address("Võ Nguyên Giáp, Phước Mỹ, Sơn Trà, TP. Đà Nẵng")
                         .description("Bãi biển cát trắng mịn tuyệt đẹp và cây cầu biểu tượng có khả năng phun lửa, phun nước vào cuối tuần.")
                         .imageUrl("https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800&q=80")
                         .latitude(new BigDecimal("16.0611000"))
                         .longitude(new BigDecimal("108.2280000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Chợ Đêm Sơn Trà")
                         .address("Mai Hắc Đế, An Hải Trung, Sơn Trà, TP. Đà Nẵng")
                         .description("Khu chợ đêm sầm uất với các gian hàng ẩm thực đặc sản miền Trung, hải sản nướng và đồ lưu niệm.")
                         .imageUrl("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80")
                         .latitude(new BigDecimal("16.0615000"))
                         .longitude(new BigDecimal("108.2320000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Danh Thắng Ngũ Hành Sơn")
                         .address("Hòa Hải, Ngũ Hành Sơn, TP. Đà Nẵng")
                         .description("Quần thể 5 ngọn núi đá vôi với hệ thống hang động huyền ảo, chùa chiền cổ kính và làng nghề điêu khắc đá Non Nước.")
                         .imageUrl("https://images.unsplash.com/photo-1569154941061-e231b4725ef1?w=800&q=80")
                         .latitude(new BigDecimal("16.0042000"))
                         .longitude(new BigDecimal("108.2635000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Chợ Hàn Đà Nẵng")
                         .address("119 Trần Phú, Hải Châu 1, Hải Châu, TP. Đà Nẵng")
                         .description("Khu chợ truyền thống nổi tiếng trung tâm Đà Nẵng, thiên đường mua sắm hải sản khô, chả bò và quà lưu niệm.")
                         .imageUrl("https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&q=80")
                         .latitude(new BigDecimal("16.0682000"))
                         .longitude(new BigDecimal("108.2246000"))
-                        .status(DestinationStatus.ACTIVE)
+                        .status(PlaceStatus.ACTIVE)
                         .build(),
-                Destination.builder()
+                Place.builder()
                         .name("Khu bảo tồn thiên nhiên Đang Cải Tạo (Tạm Đóng)")
                         .address("Phong Nha, Bố Trạch, Quảng Bình")
                         .description("Khu vực đang tạm thời bảo tồn và cải tạo sinh thái, không mở cửa cho du khách tự do thăm quan.")
                         .imageUrl("https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&q=80")
                         .latitude(new BigDecimal("17.5890000"))
                         .longitude(new BigDecimal("106.2830000"))
-                        .status(DestinationStatus.HIDDEN)
+                        .status(PlaceStatus.HIDDEN)
                         .build()
         );
 
-        for (Destination d : list) {
-            Destination existing = destinationRepository.findByName(d.getName()).orElse(null);
+        for (Place d : list) {
+            Place existing = placeRepository.findByNameAndAddress(d.getName(), d.getAddress())
+                    .orElseGet(() -> {
+                        List<Place> matches = placeRepository.findAllByName(d.getName());
+                        if (matches.isEmpty()) {
+                            return null;
+                        }
+
+                        List<Place> compatibleCandidates = new ArrayList<>();
+                        for (Place candidate : matches) {
+                            // If both have non-empty addresses and they differ, they are distinct physical branches - NEVER merge!
+                            if (d.getAddress() != null && !d.getAddress().isBlank()
+                                    && candidate.getAddress() != null && !candidate.getAddress().isBlank()) {
+                                if (!d.getAddress().trim().equalsIgnoreCase(candidate.getAddress().trim())) {
+                                    continue; // Distinct address -> distinct branch, do not merge!
+                                }
+                            }
+
+                            // Supporting spatial proximity check
+                            if (d.getLatitude() != null && d.getLongitude() != null
+                                    && candidate.getLatitude() != null && candidate.getLongitude() != null) {
+                                double distance = haversineMeters(
+                                        d.getLatitude().doubleValue(), d.getLongitude().doubleValue(),
+                                        candidate.getLatitude().doubleValue(), candidate.getLongitude().doubleValue()
+                                );
+                                if (distance <= 50.0) {
+                                    compatibleCandidates.add(candidate);
+                                }
+                            }
+                        }
+
+                        // Exactly one compatible candidate matching both address & proximity
+                        if (compatibleCandidates.size() == 1) {
+                            return compatibleCandidates.get(0);
+                        }
+
+                        // If multiple compatible candidates are close: ambiguity exists -> DO NOT merge arbitrarily!
+                        if (compatibleCandidates.size() > 1) {
+                            log.warn("Multiple candidates found for place '{}' within proximity; avoiding arbitrary merge", d.getName());
+                        }
+
+                        // Fallback: If only 1 match exists in total AND both addresses are null
+                        if (matches.size() == 1 && (matches.get(0).getAddress() == null && d.getAddress() == null)) {
+                            return matches.get(0);
+                        }
+
+                        return null;
+                    });
+            Place placeToUse;
             if (existing != null) {
-                map.put(d.getName(), existing);
+                placeToUse = existing;
             } else {
-                Destination saved = destinationRepository.save(d);
-                map.put(d.getName(), saved);
+                placeToUse = placeRepository.save(d);
+            }
+            map.put(d.getName(), placeToUse);
+
+            // Ensure canonical provider mapping exists
+            String providerPlaceId = "dest_" + placeToUse.getPlaceId();
+            if (!placeProviderMappingRepository.existsByProviderAndProviderPlaceId("DESTINATION_CATALOG", providerPlaceId)) {
+                PlaceProviderMapping mapping = PlaceProviderMapping.builder()
+                        .place(placeToUse)
+                        .provider("DESTINATION_CATALOG")
+                        .providerPlaceId(providerPlaceId)
+                        .providerType("destination")
+                        .metadataJson("{\"place_id\":" + placeToUse.getPlaceId() + "}")
+                        .lastSyncedAt(LocalDateTime.now())
+                        .build();
+                placeProviderMappingRepository.save(mapping);
             }
         }
 
@@ -865,26 +930,26 @@ public class DataSeeder implements CommandLineRunner {
                 .orElseGet(() -> itineraryRepository.save(itin));
     }
 
-    private void seedDaysAndActivities(Map<String, Itinerary> itineraryMap, Map<String, Destination> destinationMap) {
-        Destination hanoiLake = destinationMap.get("Hồ Hoàn Kiếm & Phố Cổ Hà Nội");
-        Destination vanMieu = destinationMap.get("Văn Miếu - Quốc Tử Giám");
-        Destination fansipan = destinationMap.get("Đỉnh Fansipan - Nóc Nhà Đông Dương");
-        Destination catCat = destinationMap.get("Bản Cát Cát");
-        Destination baNa = destinationMap.get("Bà Nà Hills & Cầu Vàng");
-        Destination sonTra = destinationMap.get("Bán Đảo Sơn Trà & Chùa Linh Ứng");
-        Destination hoiAn = destinationMap.get("Phố Cổ Hội An");
-        Destination bayMau = destinationMap.get("Rừng Dừa Bảy Mẫu");
-        Destination xuanHuong = destinationMap.get("Hồ Xuân Hương & Quảng Trường Lâm Viên");
-        Destination cauDat = destinationMap.get("Đồi Chè Cầu Đất");
-        Destination baiSao = destinationMap.get("Bãi Sao Phú Quốc");
-        Destination anThoi = destinationMap.get("Quần đảo An Thới & Cáp treo Hòn Thơm");
-        Destination trangAn = destinationMap.get("Quần thể danh thắng Tràng An");
-        Destination daiNoi = destinationMap.get("Đại Nội Huế (Hoàng Thành)");
-        Destination thienMu = destinationMap.get("Chùa Thiên Mụ");
-        Destination haLong = destinationMap.get("Vịnh Hạ Long");
-        Destination benThanh = destinationMap.get("Chợ Bến Thành & Phố Đi Bộ Nguyễn Huệ");
-        Destination buuDien = destinationMap.get("Bưu Điện Trung Tâm Sài Gòn");
-        Destination caiRang = destinationMap.get("Chợ Nổi Cái Răng");
+    private void seedDaysAndActivities(Map<String, Itinerary> itineraryMap, Map<String, Place> placeMap) {
+        Place hanoiLake = placeMap.get("Hồ Hoàn Kiếm & Phố Cổ Hà Nội");
+        Place vanMieu = placeMap.get("Văn Miếu - Quốc Tử Giám");
+        Place fansipan = placeMap.get("Đỉnh Fansipan - Nóc Nhà Đông Dương");
+        Place catCat = placeMap.get("Bản Cát Cát");
+        Place baNa = placeMap.get("Bà Nà Hills & Cầu Vàng");
+        Place sonTra = placeMap.get("Bán Đảo Sơn Trà & Chùa Linh Ứng");
+        Place hoiAn = placeMap.get("Phố Cổ Hội An");
+        Place bayMau = placeMap.get("Rừng Dừa Bảy Mẫu");
+        Place xuanHuong = placeMap.get("Hồ Xuân Hương & Quảng Trường Lâm Viên");
+        Place cauDat = placeMap.get("Đồi Chè Cầu Đất");
+        Place baiSao = placeMap.get("Bãi Sao Phú Quốc");
+        Place anThoi = placeMap.get("Quần đảo An Thới & Cáp treo Hòn Thơm");
+        Place trangAn = placeMap.get("Quần thể danh thắng Tràng An");
+        Place daiNoi = placeMap.get("Đại Nội Huế (Hoàng Thành)");
+        Place thienMu = placeMap.get("Chùa Thiên Mụ");
+        Place haLong = placeMap.get("Vịnh Hạ Long");
+        Place benThanh = placeMap.get("Chợ Bến Thành & Phố Đi Bộ Nguyễn Huệ");
+        Place buuDien = placeMap.get("Bưu Điện Trung Tâm Sài Gòn");
+        Place caiRang = placeMap.get("Chợ Nổi Cái Răng");
 
         // Seed details for each itinerary
         for (Itinerary itin : itineraryMap.values()) {
@@ -900,49 +965,49 @@ public class DataSeeder implements CommandLineRunner {
                                 .build()));
 
                 // Assign activities according to location
-                seedActivitiesForDay(day, itin.getLocation(), dayNum, destinationMap);
+                seedActivitiesForDay(day, itin.getLocation(), dayNum, placeMap);
             }
         }
     }
 
-    private void seedActivitiesForDay(ItineraryDay day, String location, int dayNum, Map<String, Destination> destinationMap) {
-        // Fallback default destination if specific destination not determined
-        Destination defaultDest = destinationMap.get("Hồ Hoàn Kiếm & Phố Cổ Hà Nội");
+    private void seedActivitiesForDay(ItineraryDay day, String location, int dayNum, Map<String, Place> placeMap) {
+        // Fallback default Place if specific Place not determined
+        Place defaultPlace = placeMap.get("Hồ Hoàn Kiếm & Phố Cổ Hà Nội");
 
         if (location.contains("Hà Nội")) {
             saveActivityIfNotExists(day, 1, "Ăn sáng Phở Bát Đàn & cà phê Giảng",
                     "Thưởng thức bát phở bò truyền thống phố cổ và nhâm nhi ly cà phê trứng trứ danh.",
                     LocalTime.of(7, 30), LocalTime.of(9, 0), new BigDecimal("120000.00"),
-                    destinationMap.getOrDefault("Hồ Hoàn Kiếm & Phố Cổ Hà Nội", defaultDest));
+                    placeMap.getOrDefault("Hồ Hoàn Kiếm & Phố Cổ Hà Nội", defaultPlace));
             saveActivityIfNotExists(day, 2, "Thăm Văn Miếu - Quốc Tử Giám",
                     "Tìm hiểu lịch sử khoa bảng Việt Nam và dạo bước trong khuôn viên rợp bóng cây cổ thụ.",
                     LocalTime.of(9, 30), LocalTime.of(11, 30), new BigDecimal("70000.00"),
-                    destinationMap.getOrDefault("Văn Miếu - Quốc Tử Giám", defaultDest));
+                    placeMap.getOrDefault("Văn Miếu - Quốc Tử Giám", defaultPlace));
             saveActivityIfNotExists(day, 3, "Dạo quanh Hồ Gươm và Cầu Thê Húc",
                     "Ngắm Tháp Rùa lúc hoàng hôn buông xuống và trải nghiệm không gian đi bộ phố cổ.",
                     LocalTime.of(16, 0), LocalTime.of(18, 30), new BigDecimal("50000.00"),
-                    destinationMap.getOrDefault("Hồ Hoàn Kiếm & Phố Cổ Hà Nội", defaultDest));
+                    placeMap.getOrDefault("Hồ Hoàn Kiếm & Phố Cổ Hà Nội", defaultPlace));
         } else if (location.contains("Sa Pa")) {
-            Destination targetDest = (dayNum == 1)
-                    ? destinationMap.getOrDefault("Bản Cát Cát", defaultDest)
-                    : destinationMap.getOrDefault("Đỉnh Fansipan - Nóc Nhà Đông Dương", defaultDest);
+            Place targetPlace = (dayNum == 1)
+                    ? placeMap.getOrDefault("Bản Cát Cát", defaultPlace)
+                    : placeMap.getOrDefault("Đỉnh Fansipan - Nóc Nhà Đông Dương", defaultPlace);
             saveActivityIfNotExists(day, 1, "Thăm bản Cát Cát & check-in cối xay nước",
                     "Đi dạo bản làng người H'Mông, thuê trang phục dân tộc chụp ảnh bên suối Mường Hoa.",
                     LocalTime.of(8, 0), LocalTime.of(11, 30), new BigDecimal("150000.00"),
-                    targetDest);
+                    targetPlace);
             saveActivityIfNotExists(day, 2, "Chinh phục đỉnh Fansipan săn biển mây",
                     "Lên nóc nhà Đông Dương ngắm toàn cảnh dãy Hoàng Liên Sơn hùng vĩ.",
                     LocalTime.of(13, 30), LocalTime.of(17, 0), new BigDecimal("850000.00"),
-                    destinationMap.getOrDefault("Đỉnh Fansipan - Nóc Nhà Đông Dương", defaultDest));
+                    placeMap.getOrDefault("Đỉnh Fansipan - Nóc Nhà Đông Dương", defaultPlace));
         } else if (location.contains("Đà Nẵng") || location.contains("Hội An")) {
-            Destination baNa = destinationMap.getOrDefault("Bà Nà Hills & Cầu Vàng", defaultDest);
-            Destination sonTra = destinationMap.getOrDefault("Bán Đảo Sơn Trà & Chùa Linh Ứng", defaultDest);
-            Destination myKhe = destinationMap.getOrDefault("Bãi Biển Mỹ Khê & Cầu Rồng", sonTra);
-            Destination choDem = destinationMap.getOrDefault("Chợ Đêm Sơn Trà", sonTra);
-            Destination hoiAn = destinationMap.getOrDefault("Phố Cổ Hội An", defaultDest);
-            Destination bayMau = destinationMap.getOrDefault("Rừng Dừa Bảy Mẫu", hoiAn);
-            Destination nguHanhSon = destinationMap.getOrDefault("Danh Thắng Ngũ Hành Sơn", defaultDest);
-            Destination choHan = destinationMap.getOrDefault("Chợ Hàn Đà Nẵng", defaultDest);
+            Place baNa = placeMap.getOrDefault("Bà Nà Hills & Cầu Vàng", defaultPlace);
+            Place sonTra = placeMap.getOrDefault("Bán Đảo Sơn Trà & Chùa Linh Ứng", defaultPlace);
+            Place myKhe = placeMap.getOrDefault("Bãi Biển Mỹ Khê & Cầu Rồng", sonTra);
+            Place choDem = placeMap.getOrDefault("Chợ Đêm Sơn Trà", sonTra);
+            Place hoiAn = placeMap.getOrDefault("Phố Cổ Hội An", defaultPlace);
+            Place bayMau = placeMap.getOrDefault("Rừng Dừa Bảy Mẫu", hoiAn);
+            Place nguHanhSon = placeMap.getOrDefault("Danh Thắng Ngũ Hành Sơn", defaultPlace);
+            Place choHan = placeMap.getOrDefault("Chợ Hàn Đà Nẵng", defaultPlace);
 
             if (dayNum == 1) {
                 saveActivityIfNotExists(day, 1, "Viếng Chùa Linh Ứng Sơn Trà",
@@ -990,8 +1055,8 @@ public class DataSeeder implements CommandLineRunner {
                         choHan);
             }
         } else if (location.contains("Đà Lạt")) {
-            Destination xh = destinationMap.getOrDefault("Hồ Xuân Hương & Quảng Trường Lâm Viên", defaultDest);
-            Destination cd = destinationMap.getOrDefault("Đồi Chè Cầu Đất", defaultDest);
+            Place xh = placeMap.getOrDefault("Hồ Xuân Hương & Quảng Trường Lâm Viên", defaultPlace);
+            Place cd = placeMap.getOrDefault("Đồi Chè Cầu Đất", defaultPlace);
 
             saveActivityIfNotExists(day, 1, "Săn mây bình minh Đồi Chè Cầu Đất",
                     "Thức dậy sớm từ 4h30, đón khoảnh khắc mặt trời ló rạng giữa biển mây bồng bềnh.",
@@ -1006,8 +1071,8 @@ public class DataSeeder implements CommandLineRunner {
                     LocalTime.of(18, 30), LocalTime.of(21, 30), new BigDecimal("200000.00"),
                     xh);
         } else if (location.contains("Phú Quốc")) {
-            Destination bs = destinationMap.getOrDefault("Bãi Sao Phú Quốc", defaultDest);
-            Destination at = destinationMap.getOrDefault("Quần đảo An Thới & Cáp treo Hòn Thơm", defaultDest);
+            Place bs = placeMap.getOrDefault("Bãi Sao Phú Quốc", defaultPlace);
+            Place at = placeMap.getOrDefault("Quần đảo An Thới & Cáp treo Hòn Thơm", defaultPlace);
 
             saveActivityIfNotExists(day, 1, "Đi cáp treo Hòn Thơm vượt biển Nam Phú Quốc",
                     "Ngắm toàn cảnh biển ngọc bích từ cabin cáp treo và vui chơi công viên nước Aquatopia.",
@@ -1018,7 +1083,7 @@ public class DataSeeder implements CommandLineRunner {
                     LocalTime.of(14, 30), LocalTime.of(17, 30), new BigDecimal("150000.00"),
                     bs);
         } else if (location.contains("Ninh Bình")) {
-            Destination ta = destinationMap.getOrDefault("Quần thể danh thắng Tràng An", defaultDest);
+            Place ta = placeMap.getOrDefault("Quần thể danh thắng Tràng An", defaultPlace);
             saveActivityIfNotExists(day, 1, "Ngồi thuyền nan khám phá hang động Tràng An",
                     "Chuyến đò 3 tiếng qua Hang Tối, Hang Sáng, Hang Nấu Rượu và Phim trường Kong.",
                     LocalTime.of(8, 0), LocalTime.of(12, 0), new BigDecimal("250000.00"),
@@ -1028,8 +1093,8 @@ public class DataSeeder implements CommandLineRunner {
                     LocalTime.of(12, 30), LocalTime.of(14, 0), new BigDecimal("200000.00"),
                     ta);
         } else if (location.contains("Huế")) {
-            Destination dn = destinationMap.getOrDefault("Đại Nội Huế (Hoàng Thành)", defaultDest);
-            Destination tm = destinationMap.getOrDefault("Chùa Thiên Mụ", defaultDest);
+            Place dn = placeMap.getOrDefault("Đại Nội Huế (Hoàng Thành)", defaultPlace);
+            Place tm = placeMap.getOrDefault("Chùa Thiên Mụ", defaultPlace);
             saveActivityIfNotExists(day, 1, "Tham quan Hoàng Thành Đại Nội Huế",
                     "Chiêm ngưỡng Điện Thái Hòa, Ngọ Môn và Cung Diên Thọ.",
                     LocalTime.of(8, 0), LocalTime.of(11, 30), new BigDecimal("200000.00"),
@@ -1039,7 +1104,7 @@ public class DataSeeder implements CommandLineRunner {
                     LocalTime.of(15, 0), LocalTime.of(17, 30), new BigDecimal("50000.00"),
                     tm);
         } else if (location.contains("Hạ Long")) {
-            Destination hl = destinationMap.getOrDefault("Vịnh Hạ Long", defaultDest);
+            Place hl = placeMap.getOrDefault("Vịnh Hạ Long", defaultPlace);
             saveActivityIfNotExists(day, 1, "Khởi hành du thuyền ngắm vịnh di sản Hạ Long",
                     "Du thuyền lướt qua Hòn Đỉnh Hương, Hòn Gà Chọi và thưởng thức bữa trưa hải sản tươi sống.",
                     LocalTime.of(9, 0), LocalTime.of(14, 0), new BigDecimal("1200000.00"),
@@ -1049,8 +1114,8 @@ public class DataSeeder implements CommandLineRunner {
                     LocalTime.of(14, 30), LocalTime.of(17, 30), new BigDecimal("350000.00"),
                     hl);
         } else if (location.contains("TP. Hồ Chí Minh")) {
-            Destination bt = destinationMap.getOrDefault("Chợ Bến Thành & Phố Đi Bộ Nguyễn Huệ", defaultDest);
-            Destination bd = destinationMap.getOrDefault("Bưu Điện Trung Tâm Sài Gòn", defaultDest);
+            Place bt = placeMap.getOrDefault("Chợ Bến Thành & Phố Đi Bộ Nguyễn Huệ", defaultPlace);
+            Place bd = placeMap.getOrDefault("Bưu Điện Trung Tâm Sài Gòn", defaultPlace);
             saveActivityIfNotExists(day, 1, "Thăm Bưu Điện Trung Tâm và Nhà Thờ Đức Bà",
                     "Ngắm kiến trúc Gothic châu Âu cổ kính và gửi bưu thiếp tay lưu niệm.",
                     LocalTime.of(8, 30), LocalTime.of(11, 0), new BigDecimal("40000.00"),
@@ -1060,7 +1125,7 @@ public class DataSeeder implements CommandLineRunner {
                     LocalTime.of(15, 0), LocalTime.of(19, 0), new BigDecimal("250000.00"),
                     bt);
         } else if (location.contains("Cần Thơ")) {
-            Destination cr = destinationMap.getOrDefault("Chợ Nổi Cái Răng", defaultDest);
+            Place cr = placeMap.getOrDefault("Chợ Nổi Cái Răng", defaultPlace);
             saveActivityIfNotExists(day, 1, "Đi thuyền sớm khám phá Chợ Nổi Cái Răng",
                     "Ăn tô bún riêu cua bốc khói nghi ngút trên ghe thuyền dập dềnh sóng nước miền Tây.",
                     LocalTime.of(5, 30), LocalTime.of(9, 0), new BigDecimal("180000.00"),
@@ -1073,20 +1138,20 @@ public class DataSeeder implements CommandLineRunner {
             saveActivityIfNotExists(day, 1, "Hoạt động tham quan buổi sáng",
                     "Khám phá cảnh quan thiên nhiên và trải nghiệm văn hóa địa phương.",
                     LocalTime.of(8, 0), LocalTime.of(11, 30), new BigDecimal("100000.00"),
-                    defaultDest);
+                    defaultPlace);
             saveActivityIfNotExists(day, 2, "Hoạt động thư giãn buổi chiều",
                     "Dạo bước ngắm cảnh, thưởng thức đặc sản và chụp ảnh kỷ niệm.",
                     LocalTime.of(14, 0), LocalTime.of(17, 30), new BigDecimal("150000.00"),
-                    defaultDest);
+                    defaultPlace);
         }
     }
 
     private void saveActivityIfNotExists(ItineraryDay day, int order, String name, String desc,
-                                         LocalTime start, LocalTime end, BigDecimal cost, Destination destination) {
+                                         LocalTime start, LocalTime end, BigDecimal cost, Place place) {
         if (!activityRepository.existsByItineraryDay_DayIdAndDisplayOrder(day.getDayId(), order)) {
             Activity.ActivityBuilder builder = Activity.builder()
                     .itineraryDay(day)
-                    .destination(destination)
+                    .place(place)
                     .name(name)
                     .description(desc)
                     .startTime(start)
@@ -1094,14 +1159,14 @@ public class DataSeeder implements CommandLineRunner {
                     .cost(cost)
                     .displayOrder(order);
 
-            if (destination != null) {
-                builder.locationName(destination.getName())
-                        .locationAddress(destination.getAddress())
-                        .customLocationName(destination.getName())
-                        .customAddress(destination.getAddress())
-                        .latitude(destination.getLatitude())
-                        .longitude(destination.getLongitude())
-                        .placeId("dest_" + destination.getDestinationId())
+            if (place != null) {
+                builder.locationName(place.getName())
+                        .locationAddress(place.getAddress())
+                        .customLocationName(place.getName())
+                        .customAddress(place.getAddress())
+                        .latitude(place.getLatitude())
+                        .longitude(place.getLongitude())
+                        .placeId("dest_" + place.getPlaceId())
                         .locationProvider("DESTINATION_CATALOG");
             }
 
@@ -1345,5 +1410,16 @@ public class DataSeeder implements CommandLineRunner {
                 itineraryRepository.save(itin);
             }
         }
+    }
+
+    private static double haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+        final double R = 6371000.0; // Earth radius in meters
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 }

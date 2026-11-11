@@ -22,7 +22,8 @@ public class ActivityResponse {
     private LocalTime endTime;
     private BigDecimal cost;
     private Integer displayOrder;
-    private DestinationResponse destination;
+    private Long canonicalPlaceId;
+    private PlaceResponse place;
     private String locationName;
     private String locationAddress;
     private String customLocationName;

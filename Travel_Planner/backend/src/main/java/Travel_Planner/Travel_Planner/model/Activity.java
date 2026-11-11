@@ -13,7 +13,8 @@ import java.time.LocalTime;
         @UniqueConstraint(name = "uk_activity_day_order", columnNames = {"day_id", "display_order"})
     },
     indexes = {
-        @Index(name = "idx_activities_coordinates", columnList = "latitude, longitude")
+        @Index(name = "idx_activities_coordinates", columnList = "latitude, longitude"),
+        @Index(name = "idx_activities_canonical_place", columnList = "canonical_place_id")
     }
 )
 @Getter
@@ -23,12 +24,12 @@ import java.time.LocalTime;
 @AllArgsConstructor
 public class Activity {
 
-    public Activity(Integer activityId, ItineraryDay itineraryDay, Destination destination, String name,
+    public Activity(Integer activityId, ItineraryDay itineraryDay, Place place, String name,
                     String description, LocalTime startTime, LocalTime endTime, BigDecimal cost,
                     Integer displayOrder, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.activityId = activityId;
         this.itineraryDay = itineraryDay;
-        this.destination = destination;
+        this.place = place;
         this.name = name;
         this.description = description;
         this.startTime = startTime;
@@ -49,8 +50,8 @@ public class Activity {
     private ItineraryDay itineraryDay;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "destination_id", nullable = true)
-    private Destination destination;
+    @JoinColumn(name = "canonical_place_id", nullable = true)
+    private Place place;
 
     @Column(name = "name", nullable = false, length = 150)
     private String name;

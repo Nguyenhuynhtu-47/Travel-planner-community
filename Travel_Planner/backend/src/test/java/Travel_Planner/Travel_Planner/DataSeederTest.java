@@ -6,8 +6,9 @@ import Travel_Planner.Travel_Planner.model.Itinerary;
 import Travel_Planner.Travel_Planner.model.ItineraryDay;
 import Travel_Planner.Travel_Planner.model.Rating;
 import Travel_Planner.Travel_Planner.model.User;
-import Travel_Planner.Travel_Planner.model.enums.DestinationStatus;
+import Travel_Planner.Travel_Planner.model.Place;
 import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
+import Travel_Planner.Travel_Planner.model.enums.PlaceStatus;
 import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.model.enums.Visibility;
@@ -38,7 +39,10 @@ class DataSeederTest {
     private UserRepository userRepository;
 
     @Autowired
-    private DestinationRepository destinationRepository;
+    private PlaceRepository placeRepository;
+
+    @Autowired
+    private PlaceProviderMappingRepository placeProviderMappingRepository;
 
     @Autowired
     private ItineraryRepository itineraryRepository;
@@ -95,7 +99,8 @@ class DataSeederTest {
         activityRepository.deleteAll();
         itineraryDayRepository.deleteAll();
         itineraryRepository.deleteAll();
-        destinationRepository.deleteAll();
+        placeProviderMappingRepository.deleteAll();
+        placeRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -127,17 +132,18 @@ class DataSeederTest {
         User banned = userRepository.findByUsername("banned_spammer").orElseThrow();
         assertEquals(UserStatus.BANNED, banned.getStatus());
 
-        // 2. Destinations: 15-25 realistic destinations in Vietnam (we created 20)
-        long destCount = destinationRepository.count();
-        assertTrue(destCount >= 15 && destCount <= 25, "Destinations count should be between 15 and 25, actual: " + destCount);
-        assertTrue(destinationRepository.existsByName("Hồ Hoàn Kiếm & Phố Cổ Hà Nội"));
-        assertTrue(destinationRepository.existsByName("Vịnh Hạ Long"));
-        assertTrue(destinationRepository.existsByName("Đỉnh Fansipan - Nóc Nhà Đông Dương"));
-        assertTrue(destinationRepository.existsByName("Quần thể danh thắng Tràng An"));
-        assertTrue(destinationRepository.existsByName("Bà Nà Hills & Cầu Vàng"));
-        assertTrue(destinationRepository.existsByName("Hồ Xuân Hương & Quảng Trường Lâm Viên"));
-        assertTrue(destinationRepository.existsByName("Bãi Sao Phú Quốc"));
-        assertTrue(destinationRepository.existsByName("Chợ Nổi Cái Răng"));
+        // 2. Places: 15-30 realistic places in Vietnam (we created 24)
+        long placesCount = placeRepository.count();
+        assertTrue(placesCount >= 15 && placesCount <= 30, "Places count should be between 15 and 30, actual: " + placesCount);
+        assertTrue(placeRepository.existsByName("Hồ Hoàn Kiếm & Phố Cổ Hà Nội"));
+        assertTrue(placeRepository.existsByName("Vịnh Hạ Long"));
+        assertTrue(placeRepository.existsByName("Đỉnh Fansipan - Nóc Nhà Đông Dương"));
+        assertTrue(placeRepository.existsByName("Quần thể danh thắng Tràng An"));
+        assertTrue(placeRepository.existsByName("Bà Nà Hills & Cầu Vàng"));
+        assertTrue(placeRepository.existsByName("Hồ Xuân Hương & Quảng Trường Lâm Viên"));
+        assertTrue(placeRepository.existsByName("Bãi Sao Phú Quốc"));
+        assertTrue(placeRepository.existsByName("Chợ Nổi Cái Răng"));
+        assertEquals(placesCount, placeProviderMappingRepository.count(), "Each seeded place should have a provider mapping");
 
         // 3. Itineraries: 15-20 itineraries (we created 16)
         long itinCount = itineraryRepository.count();
@@ -173,7 +179,7 @@ class DataSeederTest {
         List<Activity> activities = activityRepository.findAll();
         Set<String> dayOrderPairs = new HashSet<>();
         for (Activity act : activities) {
-            assertNotNull(act.getDestination(), "Every activity must link to a valid destination");
+            assertNotNull(act.getPlace(), "Every activity must link to a valid place");
             assertNotNull(act.getItineraryDay(), "Every activity must belong to a day");
             String key = act.getItineraryDay().getDayId() + "_" + act.getDisplayOrder();
             assertTrue(dayOrderPairs.add(key), "Duplicate display_order detected for day: " + key);
@@ -208,7 +214,7 @@ class DataSeederTest {
         // Run 1
         dataSeeder.seedData();
         long users1 = userRepository.count();
-        long dest1 = destinationRepository.count();
+        long places1 = placeRepository.count();
         long itin1 = itineraryRepository.count();
         long days1 = itineraryDayRepository.count();
         long act1 = activityRepository.count();
@@ -224,7 +230,7 @@ class DataSeederTest {
         dataSeeder.seedData();
 
         assertEquals(users1, userRepository.count(), "Users count must remain identical on second run");
-        assertEquals(dest1, destinationRepository.count(), "Destinations count must remain identical on second run");
+        assertEquals(places1, placeRepository.count(), "Places count must remain identical on second run");
         assertEquals(itin1, itineraryRepository.count(), "Itineraries count must remain identical on second run");
         assertEquals(days1, itineraryDayRepository.count(), "Days count must remain identical on second run");
         assertEquals(act1, activityRepository.count(), "Activities count must remain identical on second run");
@@ -255,5 +261,144 @@ class DataSeederTest {
         assertNotNull(retrieved, "Pre-existing user must still exist in database");
         assertEquals("preexisting@example.com", retrieved.getEmail());
         assertTrue(passwordEncoder.matches("SecretPass123!", retrieved.getPassword()));
+    }
+
+    @Test
+    @DisplayName("DataSeeder should handle places with duplicate names safely without NonUniqueResultException")
+    void shouldHandleDuplicatePlaceNamesSafely() {
+        // Pre-create two different branches with the exact same name
+        Place branch1 = placeRepository.save(Place.builder()
+                .name("Highlands Coffee")
+                .address("123 Nguyen Hue, Quan 1, TP.HCM")
+                .latitude(new java.math.BigDecimal("10.7740000"))
+                .longitude(new java.math.BigDecimal("106.7030000"))
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        Place branch2 = placeRepository.save(Place.builder()
+                .name("Highlands Coffee")
+                .address("456 Tran Phu, Da Nang")
+                .latitude(new java.math.BigDecimal("16.0680000"))
+                .longitude(new java.math.BigDecimal("108.2210000"))
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        assertDoesNotThrow(() -> dataSeeder.seedData(),
+                "DataSeeder should run idempotently even when multiple branches share the same name");
+
+        // Verify both branches are preserved
+        List<Place> branches = placeRepository.findAllByName("Highlands Coffee");
+        assertEquals(2, branches.size(), "Both distinct branches must be preserved");
+    }
+
+    @Test
+    @DisplayName("Case A: Two branches with same name, different addresses at 30 meters distance must NEVER be merged")
+    void testCaseA_sameNameDifferentAddressAt30Meters_neverMerged() {
+        // Branch A: lat 10.7750000, lon 106.7000000
+        Place branchA = placeRepository.save(Place.builder()
+                .name("Highlands Coffee")
+                .address("10 Le Loi, Ben Nghe, Quan 1, TP.HCM")
+                .latitude(new java.math.BigDecimal("10.7750000"))
+                .longitude(new java.math.BigDecimal("106.7000000"))
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        // Branch B: ~30 meters away (lat offset 0.00027 deg ~ 30 meters), different address
+        Place branchB = placeRepository.save(Place.builder()
+                .name("Highlands Coffee")
+                .address("12 Le Loi, Ben Nghe, Quan 1, TP.HCM")
+                .latitude(new java.math.BigDecimal("10.7752700"))
+                .longitude(new java.math.BigDecimal("106.7000000"))
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        assertDoesNotThrow(() -> dataSeeder.seedData());
+
+        List<Place> branches = placeRepository.findAllByName("Highlands Coffee");
+        assertEquals(2, branches.size(), "Both branches must remain distinct despite being only 30m apart");
+
+        Place reloadedA = placeRepository.findById(branchA.getPlaceId()).orElseThrow();
+        Place reloadedB = placeRepository.findById(branchB.getPlaceId()).orElseThrow();
+        assertEquals("10 Le Loi, Ben Nghe, Quan 1, TP.HCM", reloadedA.getAddress());
+        assertEquals("12 Le Loi, Ben Nghe, Quan 1, TP.HCM", reloadedB.getAddress());
+    }
+
+    @Test
+    @DisplayName("Case B & F: Multiple providers for same place are preserved without overwriting or duplicate places")
+    void testCaseB_andCaseF_multipleProvidersForSamePlace_preserved() {
+        // Pre-create a place with a third-party provider mapping (LOCATION_IQ)
+        Place hoanKiem = placeRepository.save(Place.builder()
+                .name("Hồ Hoàn Kiếm & Phố Cổ Hà Nội")
+                .address("Hoàn Kiếm, Hà Nội")
+                .description("Biểu tượng lịch sử thủ đô")
+                .latitude(new java.math.BigDecimal("21.0287000"))
+                .longitude(new java.math.BigDecimal("105.8524000"))
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        placeProviderMappingRepository.save(Travel_Planner.Travel_Planner.model.PlaceProviderMapping.builder()
+                .place(hoanKiem)
+                .provider("LOCATION_IQ")
+                .providerPlaceId("osm_node_888888")
+                .providerType("landmark")
+                .lastSyncedAt(java.time.LocalDateTime.now())
+                .build());
+
+        assertEquals(1, placeProviderMappingRepository.count());
+
+        // Run seeder: it should recognize the place by name & address, add DESTINATION_CATALOG mapping, and retain LOCATION_IQ mapping
+        dataSeeder.seedData();
+
+        Place reloaded = placeRepository.findByNameAndAddress("Hồ Hoàn Kiếm & Phố Cổ Hà Nội", "Hoàn Kiếm, Hà Nội").orElseThrow();
+        assertEquals(hoanKiem.getPlaceId(), reloaded.getPlaceId());
+
+        // Check provider mappings for this place
+        List<Travel_Planner.Travel_Planner.model.PlaceProviderMapping> mappings = placeProviderMappingRepository.findAll();
+        boolean hasLocationIq = mappings.stream().anyMatch(m -> "LOCATION_IQ".equals(m.getProvider()) && "osm_node_888888".equals(m.getProviderPlaceId()));
+        boolean hasDestCatalog = mappings.stream().anyMatch(m -> "DESTINATION_CATALOG".equals(m.getProvider()) && ("dest_" + hoanKiem.getPlaceId()).equals(m.getProviderPlaceId()));
+
+        assertTrue(hasLocationIq, "Original third-party LOCATION_IQ mapping must be preserved");
+        assertTrue(hasDestCatalog, "Canonical DESTINATION_CATALOG mapping must be added");
+    }
+
+    @Test
+    @DisplayName("Case C & D: Same name with empty address merges if < 50m, but stays separate if > 50m")
+    void testCaseC_andCaseD_proximityFallbackUnderAndOver50Meters() {
+        // Landmark with empty address
+        Place existingNear = placeRepository.save(Place.builder()
+                .name("Quán Cà Phê Vỉa Hè")
+                .address("")
+                .latitude(new java.math.BigDecimal("10.7700000"))
+                .longitude(new java.math.BigDecimal("106.7000000"))
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        // Another branch 200 meters away (> 50m)
+        Place existingFar = placeRepository.save(Place.builder()
+                .name("Quán Cà Phê Vỉa Hè")
+                .address("")
+                .latitude(new java.math.BigDecimal("10.7718000")) // ~200m away
+                .longitude(new java.math.BigDecimal("106.7000000"))
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        // Run seeder: neither should be falsely merged or deleted
+        dataSeeder.seedData();
+
+        List<Place> all = placeRepository.findAllByName("Quán Cà Phê Vỉa Hè");
+        assertEquals(2, all.size(), "Both distinct places over 50m apart must remain separate");
+    }
+
+    @Test
+    @DisplayName("Case E: Repeated seeding preserves exact provider mapping count without duplicates")
+    void testCaseE_repeatedSeedingPreservesExactMappingCount() {
+        dataSeeder.seedData();
+        long initialMappingCount = placeProviderMappingRepository.count();
+        assertTrue(initialMappingCount > 0);
+
+        // Run seeder again
+        dataSeeder.seedData();
+        assertEquals(initialMappingCount, placeProviderMappingRepository.count(),
+                "Repeated seeding must be idempotent and not create duplicate mappings");
     }
 }

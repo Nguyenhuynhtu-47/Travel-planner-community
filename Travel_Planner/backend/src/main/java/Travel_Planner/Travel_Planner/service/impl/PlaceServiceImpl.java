@@ -349,7 +349,6 @@ public class PlaceServiceImpl implements PlaceService {
                 .longitude(place.getLongitude())
                 .category(place.getCategory())
                 .status(place.getStatus())
-                .sourceDestinationId(place.getSourceDestinationId())
                 .build();
     }
 
@@ -376,7 +375,6 @@ public class PlaceServiceImpl implements PlaceService {
                 .longitude(place.getLongitude())
                 .category(place.getCategory())
                 .status(place.getStatus())
-                .sourceDestinationId(place.getSourceDestinationId())
                 .providerMappings(mappings)
                 .createdAt(place.getCreatedAt())
                 .updatedAt(place.getUpdatedAt())

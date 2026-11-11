@@ -19,12 +19,12 @@ class ActivityCommentPreservationTest {
         ItineraryDayRepository days = mock(ItineraryDayRepository.class);
         ActivityRepository activities = mock(ActivityRepository.class);
         UserRepository users = mock(UserRepository.class);
-        DestinationRepository destinations = mock(DestinationRepository.class);
+        PlaceRepository places = mock(PlaceRepository.class);
         FavoriteRepository favorites = mock(FavoriteRepository.class);
         SavedItineraryRepository saved = mock(SavedItineraryRepository.class);
         CommentRepository comments = mock(CommentRepository.class);
         ItineraryServiceImpl service = new ItineraryServiceImpl(itineraries, ratings, days, activities, users,
-                destinations, favorites, saved, comments);
+                places, favorites, saved, comments);
 
         User owner = User.builder().userId(1).username("owner").build();
         Itinerary itinerary = Itinerary.builder().itineraryId(10).user(owner).status(ItineraryStatus.ACTIVE)

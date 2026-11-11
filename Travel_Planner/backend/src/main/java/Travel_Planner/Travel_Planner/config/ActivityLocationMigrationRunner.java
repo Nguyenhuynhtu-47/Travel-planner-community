@@ -214,17 +214,19 @@ public class ActivityLocationMigrationRunner implements ApplicationRunner {
                     }
                 }
 
-                // 2. Check unmigrated destination records with valid destination coords
-                try (ResultSet rs = stmt.executeQuery(
-                        "SELECT COUNT(*) FROM activities a " +
-                        "JOIN destinations d ON a.destination_id = d.destination_id " +
-                        "WHERE a.destination_id IS NOT NULL " +
-                        "  AND (a.latitude IS NULL OR a.longitude IS NULL) " +
-                        "  AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL " +
-                        "  AND d.latitude >= -90.0 AND d.latitude <= 90.0 " +
-                        "  AND d.longitude >= -180.0 AND d.longitude <= 180.0")) {
-                    if (rs.next() && rs.getInt(1) > 0) {
-                        return false;
+                // 2. Check unmigrated destination records with valid destination coords (if legacy destinations table exists)
+                if (tableExists(meta, catalog, "destinations") && columnExists(meta, catalog, "activities", "destination_id")) {
+                    try (ResultSet rs = stmt.executeQuery(
+                            "SELECT COUNT(*) FROM activities a " +
+                            "JOIN destinations d ON a.destination_id = d.destination_id " +
+                            "WHERE a.destination_id IS NOT NULL " +
+                            "  AND (a.latitude IS NULL OR a.longitude IS NULL) " +
+                            "  AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL " +
+                            "  AND d.latitude >= -90.0 AND d.latitude <= 90.0 " +
+                            "  AND d.longitude >= -180.0 AND d.longitude <= 180.0")) {
+                        if (rs.next() && rs.getInt(1) > 0) {
+                            return false;
+                        }
                     }
                 }
 
@@ -304,42 +306,45 @@ public class ActivityLocationMigrationRunner implements ApplicationRunner {
             }
         }
 
-        // 2. Identify any activities linked to destinations that have invalid/missing coordinates (audit & skip safely)
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(
-                     "SELECT COUNT(*) FROM activities a " +
-                     "JOIN destinations d ON a.destination_id = d.destination_id " +
-                     "WHERE a.destination_id IS NOT NULL AND (a.latitude IS NULL OR a.longitude IS NULL) " +
-                     "  AND (d.latitude IS NULL OR d.longitude IS NULL OR d.latitude < -90.0 OR d.latitude > 90.0 OR d.longitude < -180.0 OR d.longitude > 180.0)")) {
-            if (rs.next()) {
-                int invalidDestCount = rs.getInt(1);
-                if (invalidDestCount > 0) {
-                    log.warn("--- [ActivityLocationMigration] Skipped {} activities whose linked destination lacks valid coordinates ---", invalidDestCount);
+        // 2. Backfill from linked Destination into Activity snapshot fields (if legacy destinations table exists)
+        if (tableExists(meta, catalog, "destinations") && columnExists(meta, catalog, "activities", "destination_id")) {
+            // Identify any activities linked to destinations that have invalid/missing coordinates (audit & skip safely)
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(
+                         "SELECT COUNT(*) FROM activities a " +
+                         "JOIN destinations d ON a.destination_id = d.destination_id " +
+                         "WHERE a.destination_id IS NOT NULL AND (a.latitude IS NULL OR a.longitude IS NULL) " +
+                         "  AND (d.latitude IS NULL OR d.longitude IS NULL OR d.latitude < -90.0 OR d.latitude > 90.0 OR d.longitude < -180.0 OR d.longitude > 180.0)")) {
+                if (rs.next()) {
+                    int invalidDestCount = rs.getInt(1);
+                    if (invalidDestCount > 0) {
+                        log.warn("--- [ActivityLocationMigration] Skipped {} activities whose linked destination lacks valid coordinates ---", invalidDestCount);
+                    }
                 }
             }
-        }
 
-        // 3. Backfill from linked Destination into Activity snapshot fields ONLY for activities lacking coordinates,
-        // and ONLY when Destination has strictly valid coordinate bounds. Never overwrites existing snapshots.
-        try (Statement stmt = conn.createStatement()) {
-            int destUpdated = stmt.executeUpdate(
-                    "UPDATE activities a " +
-                    "JOIN destinations d ON a.destination_id = d.destination_id " +
-                    "SET a.location_name = COALESCE(a.location_name, a.custom_location_name, d.name), " +
-                    "    a.location_address = COALESCE(a.location_address, a.custom_address, d.address), " +
-                    "    a.custom_location_name = COALESCE(a.custom_location_name, a.location_name, d.name), " +
-                    "    a.custom_address = COALESCE(a.custom_address, a.location_address, d.address), " +
-                    "    a.latitude = d.latitude, " +
-                    "    a.longitude = d.longitude, " +
-                    "    a.place_id = CONCAT('dest_', d.destination_id), " +
-                    "    a.location_provider = 'DESTINATION_CATALOG' " +
-                    "WHERE a.destination_id IS NOT NULL " +
-                    "  AND (a.latitude IS NULL OR a.longitude IS NULL) " +
-                    "  AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL " +
-                    "  AND d.latitude >= -90.0 AND d.latitude <= 90.0 " +
-                    "  AND d.longitude >= -180.0 AND d.longitude <= 180.0");
-            if (destUpdated > 0) {
-                log.info("--- [ActivityLocationMigration] Backfilled {} activities with authoritative snapshots from destinations ---", destUpdated);
+            // Backfill from linked Destination into Activity snapshot fields ONLY for activities lacking coordinates,
+            // and ONLY when Destination has strictly valid coordinate bounds. Never overwrites existing snapshots.
+            try (Statement stmt = conn.createStatement()) {
+                int destUpdated = stmt.executeUpdate(
+                        "UPDATE activities a " +
+                        "JOIN destinations d ON a.destination_id = d.destination_id " +
+                        "SET a.location_name = COALESCE(a.location_name, a.custom_location_name, d.name), " +
+                        "    a.location_address = COALESCE(a.location_address, a.custom_address, d.address), " +
+                        "    a.custom_location_name = COALESCE(a.custom_location_name, a.location_name, d.name), " +
+                        "    a.custom_address = COALESCE(a.custom_address, a.location_address, d.address), " +
+                        "    a.latitude = d.latitude, " +
+                        "    a.longitude = d.longitude, " +
+                        "    a.place_id = CONCAT('dest_', d.destination_id), " +
+                        "    a.location_provider = 'DESTINATION_CATALOG' " +
+                        "WHERE a.destination_id IS NOT NULL " +
+                        "  AND (a.latitude IS NULL OR a.longitude IS NULL) " +
+                        "  AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL " +
+                        "  AND d.latitude >= -90.0 AND d.latitude <= 90.0 " +
+                        "  AND d.longitude >= -180.0 AND d.longitude <= 180.0");
+                if (destUpdated > 0) {
+                    log.info("--- [ActivityLocationMigration] Backfilled {} activities with authoritative snapshots from destinations ---", destUpdated);
+                }
             }
         }
     }

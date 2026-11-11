@@ -28,6 +28,8 @@ public class CreateActivityRequest {
 
     private Integer destinationId;
 
+    private Long canonicalPlaceId;
+
     @Size(max = 150, message = "Tên địa điểm tối đa 150 ký tự")
     private String locationName;
 

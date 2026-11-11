@@ -2,12 +2,10 @@ package Travel_Planner.Travel_Planner;
 
 import Travel_Planner.Travel_Planner.config.ActivityLocationMigrationRunner;
 import Travel_Planner.Travel_Planner.model.*;
-import Travel_Planner.Travel_Planner.model.enums.DestinationStatus;
 import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
 import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.repository.ActivityRepository;
-import Travel_Planner.Travel_Planner.repository.DestinationRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryDayRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
@@ -44,12 +42,8 @@ public class ActivityLocationMigrationRunnerTest {
     private ItineraryDayRepository dayRepository;
 
     @Autowired
-    private DestinationRepository destinationRepository;
-
-    @Autowired
     private ActivityRepository activityRepository;
 
-    private Destination testDestination;
     private ItineraryDay testDay;
 
     @BeforeEach
@@ -78,14 +72,6 @@ public class ActivityLocationMigrationRunnerTest {
                 .dayNumber(1)
                 .title("Day 1")
                 .build());
-
-        testDestination = destinationRepository.save(Destination.builder()
-                .name("Chùa Một Cột")
-                .address("Ba Đình, Hà Nội")
-                .latitude(new BigDecimal("21.0358000"))
-                .longitude(new BigDecimal("105.8335000"))
-                .status(DestinationStatus.ACTIVE)
-                .build());
     }
 
     @AfterEach
@@ -97,7 +83,6 @@ public class ActivityLocationMigrationRunnerTest {
         activityRepository.deleteAll();
         dayRepository.deleteAll();
         itineraryRepository.deleteAll();
-        destinationRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -139,52 +124,33 @@ public class ActivityLocationMigrationRunnerTest {
     }
 
     @Test
-    @DisplayName("Safety: Destination with null/invalid coordinates is NOT backfilled into Activity coordinates")
-    void runner_skipsDestinationWithInvalidCoordinates() {
-        Destination invalidDest = destinationRepository.save(Destination.builder()
-                .name("Điểm chưa có GPS")
-                .address("Chưa xác định")
-                .latitude(null)
-                .longitude(null)
-                .status(DestinationStatus.ACTIVE)
-                .build());
-
-        Activity act = activityRepository.save(Activity.builder()
-                .itineraryDay(testDay)
-                .destination(invalidDest)
-                .name("Tham quan điểm chưa có GPS")
-                .displayOrder(2)
-                .build());
-
-        migrationRunner.ensureSchemaAndBackfill();
-
-        Activity reloaded = activityRepository.findById(act.getActivityId()).orElseThrow();
-        assertNull(reloaded.getLatitude(), "Latitude must remain null when destination lacks coordinates");
-        assertNull(reloaded.getLongitude(), "Longitude must remain null when destination lacks coordinates");
+    @DisplayName("Safety: Runner completes safely when legacy destinations table is absent")
+    void runner_runsSafelyWithoutDestinationsTable() {
+        assertDoesNotThrow(() -> {
+            migrationRunner.ensureSchemaAndBackfill();
+        });
     }
 
     @Test
-    @DisplayName("Backfill: Activities lacking snapshot coordinates are populated from valid destination")
-    void runner_backfillsFromValidDestination() {
-        // Save an activity with destination but null snapshot coordinates
+    @DisplayName("Backfill: Activities lacking standardized location columns are backfilled from custom fields")
+    void runner_backfillsFromCustomLocationFields() {
         Activity act = activityRepository.save(Activity.builder()
                 .itineraryDay(testDay)
-                .destination(testDestination)
-                .name("Thăm Chùa Một Cột")
+                .name("Quán Phở Gia Truyền")
+                .customLocationName("Phở Thìn")
+                .customAddress("13 Lò Đúc, Hà Nội")
+                .latitude(new BigDecimal("21.0185"))
+                .longitude(new BigDecimal("105.8550"))
                 .displayOrder(3)
                 .build());
+
+        jdbcTemplate.update("UPDATE activities SET location_name = NULL, location_address = NULL WHERE activity_id = ?", act.getActivityId());
 
         migrationRunner.ensureSchemaAndBackfill();
 
         Activity backfilled = activityRepository.findById(act.getActivityId()).orElseThrow();
-        assertEquals("Chùa Một Cột", backfilled.getLocationName());
-        assertEquals("Ba Đình, Hà Nội", backfilled.getLocationAddress());
-        assertNotNull(backfilled.getLatitude());
-        assertNotNull(backfilled.getLongitude());
-        assertEquals(21.0358, backfilled.getLatitude().doubleValue(), 0.0001);
-        assertEquals(105.8335, backfilled.getLongitude().doubleValue(), 0.0001);
-        assertEquals("dest_" + testDestination.getDestinationId(), backfilled.getPlaceId());
-        assertEquals("DESTINATION_CATALOG", backfilled.getLocationProvider());
+        assertEquals("Phở Thìn", backfilled.getLocationName());
+        assertEquals("13 Lò Đúc, Hà Nội", backfilled.getLocationAddress());
     }
 
     private boolean isMySQLEngine(java.sql.DatabaseMetaData meta) {
@@ -201,8 +167,10 @@ public class ActivityLocationMigrationRunnerTest {
     void test1_successfulLockAcquisitionAndMigration() throws Exception {
         Activity act = activityRepository.save(Activity.builder()
                 .itineraryDay(testDay)
-                .destination(testDestination)
                 .name("Thăm Chùa Một Cột 1")
+                .locationName("Chùa Một Cột")
+                .latitude(new BigDecimal("21.0358"))
+                .longitude(new BigDecimal("105.8335"))
                 .displayOrder(1)
                 .build());
 
@@ -245,11 +213,13 @@ public class ActivityLocationMigrationRunnerTest {
                 }
             }
 
-            // Create an unmigrated activity
+            // Create an activity
             Activity act = activityRepository.save(Activity.builder()
                     .itineraryDay(testDay)
-                    .destination(testDestination)
                     .name("Thăm Chùa Một Cột 2")
+                    .locationName("Chùa Một Cột 2")
+                    .latitude(new BigDecimal("21.0358"))
+                    .longitude(new BigDecimal("105.8335"))
                     .displayOrder(2)
                     .build());
 
@@ -278,7 +248,7 @@ public class ActivityLocationMigrationRunnerTest {
                 releaseThread.join(2000);
 
                 Activity reloaded = activityRepository.findById(act.getActivityId()).orElseThrow();
-                assertEquals("Chùa Một Cột", reloaded.getLocationName());
+                assertEquals("Chùa Một Cột 2", reloaded.getLocationName());
                 assertNotNull(reloaded.getLatitude());
             } finally {
                 migrationRunner.setLockTimeoutSeconds(originalTimeout);
@@ -307,14 +277,15 @@ public class ActivityLocationMigrationRunnerTest {
                 }
             }
 
-            // Create an unmigrated activity (destination linked, valid coords on dest, but null on act)
+            // Create an unmigrated activity (custom location name present, location_name null)
             // so isSchemaAndInvariantsComplete() evaluates to false
-            activityRepository.save(Activity.builder()
+            Activity unmigrated = activityRepository.save(Activity.builder()
                     .itineraryDay(testDay)
-                    .destination(testDestination)
                     .name("Hoạt động chưa migrate")
+                    .customLocationName("Chưa migrate")
                     .displayOrder(3)
                     .build());
+            jdbcTemplate.update("UPDATE activities SET location_name = NULL WHERE activity_id = ?", unmigrated.getActivityId());
 
             int originalTimeout = migrationRunner.getLockTimeoutSeconds();
             int originalRetries = migrationRunner.getMaxLockRetries();
