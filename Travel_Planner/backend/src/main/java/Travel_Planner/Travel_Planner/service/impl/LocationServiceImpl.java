@@ -7,11 +7,19 @@ import Travel_Planner.Travel_Planner.dto.response.LocationSearchResultResponse;
 import Travel_Planner.Travel_Planner.exception.AppException;
 import Travel_Planner.Travel_Planner.exception.BadRequestException;
 import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
+import Travel_Planner.Travel_Planner.model.AdministrativeArea;
+import Travel_Planner.Travel_Planner.model.Place;
+import Travel_Planner.Travel_Planner.model.enums.AdministrativeAreaStatus;
+import Travel_Planner.Travel_Planner.model.enums.PlaceStatus;
+import Travel_Planner.Travel_Planner.repository.AdministrativeAreaRepository;
+import Travel_Planner.Travel_Planner.repository.PlaceRepository;
 import Travel_Planner.Travel_Planner.service.GeocodingProvider;
 import Travel_Planner.Travel_Planner.service.GeographicFilterService;
 import Travel_Planner.Travel_Planner.service.LocationRankingService;
 import Travel_Planner.Travel_Planner.service.LocationService;
 import Travel_Planner.Travel_Planner.service.QueryUnderstandingService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
@@ -62,6 +70,8 @@ public class LocationServiceImpl implements LocationService {
     private final QueryUnderstandingService queryUnderstandingService;
     private final GeographicFilterService geographicFilterService;
     private final TomTomPlacesProvider tomTomProvider;
+    private final PlaceRepository placeRepository;
+    private final AdministrativeAreaRepository administrativeAreaRepository;
 
     @Autowired
     public LocationServiceImpl(
@@ -70,22 +80,32 @@ public class LocationServiceImpl implements LocationService {
             LocationRankingService locationRankingService,
             QueryUnderstandingService queryUnderstandingService,
             GeographicFilterService geographicFilterService,
-            TomTomPlacesProvider tomTomProvider) {
+            TomTomPlacesProvider tomTomProvider,
+            @Autowired(required = false) PlaceRepository placeRepository,
+            @Autowired(required = false) AdministrativeAreaRepository administrativeAreaRepository) {
         this.primaryProvider = locationIqProvider;
         this.hereGeocodingProvider = hereGeocodingProvider;
         this.locationRankingService = locationRankingService;
         this.queryUnderstandingService = queryUnderstandingService;
         this.geographicFilterService = geographicFilterService;
         this.tomTomProvider = tomTomProvider;
+        this.placeRepository = placeRepository;
+        this.administrativeAreaRepository = administrativeAreaRepository;
     }
 
     public LocationServiceImpl(GeocodingProvider geocodingProvider) {
+        this(geocodingProvider, null, null);
+    }
+
+    public LocationServiceImpl(GeocodingProvider geocodingProvider, PlaceRepository placeRepository, AdministrativeAreaRepository administrativeAreaRepository) {
         this.primaryProvider = geocodingProvider;
         this.hereGeocodingProvider = null;
         this.locationRankingService = new LocationRankingServiceImpl();
         this.queryUnderstandingService = new QueryUnderstandingServiceImpl();
         this.geographicFilterService = new GeographicFilterServiceImpl();
         this.tomTomProvider = null;
+        this.placeRepository = placeRepository;
+        this.administrativeAreaRepository = administrativeAreaRepository;
     }
 
     public LocationServiceImpl(GeocodingProvider geocodingProvider, LocationRankingService locationRankingService) {
@@ -95,6 +115,8 @@ public class LocationServiceImpl implements LocationService {
         this.queryUnderstandingService = new QueryUnderstandingServiceImpl();
         this.geographicFilterService = new GeographicFilterServiceImpl();
         this.tomTomProvider = null;
+        this.placeRepository = null;
+        this.administrativeAreaRepository = null;
     }
 
     public LocationServiceImpl(
@@ -109,6 +131,8 @@ public class LocationServiceImpl implements LocationService {
         this.queryUnderstandingService = queryUnderstandingService;
         this.geographicFilterService = geographicFilterService;
         this.tomTomProvider = null;
+        this.placeRepository = null;
+        this.administrativeAreaRepository = null;
     }
 
     @Override
@@ -123,16 +147,39 @@ public class LocationServiceImpl implements LocationService {
         if (!Set.of("SUGGEST", "SEARCH").contains(normalizedMode)) {
             throw new BadRequestException("Chế độ tìm kiếm địa điểm không hợp lệ");
         }
+        if (query == null || query.isBlank()) {
+            throw new BadRequestException("Từ khóa tìm kiếm không được để trống");
+        }
+        String trimmed = query.trim();
+        int resultLimit = limit == null ? DEFAULT_LIMIT : limit;
+        if (trimmed.length() < 2 || trimmed.length() > 100) throw new BadRequestException("Từ khóa tìm kiếm phải có từ 2 đến 100 ký tự");
+        if (resultLimit < 1 || resultLimit > MAX_LIMIT) throw new BadRequestException("Số lượng kết quả (limit) phải từ 1 đến " + MAX_LIMIT);
+
+        ParsedLocationQuery parsedUnified = queryUnderstandingService != null ? queryUnderstandingService.parseQuery(trimmed) : null;
+        boolean isPoiIntentUnified = parsedUnified != null && (parsedUnified.getSearchIntent() == SearchIntent.POI_IN_LOCATION || parsedUnified.getSearchIntent() == SearchIntent.GENERIC_POI);
+
+        List<LocationSearchResultResponse> internal = searchInternalCatalog(trimmed, resultLimit);
+        long internalPoiCountUnified = internal.stream().filter(r -> "place".equalsIgnoreCase(r.getType())).count();
+        if ((!isPoiIntentUnified && internal.size() >= resultLimit) || (isPoiIntentUnified && internalPoiCountUnified >= resultLimit)) {
+            return locationRankingService.rankAndDeduplicate(trimmed, internal, null, null, resultLimit);
+        }
+
+        List<LocationSearchResultResponse> externalResults;
         if (tomTomProvider != null && tomTomProvider.isEnabled()) {
-            String trimmed = query == null ? "" : query.trim();
-            int resultLimit = limit == null ? DEFAULT_LIMIT : limit;
-            if (trimmed.length() < 2 || trimmed.length() > 100) throw new BadRequestException("Từ khóa tìm kiếm phải có từ 2 đến 100 ký tự");
-            if (resultLimit < 1 || resultLimit > MAX_LIMIT) throw new BadRequestException("Số lượng kết quả (limit) phải từ 1 đến " + MAX_LIMIT);
-            return "SEARCH".equals(normalizedMode)
+            externalResults = "SEARCH".equals(normalizedMode)
                     ? tomTomProvider.discover(trimmed, null, null, null, sessionId)
                     : tomTomProvider.suggest(trimmed, resultLimit, null, null, sessionId);
+        } else {
+            return searchLocations(query, limit, (Double) null, (Double) null, "LOCATION_IQ", sessionId);
         }
-        return searchLocations(query, limit, (Double) null, (Double) null, "LOCATION_IQ", sessionId);
+
+        if (internal.isEmpty()) {
+            return externalResults;
+        }
+
+        List<LocationSearchResultResponse> combined = new ArrayList<>(internal);
+        combined.addAll(externalResults);
+        return locationRankingService.rankAndDeduplicate(trimmed, combined, null, null, resultLimit);
     }
 
     @Override
@@ -186,132 +233,247 @@ public class LocationServiceImpl implements LocationService {
         logger.debug("Location search cache MISS for key: {}. Parsing query understanding", cacheKey);
         ParsedLocationQuery parsed = queryUnderstandingService.parseQuery(trimmed);
         int fetchLimit = Math.min(effectiveLimit * 2, 20);
-        List<LocationSearchResultResponse> results;
+        List<LocationSearchResultResponse> results = null;
 
-        // Two-Stage Search: Query has explicit target area and POI search intent
-        if (parsed.hasExplicitLocation() && parsed.getSearchIntent() == SearchIntent.POI_IN_LOCATION) {
-            logger.debug("Executing Two-Stage Search for keyword='{}', location='{}'",
-                    parsed.getSearchKeyword(), parsed.getLocationQuery());
+        boolean isPoiIntent = parsed != null && (parsed.getSearchIntent() == SearchIntent.POI_IN_LOCATION || parsed.getSearchIntent() == SearchIntent.GENERIC_POI);
 
-            GeographicTargetArea targetArea = resolveTargetArea(parsed.getLocationQuery());
-            if (targetArea != null) {
-                List<LocationSearchResultResponse> rawCandidates = new ArrayList<>();
-                int radiusMeters = (int) (targetArea.getMaxRadiusKm() * 1000);
+        // Stage 1: Check Internal Catalog First (Authoritative Priority Pipeline)
+        List<LocationSearchResultResponse> internalCandidates = searchInternalCatalog(trimmed, effectiveLimit);
+        long internalPoiCount = internalCandidates.stream().filter(r -> "place".equalsIgnoreCase(r.getType())).count();
+        if ((!isPoiIntent && internalCandidates.size() >= effectiveLimit) || (isPoiIntent && internalPoiCount >= effectiveLimit)) {
+            logger.debug("Internal catalog satisfied query '{}' with {} results", trimmed, internalCandidates.size());
+            List<LocationSearchResultResponse> rankedInternal = locationRankingService.rankAndDeduplicate(
+                    trimmed,
+                    internalCandidates,
+                    normalizedLat,
+                    normalizedLon,
+                    effectiveLimit
+            );
+            searchCache.put(cacheKey, rankedInternal);
+            return rankedInternal;
+        }
 
-                // Stage B.1: Primary search bounded inside target area
-                try {
-                    List<LocationSearchResultResponse> inArea = primaryProvider.searchInArea(
-                            parsed.getSearchKeyword(), fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
-                            targetArea.getBoundingBox(), radiusMeters);
-                    if (inArea != null) {
-                        rawCandidates.addAll(inArea);
-                    }
-                } catch (Exception ex) {
-                    logger.debug("Primary searchInArea error: {}", ex.getMessage());
-                }
+        try {
+            // Two-Stage Search: Query has explicit target area and POI search intent
+            if (parsed.hasExplicitLocation() && parsed.getSearchIntent() == SearchIntent.POI_IN_LOCATION) {
+                logger.debug("Executing Two-Stage Search for keyword='{}', location='{}'",
+                        parsed.getSearchKeyword(), parsed.getLocationQuery());
 
-                // Stage B.2: Root keyword fallback if candidate list is sparse and keyword is multi-word
-                if (rawCandidates.size() < 2 && parsed.getSearchKeyword().contains(" ")) {
-                    String rootWord = parsed.getSearchKeyword().split("\\s+")[0].trim();
-                    if (rootWord.length() >= 3) {
-                        try {
-                            List<LocationSearchResultResponse> rootResults = primaryProvider.searchInArea(
-                                    rootWord, fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
-                                    targetArea.getBoundingBox(), radiusMeters);
-                            if (rootResults != null) {
-                                rawCandidates.addAll(rootResults);
-                            }
-                        } catch (Exception ex) {
-                            logger.debug("Primary root word searchInArea error: {}", ex.getMessage());
-                        }
-                    }
-                }
+                GeographicTargetArea targetArea = resolveTargetArea(parsed.getLocationQuery());
+                if (targetArea != null) {
+                    List<LocationSearchResultResponse> rawCandidates = new ArrayList<>();
+                    int radiusMeters = (int) (targetArea.getMaxRadiusKm() * 1000);
 
-                // Stage B.3: If candidate list is still sparse (< 2) and intent is FOOD, try generic food fallback in area
-                if (rawCandidates.size() < 2 && "FOOD".equalsIgnoreCase(parsed.getPlaceCategory())) {
+                    // Stage B.1: Primary search bounded inside target area
                     try {
-                        List<LocationSearchResultResponse> foodFallbacks = primaryProvider.searchInArea(
-                                "quán ăn", fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
-                                targetArea.getBoundingBox(), radiusMeters);
-                        if (foodFallbacks != null) {
-                            rawCandidates.addAll(foodFallbacks);
-                        }
-                    } catch (Exception ex) {
-                        logger.debug("Primary food fallback searchInArea error: {}", ex.getMessage());
-                    }
-                }
-
-                // Stage B.4: Combined search (keyword + location) biased to target coordinates
-                try {
-                    List<LocationSearchResultResponse> combined = primaryProvider.search(
-                            parsed.getSearchKeyword() + " " + parsed.getLocationQuery(),
-                            fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon());
-                    if (combined != null) {
-                        rawCandidates.addAll(combined);
-                    }
-                } catch (Exception ex) {
-                    logger.debug("Primary combined search error: {}", ex.getMessage());
-                }
-
-                // Stage B.4: Secondary HERE provider search in area if configured
-                if (hereGeocodingProvider != null && hereGeocodingProvider.isConfigured()) {
-                    try {
-                        List<LocationSearchResultResponse> hereResults = hereGeocodingProvider.searchInArea(
+                        List<LocationSearchResultResponse> inArea = primaryProvider.searchInArea(
                                 parsed.getSearchKeyword(), fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
                                 targetArea.getBoundingBox(), radiusMeters);
-                        if (hereResults != null) {
-                            rawCandidates.addAll(hereResults);
+                        if (inArea != null) {
+                            rawCandidates.addAll(inArea);
                         }
                     } catch (Exception ex) {
-                        logger.debug("HERE searchInArea error: {}", ex.getMessage());
+                        logger.debug("Primary searchInArea error: {}", ex.getMessage());
                     }
-                }
 
-                // Stage B.5: Filter out incompatible commercial types if intent is FOOD
-                if ("FOOD".equalsIgnoreCase(parsed.getPlaceCategory())) {
-                    rawCandidates.removeIf(this::isIncompatibleFoodCandidate);
-                }
+                    // Stage B.2: Root keyword fallback if candidate list is sparse and keyword is multi-word
+                    if (rawCandidates.size() < 2 && parsed.getSearchKeyword().contains(" ")) {
+                        String rootWord = parsed.getSearchKeyword().split("\\s+")[0].trim();
+                        if (rootWord.length() >= 3) {
+                            try {
+                                List<LocationSearchResultResponse> rootResults = primaryProvider.searchInArea(
+                                        rootWord, fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
+                                        targetArea.getBoundingBox(), radiusMeters);
+                                if (rootResults != null) {
+                                    rawCandidates.addAll(rootResults);
+                                }
+                            } catch (Exception ex) {
+                                logger.debug("Primary root word searchInArea error: {}", ex.getMessage());
+                            }
+                        }
+                    }
 
-                // Stage B.6: Strict Geographic Filtering
-                List<LocationSearchResultResponse> filtered = geographicFilterService.filter(rawCandidates, targetArea);
+                    // Stage B.3: If candidate list is still sparse (< 2) and intent is FOOD, try generic food fallback in area
+                    if (rawCandidates.size() < 2 && "FOOD".equalsIgnoreCase(parsed.getPlaceCategory())) {
+                        try {
+                            List<LocationSearchResultResponse> foodFallbacks = primaryProvider.searchInArea(
+                                    "quán ăn", fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
+                                    targetArea.getBoundingBox(), radiusMeters);
+                            if (foodFallbacks != null) {
+                                rawCandidates.addAll(foodFallbacks);
+                            }
+                        } catch (Exception ex) {
+                            logger.debug("Primary food fallback searchInArea error: {}", ex.getMessage());
+                        }
+                    }
 
-                if (!filtered.isEmpty()) {
-                    results = locationRankingService.rankAndDeduplicate(
-                            trimmed,
-                            filtered,
-                            targetArea.getCenterLat(),
-                            targetArea.getCenterLon(),
-                            effectiveLimit
-                    );
+                    // Stage B.4: Combined search (keyword + location) biased to target coordinates
+                    try {
+                        List<LocationSearchResultResponse> combined = primaryProvider.search(
+                                parsed.getSearchKeyword() + " " + parsed.getLocationQuery(),
+                                fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon());
+                        if (combined != null) {
+                            rawCandidates.addAll(combined);
+                        }
+                    } catch (Exception ex) {
+                        logger.debug("Primary combined search error: {}", ex.getMessage());
+                    }
+
+                    // Stage B.4: Secondary HERE provider search in area if configured
+                    if (hereGeocodingProvider != null && hereGeocodingProvider.isConfigured()) {
+                        try {
+                            List<LocationSearchResultResponse> hereResults = hereGeocodingProvider.searchInArea(
+                                    parsed.getSearchKeyword(), fetchLimit, targetArea.getCenterLat(), targetArea.getCenterLon(),
+                                    targetArea.getBoundingBox(), radiusMeters);
+                            if (hereResults != null) {
+                                rawCandidates.addAll(hereResults);
+                            }
+                        } catch (Exception ex) {
+                            logger.debug("HERE searchInArea error: {}", ex.getMessage());
+                        }
+                    }
+
+                    // Stage B.5: Filter out incompatible commercial types if intent is FOOD
+                    if ("FOOD".equalsIgnoreCase(parsed.getPlaceCategory())) {
+                        rawCandidates.removeIf(this::isIncompatibleFoodCandidate);
+                    }
+
+                    // Stage B.6: Strict Geographic Filtering
+                    List<LocationSearchResultResponse> filtered = geographicFilterService.filter(rawCandidates, targetArea);
+
+                    if (!filtered.isEmpty()) {
+                        results = locationRankingService.rankAndDeduplicate(
+                                trimmed,
+                                filtered,
+                                targetArea.getCenterLat(),
+                                targetArea.getCenterLon(),
+                                effectiveLimit
+                        );
+                    } else {
+                        // Safe Fallback: return the target locality itself so the map camera navigates to the requested region
+                        // without exposing out-of-bounds cross-province false positives.
+                        LocationSearchResultResponse localityFallback = LocationSearchResultResponse.builder()
+                                .placeId("locality_" + System.currentTimeMillis())
+                                .name(targetArea.getQueryName() + " (Khu vực)")
+                                .formattedAddress(targetArea.getResolvedName())
+                                .latitude(targetArea.getCenterLat())
+                                .longitude(targetArea.getCenterLon())
+                                .category("locality")
+                                .type("locality")
+                                .importance(1.0)
+                                .boundingBox(targetArea.getBoundingBox())
+                                .provider(primaryProvider.getProviderName())
+                                .isLocalityFallback(true)
+                                .build();
+                        results = List.of(localityFallback);
+                    }
                 } else {
-                    // Safe Fallback: return the target locality itself so the map camera navigates to the requested region
-                    // without exposing out-of-bounds cross-province false positives.
-                    LocationSearchResultResponse localityFallback = LocationSearchResultResponse.builder()
-                            .placeId("locality_" + System.currentTimeMillis())
-                            .name(targetArea.getQueryName() + " (Khu vực)")
-                            .formattedAddress(targetArea.getResolvedName())
-                            .latitude(targetArea.getCenterLat())
-                            .longitude(targetArea.getCenterLon())
-                            .category("locality")
-                            .type("locality")
-                            .importance(1.0)
-                            .boundingBox(targetArea.getBoundingBox())
-                            .provider(primaryProvider.getProviderName())
-                            .isLocalityFallback(true)
-                            .build();
-                    results = List.of(localityFallback);
+                    results = executeStandardSearch(trimmed, fetchLimit, effectiveLimit, normalizedLat, normalizedLon);
                 }
             } else {
                 results = executeStandardSearch(trimmed, fetchLimit, effectiveLimit, normalizedLat, normalizedLon);
             }
-        } else {
-            results = executeStandardSearch(trimmed, fetchLimit, effectiveLimit, normalizedLat, normalizedLon);
+        } catch (AppException ex) {
+            if (!internalCandidates.isEmpty()) {
+                results = internalCandidates;
+            } else {
+                throw ex;
+            }
         }
 
-        // Cache results if at least one provider is configured
-        if ((primaryProvider != null && primaryProvider.isConfigured())
+        if (!internalCandidates.isEmpty()) {
+            List<LocationSearchResultResponse> combined = new ArrayList<>(internalCandidates);
+            if (results != null) {
+                combined.addAll(results);
+            }
+            results = locationRankingService.rankAndDeduplicate(
+                    trimmed,
+                    combined,
+                    normalizedLat,
+                    normalizedLon,
+                    effectiveLimit
+            );
+        }
+
+        // Cache results if internal results found or at least one provider is configured
+        if (!internalCandidates.isEmpty()
+                || (primaryProvider != null && primaryProvider.isConfigured())
                 || (hereGeocodingProvider != null && hereGeocodingProvider.isConfigured())) {
-            searchCache.put(cacheKey, results);
+            if (results != null) {
+                searchCache.put(cacheKey, results);
+            }
+        }
+
+        return results != null ? results : Collections.emptyList();
+    }
+
+    public List<LocationSearchResultResponse> searchInternalCatalog(String query, int limit) {
+        if (query == null || query.isBlank() || limit <= 0) {
+            return Collections.emptyList();
+        }
+        String trimmed = query.trim();
+        String normalized = LocationRankingServiceImpl.normalizeText(trimmed);
+        List<LocationSearchResultResponse> results = new ArrayList<>();
+
+        // 1. Search canonical Places
+        if (placeRepository != null) {
+            try {
+                Page<Place> places = placeRepository.searchPlaces(
+                        trimmed,
+                        normalized,
+                        null,
+                        PlaceStatus.ACTIVE,
+                        PageRequest.of(0, limit)
+                );
+                for (Place p : places.getContent()) {
+                    results.add(LocationSearchResultResponse.builder()
+                            .placeId("place_" + p.getPlaceId())
+                            .name(p.getName())
+                            .formattedAddress(p.getAddress())
+                            .latitude(p.getLatitude() != null ? p.getLatitude().doubleValue() : 0.0)
+                            .longitude(p.getLongitude() != null ? p.getLongitude().doubleValue() : 0.0)
+                            .category(p.getCategory() != null ? p.getCategory().name() : "ATTRACTION")
+                            .type("place")
+                            .importance(1.0)
+                            .provider("SYSTEM")
+                            .isLocalityFallback(false)
+                            .build());
+                }
+            } catch (Exception e) {
+                logger.warn("Error searching internal places: {}", e.getMessage());
+            }
+        }
+
+        // 2. Search eligible Administrative Areas (strictly non-quarantined)
+        if (results.size() < limit && administrativeAreaRepository != null && !normalized.isBlank()) {
+            try {
+                int remaining = limit - results.size();
+                List<AdministrativeArea> areas = administrativeAreaRepository.searchNonQuarantined(
+                        normalized,
+                        trimmed,
+                        normalized,
+                        normalized + "%",
+                        AdministrativeAreaStatus.ACTIVE,
+                        PageRequest.of(0, remaining)
+                );
+                for (AdministrativeArea a : areas) {
+                    String displayName = a.getName() + (a.getParent() != null ? ", " + a.getParent().getName() : "");
+                    results.add(LocationSearchResultResponse.builder()
+                            .placeId("admin_" + a.getCode())
+                            .name(displayName)
+                            .formattedAddress(displayName)
+                            .latitude(0.0)
+                            .longitude(0.0)
+                            .category("boundary")
+                            .type("administrative")
+                            .importance(0.8)
+                            .provider("SYSTEM")
+                            .isLocalityFallback(true)
+                            .build());
+                }
+            } catch (Exception e) {
+                logger.warn("Error searching internal administrative areas: {}", e.getMessage());
+            }
         }
 
         return results;

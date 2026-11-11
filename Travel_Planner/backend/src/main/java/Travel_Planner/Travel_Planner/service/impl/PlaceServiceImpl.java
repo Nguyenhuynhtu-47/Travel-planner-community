@@ -2,17 +2,23 @@ package Travel_Planner.Travel_Planner.service.impl;
 
 import Travel_Planner.Travel_Planner.dto.request.CreatePlaceRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdatePlaceRequest;
+import Travel_Planner.Travel_Planner.dto.response.AdministrativeAreaSummaryResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceDetailResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceProviderMappingResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceResponse;
 import Travel_Planner.Travel_Planner.exception.BadRequestException;
 import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
+import Travel_Planner.Travel_Planner.model.AdministrativeArea;
 import Travel_Planner.Travel_Planner.model.Place;
 import Travel_Planner.Travel_Planner.model.PlaceProviderMapping;
 import Travel_Planner.Travel_Planner.model.enums.PlaceCategory;
 import Travel_Planner.Travel_Planner.model.enums.PlaceStatus;
+import Travel_Planner.Travel_Planner.model.enums.AdministrativeAreaTrustClassification;
+import Travel_Planner.Travel_Planner.model.enums.AdministrativeAreaType;
+import Travel_Planner.Travel_Planner.repository.AdministrativeAreaRepository;
 import Travel_Planner.Travel_Planner.repository.PlaceProviderMappingRepository;
 import Travel_Planner.Travel_Planner.repository.PlaceRepository;
+import Travel_Planner.Travel_Planner.resolver.impl.AdministrativeAreaResolverImpl;
 import Travel_Planner.Travel_Planner.service.PlaceNormalizationService;
 import Travel_Planner.Travel_Planner.service.PlaceService;
 import org.springframework.data.domain.Page;
@@ -34,19 +40,31 @@ public class PlaceServiceImpl implements PlaceService {
     private final PlaceRepository placeRepository;
     private final PlaceProviderMappingRepository mappingRepository;
     private final PlaceNormalizationService normalizationService;
+    private final AdministrativeAreaRepository administrativeAreaRepository;
 
     public PlaceServiceImpl(PlaceRepository placeRepository,
                             PlaceProviderMappingRepository mappingRepository,
                             PlaceNormalizationService normalizationService) {
+        this(placeRepository, mappingRepository, normalizationService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PlaceServiceImpl(PlaceRepository placeRepository,
+                            PlaceProviderMappingRepository mappingRepository,
+                            PlaceNormalizationService normalizationService,
+                            AdministrativeAreaRepository administrativeAreaRepository) {
         this.placeRepository = placeRepository;
         this.mappingRepository = mappingRepository;
         this.normalizationService = normalizationService;
+        this.administrativeAreaRepository = administrativeAreaRepository;
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<PlaceResponse> searchPlaces(String keyword,
                                            PlaceCategory category,
+                                           String administrativeAreaCode,
+                                           Long administrativeAreaId,
                                            Double lat,
                                            Double lon,
                                            Double radiusKm,
@@ -54,29 +72,75 @@ public class PlaceServiceImpl implements PlaceService {
         String trimmedKw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
         String normKw = trimmedKw != null ? normalizationService.normalizeText(trimmedKw) : null;
 
-        if (lat != null && lon != null && radiusKm != null && radiusKm > 0) {
-            validateCoordinates(BigDecimal.valueOf(lat), BigDecimal.valueOf(lon));
-            return searchByRadius(trimmedKw, normKw, category, lat, lon, radiusKm, pageable);
+        Long resolvedAreaId = administrativeAreaId;
+        Boolean isProvince = null;
+
+        if (administrativeAreaCode != null && !administrativeAreaCode.isBlank() && administrativeAreaRepository != null) {
+            String cleanCode = administrativeAreaCode.trim();
+            // Quarantine invariant: return empty page for quarantined areas
+            if (AdministrativeAreaResolverImpl.QUARANTINED_BAC_NINH_CODES.contains(cleanCode)) {
+                return Page.empty(pageable);
+            }
+            Optional<AdministrativeArea> areaOpt = administrativeAreaRepository.findByCode(cleanCode);
+            if (areaOpt.isEmpty()) {
+                return Page.empty(pageable);
+            }
+            AdministrativeArea area = areaOpt.get();
+            if (area.getTrustClassification() == AdministrativeAreaTrustClassification.UNVERIFIED_AND_QUARANTINED) {
+                return Page.empty(pageable);
+            }
+            resolvedAreaId = area.getAreaId();
+            isProvince = (area.getAreaType() == AdministrativeAreaType.PROVINCE || area.getAreaType() == AdministrativeAreaType.CENTRAL_CITY);
+        } else if (resolvedAreaId != null && administrativeAreaRepository != null) {
+            Optional<AdministrativeArea> areaOpt = administrativeAreaRepository.findById(resolvedAreaId);
+            if (areaOpt.isPresent()) {
+                AdministrativeArea area = areaOpt.get();
+                if (area.getTrustClassification() == AdministrativeAreaTrustClassification.UNVERIFIED_AND_QUARANTINED) {
+                    return Page.empty(pageable);
+                }
+                isProvince = (area.getAreaType() == AdministrativeAreaType.PROVINCE || area.getAreaType() == AdministrativeAreaType.CENTRAL_CITY);
+            }
         }
 
-        Page<Place> page = placeRepository.searchPlaces(trimmedKw, normKw, category, PlaceStatus.ACTIVE, pageable);
-        return page.map(this::toResponse);
+        if (radiusKm != null) {
+            if (radiusKm <= 0.0 || radiusKm > 500.0) {
+                throw new BadRequestException("Bán kính tìm kiếm (radiusKm) phải lớn hơn 0 và không vượt quá 500 km");
+            }
+            if (lat == null || lon == null) {
+                throw new BadRequestException("Tọa độ latitude và longitude phải được cung cấp cùng với radiusKm");
+            }
+            validateCoordinates(BigDecimal.valueOf(lat), BigDecimal.valueOf(lon));
+            return searchByRadiusWithAdminArea(trimmedKw, normKw, category, resolvedAreaId, isProvince, lat, lon, radiusKm, pageable);
+        } else if (lat != null && lon != null) {
+            validateCoordinates(BigDecimal.valueOf(lat), BigDecimal.valueOf(lon));
+        }
+
+        Page<Place> page;
+        if (resolvedAreaId != null) {
+            page = placeRepository.searchPlacesWithAdminArea(trimmedKw, normKw, category, resolvedAreaId, isProvince, pageable);
+        } else {
+            page = placeRepository.searchPlaces(trimmedKw, normKw, category, PlaceStatus.ACTIVE, pageable);
+        }
+        return page != null ? page.map(this::toResponse) : Page.empty(pageable);
     }
 
-    private Page<PlaceResponse> searchByRadius(String keyword,
-                                               String normKeyword,
-                                               PlaceCategory category,
-                                               double lat,
-                                               double lon,
-                                               double radiusKm,
-                                               Pageable pageable) {
+    private Page<PlaceResponse> searchByRadiusWithAdminArea(String keyword,
+                                                           String normKeyword,
+                                                           PlaceCategory category,
+                                                           Long areaId,
+                                                           Boolean isProvince,
+                                                           double lat,
+                                                           double lon,
+                                                           double radiusKm,
+                                                           Pageable pageable) {
+        double cosLat = Math.cos(Math.toRadians(lat));
         double dLat = radiusKm / 111.0;
-        double dLon = radiusKm / (111.0 * Math.cos(Math.toRadians(lat)));
+        double dLon = Math.abs(cosLat) > 1e-6 ? (radiusKm / (111.0 * cosLat)) : 180.0;
 
-        BigDecimal minLat = BigDecimal.valueOf(lat - dLat);
-        BigDecimal maxLat = BigDecimal.valueOf(lat + dLat);
-        BigDecimal minLon = BigDecimal.valueOf(lon - dLon);
-        BigDecimal maxLon = BigDecimal.valueOf(lon + dLon);
+        BigDecimal minLat = BigDecimal.valueOf(Math.max(-90.0, lat - dLat));
+        BigDecimal maxLat = BigDecimal.valueOf(Math.min(90.0, lat + dLat));
+        BigDecimal minLon = BigDecimal.valueOf(Math.max(-180.0, lon - dLon));
+        BigDecimal maxLon = BigDecimal.valueOf(Math.min(180.0, lon + dLon));
 
         List<Place> candidates = placeRepository.findInBoundingBox(minLat, maxLat, minLon, maxLon);
 
@@ -84,6 +148,20 @@ public class PlaceServiceImpl implements PlaceService {
         for (Place p : candidates) {
             if (category != null && p.getCategory() != category) {
                 continue;
+            }
+            if (areaId != null) {
+                if (p.getAdministrativeArea() == null) {
+                    continue;
+                }
+                if (Boolean.TRUE.equals(isProvince)) {
+                    boolean matchProv = areaId.equals(p.getAdministrativeArea().getAreaId())
+                            || (p.getAdministrativeArea().getParent() != null && areaId.equals(p.getAdministrativeArea().getParent().getAreaId()));
+                    if (!matchProv) continue;
+                } else {
+                    if (!areaId.equals(p.getAdministrativeArea().getAreaId())) {
+                        continue;
+                    }
+                }
             }
             if (keyword != null && !keyword.isBlank()) {
                 boolean matches = p.getName().toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT))
@@ -263,13 +341,15 @@ public class PlaceServiceImpl implements PlaceService {
         String normAddress = normalizationService.normalizeAddress(address);
 
         double radiusMeters = 300.0;
+        double latVal = latitude.doubleValue();
+        double cosLat = Math.cos(Math.toRadians(latVal));
         double dLat = (radiusMeters / 1000.0) / 111.0;
-        double dLon = (radiusMeters / 1000.0) / (111.0 * Math.cos(Math.toRadians(latitude.doubleValue())));
+        double dLon = Math.abs(cosLat) > 1e-6 ? ((radiusMeters / 1000.0) / (111.0 * cosLat)) : 180.0;
 
-        BigDecimal minLat = latitude.subtract(BigDecimal.valueOf(dLat));
-        BigDecimal maxLat = latitude.add(BigDecimal.valueOf(dLat));
-        BigDecimal minLon = longitude.subtract(BigDecimal.valueOf(dLon));
-        BigDecimal maxLon = longitude.add(BigDecimal.valueOf(dLon));
+        BigDecimal minLat = BigDecimal.valueOf(Math.max(-90.0, latVal - dLat));
+        BigDecimal maxLat = BigDecimal.valueOf(Math.min(90.0, latVal + dLat));
+        BigDecimal minLon = BigDecimal.valueOf(Math.max(-180.0, longitude.doubleValue() - dLon));
+        BigDecimal maxLon = BigDecimal.valueOf(Math.min(180.0, longitude.doubleValue() + dLon));
 
         List<Place> nearby = placeRepository.findInBoundingBox(minLat, maxLat, minLon, maxLon);
         Place bestMatch = null;
@@ -338,6 +418,22 @@ public class PlaceServiceImpl implements PlaceService {
         }
     }
 
+    private AdministrativeAreaSummaryResponse toSummaryResponse(AdministrativeArea area) {
+        if (area == null) {
+            return null;
+        }
+        return AdministrativeAreaSummaryResponse.builder()
+                .areaId(area.getAreaId())
+                .code(area.getCode())
+                .name(area.getName())
+                .areaType(area.getAreaType())
+                .parentAreaId(area.getParent() != null ? area.getParent().getAreaId() : null)
+                .parentCode(area.getParent() != null ? area.getParent().getCode() : null)
+                .parentName(area.getParent() != null ? area.getParent().getName() : null)
+                .trustClassification(area.getTrustClassification())
+                .build();
+    }
+
     private PlaceResponse toResponse(Place place) {
         return PlaceResponse.builder()
                 .placeId(place.getPlaceId())
@@ -349,6 +445,7 @@ public class PlaceServiceImpl implements PlaceService {
                 .longitude(place.getLongitude())
                 .category(place.getCategory())
                 .status(place.getStatus())
+                .administrativeArea(toSummaryResponse(place.getAdministrativeArea()))
                 .build();
     }
 
@@ -376,6 +473,7 @@ public class PlaceServiceImpl implements PlaceService {
                 .category(place.getCategory())
                 .status(place.getStatus())
                 .providerMappings(mappings)
+                .administrativeArea(toSummaryResponse(place.getAdministrativeArea()))
                 .createdAt(place.getCreatedAt())
                 .updatedAt(place.getUpdatedAt())
                 .build();

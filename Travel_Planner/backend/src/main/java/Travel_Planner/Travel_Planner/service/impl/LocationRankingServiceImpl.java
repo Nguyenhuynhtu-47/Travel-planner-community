@@ -53,7 +53,6 @@ public class LocationRankingServiceImpl implements LocationRankingService {
 
         List<ScoredResult> scoredList = new ArrayList<>();
         Set<String> seenPlaceIds = new HashSet<>();
-        Set<String> seenCoordKeys = new HashSet<>();
 
         for (LocationSearchResultResponse item : results) {
             if (item == null || item.getLatitude() == null || item.getLongitude() == null) {
@@ -67,11 +66,33 @@ public class LocationRankingServiceImpl implements LocationRankingService {
                 }
             }
 
-            // Deduplicate by normalized name + rounded coordinates (~110m resolution)
-            String normName = normalizeText(item.getName());
-            String coordKey = String.format(Locale.ROOT, "%s:%.3f:%.3f",
-                    normName, item.getLatitude(), item.getLongitude());
-            if (!seenCoordKeys.add(coordKey)) {
+            // Check duplicate against already admitted items
+            boolean isDuplicate = false;
+            int duplicateIndex = -1;
+            for (int i = 0; i < scoredList.size(); i++) {
+                LocationSearchResultResponse existing = scoredList.get(i).item();
+                if (isDuplicateOf(item, existing)) {
+                    isDuplicate = true;
+                    duplicateIndex = i;
+                    break;
+                }
+            }
+
+            if (isDuplicate) {
+                // If the new item is from SYSTEM (canonical Place) while existing is external,
+                // replace existing with canonical SYSTEM Place to prioritize canonical catalog!
+                if ("SYSTEM".equalsIgnoreCase(item.getProvider())
+                        && !"SYSTEM".equalsIgnoreCase(scoredList.get(duplicateIndex).item().getProvider())) {
+                    double score = calculateScore(
+                            normQuery,
+                            isCityQuery,
+                            normSpecifiedRegion,
+                            item,
+                            viewportLat,
+                            viewportLon
+                    );
+                    scoredList.set(duplicateIndex, new ScoredResult(item, score));
+                }
                 continue;
             }
 
@@ -174,6 +195,10 @@ public class LocationRankingServiceImpl implements LocationRankingService {
             if (isFoodIntent(normQuery) && isIncompatibleFoodType(type, category)) {
                 score -= 100.0;
             }
+            // Administrative boundaries are not POIs; apply penalty so they never outrank real venues
+            if (isItemAdminPlace) {
+                score -= 30.0;
+            }
         }
 
         // 3. Regional Alignment (when query specified "ở Đà Lạt", "tại Vũng Tàu", etc.)
@@ -188,6 +213,12 @@ public class LocationRankingServiceImpl implements LocationRankingService {
         // 4. Provider Importance
         if (item.getImportance() != null) {
             score += item.getImportance() * 25.0;
+        }
+        if ("SYSTEM".equalsIgnoreCase(item.getProvider())) {
+            // Apply SYSTEM boost to canonical places; only boost administrative boundaries when user intended an administrative/city query
+            if (!isItemAdminPlace || isCityQuery) {
+                score += 50.0;
+            }
         }
 
         // 5. Viewport Proximity Tie-Breaker (Only for generic queries without explicit region)
@@ -305,6 +336,87 @@ public class LocationRankingServiceImpl implements LocationRankingService {
                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
+    }
+
+    private boolean isDuplicateOf(LocationSearchResultResponse item, LocationSearchResultResponse existing) {
+        if (item.getPlaceId() != null && existing.getPlaceId() != null
+                && item.getPlaceId().trim().equalsIgnoreCase(existing.getPlaceId().trim())) {
+            return true;
+        }
+
+        String normName1 = normalizeText(item.getName());
+        String normName2 = normalizeText(existing.getName());
+        if (!normName1.equals(normName2)) {
+            // Different names (e.g. Shop A vs Shop B): never deduplicate, even if within 10m!
+            return false;
+        }
+
+        double distanceKm = haversineDistance(
+                item.getLatitude(), item.getLongitude(),
+                existing.getLatitude(), existing.getLongitude()
+        );
+
+        // Distance greater than 110m (~0.11 km): geographically distinct!
+        if (distanceKm > 0.110) {
+            return false;
+        }
+
+        // Within 110m and identical name: check if addresses indicate distinct physical locations
+        if (hasDistinctAddresses(item.getFormattedAddress(), existing.getFormattedAddress())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean hasDistinctAddresses(String addr1, String addr2) {
+        if (addr1 == null || addr2 == null || addr1.isBlank() || addr2.isBlank()) {
+            return false;
+        }
+        String norm1 = normalizeText(addr1).replaceAll("[^a-z0-9\\s]", " ");
+        String norm2 = normalizeText(addr2).replaceAll("[^a-z0-9\\s]", " ");
+        if (norm1.equals(norm2)) {
+            return false;
+        }
+
+        Set<String> numbers1 = extractHouseNumbers(norm1);
+        Set<String> numbers2 = extractHouseNumbers(norm2);
+
+        // If both have explicit house numbers and they don't share any -> distinct physical addresses!
+        if (!numbers1.isEmpty() && !numbers2.isEmpty() && Collections.disjoint(numbers1, numbers2)) {
+            return true;
+        }
+
+        // Check if distinct street names are mentioned (e.g. "le loi" vs "pasteur")
+        boolean hasLeLoi1 = norm1.contains("le loi");
+        boolean hasLeLoi2 = norm2.contains("le loi");
+        boolean hasPasteur1 = norm1.contains("pasteur");
+        boolean hasPasteur2 = norm2.contains("pasteur");
+        if ((hasLeLoi1 && !hasLeLoi2 && hasPasteur2) || (hasPasteur1 && !hasPasteur2 && hasLeLoi2)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private Set<String> extractHouseNumbers(String cleanAddr) {
+        Set<String> houseNumbers = new HashSet<>();
+        String[] tokens = cleanAddr.trim().split("\\s+");
+        for (int i = 0; i < tokens.length; i++) {
+            String token = tokens[i];
+            if (token.matches("\\d+[a-z]?")) {
+                if (i > 0) {
+                    String prev = tokens[i - 1];
+                    if (prev.equals("quan") || prev.equals("q") || prev.equals("phuong") || prev.equals("p")
+                            || prev.equals("to") || prev.equals("kp") || prev.equals("ap") || prev.equals("xa")
+                            || prev.equals("huyen") || prev.equals("tang") || prev.equals("tp")) {
+                        continue;
+                    }
+                }
+                houseNumbers.add(token);
+            }
+        }
+        return houseNumbers;
     }
 
     private record ScoredResult(LocationSearchResultResponse item, double score) {

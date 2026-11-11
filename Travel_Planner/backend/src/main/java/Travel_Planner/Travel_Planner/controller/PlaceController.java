@@ -25,6 +25,8 @@ public class PlaceController {
     public ResponseEntity<Page<PlaceResponse>> searchPlaces(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) PlaceCategory category,
+            @RequestParam(required = false) String administrativeAreaCode,
+            @RequestParam(required = false) Long administrativeAreaId,
             @RequestParam(required = false) Double latitude,
             @RequestParam(required = false) Double longitude,
             @RequestParam(required = false) Double radiusKm,
@@ -39,7 +41,7 @@ public class PlaceController {
                 : Sort.Direction.ASC;
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(50, Math.max(1, size)), Sort.by(direction, sortProp));
-        Page<PlaceResponse> results = placeService.searchPlaces(keyword, category, latitude, longitude, radiusKm, pageable);
+        Page<PlaceResponse> results = placeService.searchPlaces(keyword, category, administrativeAreaCode, administrativeAreaId, latitude, longitude, radiusKm, pageable);
         return ResponseEntity.ok(results);
     }
 

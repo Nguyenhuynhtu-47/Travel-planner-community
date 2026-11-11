@@ -15,10 +15,21 @@ public interface PlaceService {
 
     Page<PlaceResponse> searchPlaces(String keyword,
                                     PlaceCategory category,
+                                    String administrativeAreaCode,
+                                    Long administrativeAreaId,
                                     Double lat,
                                     Double lon,
                                     Double radiusKm,
                                     Pageable pageable);
+
+    default Page<PlaceResponse> searchPlaces(String keyword,
+                                             PlaceCategory category,
+                                             Double lat,
+                                             Double lon,
+                                             Double radiusKm,
+                                             Pageable pageable) {
+        return searchPlaces(keyword, category, null, null, lat, lon, radiusKm, pageable);
+    }
 
     PlaceDetailResponse getPublicPlaceById(Long id);
 
