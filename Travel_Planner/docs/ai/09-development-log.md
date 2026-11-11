@@ -5526,5 +5526,137 @@ Addressed the three final architectural items required before final acceptance o
 - Working tree uncommitted. Zero Git commits or pushes executed.
 - All modifications preserved and verified.
 
+---
+
+## 2026-11-11 — Phase 2: Place Catalog Implementation & Final Verification
+
+### 1. Architectural Scope & Implementation Overview
+
+Implemented and verified Phase 2 (Place Catalog) of the location architecture roadmap. Phase 2 introduces a normalized, multi-provider Place Catalog representing canonical physical locations independently of transient external geocoding responses, while preserving 100% independence of the Activity Location Snapshot (Phase 1 & 1.1) and maintaining full backward compatibility with the existing Destination catalog.
+
+#### 1.1 Database & Domain Design (Phase 2A)
+- **`Place` Entity (`places` table):**
+  - Primary key `place_id` (BIGINT AUTO_INCREMENT).
+  - Core fields: `name`, `normalized_name` (indexed for rapid accented/unaccented searching), `address`, `description`, `image_url`, `latitude`, `longitude` (DECIMAL 10,7).
+  - Categorization: `PlaceCategory` enum (`ATTRACTION`, `RESTAURANT`, `CAFE`, `HOTEL`, `ENTERTAINMENT`, `SHOPPING`, `OTHER`).
+  - Lifecycle & Status: `PlaceStatus` enum (`ACTIVE`, `HIDDEN`).
+  - Destination link: `source_destination_id` (nullable FK to legacy `destinations.destination_id`).
+  - Bidirectional mapping relationship: `providerMappings` (`@OneToMany(mappedBy = "place", cascade = CascadeType.ALL, orphanRemoval = true)`).
+  - Spatial bounding box index on `(latitude, longitude)`.
+- **`PlaceProviderMapping` Entity (`place_provider_mappings` table):**
+  - Primary key `mapping_id` (BIGINT AUTO_INCREMENT).
+  - Foreign key `place_id` (references `places.place_id`).
+  - Provider identifier: `provider` (VARCHAR(50), e.g., `LOCATION_IQ`, `TOMTOM`, `HERE`, `DESTINATION_CATALOG`).
+  - External ID: `provider_place_id` (VARCHAR(255)).
+  - Raw category: `provider_type` (VARCHAR(100)).
+  - Metadata payload: `metadata_json` (TEXT).
+  - Unique constraint: `uk_provider_place_id` on `(provider, provider_place_id)`.
+- **`Destination` Compatibility:**
+  - Added nullable column `place_id` (BIGINT) to `destinations` referencing `places.place_id`.
+  - Updated `Destination.java` and `DestinationResponse.java` to expose `placeId`.
+
+#### 1.2 Normalization & Multi-Signal Deduplication (Phase 2B)
+- **`PlaceNormalizationService` & `PlaceNormalizationServiceImpl`:**
+  - Vietnamese text normalization (`normalizeText`): Strips Vietnamese diacritics via NFD decomposition, normalizes `đ`/`Đ` -> `d`, removes punctuation, collapses whitespace.
+  - Address abbreviation standardizer (`normalizeAddress`): Resolves common Vietnamese administrative abbreviations (`TP.HCM` -> `TP. Hồ Chí Minh`, `Hà Nội`, `Đà Nẵng`, `Q.1` / `Q. 1` -> `Quận 1`, `P. Bến Nghé` -> `Phường Bến Nghé`) using negative lookahead regex to prevent over-expansion.
+  - Protected compound place names (`isProtectedCompoundName`): Protects cultural landmarks ("Hồ Hoàn Kiếm", "Bà Nà Hills", "Vịnh Hạ Long", "Fansipan", "Cát Cát", etc.) from inappropriate merging.
+  - Chain brand branch isolation (`isDifferentBranch`): Distinct physical branches of known chains (Highlands, Phúc Long, Starbucks, Circle K, etc.) with distance > 100m or distinct street addresses are strictly prevented from merging.
+  - Multi-signal matching confidence (`calculateMatchConfidence`):
+    - Haversine distance scoring (0.0 to 1.0; distance > 300m immediately returns 0 confidence).
+    - Jaccard token similarity for normalized name comparison.
+    - Address token overlap matching.
+    - Category compatibility weighting.
+    - Minimum safe threshold: confidence >= 0.85 (85%).
+
+#### 1.3 Place Persistence Policy (Phase 2C)
+- Enforced strict distinction between transient geocoding search results and canonical persisted places:
+  - Online searches via third-party providers remain transient in-memory results and are **not** blindly written to MySQL (preventing DB bloat and uncurated noise).
+  - Canonical places are created solely via:
+    1. Admin creation (`POST /api/admin/places`).
+    2. Curated destination synchronization (`PlaceCatalogMigrationRunner`).
+    3. Explicit resolution/promotion (`resolveOrPersistPlace`) in verified user/admin workflows.
+
+#### 1.4 REST API & Security (Phase 2D)
+- **Public API (`PlaceController` at `/api/places`):**
+  - `GET /api/places`: Public search with keyword, category, latitude/longitude center, radius (km), and pagination.
+  - `GET /api/places/{id}`: Public retrieval of active place details and provider mappings (returns 404 for HIDDEN places).
+- **Admin API (`AdminPlaceController` at `/api/admin/places`):**
+  - Secured with `@PreAuthorize("hasRole('ADMIN')")`.
+  - `GET /api/admin/places`: Search all places including HIDDEN status.
+  - `GET /api/admin/places/{id}`: Detailed view including admin metadata.
+  - `POST /api/admin/places`: Create place with coordinate bounds validation and duplicate detection (rejects >=85% duplicates).
+  - `PUT /api/admin/places/{id}`: Update place details with automatic re-normalization.
+  - `DELETE /api/admin/places/{id}`: Soft delete (transitions status to `HIDDEN`).
+- **Security Configuration:**
+  - Updated `SecurityConfig.java` to permit `GET /api/places` and `GET /api/places/**` anonymously, while keeping all `/api/admin/**` endpoints restricted to `ROLE_ADMIN`.
+
+#### 1.5 Destination Migration & Synchronization (Phase 2E)
+- **`PlaceCatalogMigrationRunner`:**
+  - Implements `@Order(3)` startup CommandLineRunner.
+  - Hardened with single physical connection-bound MySQL advisory locking (`place_catalog_migration_lock`).
+  - Includes retry loop with timeout, invariant verification allowing safe startup when already synchronized, and fail-startup `IllegalStateException` on unmigrated schemas with lock contention.
+  - Idempotent and non-destructive: Migrated all 24 existing destinations into `places` with matching `PlaceCategory` and `PlaceStatus`.
+  - Created corresponding `place_provider_mappings` entries with `provider = 'DESTINATION_CATALOG'` and `provider_place_id = 'dest_' + destination_id`.
+  - Linked `destinations.place_id` back to the new place IDs.
+
+#### 1.6 Activity Location Snapshot Isolation (Phase 2F)
+- Verified semantic boundary between `Activity.place_id` and `Place.place_id`:
+  - `Activity.place_id` (`VARCHAR(100)`) is an external provider identifier paired with `Activity.location_provider` (matching `PlaceProviderMapping.provider_place_id`).
+  - `Place.place_id` (`BIGINT`) is the internal canonical primary key.
+  - `Activity` does not reference `places.place_id`, keeping all 121 activities 100% snapshot complete and completely independent of Place status (ACTIVE/HIDDEN).
+
+#### 1.7 Frontend Integration Status (Phase 2G)
+- Updated `ApiConstants.dart` in both Flutter Mobile and Flutter Web to declare `/api/places` and `/api/admin/places`.
+- Confirmed Mobile Location Picker currently queries `/api/locations/search` (transient third-party geocoding).
+- Confirmed Web Admin currently manages `destinations`; dedicated `AdminPlacesScreen` UI is not yet created.
+- Confirmed Explore screen currently queries `/api/itineraries` (community shared itineraries).
+
+---
+
+### 2. Comprehensive Verification Results
+
+#### 2.1 Backend Quality Gate (`mvnw.cmd test`)
+- Total tests executed: **330 tests**
+- Failures: **0**
+- Errors: **0**
+- Skipped: **0**
+- Result: **BUILD SUCCESS** (Process exit code: **0**)
+- Phase 2 specific suites:
+  - `PlaceNormalizationServiceTest`: 8 / 8 PASS
+  - `PlaceServiceTest`: 10 / 10 PASS
+  - `PlaceControllerTest`: 6 / 6 PASS
+  - `PlaceCatalogMigrationRunnerTest`: 8 / 8 PASS (verifies creation, idempotency, snapshot isolation, single-connection lock acquisition, lock contention retry, acquisition timeout fail-safe, failure cleanup, and lock unavailability no-op).
+
+#### 2.2 Flutter Mobile Quality Gate (`flutter test` & `flutter analyze`)
+- Tests executed: **367 tests**
+- Result: **364 PASSED**, **3 FAILED** (exit code: **1**)
+- Confirmed that the 3 failures are the pre-existing deferred tests preserved by user instruction:
+  1. `test/explore_test.dart: CreatorSummary falls back to username`
+  2. `test/features/social/rating_ui_layout_test.dart: Dialog renders cleanly without RenderFlex overflow`
+  3. `test/features/social/rating_ui_layout_test.dart: CommentsSection is rendered BEFORE RatingSection`
+- `flutter analyze`: **0 errors**, **0 warnings** (39 pre-existing info messages).
+
+#### 2.3 Flutter Web Quality Gate (`flutter test` & `flutter analyze`)
+- Tests executed: **39 tests**
+- Result: **39 / 39 PASSED** (0 failures, 0 errors, exit code: **0**).
+- `flutter analyze`: **0 issues found** (exit code: **0**).
+
+#### 2.4 Project-wide Test Execution Totals
+- Total tests executed across all 3 components: **736 tests**
+  - **Passed:** **733 tests**
+  - **Failed:** **3 tests** (preserved deferred mobile tests)
+  - **Skipped:** **0 tests**
+
+#### 2.5 MySQL Database State Verification (`travel_planner` dev DB)
+- `places`: **24 rows** (23 `ACTIVE`, 1 `HIDDEN` matching destinations catalog).
+- `place_provider_mappings`: **24 rows** with provider `DESTINATION_CATALOG`.
+- `destinations`: **24 rows**, all 24 populated with valid `place_id`.
+- `activities`: **121 rows**, all 121 maintaining 100% complete location snapshots (`location_name`, `location_address`, `latitude`, `longitude`), untouched and independent.
+
+#### 2.6 Scope Compliance & Git Safety
+- Phase 3 (`administrative_areas`) and Phase 4 (`user_saved_places`): **0 code written, strictly excluded**.
+- Git state: Branch `develop` (HEAD: `7d86338`), uncommitted working tree preserved. Zero commits or pushes performed.
+
+
 
 

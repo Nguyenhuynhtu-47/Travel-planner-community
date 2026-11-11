@@ -192,7 +192,23 @@ Cho phép kết hợp nhiều điều kiện và xóa bộ lọc đang áp dụn
 - Hiển thị thông tin địa điểm: tên địa điểm (`location_name`), địa chỉ (`location_address`), nhà cung cấp (`location_provider`).
 - Xử lý trường hợp bản đồ không tải được hoặc thiếu API key (banner cảnh báo mượt mà, không crash ứng dụng).
 - Tích hợp tìm kiếm địa điểm đa nguồn (TomTom, LocationIQ, OpenStreetMap) và chuyển đổi tọa độ ngược (Reverse Geocoding).
-- Bảng danh mục `destinations` do Admin quản lý đóng vai trò kho dữ liệu khám phá và gợi ý (Explore / Catalog). Việc quản lý Destination tách biệt hoàn toàn với vị trí Activity của người dùng: sửa hoặc ẩn Destination không làm hỏng dữ liệu bản đồ hoặc chỉ đường của Activity.
+- **Hệ thống Danh mục Địa điểm Chuẩn hóa (Place Catalog — Phase 2 Architecture):**
+  - Thực thể `Place` độc lập làm trung tâm định danh địa điểm thực tế, không phụ thuộc vào định dạng hay tính tạm thời của kết quả từ các bên thứ 3 (LocationIQ, TomTom, HERE).
+  - Bảng `places` lưu trữ: `place_id` (PK), `name`, `normalized_name` (chuẩn hóa không dấu, hỗ trợ tìm kiếm tăng tốc), `address`, `description`, `image_url`, `latitude`, `longitude`, `category` (`ATTRACTION`, `RESTAURANT`, `CAFE`, `HOTEL`, `ENTERTAINMENT`, `SHOPPING`, `OTHER`), `status` (`ACTIVE`, `HIDDEN`), `source_destination_id`, và timestamps.
+  - Bảng `place_provider_mappings` lưu trữ liên kết đa nguồn: `mapping_id` (PK), `place_id` (FK), `provider` (`LOCATION_IQ`, `TOMTOM`, `HERE`, `DESTINATION_CATALOG`), `provider_place_id`, `provider_type`, `metadata_json`, `last_synced_at`, có ràng buộc duy nhất `uk_provider_place_id` trên cặp `(provider, provider_place_id)`.
+  - **Thuật toán Chuẩn hóa & Chống trùng lặp đa tín hiệu (Normalization & Deduplication):**
+    - Loại bỏ dấu tiếng Việt chuẩn NFD (`normalizeText`) cho tên và địa chỉ.
+    - Chuẩn hóa viết tắt địa danh hành chính tiếng Việt (`TP.HCM`, `Hà Nội`, `Đà Nẵng`, `Q.1` -> `Quận 1`, `P. Bến Nghé` -> `Phường Bến Nghé`).
+    - Bảo vệ danh từ ghép địa danh đặc biệt (`isProtectedCompoundName`) như "Hồ Hoàn Kiếm", "Bà Nà Hills", "Vịnh Hạ Long", không bị gộp sai với các địa điểm lân cận.
+    - Phân tách chi nhánh chuỗi thương hiệu (`isDifferentBranch`): các thương hiệu chuỗi (Highlands Coffee, Phúc Long, Circle K, v.v.) cách nhau >100m hoặc có số nhà/tên đường khác nhau tuyệt đối không bị gộp làm một.
+    - Chấm điểm tương đồng đa tín hiệu (`calculateMatchConfidence`) kết hợp khoảng cách địa lý (Haversine formula), tương đồng tên (Jaccard token similarity), tương đồng địa chỉ và tương thích danh mục. Ngưỡng tự động match an toàn: >= 0.85 (85%). Khoảng cách > 300m tự động trả về độ tin cậy 0.
+  - **Chính sách Lưu trữ Địa điểm (Place Persistence Policy):**
+    - Kết quả tìm kiếm trực tuyến là tạm thời (transient search results), không tự động lưu vào database để tránh biến cơ sở dữ liệu thành crawler rác không kiểm soát.
+    - Địa điểm chỉ được lưu vào `places` khi: (1) Admin tạo trực tiếp qua `POST /api/admin/places`; (2) Đồng bộ từ danh mục Destination; (3) Được giải quyết/xác thực chính thức (`resolveOrPersistPlace`) từ luồng nghiệp vụ.
+  - **Khả năng tương thích Destination & Activity:**
+    - Bảng `destinations` giữ nguyên cấu trúc và dữ liệu hiện có (24 destinations), bổ sung cột khóa ngoại `place_id`.
+    - `PlaceCatalogMigrationRunner` (chạy tự động với MySQL advisory lock `@Order(3)`) đồng bộ an toàn, không phá hủy (non-destructive) toàn bộ destinations vào `places` và tạo mapping `DESTINATION_CATALOG`, đảm bảo tính lũy thừa (idempotent).
+    - Snapshot vị trí của `Activity` hoàn toàn độc lập với `Place Catalog`. Dù Place có bị chỉnh sửa hay ẩn đi (`HIDDEN`), Activity snapshot vẫn toàn vẹn và bản đồ/chỉ đường của người dùng hoạt động bình thường.
 - Tính toán tuyến đường (Routing) và chỉ đường nhiều ngày lấy tọa độ trực tiếp từ snapshot của Activity mà không phụ thuộc vào trạng thái Destination trong danh mục.
 
 ## 9. Đánh giá và bình luận

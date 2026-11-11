@@ -22,5 +22,6 @@ public class DestinationResponse {
     private String imageUrl;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    private Long placeId;
     private DestinationStatus status;
 }

@@ -173,6 +173,7 @@ public class DestinationServiceImpl implements DestinationService {
                 .imageUrl(destination.getImageUrl())
                 .latitude(destination.getLatitude())
                 .longitude(destination.getLongitude())
+                .placeId(destination.getPlaceId())
                 .status(destination.getStatus())
                 .build();
     }

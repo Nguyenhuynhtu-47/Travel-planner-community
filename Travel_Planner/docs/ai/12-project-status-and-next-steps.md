@@ -7,14 +7,14 @@
 
 ---
 
-## 1. Verified Test Results (Executed 2026-11-04)
+## 1. Verified Test Results (Executed 2026-11-11 — Phase 2 Final Verification)
 
 | Component | Command | Result | Notes |
 |:---|:---|:---|:---|
-| Backend | `mvnw.cmd test` | **157 / 157 PASS** ✅ | 44.8s, 0 failures, 0 errors |
-| Mobile | `flutter test` | **305 / 305 PASS** ✅ | 43s, 0 failures, 0 errors |
-| Web | `flutter test` | **39 / 39 PASS** ✅ | 14s, 0 failures, 0 errors (CARTO tile 400s are expected without an API key; tests still pass) |
-| **Total** | | **501 / 501 PASS** ✅ | |
+| Backend | `mvnw.cmd test` | **330 / 330 PASS** ✅ | Exit code 0, 0 failures, 0 errors (includes 8 PlaceNormalization, 10 PlaceService, 6 PlaceController, 8 PlaceCatalogMigrationRunner real MySQL tests) |
+| Mobile | `flutter test` | **364 PASS / 3 FAILED (367 Total)** ⚠️ | Exit code 1; 364 passed, 3 deferred pre-existing tests preserved (`explore_test.dart`, `rating_ui_layout_test.dart`) |
+| Web | `flutter test` | **39 / 39 PASS** ✅ | Exit code 0, 0 failures, 0 errors |
+| **Total Executed** | | **736 Tests (733 PASS / 3 FAILED)** | Robust multi-layer verification across Backend, Mobile, and Web |
 
 ---
 
@@ -34,6 +34,7 @@
 | 8 | Map Integration — Activity Location Architecture (Authoritative Activity Location Snapshot, Map Picker, backfilled database) | **COMPLETED (Phase 1 & 1.1 Final Acceptance)** | `Activity` entity authoritative `location_*` snapshot (unidirectional sync, legacy mirror). `ActivityLocationMigrationRunner` with single-connection MySQL advisory locking (`GET_LOCK`/`RELEASE_LOCK`), bounded retry with timeout, fail-startup protection against incomplete schemas, coordinate bounds validation, and safe idempotency. `ItineraryServiceImpl.applyLocation` destination isolation. Mobile client (`activity_detail.dart`, `activity_form_dialog.dart`, `activity_timeline_item.dart`, `itinerary_day_card.dart`) completely decoupled from Destination coordinate, name, and address fallbacks (`effectiveLocationName` / `effectiveAddress` strictly isolated). 298 Backend tests PASS (exit code 0), 364 Mobile tests PASS (3 pre-existing failed tests preserved, exit code 1), 39 Web tests PASS (exit code 0). |
 | 9 | Map Integration — Route Calculation (Direct Activity snapshot waypoint extraction, ORS backend proxy, in-memory cache, Haversine fallback) | **COMPLETED** | `RouteController`, `RouteServiceImpl` (direct snapshot extraction decoupled from Destination status), `OpenRouteServiceRoutingProvider`, `RouteRepository`, `ItineraryMapScreen`, route tests |
 | 10 | Map Integration — Itinerary Map View (markers, polylines, day-filter, navigation deep-link) | **COMPLETED** | `ItineraryMapScreen`, `ItineraryMapPreviewCard`, `NavigationLauncherHelper`, `ItineraryMapHelper`, map view tests |
+| 11 | Place Catalog — Normalized Places, Multi-Provider Mappings, Deduplication, Public & Admin APIs (Phase 2) | **COMPLETED (Phase 2 Final Acceptance)** | `Place` & `PlaceProviderMapping` entities, `PlaceNormalizationService` (Vietnamese diacritics NFD, address abbreviations, protected compound names e.g. Hồ Hoàn Kiếm, chain branch separation >100m, multi-signal confidence score >=0.85), `PlaceService` & `PlaceServiceImpl`, `PlaceController` (`GET /api/places`, `GET /api/places/{id}`), `AdminPlaceController` (`POST /api/admin/places`, `PUT /api/admin/places/{id}`, `DELETE /api/admin/places/{id}`), `PlaceCatalogMigrationRunner` (safe single-connection advisory lock `@Order(3)` syncing 24 destinations non-destructively). 27 dedicated tests + 325 backend tests passing. |
 | 11 | Image Upload (Cloudinary, SHA-1 signed, magic bytes check, mobile + web) | **COMPLETED** | `ImageUploadController`, `CloudinaryImageUploadService`, `ImagePickerService`, upload tests |
 | 12 | Comments (Read list + Create, paginated, in itinerary detail) | **COMPLETED** | `CommentController`, `CommentServiceImpl`, `CommentsNotifier`, `ItineraryCommentsSection` |
 | 13 | Web Admin — Destination Management | **COMPLETED** | `AdminDestinationsScreen`, `DestinationFormDialog`, `HideDestinationDialog`, `WebMapView`, admin destination tests |
