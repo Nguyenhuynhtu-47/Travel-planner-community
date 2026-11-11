@@ -1,4 +1,5 @@
 import 'destination_summary.dart';
+import 'place_summary.dart';
 
 class ActivityDetail {
   final int activityId;
@@ -10,6 +11,8 @@ class ActivityDetail {
   final double? estimatedCost;
   final int displayOrder;
   final DestinationSummary? destination;
+  final int? canonicalPlaceId;
+  final PlaceSummary? place;
   final String? locationName;
   final String? locationAddress;
   final String? customLocationName;
@@ -30,6 +33,8 @@ class ActivityDetail {
     this.estimatedCost,
     required this.displayOrder,
     this.destination,
+    this.canonicalPlaceId,
+    this.place,
     this.locationName,
     this.locationAddress,
     this.customLocationName,
@@ -45,6 +50,7 @@ class ActivityDetail {
     // ActivityResponse exposes this field as `cost` in the backend API.
     final rawCost = json['cost'] ?? json['estimatedCost'];
     final rawDest = json['destination'];
+    final rawPlace = json['place'];
     return ActivityDetail(
       activityId: json['activityId'] is num
           ? (json['activityId'] as num).toInt()
@@ -62,6 +68,12 @@ class ActivityDetail {
           : (int.tryParse(json['displayOrder']?.toString() ?? '') ?? 0),
       destination: rawDest is Map
           ? DestinationSummary.fromJson(Map<String, dynamic>.from(rawDest))
+          : null,
+      canonicalPlaceId: json['canonicalPlaceId'] is num
+          ? (json['canonicalPlaceId'] as num).toInt()
+          : (int.tryParse(json['canonicalPlaceId']?.toString() ?? '')),
+      place: rawPlace is Map
+          ? PlaceSummary.fromJson(Map<String, dynamic>.from(rawPlace))
           : null,
       locationName: (json['locationName'] ?? json['customLocationName'])?.toString(),
       locationAddress: (json['locationAddress'] ?? json['customAddress'])?.toString(),
@@ -122,4 +134,20 @@ class ActivityDetail {
   /// Does NOT borrow address from Destination catalog.
   String? get effectiveAddress =>
       locationAddress ?? customAddress;
+
+  /// Effective image URL: activity snapshot image, fallback to place image, fallback to legacy destination image.
+  String? get effectiveImageUrl =>
+      (imageUrl != null && imageUrl!.trim().isNotEmpty)
+          ? imageUrl!.trim()
+          : (place?.imageUrl != null && place!.imageUrl!.trim().isNotEmpty)
+              ? place!.imageUrl!.trim()
+              : destination?.imageUrl?.trim();
+
+  /// Effective description: activity description, fallback to place description, fallback to legacy destination description.
+  String? get effectiveDescription =>
+      (description != null && description!.trim().isNotEmpty)
+          ? description!.trim()
+          : (place?.description != null && place!.description!.trim().isNotEmpty)
+              ? place!.description!.trim()
+              : destination?.description?.trim();
 }

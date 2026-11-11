@@ -133,9 +133,7 @@ class ActivityDetailScreen extends StatelessWidget {
       );
     }
 
-    final effectiveImage = (act.imageUrl != null && act.imageUrl!.trim().isNotEmpty)
-        ? act.imageUrl!.trim()
-        : act.destination?.imageUrl?.trim();
+    final effectiveImage = act.effectiveImageUrl;
 
     final locationName = act.effectiveLocationName?.trim();
     final address = act.effectiveAddress?.trim();
@@ -146,6 +144,11 @@ class ActivityDetailScreen extends StatelessWidget {
     final timeFormatted = act.timeRangeFormatted;
     final hasDescription = act.description != null && act.description!.trim().isNotEmpty;
     final hasCost = act.estimatedCost != null;
+    final catalogDescription = act.place?.description?.trim().isNotEmpty == true
+        ? act.place!.description!.trim()
+        : (act.destination?.description?.trim().isNotEmpty == true
+            ? act.destination!.description!.trim()
+            : null);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -685,10 +688,8 @@ class ActivityDetailScreen extends StatelessWidget {
               const SizedBox(height: 20),
             ],
 
-            // 8. Catalog Destination Extra Information (if destination object exists)
-            if (act.destination != null &&
-                act.destination!.description != null &&
-                act.destination!.description!.trim().isNotEmpty) ...[
+            // 8. Catalog Place / Destination Extra Information (if place/destination catalog object exists)
+            if (catalogDescription != null && catalogDescription.isNotEmpty) ...[
               const Row(
                 children: [
                   Icon(
@@ -698,7 +699,7 @@ class ActivityDetailScreen extends StatelessWidget {
                   ),
                   SizedBox(width: 6),
                   Text(
-                    'Thông tin điểm đến',
+                    'Thông tin địa điểm chuẩn hóa',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -717,7 +718,7 @@ class ActivityDetailScreen extends StatelessWidget {
                   border: Border.all(color: AppColors.hairlineSoft),
                 ),
                 child: Text(
-                  act.destination!.description!.trim(),
+                  catalogDescription,
                   style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textBody,

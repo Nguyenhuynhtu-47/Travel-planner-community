@@ -8,6 +8,7 @@ import 'models/create_activity_request.dart';
 import 'models/create_day_request.dart';
 import 'models/create_itinerary_request.dart';
 import 'models/destination_summary.dart';
+import 'models/place_summary.dart';
 import 'models/itinerary_day_detail.dart';
 import 'models/itinerary_detail.dart';
 import 'models/reorder_activity_item.dart';
@@ -295,6 +296,37 @@ class ItineraryCrudRepository {
       return response
           .map(
             (e) => DestinationSummary.fromJson(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
+          .toList();
+    }
+
+    return const [];
+  }
+
+  /// Fetches available canonical places with optional keyword and category filters.
+  Future<List<PlaceSummary>> getPlaces({
+    String? keyword,
+    String? category,
+    String? token,
+  }) async {
+    final queryParams = <String, dynamic>{
+      if (keyword != null && keyword.trim().isNotEmpty)
+        'keyword': keyword.trim(),
+      if (category != null && category.trim().isNotEmpty)
+        'category': category.trim(),
+    };
+    final response = await _apiClient.get(
+      ApiConstants.placesEndpoint,
+      queryParameters: queryParams,
+      token: token,
+    );
+
+    if (response is List) {
+      return response
+          .map(
+            (e) => PlaceSummary.fromJson(
               Map<String, dynamic>.from(e as Map),
             ),
           )

@@ -2,6 +2,7 @@ class CreateActivityRequest {
   final String name;
   final String? description;
   final int? destinationId;
+  final int? canonicalPlaceId;
   final String? startTime;
   final String? endTime;
   final double? cost;
@@ -19,6 +20,7 @@ class CreateActivityRequest {
     required this.name,
     this.description,
     this.destinationId,
+    this.canonicalPlaceId,
     this.startTime,
     this.endTime,
     this.cost,
@@ -39,6 +41,7 @@ class CreateActivityRequest {
       if (description != null && description!.trim().isNotEmpty)
         'description': description!.trim(),
       if (destinationId != null) 'destinationId': destinationId,
+      if (canonicalPlaceId != null) 'canonicalPlaceId': canonicalPlaceId,
       if (startTime != null && startTime!.trim().isNotEmpty)
         'startTime': _ensureSeconds(startTime!.trim()),
       if (endTime != null && endTime!.trim().isNotEmpty)

@@ -2,6 +2,7 @@ class UpdateActivityRequest {
   final String name;
   final String? description;
   final int? destinationId;
+  final int? canonicalPlaceId;
   final String? startTime;
   final String? endTime;
   final double? cost;
@@ -20,6 +21,7 @@ class UpdateActivityRequest {
     required this.name,
     this.description,
     this.destinationId,
+    this.canonicalPlaceId,
     this.startTime,
     this.endTime,
     this.cost,
@@ -42,6 +44,7 @@ class UpdateActivityRequest {
           ? description!.trim()
           : null,
       'destinationId': destinationId,
+      'canonicalPlaceId': canonicalPlaceId,
       'startTime': (startTime != null && startTime!.trim().isNotEmpty)
           ? _ensureSeconds(startTime!.trim())
           : null,

@@ -33,9 +33,8 @@ class ActivityTimelineItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeFormatted = activity.timeRangeFormatted;
-    final activityImageUrl = activity.imageUrl?.trim().isNotEmpty == true
-        ? activity.imageUrl!.trim()
-        : activity.destination?.imageUrl;
+    final activityImageUrl = activity.effectiveImageUrl;
+    final hasCatalogRef = activity.place != null || activity.destination != null;
 
     return IntrinsicHeight(
       child: Row(
@@ -289,14 +288,14 @@ class ActivityTimelineItem extends StatelessWidget {
                                         height: 48,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, _, _) =>
-                                            activity.destination != null
+                                            hasCatalogRef
                                                 ? _destinationPlaceholder()
                                                 : _customLocationPlaceholder(),
                                       ),
                                     ),
                                     const SizedBox(width: 10),
                                   ] else ...[
-                                    activity.destination != null
+                                    hasCatalogRef
                                         ? _destinationPlaceholder()
                                         : _customLocationPlaceholder(),
                                     const SizedBox(width: 8),
@@ -341,13 +340,13 @@ class ActivityTimelineItem extends StatelessWidget {
                                             ),
                                           ),
                                         ],
-                                        if (activity.destination?.description != null &&
-                                            activity.destination!.description!
-                                                .trim()
-                                                .isNotEmpty) ...[
+                                        if ((activity.place?.description?.trim().isNotEmpty == true) ||
+                                            (activity.destination?.description?.trim().isNotEmpty == true)) ...[
                                           const SizedBox(height: 3),
                                           Text(
-                                            activity.destination!.description!.trim(),
+                                            (activity.place?.description?.trim().isNotEmpty == true)
+                                                ? activity.place!.description!.trim()
+                                                : activity.destination!.description!.trim(),
                                             style: const TextStyle(
                                               fontSize: 11,
                                               color: AppColors.textBody,

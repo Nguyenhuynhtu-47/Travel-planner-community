@@ -115,6 +115,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   String? _timeErrorMessage;
 
   int? _destinationId;
+  int? _canonicalPlaceId;
   String? _locationName;
   String? _locationAddress;
   double? _latitude;
@@ -127,7 +128,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   bool get _isEditing => widget.initialActivity != null;
 
   String? get _selectedDestinationImageUrl =>
-      widget.initialActivity?.destination?.imageUrl;
+      widget.initialActivity?.effectiveImageUrl;
 
   @override
   void initState() {
@@ -141,6 +142,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     if (widget.initialActivity != null) {
       final act = widget.initialActivity!;
       _destinationId = act.destination?.destinationId;
+      _canonicalPlaceId = act.canonicalPlaceId ?? act.place?.placeId;
       _locationName = act.effectiveLocationName;
       _locationAddress = act.effectiveAddress;
       _latitude = act.latitude;
@@ -191,6 +193,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     if (result != null && mounted) {
       setState(() {
         _destinationId = null;
+        _canonicalPlaceId = null;
         _locationCleared = false;
         final currentName = _nameController.text.trim();
         final previousAutoName = _lastAutoFilledActivityName;
@@ -249,6 +252,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
       _placeId = null;
       _locationProvider = null;
       _destinationId = null;
+      _canonicalPlaceId = null;
       _locationCleared = true;
     });
   }
@@ -392,6 +396,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           name: name,
           description: description.isNotEmpty ? description : null,
           destinationId: _locationCleared ? null : _destinationId,
+          canonicalPlaceId: _locationCleared ? null : _canonicalPlaceId,
           startTime: startTimeStr,
           endTime: endTimeStr,
           cost: rawCost,
@@ -418,6 +423,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           name: name,
           description: description.isNotEmpty ? description : null,
           destinationId: _destinationId,
+          canonicalPlaceId: _canonicalPlaceId,
           startTime: startTimeStr,
           endTime: endTimeStr,
           cost: rawCost,
