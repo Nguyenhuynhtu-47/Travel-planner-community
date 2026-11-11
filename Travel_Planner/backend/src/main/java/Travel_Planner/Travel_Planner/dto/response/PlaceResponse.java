@@ -26,5 +26,6 @@ public class PlaceResponse {
     private PlaceCategory category;
     private PlaceStatus status;
     private Double distanceKm;
+    private AdministrativeAreaSummaryResponse administrativeArea;
 }
 

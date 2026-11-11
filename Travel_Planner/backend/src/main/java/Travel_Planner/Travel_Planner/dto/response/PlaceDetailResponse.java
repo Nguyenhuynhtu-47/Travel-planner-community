@@ -28,6 +28,7 @@ public class PlaceDetailResponse {
     private PlaceCategory category;
     private PlaceStatus status;
     private List<PlaceProviderMappingResponse> providerMappings;
+    private AdministrativeAreaSummaryResponse administrativeArea;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
