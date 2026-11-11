@@ -16,6 +16,12 @@ credentials/
 *.pem
 *.key
 
+# Database backups
+/backup/
+/backups/
+*.sql.gz
+*backup*.sql
+
 # IDE and OS
 .DS_Store
 Thumbs.db

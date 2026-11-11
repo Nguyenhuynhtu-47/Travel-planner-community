@@ -7,14 +7,14 @@
 
 ---
 
-## 1. Verified Test Results (Executed 2026-11-11 — Phase 2 Final Verification)
+## 1. Verified Test Results (Executed 2026-11-11 — Phase 2.1.1 Final Acceptance)
 
 | Component | Command | Result | Notes |
 |:---|:---|:---|:---|
-| Backend | `mvnw.cmd test` | **330 / 330 PASS** ✅ | Exit code 0, 0 failures, 0 errors (includes 8 PlaceNormalization, 10 PlaceService, 6 PlaceController, 8 PlaceCatalogMigrationRunner real MySQL tests) |
+| Backend | `mvnw.cmd test` | **321 / 321 PASS** ✅ | Exit code 0, 0 failures, 0 errors, 0 skipped (includes PlaceNormalization, PlaceService, PlaceController, DataSeeder multi-branch Cases A-F, DestinationConsolidationMigrationRunner real MySQL tests) |
 | Mobile | `flutter test` | **364 PASS / 3 FAILED (367 Total)** ⚠️ | Exit code 1; 364 passed, 3 deferred pre-existing tests preserved (`explore_test.dart`, `rating_ui_layout_test.dart`) |
-| Web | `flutter test` | **39 / 39 PASS** ✅ | Exit code 0, 0 failures, 0 errors |
-| **Total Executed** | | **736 Tests (733 PASS / 3 FAILED)** | Robust multi-layer verification across Backend, Mobile, and Web |
+| Web | `flutter test` | **33 / 33 PASS** ✅ | Exit code 0, 0 failures, 0 errors (includes 33 tests in `admin_place_test.dart`) |
+| **Total Executed** | | **721 Tests (718 PASS / 3 FAILED)** | Robust multi-layer verification across Backend, Mobile, and Web |
 
 ---
 
@@ -29,15 +29,15 @@
 | 3 | Explore & Search (keyword, theme, budget, days, rating, pagination, recommendations) | **COMPLETED** | `ItineraryController` GET endpoints, `ExploreScreen`, `ExploreNotifier`, `FilterBottomSheet`, `ItinerarySpecification`, explore + filter tests |
 | 4 | Itinerary CRUD (Create, Read, Edit, Delete soft, cover image, ownership) | **COMPLETED** | `ItineraryController`, `ItineraryCrudRepository`, `CreateItineraryScreen`, `EditItineraryScreen`, `MyItinerariesScreen`, CRUD tests |
 | 5 | Itinerary Days & Activities (Add/Edit/Delete days + activities, two-pass reorder) | **COMPLETED** | `ItineraryController` day+activity endpoints, `ItineraryDayCard`, `ActivityFormDialog`, `ReorderActivitiesDialog`, day+activity management tests |
-| 6 | Destination Catalog (Public read, Admin CRUD, coordinates) | **COMPLETED** | `DestinationController`, `AdminDestinationController`, `AdminDestinationsScreen` (web), destination management tests |
+| 6 | Destination Catalog | **CONSOLIDATED INTO PLACE CATALOG (Phase 2.1)** | Table `destinations` contracted/dropped; data consolidated into `places`; `activities.canonical_place_id` replaces legacy `destination_id`. |
 | 7 | Map Integration — Map Rendering (flutter_map, CARTO Voyager tiles, attribution) | **COMPLETED** | `flutter_map: ^7.0.2` in pubspec, `AppBaseMap`, `AppMapView`, `WebMapView`, map smoke tests |
-| 8 | Map Integration — Activity Location Architecture (Authoritative Activity Location Snapshot, Map Picker, backfilled database) | **COMPLETED (Phase 1 & 1.1 Final Acceptance)** | `Activity` entity authoritative `location_*` snapshot (unidirectional sync, legacy mirror). `ActivityLocationMigrationRunner` with single-connection MySQL advisory locking (`GET_LOCK`/`RELEASE_LOCK`), bounded retry with timeout, fail-startup protection against incomplete schemas, coordinate bounds validation, and safe idempotency. `ItineraryServiceImpl.applyLocation` destination isolation. Mobile client (`activity_detail.dart`, `activity_form_dialog.dart`, `activity_timeline_item.dart`, `itinerary_day_card.dart`) completely decoupled from Destination coordinate, name, and address fallbacks (`effectiveLocationName` / `effectiveAddress` strictly isolated). 298 Backend tests PASS (exit code 0), 364 Mobile tests PASS (3 pre-existing failed tests preserved, exit code 1), 39 Web tests PASS (exit code 0). |
-| 9 | Map Integration — Route Calculation (Direct Activity snapshot waypoint extraction, ORS backend proxy, in-memory cache, Haversine fallback) | **COMPLETED** | `RouteController`, `RouteServiceImpl` (direct snapshot extraction decoupled from Destination status), `OpenRouteServiceRoutingProvider`, `RouteRepository`, `ItineraryMapScreen`, route tests |
+| 8 | Map Integration — Activity Location Architecture (Authoritative Activity Location Snapshot, Map Picker, backfilled database) | **COMPLETED (Phase 1, 1.1 & 2.1 Final Acceptance)** | `Activity` entity authoritative `location_*` snapshot (unidirectional sync, legacy mirror). `DestinationConsolidationMigrationRunner` with single-connection MySQL advisory locking (`destination_consolidation_lock`), bounded retry, fail-startup protection, coordinate bounds validation, and safe idempotency. `canonical_place_id` (nullable FK to `places.place_id`) links catalog place without overriding snapshot coordinates. Mobile client (`activity_detail.dart`, `activity_form_dialog.dart`, `activity_timeline_item.dart`, `itinerary_day_card.dart`) completely decoupled from Catalog coordinates/names/addresses (`effectiveLocationName` / `effectiveAddress` strictly isolated). 313 Backend tests PASS (exit code 0), 364 Mobile tests PASS (3 pre-existing failed tests preserved, exit code 1), 33 Web tests PASS (exit code 0). |
+| 9 | Map Integration — Route Calculation (Direct Activity snapshot waypoint extraction, ORS backend proxy, in-memory cache, Haversine fallback) | **COMPLETED** | `RouteController`, `RouteServiceImpl` (direct snapshot extraction decoupled from Place status), `OpenRouteServiceRoutingProvider`, `RouteRepository`, `ItineraryMapScreen`, route tests |
 | 10 | Map Integration — Itinerary Map View (markers, polylines, day-filter, navigation deep-link) | **COMPLETED** | `ItineraryMapScreen`, `ItineraryMapPreviewCard`, `NavigationLauncherHelper`, `ItineraryMapHelper`, map view tests |
-| 11 | Place Catalog — Normalized Places, Multi-Provider Mappings, Deduplication, Public & Admin APIs (Phase 2) | **COMPLETED (Phase 2 Final Acceptance)** | `Place` & `PlaceProviderMapping` entities, `PlaceNormalizationService` (Vietnamese diacritics NFD, address abbreviations, protected compound names e.g. Hồ Hoàn Kiếm, chain branch separation >100m, multi-signal confidence score >=0.85), `PlaceService` & `PlaceServiceImpl`, `PlaceController` (`GET /api/places`, `GET /api/places/{id}`), `AdminPlaceController` (`POST /api/admin/places`, `PUT /api/admin/places/{id}`, `DELETE /api/admin/places/{id}`), `PlaceCatalogMigrationRunner` (safe single-connection advisory lock `@Order(3)` syncing 24 destinations non-destructively). 27 dedicated tests + 325 backend tests passing. |
-| 11 | Image Upload (Cloudinary, SHA-1 signed, magic bytes check, mobile + web) | **COMPLETED** | `ImageUploadController`, `CloudinaryImageUploadService`, `ImagePickerService`, upload tests |
-| 12 | Comments (Read list + Create, paginated, in itinerary detail) | **COMPLETED** | `CommentController`, `CommentServiceImpl`, `CommentsNotifier`, `ItineraryCommentsSection` |
-| 13 | Web Admin — Destination Management | **COMPLETED** | `AdminDestinationsScreen`, `DestinationFormDialog`, `HideDestinationDialog`, `WebMapView`, admin destination tests |
+| 11 | Place Catalog — Canonical Places, Multi-Provider Mappings, Deduplication, Public & Admin APIs (Phase 2 & 2.1) | **COMPLETED (Phase 2 & 2.1 Final Acceptance)** | `Place` & `PlaceProviderMapping` entities, `PlaceNormalizationService` (Vietnamese diacritics NFD, address abbreviations, protected compound names e.g. Hồ Hoàn Kiếm, chain branch separation >100m, multi-signal confidence score >=0.85), `PlaceService` & `PlaceServiceImpl`, `PlaceController` (`GET /api/places`, `GET /api/places/{id}`), `AdminPlaceController` (`POST/PUT/DELETE /api/admin/places`), `DestinationConsolidationMigrationRunner` (safe single-connection advisory lock `@Order(3)` consolidating 24 destinations and contracting schema). Full Web Admin management in `AdminPlacesScreen`. |
+| 12 | Image Upload (Cloudinary, SHA-1 signed, magic bytes check, mobile + web) | **COMPLETED** | `ImageUploadController`, `CloudinaryImageUploadService`, `ImagePickerService`, upload tests |
+| 13 | Comments (Read list + Create, paginated, in itinerary detail) | **COMPLETED** | `CommentController`, `CommentServiceImpl`, `CommentsNotifier`, `ItineraryCommentsSection` |
+| 14 | Web Admin — Place Management | **COMPLETED (Phase 2.1)** | `AdminPlacesScreen`, `PlaceFormDialog`, `HidePlaceDialog`, `WebMapView`, `PlaceRepository`, 33 admin place web tests passing |
 | 14 | Ratings / Star ratings | **NOT IMPLEMENTED** | `Rating` entity + `RatingRepository` exist; no Controller, Service, or mobile UI |
 | 15 | Favorites (like itinerary) | **NOT IMPLEMENTED** | `Favorite` entity + `FavoriteRepository` exist; no Controller, Service, or mobile UI |
 | 16 | Saved Itineraries | **NOT IMPLEMENTED** | `SavedItinerary` entity + `SavedItineraryRepository` exist; `SavedItinerariesScreen` is a placeholder empty state |
@@ -233,11 +233,18 @@ To ensure high architectural rigor, zero regression, and prevent monolithic unve
    - Mobile getters (`effectiveLocationName`, `effectiveAddress`, `effectiveLatitude`, `effectiveLongitude`) completely decoupled from Destination fallbacks.
    - Idempotent `ActivityLocationMigrationRunner` using a single physical JDBC connection for session-scoped MySQL advisory locking (`GET_LOCK`/`RELEASE_LOCK`), with bounded retries, startup failure (`IllegalStateException`) on lock acquisition timeout with incomplete schema, and independent completeness verification.
    - 100% of 121 activities backfilled with complete snapshots; 0 half-null, 0 invalid coords, 0 destination coordinate dependencies. 298 backend tests PASS.
-2. **Phase 2: Place Catalog (STRICT SCOPE — NEXT PHASE):**
-   - Centralized `places` catalog (`place_id`, `name`, `address`, `latitude`, `longitude`, `category`, `provider`, etc.).
-   - Admin & Public CRUD/search endpoints for catalog places.
-   - **Strict Scope Boundary:** Phase 2 is strictly limited to Place Catalog. It does NOT include `administrative_areas` or `user_saved_places`.
-3. **Phase 3: Administrative Areas:**
+2. **Phase 2, 2.1 & 2.1.1: Place Catalog & Destination Consolidation (COMPLETED, FINAL VERIFIED & ACCEPTED):**
+   - Centralized `places` catalog (`place_id`, `name`, `normalized_name`, `address`, `latitude`, `longitude`, `category`, `status`, etc.).
+   - Multi-provider mappings (`place_provider_mappings` on `provider`, `provider_place_id`).
+   - Normalization & multi-signal deduplication (`PlaceNormalizationService`).
+   - Consolidated legacy `Destination` into `Place`: `DestinationConsolidationMigrationRunner` executed expand-and-contract migration; dropped `destinations` table, `activities.destination_id`, and `places.source_destination_id`.
+   - Strict ID distinction: `places.place_id` (BIGINT PK), `activities.canonical_place_id` (BIGINT NULL FK), `activities.place_id` (VARCHAR(100) provider ID never overwritten).
+   - Safe migration runner across all 4 operational cases (Case A unmigrated, Case B contracted, Case C fresh DB, Case D incomplete migration).
+   - DataSeeder multi-branch collision hardening using Haversine distance matching (< 50m).
+   - Full Web Admin management (`AdminPlacesScreen`, `PlaceRepository`, `PlaceFormDialog`, `HidePlaceDialog`).
+   - Mobile Activity integration (`PlaceSummary`, snapshot authority preserved).
+   - 321 Backend tests PASS (exit code 0), 33 Web tests PASS (exit code 0), 364 Mobile tests PASS (exit code 1, baseline preserved). Total 718 / 721 PASS.
+3. **Phase 3: Administrative Areas (STRICT SCOPE — NEXT PHASE):**
    - Administrative hierarchy (`administrative_areas`: provinces, districts, wards) and regional bounding boxes.
 4. **Phase 4: User Saved Places:**
    - Personal bookmarks and custom collections (`user_saved_places`).
@@ -288,4 +295,9 @@ The following items could not be fully verified in this audit and require furthe
 | Version | Date | Author | Changes |
 |:---|:---|:---|:---|
 | 1.0 | 2026-11-04 | AI Audit | Initial creation — supersedes `12-project-progress-audit.md` (Vietnamese) for planning purposes |
+| 1.1 | 2026-11-11 | AI Lead | Phase 1 & 1.1 Final Verification update |
+| 1.2 | 2026-11-11 | AI Lead | Phase 2 Place Catalog implementation and test status update |
+| 1.3 | 2026-11-11 | AI Lead | Phase 2.1 Destination Consolidation into Place, contract schema, web admin places update |
+| 1.4 | 2026-11-11 | AI Lead | Phase 2.1.1 Post-consolidation stabilization, migration contract guard, DataSeeder multi-attribute lookup & provider mapping seeding |
+| 1.5 | 2026-11-11 | AI Lead | Phase 2.1.1 Final Cleanup & Acceptance Gate, multi-branch Cases A-F verification, Fresh DB & Mid-migration test proofs, secure backup rules, 321 backend tests PASS |
 

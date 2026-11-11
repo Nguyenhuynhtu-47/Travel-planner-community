@@ -5657,6 +5657,226 @@ Implemented and verified Phase 2 (Place Catalog) of the location architecture ro
 - Phase 3 (`administrative_areas`) and Phase 4 (`user_saved_places`): **0 code written, strictly excluded**.
 - Git state: Branch `develop` (HEAD: `7d86338`), uncommitted working tree preserved. Zero commits or pushes performed.
 
+---
 
+## 2026-11-11 — Session 38: Phase 2.1 — Destination Consolidation into Place
 
+### 1. Architectural Scope & Objectives
+
+Following the acceptance of Phase 1.1 (Activity Location Snapshot Hardening) and Phase 2 (Place Catalog), an architectural audit identified duplicate place data models across the system:
+1. `Destination` (legacy catalog managed by Admin, previously referenced by `activities.destination_id`).
+2. `Place` (canonical multi-provider catalog introduced in Phase 2).
+3. `Activity` (authoritative location snapshot).
+
+Phase 2.1 executes the complete consolidation of `Destination` into `Place`, establishing `Place` as the single canonical place catalog, removing duplicated database tables and legacy endpoints, while strictly preserving authoritative Activity location snapshots, external provider identities, existing data, and end-user behavior.
+
+### 2. Semantic Identifier Separation
+
+To prevent ambiguity between external geocoding providers and internal catalog entities, Phase 2.1 established a rigorous semantic boundary across all four identifiers:
+
+| Identifier | Column / Field | Data Type | Role & Semantics | Invariant Rules |
+|:---|:---|:---|:---|:---|
+| **Canonical Place ID** | `places.place_id` | `BIGINT AUTO_INCREMENT` | Internal primary key of the canonical catalog place. | Never exposed as a provider ID. Unique per physical place entity. |
+| **Activity Canonical Link** | `activities.canonical_place_id` | `BIGINT NULL` | Optional foreign key referencing `places(place_id)` (`ON DELETE SET NULL`). | Completely decoupled from location snapshot. Nullable for free-form map picks. |
+| **Activity Provider ID** | `activities.place_id` | `VARCHAR(100) NULL` | External provider identifier (e.g., OSM ID, TomTom POI ID, LocationIQ ID). | **Never overwritten** by internal `canonical_place_id`. Paired with `location_provider`. |
+| **Provider Mapping ID** | `place_provider_mappings.provider_place_id` | `VARCHAR(255)` | External provider identifier stored in the mapping table. | Unique on `(provider, provider_place_id)`. |
+
+### 3. Expand-and-Contract Migration Architecture
+
+Consolidation was executed safely using the expand-and-contract migration pattern via `DestinationConsolidationMigrationRunner`:
+
+1. **Expand Phase:**
+   - Added column `canonical_place_id BIGINT NULL` to `activities` table with FK constraint to `places(place_id)` (`ON DELETE SET NULL`).
+   - Mapped all historical 24 destinations into `places` with corresponding `DESTINATION_CATALOG` provider mappings.
+2. **Backfill Phase:**
+   - Linked existing activities with `destination_id` to their respective canonical `places.place_id`.
+   - Verified that all 111 activities previously linked to destinations now point to valid `canonical_place_id` entries.
+   - Verified that all 10 free-form activities retain `canonical_place_id IS NULL`.
+   - Preserved 100% of the 121 activity location snapshots (`location_name`, `location_address`, `latitude`, `longitude`, `place_id`, `location_provider`).
+3. **Contract Phase:**
+   - Dropped foreign key constraints referencing `destinations`.
+   - Dropped legacy column `activities.destination_id`.
+   - Dropped legacy column `places.source_destination_id`.
+   - Dropped legacy table `destinations`.
+   - Dropped obsolete `PlaceCatalogMigrationRunner.java`.
+
+#### Advisory Lock & Concurrency Safety
+- `DestinationConsolidationMigrationRunner` runs with `@Order(3)` and manages a single dedicated physical JDBC connection (`ConnectionImpl`) for session-scoped MySQL advisory locking (`destination_consolidation_lock`).
+- Implemented bounded retries with timeout (`acquireLockWithRetries`).
+- If lock contention occurs, runner verifies schema invariants independently: if table `destinations` is already dropped and `activities.canonical_place_id` exists, startup proceeds cleanly; otherwise, application startup fails fast with `IllegalStateException`.
+- Safe releases in `finally` blocks guarantee zero connection or lock leaks.
+- Real MySQL integration suite in `DestinationConsolidationMigrationRunnerTest` validates acquisition, backfill, idempotency, snapshot preservation, and lock contention handling.
+
+### 4. Implementation Details by Component
+
+#### 4.1 Backend (Spring Boot)
+- **Domain & Persistence:**
+  - `Activity.java`: Added `@JoinColumn(name = "canonical_place_id") private Place place;`, updated getters/setters, removed `destination` relationship.
+  - `Place.java`: Dropped `sourceDestinationId`. Maintained bidirectional `providerMappings`.
+  - Deleted legacy entities: `Destination.java`, `DestinationStatus.java`, `DestinationRepository.java`.
+  - `PlaceRepository.java`: Added `boolean existsByName(String name)`.
+  - `ActivityRepository.java`: Updated `@EntityGraph` from `{"destination", "place"}` to `{"place"}` on `findByItineraryDay_DayIdInOrderByDisplayOrderAsc`.
+- **DTOs & Controllers:**
+  - `CreateActivityRequest.java` & `UpdateActivityRequest.java`: Replaced `destinationId` with `canonicalPlaceId`.
+  - `ActivityResponse.java`: Replaced `destination` with `place` (`PlaceResponse`), exposing `canonicalPlaceId`.
+  - `PlaceResponse.java` & `PlaceDetailResponse.java`: Removed `sourceDestinationId`.
+  - `SecurityConfig.java`: Removed obsolete `/api/destinations/**` and `/api/admin/destinations/**` matchers; retained public `/api/places/**` and admin `/api/admin/places/**`.
+  - Deleted obsolete controllers: `DestinationController.java`, `AdminDestinationController.java`, `DestinationService.java`, `DestinationServiceImpl.java`.
+  - Updated `DataSeeder.java`: Directly seeds 24 canonical `Place` entities with categories, coordinates, and provider mappings, decoupling seeding from legacy destinations.
+
+#### 4.2 Frontend Web Admin (Flutter Web)
+- **Admin Place Management UI:**
+  - Implemented `PlaceModel`, `CreatePlaceRequest`, `UpdatePlaceRequest` in `lib/features/locations/data/models/place_model.dart`.
+  - Implemented `PlaceRepository` communicating with `/api/admin/places` in `lib/features/locations/data/place_repository.dart`.
+  - Implemented `AdminPlacesScreen` (`lib/features/locations/presentation/screens/admin_places_screen.dart`):
+    - Split-view layout (desktop table view + mobile card view).
+    - Interactive search with debounce.
+    - Category dropdown filter (`ALL`, `ATTRACTION`, `RESTAURANT`, `CAFE`, `HOTEL`, `ENTERTAINMENT`, `SHOPPING`, `OTHER`).
+    - Status dropdown filter (`ALL`, `ACTIVE`, `HIDDEN`).
+    - Integrated Leaflet / `flutter_map` centroid map picker for visual coordinate positioning.
+  - Implemented `PlaceFormDialog` for creating and editing places with coordinate validation.
+  - Implemented `HidePlaceDialog` for safe soft-deletion (status toggle to `HIDDEN`).
+  - Updated `main.dart` admin navigation to route "Địa điểm" to `AdminPlacesScreen`.
+  - Deleted obsolete files: `destination_repository.dart`, `destination_model.dart`, `admin_destinations_screen.dart`, `destination_form_dialog.dart`, `hide_destination_dialog.dart`, `admin_destination_test.dart`.
+  - Created 33 comprehensive tests in `test/admin_place_test.dart`.
+
+#### 4.3 Frontend Mobile (Flutter Mobile)
+- **Activity & Place Integration:**
+  - Created `PlaceSummary` model in `lib/features/itinerary/data/models/place_summary.dart`.
+  - Updated `ActivityDetail`:
+    - Added `canonicalPlaceId` and `place` (`PlaceSummary?`).
+    - Authoritative snapshot rule enforced: `effectiveLocationName` (`locationName ?? customLocationName`) and `effectiveAddress` (`locationAddress ?? customAddress`) read strictly from activity snapshot.
+    - Image and description fallback: `effectiveImageUrl` and `effectiveDescription` use snapshot/custom data first, falling back to `place?.imageUrl` and `place?.description` when absent.
+  - Updated `CreateActivityRequest` and `UpdateActivityRequest` to serialize `canonicalPlaceId`.
+  - Updated `ItineraryCrudRepository`: Added `getPlaces()` fetching active places from `/api/places`.
+  - Updated `ActivityFormDialog`: Supports selecting a canonical place as supplementary metadata or picking an arbitrary point on the map, with automatic prefilling of snapshot fields and coordinate isolation.
+  - Updated `ActivityDetailScreen` and `ActivityTimelineItem` to render place category badges and metadata without compromising snapshot authority.
+
+### 5. Comprehensive Quality Gate & Test Verification
+
+All quality gates across Backend, Mobile, and Web were executed and passed:
+
+| Component | Command | Result | Details |
+|:---|:---|:---|:---|
+| **Backend** | `mvnw.cmd test` | **313 / 313 PASS** (0 failures, 0 errors) | Exit code 0, BUILD SUCCESS. Real MySQL integration tests pass completely. |
+| **Flutter Mobile** | `flutter test` | **364 PASS / 3 FAILED (367 Total)** | Exit code 1. Exactly the 3 known pre-existing baseline failures preserved (`explore_test.dart`, 2 in `rating_ui_layout_test.dart`). Zero new failures. |
+| **Flutter Mobile** | `flutter analyze` | **0 errors, 0 warnings** | Clean static analysis (39 pre-existing linter info items). |
+| **Flutter Web** | `flutter test` | **33 / 33 PASS** (0 failures, 0 errors) | Exit code 0. Full test coverage for `AdminPlacesScreen`, `PlaceRepository`, dialogs, and models. |
+| **Flutter Web** | `flutter analyze` | **No issues found!** | Exit code 0, 100% clean. |
+| **Total Test Suite** | Multi-layer | **710 PASS / 3 FAILED (713 Total)** | Complete regression safety across all three project applications. |
+
+### 6. Live Database State Verification (`travel_planner` on MySQL 8.0.37)
+
+- `SHOW TABLES LIKE 'destinations'`: 0 rows (table dropped).
+- `SELECT COUNT(*) FROM places`: 24 canonical records intact (23 `ACTIVE`, 1 `HIDDEN`).
+- `SELECT COUNT(*) FROM activities`: 121 activities intact.
+- `SELECT COUNT(*) FROM activities WHERE canonical_place_id IS NOT NULL`: 111 activities linked to canonical places.
+- `SELECT COUNT(*) FROM activities WHERE canonical_place_id IS NULL`: 10 free-form activities without catalog places.
+- `SELECT COUNT(*) FROM activities WHERE location_name IS NOT NULL AND latitude IS NOT NULL AND longitude IS NOT NULL`: 121 activities (100% complete snapshots).
+- `SELECT COUNT(*) FROM activities WHERE place_id IS NOT NULL`: 121 activities retaining their original provider IDs.
+- Column `activities.destination_id`: Dropped.
+- Column `places.source_destination_id`: Dropped.
+
+### 7. Git Working Tree Safety
+- Working branch: `develop` (HEAD: `968db5b`).
+- All changes preserved in working tree.
+- Zero Git commits or pushes executed.
+
+---
+
+## 2026-11-11 — Session 39: Phase 2.1.1 — Post-Consolidation Stabilization & Verification
+
+### 1. Objectives & Scope
+Conducted a comprehensive post-consolidation audit following Phase 2.1 (Destination Consolidation into Place) to verify data integrity, MySQL schema invariants, advisory lock safety, DataSeeder idempotency, Backend APIs, Flutter Mobile, Flutter Web Admin, and zero-regression quality gates. No Phase 3 features (Administrative Areas) or Phase 4 features (Itinerary Saved Places) were introduced.
+
+### 2. Audit Findings & Implemented Fixes
+
+#### 2.1 Migration Contract Phase Guard Hardening
+- **Audit Finding:** In [`DestinationConsolidationMigrationRunner.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/DestinationConsolidationMigrationRunner.java), `executeContractPhase()` dropped `activities.destination_id` and table `destinations` without an explicit pre-condition query verifying that all legacy foreign keys had been backfilled.
+- **Fix Implemented:** Added an explicit safety check in `executeContractPhase()` querying `SELECT COUNT(*) FROM activities WHERE destination_id IS NOT NULL AND canonical_place_id IS NULL`. If unmigrated rows are detected, the runner immediately throws `IllegalStateException` to prevent data loss.
+
+#### 2.2 DataSeeder Multi-Signal Branch Lookup & Provider Mapping Auto-Population
+- **Audit Finding 1 (Branch Ambiguity):** In [`DataSeeder.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/seeder/DataSeeder.java), `seedPlaces()` previously performed lookup solely using `findByName(d.getName())`. Multiple distinct physical branches sharing the same name (e.g., Highlands Coffee in different cities) would cause Spring Data JPA to throw `NonUniqueResultException`.
+- **Audit Finding 2 (Missing Provider Mapping on Fresh DBs):** When seeding places on a fresh or clean test database, `PlaceProviderMapping` records with `provider = 'DESTINATION_CATALOG'` were not seeded, leaving activities with external place IDs unmapped in `place_provider_mappings`.
+- **Fixes Implemented:**
+  - Added `Optional<Place> findByNameAndAddress(String name, String address);` to [`PlaceRepository.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/PlaceRepository.java).
+  - Updated `seedPlaces()` in `DataSeeder.java` to look up existing places using `findByNameAndAddress()`, falling back to `findByName()`.
+  - Injected `PlaceProviderMappingRepository` into `DataSeeder.java` and added automatic idempotent creation of `DESTINATION_CATALOG` mappings (`dest_{placeId}`) for all seeded canonical places.
+  - Updated [`DataSeederTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/DataSeederTest.java) to clean `placeProviderMappingRepository` in `cleanDatabase()` before `placeRepository.deleteAll()`, avoiding MySQL foreign key constraint violations and verifying that all 24 seeded places receive provider mappings.
+
+### 3. Database Schema & Data Verification (`travel_planner` Live DB)
+
+- `SHOW TABLES LIKE 'destinations'`: 0 rows (table dropped).
+- `places_total`: 24 (23 `ACTIVE`, 1 `HIDDEN`).
+- `activities_total`: 121 (111 linked to `canonical_place_id`, 10 free-form map picks with `canonical_place_id IS NULL`).
+- `activities_complete_snapshot`: 121 (100% complete with `location_name`, `latitude`, `longitude`).
+- Half-null coordinates: 0.
+- Out-of-bounds coordinates: 0.
+- Orphan `canonical_place_id` references: 0.
+- Orphan `place_provider_mappings` references: 0.
+- Duplicate provider mappings: 0.
+- Provider ID overwrite check: `SELECT COUNT(*) WHERE place_id = canonical_place_id` = 0 (external provider IDs strictly preserved).
+
+### 4. Comprehensive Quality Gate & Test Execution
+
+| Component | Command | Result | Process Exit Code |
+|:---|:---|:---|:---|
+| **Backend** | `.\mvnw.cmd test` | **313 / 313 PASS** (0 failures, 0 errors, 0 skipped) | **0** (BUILD SUCCESS) |
+| **Flutter Web** | `flutter test` | **33 / 33 PASS** (0 failures, 0 errors) | **0** |
+| **Flutter Web** | `flutter analyze` | **No issues found!** | **0** |
+| **Flutter Mobile** | `flutter test` | **364 PASS / 3 FAILED (367 Total)** | **1** (Preserved 3 baseline failures, 0 regressions) |
+| **Flutter Mobile** | `flutter analyze --no-pub` | **0 errors, 0 warnings** (39 baseline linter info) | **1** |
+| **Total Test Suite** | Full Stack | **710 PASS / 3 FAILED (713 Total)** | Solid stability |
+
+### 5. Git Status & Safety
+- Branch: `develop` (HEAD: `968db5b`).
+- Working tree uncommitted; zero commits or pushes executed.
+- `git diff --check` passed cleanly with exit code 0.
+
+---
+
+## 2026-11-11 — Session 40: Phase 2.1.1 — Final Cleanup & Acceptance Gate
+
+### 1. Objectives & Scope
+Executed final cleanup and acceptance verification for Phase 2.1.1 (Destination Consolidation into Place):
+1. Hardened DataSeeder with multi-branch proximity disambiguation (< 50m) across Cases A–F.
+2. Implemented empirical tests for Fresh Database and Mid-migration contract blocking in Migration Runner.
+3. Corrected Activity Location Snapshot statistics and distinguished Data Completeness from Historical Integrity.
+4. Sanitized Backup & Recovery documentation to prevent credential leakage and added `.gitignore` rules.
+5. Performed full Git audit across working tree.
+6. Verified Flutter Mobile test results and documented actual analyzer exit code.
+
+### 2. Implemented Hardening & Test Verification
+- **DataSeeder Multi-Branch Disambiguation (Cases A – F):**
+  - Updated `seedPlaces()` in [`DataSeeder.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/seeder/DataSeeder.java): prioritize exact address match via `findByNameAndAddress()`; if addresses differ between candidates, never merge based on proximity alone; proximity (< 50m) is strictly a supporting signal when addresses are blank/null.
+  - Added comprehensive test methods to [`DataSeederTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/DataSeederTest.java) covering Case A (same name, distinct address at 30m distance), Case B & F (multiple third-party provider mappings preserved), Case C & D (proximity threshold under and over 50m), Case E (repeated seeding preserves exact mapping count). All 8 tests PASS.
+- **Migration Runner Fresh Database & Mid-Migration Proofs:**
+  - Added `testTask2_CaseA_FreshDatabase_startsCleanlyWithoutLegacySchema` to [`DestinationConsolidationMigrationRunnerTest.java`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/DestinationConsolidationMigrationRunnerTest.java) asserting that fresh schema without `destinations` table or legacy columns executes cleanly and idempotently.
+  - Added `testTask2_CaseB_MidMigration_contractBlockedWhenUnmigratedRowsExist` to `DestinationConsolidationMigrationRunnerTest.java` creating an unmigrated activity referencing legacy `destination_id = 999` with `canonical_place_id = NULL`; verified that `executeContractPhase()` aborts with `IllegalStateException`, preserving legacy table `destinations` and column `destination_id` without data loss, and successfully contracts once backfill completes. All 7 tests PASS.
+
+### 3. Empirical Database Audit (`travel_planner` Live DB)
+- **Place Catalog vs. Activity Snapshot Distinction:**
+  - Catalog Places (`places.place_id`): Exactly 24 records (IDs `1..24`).
+  - Total Activities (`activities.activity_id`): Exactly 121 records.
+  - Activities linked to Place Catalog (`canonical_place_id`): 111 records (pointing to Place IDs `1..24`).
+  - Free-form activities without canonical place (`canonical_place_id IS NULL`): Exactly 10 records.
+  - Free-form Activity IDs: `{112, 113, 114, 116, 117, 120, 121, 122, 123, 124}` (strictly Activity IDs `activities.activity_id`, NOT Place IDs; IDs 115, 118, 119 were previously deleted before migration).
+  - Snapshot Data Completeness: 121 / 121 (100%) have valid non-empty `location_name`, `location_address`, `latitude`, `longitude`, `place_id`, and `location_provider`. Half-null pairs: 0.
+  - Historical Integrity: Absolute historical integrity cannot be verified because no accessible pre-migration backup or equivalent baseline data is available in the repository.
+- **External Provider ID Preservation:**
+  - 100% preserved (`DESTINATION_CATALOG`: 111, `LOCATION_IQ`: 6, `TOMTOM`: 4). 0 numeric-only IDs (`place_id REGEXP '^[0-9]+$'` = 0).
+- **Backup & Recovery Hardening:**
+  - Replaced command-line password flags with interactive `-p` in documentation.
+  - Updated root `.gitignore` to use specific patterns (`/backup/`, `/backups/`, `*.sql.gz`, `*backup*.sql`), ensuring legitimate repository SQL scripts are not ignored while securing database dumps.
+
+### 4. Full Quality Gate Test Results
+- **Backend:** **321 / 321 PASS** (0 failures, 0 errors, BUILD SUCCESS, exit code 0).
+- **Flutter Web:** **33 / 33 PASS** (exit code 0); `flutter analyze` clean (**No issues found!**, exit code 0).
+- **Flutter Mobile:** **364 PASS / 3 FAILED (367 Total)** (exit code 1, exactly 3 baseline tests in explore/rating, 0 regressions); `flutter analyze --no-pub` 0 errors, 0 warnings, 39 baseline infos (actual exit code 1).
+- **Total:** **718 / 721 PASS**.
+
+### 5. Final Gate Status
+- **Phase 2.1 & 2.1.1 Acceptance:** **ACCEPTED / COMPLETED**.
+- **Phase 3 Readiness:** **READY FOR PHASE 3 (WITH ACCEPTED RISKS)**.
+- **Git Status:** Branch `develop` (HEAD: `968db5b`), working tree uncommitted, `git diff --check` clean (exit code 0).
 
