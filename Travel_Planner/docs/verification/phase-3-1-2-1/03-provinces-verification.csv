@@ -1,0 +1,35 @@
+﻿Official code,JSON name,JSON type,Legal name,Legal type,Status,Evidence
+'01',Thành phố Hà Nội,CENTRAL_CITY,Thành phố Hà Nội,CENTRAL_CITY,VERIFIED_PRIMARY,"Nghị quyết 202/2025/QH15, Luật Thủ đô"
+'04',Tỉnh Cao Bằng,PROVINCE,Tỉnh Cao Bằng,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'08',Tỉnh Tuyên Quang,PROVINCE,Tỉnh Tuyên Quang,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'11',Tỉnh Điện Biên,PROVINCE,Tỉnh Điện Biên,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'12',Tỉnh Lai Châu,PROVINCE,Tỉnh Lai Châu,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'14',Tỉnh Sơn La,PROVINCE,Tỉnh Sơn La,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'15',Tỉnh Lào Cai,PROVINCE,Tỉnh Lào Cai,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'19',Tỉnh Thái Nguyên,PROVINCE,Tỉnh Thái Nguyên,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'20',Tỉnh Lạng Sơn,PROVINCE,Tỉnh Lạng Sơn,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'22',Tỉnh Quảng Ninh,PROVINCE,Tỉnh Quảng Ninh,PROVINCE,VERIFIED_PRIMARY,"Nghị quyết 202/2025/QH15 (Khoản 7 Điều 1, giữ nguyên trạng Tỉnh Quảng Ninh)"
+'24',Tỉnh Bắc Ninh,PROVINCE,Tỉnh Bắc Ninh,PROVINCE,VERIFIED_PRIMARY,"Nghị quyết 202/2025/QH15 (Khoản 9 Điều 1, sáp nhập Bắc Giang & Bắc Ninh thành Tỉnh Bắc Ninh)"
+'25',Tỉnh Phú Thọ,PROVINCE,Tỉnh Phú Thọ,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'31',Thành phố Hải Phòng,CENTRAL_CITY,Thành phố Hải Phòng,CENTRAL_CITY,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15
+'33',Tỉnh Hưng Yên,PROVINCE,Tỉnh Hưng Yên,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'37',Tỉnh Ninh Bình,PROVINCE,Tỉnh Ninh Bình,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'38',Tỉnh Thanh Hoá,PROVINCE,Tỉnh Thanh Hoá,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'40',Tỉnh Nghệ An,PROVINCE,Tỉnh Nghệ An,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'42',Tỉnh Hà Tĩnh,PROVINCE,Tỉnh Hà Tĩnh,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'44',Tỉnh Quảng Trị,PROVINCE,Tỉnh Quảng Trị,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'46',Thành phố Huế,CENTRAL_CITY,Thành phố Huế,CENTRAL_CITY,VERIFIED_PRIMARY,"Nghị quyết 175/2024/QH15, Nghị quyết 202/2025/QH15"
+'48',Thành phố Đà Nẵng,CENTRAL_CITY,Thành phố Đà Nẵng,CENTRAL_CITY,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15
+'51',Tỉnh Quảng Ngãi,PROVINCE,Tỉnh Quảng Ngãi,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'52',Tỉnh Gia Lai,PROVINCE,Tỉnh Gia Lai,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'56',Tỉnh Khánh Hoà,PROVINCE,Tỉnh Khánh Hoà,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'66',Tỉnh Đắk Lắk,PROVINCE,Tỉnh Đắk Lắk,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'68',Tỉnh Lâm Đồng,PROVINCE,Tỉnh Lâm Đồng,PROVINCE,VERIFIED_PRIMARY,"Nghị quyết 202/2025/QH15 (Khoản 15 Điều 1, sáp nhập Lâm Đồng, Đắk Nông, Bình Thuận thành Tỉnh Lâm Đồng)"
+'75',Tỉnh Đồng Nai,PROVINCE,Tỉnh Đồng Nai,PROVINCE,VERIFIED_PRIMARY,"Nghị quyết 202/2025/QH15 (Khoản 17 Điều 1, sáp nhập Đồng Nai & Bình Phước thành Tỉnh Đồng Nai)"
+'79',Thành phố Hồ Chí Minh,CENTRAL_CITY,Thành phố Hồ Chí Minh,CENTRAL_CITY,VERIFIED_PRIMARY,"Nghị quyết 202/2025/QH15 (Khoản 16 Điều 1, sáp nhập TP.HCM, Bình Dương, Bà Rịa - Vũng Tàu)"
+'80',Tỉnh Tây Ninh,PROVINCE,Tỉnh Tây Ninh,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'82',Tỉnh Đồng Tháp,PROVINCE,Tỉnh Đồng Tháp,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'86',Tỉnh Vĩnh Long,PROVINCE,Tỉnh Vĩnh Long,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
+'91',Tỉnh An Giang,PROVINCE,Tỉnh An Giang,PROVINCE,VERIFIED_PRIMARY,"Nghị quyết 202/2025/QH15 (Khoản 20 Điều 1, sáp nhập An Giang & Kiên Giang thành Tỉnh An Giang)"
+'92',Thành phố Cần Thơ,CENTRAL_CITY,Thành phố Cần Thơ,CENTRAL_CITY,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15
+'96',Tỉnh Cà Mau,PROVINCE,Tỉnh Cà Mau,PROVINCE,VERIFIED_PRIMARY,Nghị quyết 202/2025/QH15 về sắp xếp đơn vị hành chính cấp tỉnh
