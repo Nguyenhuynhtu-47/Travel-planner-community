@@ -12,6 +12,8 @@ import '../../data/itinerary_repository.dart';
 import '../../data/models/activity_detail.dart';
 import '../../data/models/itinerary_day_detail.dart';
 import '../../data/models/itinerary_detail.dart';
+import '../../data/models/itinerary_place.dart';
+import '../../data/models/place_summary.dart';
 import '../itinerary_detail_notifier.dart';
 import '../widgets/activity_form_dialog.dart';
 import '../widgets/day_form_dialog.dart';
@@ -82,6 +84,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
   bool _hasSocialChanges = false;
   bool _isTogglingFavorite = false;
   bool _isTogglingSave = false;
+  List<ItineraryPlace> _itinerarySavedPlaces = [];
+  bool _isLoadingSavedPlaces = false;
 
   String? get _effectiveToken => widget.token ?? widget.authNotifier?.token;
 
@@ -118,7 +122,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _notifier.loadDetail(token: _effectiveToken);
+      if (mounted) {
+        _notifier.loadDetail(token: _effectiveToken);
+        _loadItinerarySavedPlaces();
+      }
     });
   }
 
@@ -984,6 +991,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                     )
                   else ...[
                     IconButton(
+                      icon: const Icon(Icons.bookmark_add_outlined),
+                      tooltip: 'Lưu địa điểm vào lịch trình',
+                      onPressed: _showAddPlaceToItineraryDialog,
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: 'Chỉnh sửa lịch trình',
                       onPressed: () => _handleEdit(itinerary),
@@ -1067,7 +1079,12 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: () => _notifier.loadDetail(token: _effectiveToken),
+      onRefresh: () async {
+        await Future.wait([
+          _notifier.loadDetail(token: _effectiveToken),
+          _loadItinerarySavedPlaces(),
+        ]);
+      },
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
@@ -1118,6 +1135,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
 
           // 1. Compact Header
           SliverToBoxAdapter(child: _buildOverview(itinerary, isOwner)),
+
+          // 1.1 Itinerary-scoped Saved Places
+          SliverToBoxAdapter(child: _buildItinerarySavedPlaces(itinerary, isOwner)),
 
           // 2. Day Section Header
           SliverToBoxAdapter(
@@ -1946,5 +1966,422 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
       (match) => '${match[1]}.',
     );
     return '$formatted ₫';
+  }
+
+  Future<void> _loadItinerarySavedPlaces() async {
+    try {
+      setState(() => _isLoadingSavedPlaces = true);
+      final places = await _crudRepository.getSavedPlaces(
+        widget.itineraryId,
+        token: _effectiveToken,
+      );
+      if (mounted) {
+        setState(() {
+          _itinerarySavedPlaces = places;
+          _isLoadingSavedPlaces = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingSavedPlaces = false);
+      }
+    }
+  }
+
+  Future<void> _handleSavePlaceToItinerary(PlaceSummary place) async {
+    if (_effectiveToken == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để lưu địa điểm vào lịch trình.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    try {
+      await _crudRepository.savePlaceToItinerary(
+        widget.itineraryId,
+        place.placeId,
+        token: _effectiveToken!,
+      );
+      await _loadItinerarySavedPlaces();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã lưu "${place.name}" vào lịch trình!'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e is ApiException ? e.message : 'Lỗi khi lưu địa điểm'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRemoveSavedPlace(ItineraryPlace ip) async {
+    if (_effectiveToken == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bỏ lưu địa điểm'),
+        content: Text(
+          'Bạn có chắc chắn muốn bỏ lưu "${ip.place.name}" khỏi lịch trình này? Các hoạt động trong lịch trình sẽ không bị ảnh hưởng.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Bỏ lưu'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _crudRepository.removePlaceFromItinerary(
+        widget.itineraryId,
+        ip.place.placeId,
+        token: _effectiveToken!,
+      );
+      await _loadItinerarySavedPlaces();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã xóa "${ip.place.name}" khỏi danh sách lưu của lịch trình.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e is ApiException ? e.message : 'Lỗi khi xóa địa điểm'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showAddPlaceToItineraryDialog() async {
+    if (_effectiveToken == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AddPlaceToItinerarySheet(
+        crudRepository: _crudRepository,
+        token: _effectiveToken,
+        existingPlaceIds: _itinerarySavedPlaces.map((e) => e.place.placeId).toSet(),
+        onPlaceSelected: (place) {
+          Navigator.of(ctx).pop();
+          _handleSavePlaceToItinerary(place);
+        },
+      ),
+    );
+  }
+
+  Widget _buildItinerarySavedPlaces(ItineraryDetail itinerary, bool isOwner) {
+    if (_itinerarySavedPlaces.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.hairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bookmark_added_outlined, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Địa điểm đã lưu (${_itinerarySavedPlaces.length})',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              if (isOwner)
+                TextButton.icon(
+                  onPressed: _showAddPlaceToItineraryDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Thêm địa điểm', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+            ],
+          ),
+          if (_isLoadingSavedPlaces)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (_itinerarySavedPlaces.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Lịch trình chưa có địa điểm nào được lưu. Hãy thêm các địa điểm để thuận tiện lập kế hoạch!',
+                style: TextStyle(fontSize: 13, color: AppColors.muted),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _itinerarySavedPlaces.map((ip) {
+                  return Chip(
+                    avatar: const Icon(Icons.place, size: 16, color: AppColors.primary),
+                    label: Text(
+                      ip.place.name,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                    deleteIcon: isOwner ? const Icon(Icons.close, size: 16) : null,
+                    onDeleted: isOwner ? () => _handleRemoveSavedPlace(ip) : null,
+                    backgroundColor: AppColors.surfaceSoft,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: const BorderSide(color: AppColors.hairline),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddPlaceToItinerarySheet extends StatefulWidget {
+  final ItineraryCrudRepository crudRepository;
+  final String? token;
+  final Set<int> existingPlaceIds;
+  final ValueChanged<PlaceSummary> onPlaceSelected;
+
+  const _AddPlaceToItinerarySheet({
+    required this.crudRepository,
+    required this.token,
+    required this.existingPlaceIds,
+    required this.onPlaceSelected,
+  });
+
+  @override
+  State<_AddPlaceToItinerarySheet> createState() => _AddPlaceToItinerarySheetState();
+}
+
+class _AddPlaceToItinerarySheetState extends State<_AddPlaceToItinerarySheet> {
+  final TextEditingController _searchController = TextEditingController();
+  List<PlaceSummary> _places = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPlaces();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchPlaces({String? keyword}) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final list = await widget.crudRepository.getPlaces(
+        keyword: keyword,
+        token: widget.token,
+      );
+      if (mounted) {
+        setState(() {
+          _places = list;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Không thể tải danh sách địa điểm.';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      margin: EdgeInsets.only(bottom: bottomInset),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.hairline,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.bookmark_add_outlined, color: AppColors.primary),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Lưu địa điểm vào lịch trình',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm địa điểm...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.hairline),
+                ),
+                filled: true,
+                fillColor: AppColors.surfaceSoft,
+              ),
+              onSubmitted: (query) => _fetchPlaces(keyword: query),
+            ),
+          ),
+          Expanded(
+            child: _buildList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildList() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_error!, style: const TextStyle(color: AppColors.error)),
+            TextButton(
+              onPressed: () => _fetchPlaces(keyword: _searchController.text),
+              child: const Text('Thử lại'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_places.isEmpty) {
+      return const Center(
+        child: Text('Không tìm thấy địa điểm nào.', style: TextStyle(color: AppColors.muted)),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: _places.length,
+      separatorBuilder: (context, index) => const Divider(height: 1),
+      itemBuilder: (ctx, index) {
+        final place = _places[index];
+        final alreadySaved = widget.existingPlaceIds.contains(place.placeId);
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          leading: CircleAvatar(
+            backgroundColor: AppColors.surfaceSoft,
+            child: Icon(
+              Icons.place,
+              color: alreadySaved ? AppColors.muted : AppColors.primary,
+            ),
+          ),
+          title: Text(
+            place.name,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: alreadySaved ? AppColors.muted : AppColors.textPrimary,
+            ),
+          ),
+          subtitle: place.address != null
+              ? Text(
+                  place.address!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: alreadySaved ? AppColors.muted : AppColors.textSecondary,
+                  ),
+                )
+              : null,
+          trailing: alreadySaved
+              ? const Chip(
+                  label: Text('Đã lưu', style: TextStyle(fontSize: 11)),
+                  visualDensity: VisualDensity.compact,
+                )
+              : FilledButton.tonal(
+                  onPressed: () => widget.onPlaceSelected(place),
+                  child: const Text('Lưu'),
+                ),
+        );
+      },
+    );
   }
 }

@@ -8,6 +8,7 @@ import 'models/create_activity_request.dart';
 import 'models/create_day_request.dart';
 import 'models/create_itinerary_request.dart';
 import 'models/destination_summary.dart';
+import 'models/itinerary_place.dart';
 import 'models/place_summary.dart';
 import 'models/itinerary_day_detail.dart';
 import 'models/itinerary_detail.dart';
@@ -334,5 +335,60 @@ class ItineraryCrudRepository {
     }
 
     return const [];
+  }
+
+  /// Fetches saved places for a specific itinerary.
+  Future<List<ItineraryPlace>> getSavedPlaces(
+    int itineraryId, {
+    String? token,
+  }) async {
+    final response = await _apiClient.get(
+      '${ApiConstants.itineraryPlacesEndpoint(itineraryId)}/all',
+      token: token,
+    );
+
+    if (response is List) {
+      return response
+          .map(
+            (e) => ItineraryPlace.fromJson(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
+          .toList();
+    }
+    return const [];
+  }
+
+  /// Saves a canonical place to an itinerary.
+  Future<ItineraryPlace> savePlaceToItinerary(
+    int itineraryId,
+    int placeId, {
+    required String token,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConstants.itineraryPlacesEndpoint(itineraryId),
+      body: {'placeId': placeId},
+      token: token,
+    );
+
+    if (response is Map) {
+      return ItineraryPlace.fromJson(Map<String, dynamic>.from(response));
+    }
+    throw ApiException(
+      statusCode: 0,
+      message: 'Không thể lưu địa điểm vào lịch trình.',
+    );
+  }
+
+  /// Removes a saved place association from an itinerary.
+  Future<void> removePlaceFromItinerary(
+    int itineraryId,
+    int placeId, {
+    required String token,
+  }) async {
+    await _apiClient.delete(
+      ApiConstants.itineraryPlaceDeleteEndpoint(itineraryId, placeId),
+      token: token,
+    );
   }
 }

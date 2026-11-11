@@ -51,4 +51,8 @@ class ApiConstants {
       '/api/itineraries/$itineraryId/ratings';
   static String itineraryUserRatingEndpoint(int itineraryId) =>
       '/api/itineraries/$itineraryId/ratings/me';
+  static String itineraryPlacesEndpoint(int itineraryId) =>
+      '/api/itineraries/$itineraryId/places';
+  static String itineraryPlaceDeleteEndpoint(int itineraryId, int placeId) =>
+      '/api/itineraries/$itineraryId/places/$placeId';
 }

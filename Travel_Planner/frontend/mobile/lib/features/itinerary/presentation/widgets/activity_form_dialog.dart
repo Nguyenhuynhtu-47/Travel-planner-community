@@ -14,6 +14,7 @@ import '../../../location/presentation/widgets/location_picker_sheet.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/activity_detail.dart';
 import '../../data/models/create_activity_request.dart';
+import '../../data/models/itinerary_place.dart';
 import '../../data/models/update_activity_request.dart';
 
 /// Opens a mobile-optimized modal bottom sheet to add or edit an activity.
@@ -124,6 +125,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   String? _locationProvider;
   String? _lastAutoFilledActivityName;
   bool _locationCleared = false;
+  List<ItineraryPlace> _savedPlaces = [];
 
   bool get _isEditing => widget.initialActivity != null;
 
@@ -171,6 +173,22 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     if (widget.initialActivity?.endTime != null) {
       _endTime = _parseTimeOfDay(widget.initialActivity!.endTime!);
     }
+    _loadSavedPlaces();
+  }
+
+  Future<void> _loadSavedPlaces() async {
+    if (widget.itineraryId <= 0) return;
+    try {
+      final list = await widget.repository.getSavedPlaces(
+        widget.itineraryId,
+        token: widget.authNotifier.token,
+      );
+      if (mounted) {
+        setState(() {
+          _savedPlaces = list;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _openLocationPicker() async {
@@ -764,6 +782,84 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                   ? null
                                   : _openLocationPicker,
                             ),
+                          ),
+                        ],
+                        if (_savedPlaces.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: const [
+                              Icon(
+                                Icons.bookmark_outline,
+                                size: 14,
+                                color: AppColors.primary,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Địa điểm đã lưu trong lịch trình:',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: _savedPlaces.map((sp) {
+                              final isSelected =
+                                  _canonicalPlaceId == sp.place.placeId;
+                              return ActionChip(
+                                avatar: Icon(
+                                  isSelected
+                                      ? Icons.check_circle
+                                      : Icons.place_outlined,
+                                  size: 14,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.primary,
+                                ),
+                                label: Text(
+                                  sp.place.name,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : AppColors.textPrimary,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                backgroundColor: isSelected
+                                    ? AppColors.primary
+                                    : AppColors.surfaceSoft,
+                                onPressed: _isLoading
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _canonicalPlaceId = sp.place.placeId;
+                                          _destinationId = null;
+                                          _locationName = sp.place.name;
+                                          _locationAddress = sp.place.address;
+                                          _latitude = sp.place.latitude;
+                                          _longitude = sp.place.longitude;
+                                          _placeId =
+                                              sp.place.placeId.toString();
+                                          _locationProvider = 'SYSTEM';
+                                          _locationCleared = false;
+                                          if (_nameController.text
+                                              .trim()
+                                              .isEmpty) {
+                                            _nameController.text =
+                                                sp.place.name;
+                                          }
+                                        });
+                                      },
+                              );
+                            }).toList(),
                           ),
                         ],
                         const SizedBox(height: 14),
