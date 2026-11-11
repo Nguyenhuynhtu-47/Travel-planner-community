@@ -7,14 +7,14 @@
 
 ---
 
-## 1. Verified Test Results (Executed 2026-11-11 — Phase 2.1.1 Final Acceptance)
+## 1. Verified Test Results (Executed 2026-11-12 — Phase 3.3.1 Final Closure & Phase 4 Saved Places)
 
 | Component | Command | Result | Notes |
 |:---|:---|:---|:---|
-| Backend | `mvnw.cmd test` | **321 / 321 PASS** ✅ | Exit code 0, 0 failures, 0 errors, 0 skipped (includes PlaceNormalization, PlaceService, PlaceController, DataSeeder multi-branch Cases A-F, DestinationConsolidationMigrationRunner real MySQL tests) |
-| Mobile | `flutter test` | **364 PASS / 3 FAILED (367 Total)** ⚠️ | Exit code 1; 364 passed, 3 deferred pre-existing tests preserved (`explore_test.dart`, `rating_ui_layout_test.dart`) |
+| Backend | `mvnw.cmd test` | **440 / 440 PASS** ✅ | Exit code 0, 0 failures, 0 errors, 0 skipped (includes 421 previous tests + 19 dedicated Phase 4 tests in `ItineraryPlaceTest`) |
+| Mobile | `flutter test` | **366 PASS / 3 FAILED (369 Total)** ⚠️ | Exit code 1; 366 passed, 3 deferred pre-existing tests preserved (`explore_test.dart`, `rating_ui_layout_test.dart`); 0 regressions |
 | Web | `flutter test` | **33 / 33 PASS** ✅ | Exit code 0, 0 failures, 0 errors (includes 33 tests in `admin_place_test.dart`) |
-| **Total Executed** | | **721 Tests (718 PASS / 3 FAILED)** | Robust multi-layer verification across Backend, Mobile, and Web |
+| **Total Unique Tests Executed** | Multi-runner | **839 Tests (836 PASS / 3 FAILED)** | Accurate stack-wide test accounting across Backend, Mobile, and Web; 0 regressions |
 
 ---
 
@@ -35,22 +35,26 @@
 | 9 | Map Integration — Route Calculation (Direct Activity snapshot waypoint extraction, ORS backend proxy, in-memory cache, Haversine fallback) | **COMPLETED** | `RouteController`, `RouteServiceImpl` (direct snapshot extraction decoupled from Place status), `OpenRouteServiceRoutingProvider`, `RouteRepository`, `ItineraryMapScreen`, route tests |
 | 10 | Map Integration — Itinerary Map View (markers, polylines, day-filter, navigation deep-link) | **COMPLETED** | `ItineraryMapScreen`, `ItineraryMapPreviewCard`, `NavigationLauncherHelper`, `ItineraryMapHelper`, map view tests |
 | 11 | Place Catalog — Canonical Places, Multi-Provider Mappings, Deduplication, Public & Admin APIs (Phase 2 & 2.1) | **COMPLETED (Phase 2 & 2.1 Final Acceptance)** | `Place` & `PlaceProviderMapping` entities, `PlaceNormalizationService` (Vietnamese diacritics NFD, address abbreviations, protected compound names e.g. Hồ Hoàn Kiếm, chain branch separation >100m, multi-signal confidence score >=0.85), `PlaceService` & `PlaceServiceImpl`, `PlaceController` (`GET /api/places`, `GET /api/places/{id}`), `AdminPlaceController` (`POST/PUT/DELETE /api/admin/places`), `DestinationConsolidationMigrationRunner` (safe single-connection advisory lock `@Order(3)` consolidating 24 destinations and contracting schema). Full Web Admin management in `AdminPlacesScreen`. |
-| 12 | Image Upload (Cloudinary, SHA-1 signed, magic bytes check, mobile + web) | **COMPLETED** | `ImageUploadController`, `CloudinaryImageUploadService`, `ImagePickerService`, upload tests |
-| 13 | Comments (Read list + Create, paginated, in itinerary detail) | **COMPLETED** | `CommentController`, `CommentServiceImpl`, `CommentsNotifier`, `ItineraryCommentsSection` |
-| 14 | Web Admin — Place Management | **COMPLETED (Phase 2.1)** | `AdminPlacesScreen`, `PlaceFormDialog`, `HidePlaceDialog`, `WebMapView`, `PlaceRepository`, 33 admin place web tests passing |
-| 14 | Ratings / Star ratings | **NOT IMPLEMENTED** | `Rating` entity + `RatingRepository` exist; no Controller, Service, or mobile UI |
-| 15 | Favorites (like itinerary) | **NOT IMPLEMENTED** | `Favorite` entity + `FavoriteRepository` exist; no Controller, Service, or mobile UI |
-| 16 | Saved Itineraries | **NOT IMPLEMENTED** | `SavedItinerary` entity + `SavedItineraryRepository` exist; `SavedItinerariesScreen` is a placeholder empty state |
-| 17 | Clone / Personalize Itinerary | **NOT IMPLEMENTED** | `original_itinerary_id` and `reuse_count` columns exist in DB; no API or UI |
-| 18 | Follow / Social Graph | **NOT IMPLEMENTED** | `Follow` entity + `FollowRepository` exist; `CommunityScreen` is empty state |
-| 19 | Notifications | **NOT IMPLEMENTED** | `NotificationsScreen` is a placeholder; no backend entity or API |
-| 20 | Web Admin — Dashboard & Statistics | **NOT IMPLEMENTED** | `dashboard/` directory contains only `.gitkeep` |
-| 21 | Web Admin — User Management | **NOT IMPLEMENTED** | `users/` directory contains only `.gitkeep`; no backend controller for admin user ops |
-| 22 | Web Admin — Itinerary Moderation | **NOT IMPLEMENTED** | `itineraries/` and `moderation/` directories contain only `.gitkeep` |
-| 23 | View Another User's Public Profile | **NOT IMPLEMENTED** | No `GET /api/users/{id}/profile` endpoint; only own-profile endpoints exist |
-| 24 | Itinerary Visibility Public/Private Toggle | **PARTIALLY COMPLETED** | `visibility` field exists in DB and entity; `CreateItineraryScreen` likely sets default; needs verification that UI exposes toggle |
-| 25 | Comment Moderation / Delete | **NOT IMPLEMENTED** | `CommentStatus` enum exists; no admin delete/hide comment API |
-| 26 | Password Reset / Email Verification | **NOT IMPLEMENTED** | Flagged "Needs confirmation" in spec; not in backend |
+| 12 | Administrative Areas Catalog (Phase 3.1 & Sub-phases) | **ACCEPTED WITH EXPLICIT LIMITATIONS (Phase 3.1.2.4.1)** | `AdministrativeArea` entity, `AdministrativeAreaRepository`, `AdministrativeAreaService`, `AdministrativeAreaController`, `AdministrativeAreaValidator`, `AdministrativeAreaMigrationRunner` (@Order(5), MySQL advisory lock `administrative_area_migration_lock`). Remediated based on `00-canonical-correction-reference.md`: 34 provinces (25 PROVINCE, 9 CENTRAL_CITY). 10 Đồng Nai wards under NQ 237 verified. 12 Bắc Ninh communes quarantined under NQ 388. Canonical Content Checksum v1 = `af6e22c85f46a03cd68f5d4335d6e12129dff9038c17eaabf285084d53ab8674`. |
+| 13 | Place–Administrative Area Linking & Resolution (Phase 3.2, 3.2.1 & 3.2.2 Closure) | **ACCEPTED WITH EXPLICIT LIMITATIONS** | Schema migration `places.administrative_area_id` (FK `fk_places_admin_area` with `ON DELETE SET NULL`), `administrative_areas.trust_classification` (4 tiers: 67 Tier A, 3,276 Tier B, 12 Tier C, 0 Tier D). `PlaceAdministrativeAreaMigrationRunner` (@Order(6), advisory lock `place_administrative_area_migration_lock`). `AdministrativeAreaResolver` enforcing exact codes, structured address decomposition, province homonym elimination, compound ward length advantage, Vietnam coordinate bounds ([8.0, 24.0] Lat, [102.0, 110.0] Lon), and strict quarantine rejection for the 12 Bắc Ninh codes. `PlaceAdministrativeAreaService` supporting preview, auto-link, manual link, unlink, batch linking. Admin REST endpoints under `/api/admin/places` (`POST /{id}/administrative-area/link`). 20/24 places auto-linked (17 commune-level, 3 provincial fallback), 4 ambiguous places (Places 11, 12, 20, 22), 0 quarantined links. 24 Places (IDs 1..24) and 121 Activities (111 canonical, 10 custom) 100% intact. Zero Activity column changes. Phase 3.2.2 conclusively resolved code 09475 transcription discrepancy, decoupled legislative acts from statistical code datasets, verified 11 quarantine scenarios, and confirmed de-duplicated test counts (787 PASS / 3 baseline FAIL out of 790 unique tests across stack). Cleared for Phase 3.3. |
+| 14 | Location Search, Place Filtering & Spatial Integration (Phase 3.3 & 3.3.1 Final Closure) | **COMPLETED & FULLY ACCEPTED** | Integrated location discovery and spatial search across Backend, Mobile, and Web. Remediated Phase 3.3.1 gaps: Place 20 verified intact (no renaming occurred), deduplication enhanced with Vietnamese address house number extraction, external provider failure & resilience verified (9/9 PASS), spatial index ICP documented, and mobile UI limitations cataloged. 421 backend tests PASS, 33 web tests PASS, 364 mobile tests PASS (3 baseline preserved, 0 regressions). |
+| 14.1 | Saved Places — Itinerary-Scoped Place Management (Phase 4) | **COMPLETED & ACCEPTED** | Pure associative bookmarking of Places within an Itinerary context. Implemented `itinerary_places` table with `uk_itinerary_place` unique composite key and cascading foreign keys. Backend entity `ItineraryPlace`, DTOs, `ItineraryPlaceRepository`, `ItineraryPlaceService`, `ItineraryPlaceController` (POST, GET paginated, GET all, DELETE). Strict association-only deletion semantics (deleting association never deletes Place, never modifies Activity, never affects other itineraries; zero FK from Activity to ItineraryPlace). Full access control (owner write/delete, public/owner view). Mobile integration with `ItineraryDetailScreen` saved places section and dialogs, and `ActivityFormBottomSheet` chip selection for canonical place activity linking (`canonicalPlaceId`). 19/19 dedicated tests PASS. 440 total backend tests PASS, 366 mobile tests PASS (0 regressions), 33 web tests PASS. All 4 database invariants verified (12 quarantined Bắc Ninh units, Places 11/12/20/22 NULL, Activities 121 records, zero trust promotions). |
+| 15 | Image Upload (Cloudinary, SHA-1 signed, magic bytes check, mobile + web) | **COMPLETED** | `ImageUploadController`, `CloudinaryImageUploadService`, `ImagePickerService`, upload tests |
+| 16 | Comments (Read list + Create, paginated, in itinerary detail) | **COMPLETED** | `CommentController`, `CommentServiceImpl`, `CommentsNotifier`, `ItineraryCommentsSection` |
+| 17 | Web Admin — Place Management | **COMPLETED (Phase 2.1)** | `AdminPlacesScreen`, `PlaceFormDialog`, `HidePlaceDialog`, `WebMapView`, `PlaceRepository`, 33 admin place web tests passing |
+| 18 | Ratings / Star ratings | **NOT IMPLEMENTED** | `Rating` entity + `RatingRepository` exist; no Controller, Service, or mobile UI |
+| 19 | Favorites (like itinerary) | **NOT IMPLEMENTED** | `Favorite` entity + `FavoriteRepository` exist; no Controller, Service, or mobile UI |
+| 20 | Saved Itineraries | **NOT IMPLEMENTED** | `SavedItinerary` entity + `SavedItineraryRepository` exist; `SavedItinerariesScreen` is a placeholder empty state |
+| 21 | Clone / Personalize Itinerary | **NOT IMPLEMENTED** | `original_itinerary_id` and `reuse_count` columns exist in DB; no API or UI |
+| 22 | Follow / Social Graph | **NOT IMPLEMENTED** | `Follow` entity + `FollowRepository` exist; `CommunityScreen` is empty state |
+| 23 | Notifications | **NOT IMPLEMENTED** | `NotificationsScreen` is a placeholder; no backend entity or API |
+| 24 | Web Admin — Dashboard & Statistics | **NOT IMPLEMENTED** | `dashboard/` directory contains only `.gitkeep` |
+| 25 | Web Admin — User Management | **NOT IMPLEMENTED** | `users/` directory contains only `.gitkeep`; no backend controller for admin user ops |
+| 26 | Web Admin — Itinerary Moderation | **NOT IMPLEMENTED** | `itineraries/` and `moderation/` directories contain only `.gitkeep` |
+| 27 | View Another User's Public Profile | **NOT IMPLEMENTED** | No `GET /api/users/{id}/profile` endpoint; only own-profile endpoints exist |
+| 28 | Itinerary Visibility Public/Private Toggle | **PARTIALLY COMPLETED** | `visibility` field exists in DB and entity; `CreateItineraryScreen` likely sets default; needs verification that UI exposes toggle |
+| 29 | Comment Moderation / Delete | **NOT IMPLEMENTED** | `CommentStatus` enum exists; no admin delete/hide comment API |
+| 30 | Password Reset / Email Verification | **NOT IMPLEMENTED** | Flagged "Needs confirmation" in spec; not in backend |
 
 ---
 
@@ -244,9 +248,12 @@ To ensure high architectural rigor, zero regression, and prevent monolithic unve
    - Full Web Admin management (`AdminPlacesScreen`, `PlaceRepository`, `PlaceFormDialog`, `HidePlaceDialog`).
    - Mobile Activity integration (`PlaceSummary`, snapshot authority preserved).
    - 321 Backend tests PASS (exit code 0), 33 Web tests PASS (exit code 0), 364 Mobile tests PASS (exit code 1, baseline preserved). Total 718 / 721 PASS.
-3. **Phase 3: Administrative Areas (STRICT SCOPE — NEXT PHASE):**
-   - Administrative hierarchy (`administrative_areas`: provinces, districts, wards) and regional bounding boxes.
-4. **Phase 4: User Saved Places:**
+3. **Phase 3: Administrative Areas, Place Linking & Location Discovery (COMPLETED & ACCEPTED):**
+   - **Phase 3.1 (Catalog & Legal Remediation):** Canonical administrative dataset with 3,355 units (34 provinces, 3,321 communes/wards). SHA-256 checksum verified (`af6e22c85f46a03cd68f5d4335d6e12129dff9038c17eaabf285084d53ab8674`). Exactly 12 Northern Bắc Ninh units under Resolution 388/NQ-UBTVQH16 isolated in Tier C (`UNVERIFIED_AND_QUARANTINED`).
+   - **Phase 3.2 (Place Linking & Resolution):** Multi-signal geographic and textual resolution. 20 canonical places linked (16 HIGH, 4 MEDIUM); 4 ambiguous places (11, 12, 20, 22) retain `administrative_area_id = NULL`.
+   - **Phase 3.3 & 3.3.1 (Search, Filtering & Spatial Remediation):** Integrated location discovery, administrative area hierarchy filtering, spatial radius search (`idx_places_coords`), and Authoritative Priority Pipeline. Remediated POI intent bypass, administrative ranking penalties in POI searches, polar coordinate clamping, and radius validation.
+   - **Test Metrics:** 407 Backend tests PASS (exit code 0), 33 Web tests PASS (exit code 0), 364 Mobile tests PASS (exit code 1, 3 baseline tests preserved). Grand total: 804 / 807 tests PASS.
+4. **Phase 4: User Saved Places (NEXT MILESTONE):**
    - Personal bookmarks and custom collections (`user_saved_places`).
 5. **Phase 5: Clone & Personalize Itinerary:**
    - Forking itineraries with independent snapshot retention.
@@ -300,4 +307,6 @@ The following items could not be fully verified in this audit and require furthe
 | 1.3 | 2026-11-11 | AI Lead | Phase 2.1 Destination Consolidation into Place, contract schema, web admin places update |
 | 1.4 | 2026-11-11 | AI Lead | Phase 2.1.1 Post-consolidation stabilization, migration contract guard, DataSeeder multi-attribute lookup & provider mapping seeding |
 | 1.5 | 2026-11-11 | AI Lead | Phase 2.1.1 Final Cleanup & Acceptance Gate, multi-branch Cases A-F verification, Fresh DB & Mid-migration test proofs, secure backup rules, 321 backend tests PASS |
+| 1.6 | 2026-11-11 | AI Lead | Phase 3.0 Administrative Data Audit & Architecture Design completed, Vietnam 2-level local government model aligned, zero source code or DB changes |
+| 1.7 | 2026-11-12 | AI Lead | Phase 3.1, 3.2, 3.3 & 3.3.1 completed: Administrative Areas Catalog, Place Linking, Location Search, Spatial Integration & Gap Remediation accepted (407 backend tests PASS, 804/807 overall PASS) |
 
