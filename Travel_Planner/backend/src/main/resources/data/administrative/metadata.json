@@ -1,0 +1,51 @@
+{
+  "publisher": "General Statistics Office of Vietnam (GSO) & National Assembly of Vietnam (distributed via thanglequoc/vietnamese-provinces-database)",
+  "datasetName": "Vietnam Official Administrative Units 2-Tier Catalog",
+  "baseline2025": {
+    "effectiveDate": "2025-07-01",
+    "legalBasis": "Nghị quyết số 202/2025/QH15, Quyết định số 19/2025/QĐ-TTg & Nghị quyết số 175/2024/QH15",
+    "totalProvinces": 34,
+    "totalCommunes": 3321,
+    "breakdown": {
+      "provinces": {
+        "centralCities": 6,
+        "provinces": 28,
+        "total": 34
+      },
+      "communes": {
+        "wards": 687,
+        "communes": 2621,
+        "specialZones": 13,
+        "total": 3321
+      }
+    }
+  },
+  "currentSnapshot": {
+    "snapshotDate": "2026-09-20",
+    "effectiveDate": "2026-09-20",
+    "version": "v5.2.0-decree388",
+    "latestLegalAct": "Nghị quyết số 39/2026/QH16 & Nghị quyết số 388/NQ-UBTVQH16 có hiệu lực từ 20/09/2026",
+    "legalBasis": "Nghị quyết số 202/2025/QH15, Quyết định số 19/2025/QĐ-TTg, Nghị quyết số 175/2024/QH15, Nghị quyết số 237/NQ-UBTVQH16, Nghị quyết số 30/2026/QH16, Nghị quyết số 36/2026/QH16, Nghị quyết số 388/NQ-UBTVQH16 & Nghị quyết số 39/2026/QH16",
+    "totalProvinces": 34,
+    "totalCommunes": 3321,
+    "breakdown": {
+      "provinces": {
+        "centralCities": 9,
+        "provinces": 25,
+        "total": 34
+      },
+      "communes": {
+        "wards": 709,
+        "communes": 2599,
+        "specialZones": 13,
+        "total": 3321
+      }
+    }
+  },
+  "sourceRepository": "https://github.com/thanglequoc/vietnamese-provinces-database",
+  "retrievalDate": "2026-11-11",
+  "provinceCodeFormat": "2-digit numeric string",
+  "communeCodeFormat": "5-digit numeric string",
+  "license": "Vietnam Government Open Data / MIT (redistribution package)",
+  "notes": "Canonical 2-tier local government structure without intermediate district tier. Reflects 9 centrally-governed cities (established Dong Nai, Quang Ninh, Bac Ninh under Resolutions 30/2026/QH16, 36/2026/QH16, 39/2026/QH16) and 22 commune-to-ward conversions (10 wards in Dong Nai under Resolution 237/NQ-UBTVQH16 and 12 wards in Bac Ninh under Resolution 388/NQ-UBTVQH16)."
+}

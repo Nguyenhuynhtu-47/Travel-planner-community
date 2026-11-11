@@ -1,0 +1,240 @@
+[
+  {
+    "code": "01",
+    "name": "Thành phố Hà Nội",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "04",
+    "name": "Tỉnh Cao Bằng",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "08",
+    "name": "Tỉnh Tuyên Quang",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "11",
+    "name": "Tỉnh Điện Biên",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "12",
+    "name": "Tỉnh Lai Châu",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "14",
+    "name": "Tỉnh Sơn La",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "15",
+    "name": "Tỉnh Lào Cai",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "19",
+    "name": "Tỉnh Thái Nguyên",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "20",
+    "name": "Tỉnh Lạng Sơn",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "22",
+    "name": "Thành phố Quảng Ninh",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "24",
+    "name": "Thành phố Bắc Ninh",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "25",
+    "name": "Tỉnh Phú Thọ",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "31",
+    "name": "Thành phố Hải Phòng",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "33",
+    "name": "Tỉnh Hưng Yên",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "37",
+    "name": "Tỉnh Ninh Bình",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "38",
+    "name": "Tỉnh Thanh Hoá",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "40",
+    "name": "Tỉnh Nghệ An",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "42",
+    "name": "Tỉnh Hà Tĩnh",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "44",
+    "name": "Tỉnh Quảng Trị",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "46",
+    "name": "Thành phố Huế",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "48",
+    "name": "Thành phố Đà Nẵng",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "51",
+    "name": "Tỉnh Quảng Ngãi",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "52",
+    "name": "Tỉnh Gia Lai",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "56",
+    "name": "Tỉnh Khánh Hoà",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "66",
+    "name": "Tỉnh Đắk Lắk",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "68",
+    "name": "Tỉnh Lâm Đồng",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "75",
+    "name": "Thành phố Đồng Nai",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "79",
+    "name": "Thành phố Hồ Chí Minh",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "80",
+    "name": "Tỉnh Tây Ninh",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "82",
+    "name": "Tỉnh Đồng Tháp",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "86",
+    "name": "Tỉnh Vĩnh Long",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "91",
+    "name": "Tỉnh An Giang",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "92",
+    "name": "Thành phố Cần Thơ",
+    "areaType": "CENTRAL_CITY",
+    "parentCode": null,
+    "status": "ACTIVE"
+  },
+  {
+    "code": "96",
+    "name": "Tỉnh Cà Mau",
+    "areaType": "PROVINCE",
+    "parentCode": null,
+    "status": "ACTIVE"
+  }
+]
