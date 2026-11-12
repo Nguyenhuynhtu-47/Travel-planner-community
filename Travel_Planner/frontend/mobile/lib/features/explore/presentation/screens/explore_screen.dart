@@ -12,6 +12,7 @@ import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../location/presentation/widgets/location_picker_sheet.dart';
 import '../../data/models/itinerary_summary.dart';
 import '../explore_notifier.dart';
 import '../widgets/compact_itinerary_card.dart';
@@ -253,6 +254,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ],
             ),
             actions: [
+              IconButton(
+                key: const Key('explore_location_search_button'),
+                tooltip: 'Khám phá địa điểm',
+                icon: const Icon(Icons.map_outlined),
+                onPressed: () {
+                  showLocationPickerSheet(
+                    context,
+                    token: widget.authNotifier.token,
+                    authNotifier: widget.authNotifier,
+                  );
+                },
+              ),
               IconButton(
                 tooltip: 'Thông báo',
                 icon: const Icon(Icons.notifications_outlined),

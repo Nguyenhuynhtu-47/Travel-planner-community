@@ -86,21 +86,23 @@ void main() {
     });
 
     test(
-      'CreatorSummary falls back to username when fullName is null or empty',
+      'CreatorSummary displayName prefers fullName, falls back to @handle or Người dùng, never username',
       () {
         final c1 = CreatorSummary.fromJson({
           'userId': 1,
           'username': 'traveller_bob',
+          'handle': 'bob_the_traveler',
           'fullName': null,
         });
-        expect(c1.displayName, equals('traveller_bob'));
+        expect(c1.displayName, equals('@bob_the_traveler'));
 
         final c2 = CreatorSummary.fromJson({
           'userId': 2,
           'username': 'alice',
+          'handle': null,
           'fullName': '   ',
         });
-        expect(c2.displayName, equals('alice'));
+        expect(c2.displayName, equals('Người dùng'));
       },
     );
 

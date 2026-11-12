@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/locations/presentation/screens/admin_places_screen.dart';
+import 'features/moderation/presentation/screens/admin_moderation_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
 
 void main() {
@@ -93,7 +94,22 @@ class WebPlaceholderScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Travel Planner Web Portal'),
         actions: [
-          if (role.toString().toUpperCase() == 'ADMIN')
+          if (role.toString().toUpperCase() == 'ADMIN') ...[
+            TextButton.icon(
+              icon: const Icon(Icons.shield_outlined, size: 18),
+              label: const Text('Kiểm duyệt'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                textStyle: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AdminModerationScreen(authNotifier: authNotifier),
+                  ),
+                );
+              },
+            ),
             TextButton.icon(
               icon: const Icon(Icons.place_outlined, size: 18),
               label: const Text('Địa điểm'),
@@ -109,6 +125,7 @@ class WebPlaceholderScreen extends StatelessWidget {
                 );
               },
             ),
+          ],
           PopupMenuButton<String>(
             tooltip: 'Tài khoản',
             onSelected: (value) {
@@ -124,10 +141,26 @@ class WebPlaceholderScreen extends StatelessWidget {
                     builder: (_) => AdminPlacesScreen(authNotifier: authNotifier),
                   ),
                 );
+              } else if (value == 'moderation') {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AdminModerationScreen(authNotifier: authNotifier),
+                  ),
+                );
               }
             },
             itemBuilder: (context) => [
-              if (role.toString().toUpperCase() == 'ADMIN')
+              if (role.toString().toUpperCase() == 'ADMIN') ...[
+                const PopupMenuItem<String>(
+                  value: 'moderation',
+                  child: Row(
+                    children: [
+                      Icon(Icons.shield_outlined),
+                      SizedBox(width: 8),
+                      Text('Kiểm duyệt cộng đồng'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem<String>(
                   value: 'places',
                   child: Row(
@@ -138,6 +171,7 @@ class WebPlaceholderScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              ],
               const PopupMenuItem<String>(
                 value: 'profile',
                 child: Row(
