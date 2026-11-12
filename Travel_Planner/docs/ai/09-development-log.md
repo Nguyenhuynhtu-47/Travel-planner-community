@@ -7273,3 +7273,694 @@ Direct read-only SQL queries against `travel_planner` confirmed:
 - **Web Tests:** 33/33 PASS.
 - **Documentation Deliverable:** `docs/verification/phase-5-remediation/PHASE-5-POST-REMEDIATION-TECHNICAL-REVIEW.md`.
 - **Verdict:** Phase 5 Remediation formally **ACCEPTED**; Phase 6A cleared for execution.
+
+## Session 59 — 2026-11-12
+**Focus:** Phase 6A.0 — Explore-to-Itinerary Implementation Plan & Technical Design
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** AUDIT & DESIGN ONLY (Zero business code changes, zero database schema changes)
+
+### 1. Architectural & Codebase Audit
+- **Backend Readiness:** Confirmed that all required REST endpoints and services are already fully implemented, tested, and operational:
+  - `POST /api/itineraries/{itineraryId}/places` (`ItineraryPlaceController`)
+  - `POST /api/itineraries/{id}/days/{dayId}/activities` (`ItineraryController`)
+  - `GET /api/user/itineraries` (`UserItineraryController`)
+  - `GET /api/itineraries/{id}` (`ItineraryController`)
+  - `GET /api/locations/search` (`LocationController`)
+- **Backend Validation Constraint:** Identified critical validation in `ItineraryServiceImpl.applyLocation`: if `canonicalPlaceId` is present, `latitude` and `longitude` must be `null` in the request payload, or else an HTTP 400 `BadRequestException` is thrown.
+- **Internal Place vs External POI Separation:** Verified that `itinerary_places` enforces a foreign key to `places.place_id`. External transient POIs (LocationIQ, TomTom, HERE) cannot be saved to `itinerary_places` without administrative catalog creation. In contrast, Activity scheduling supports both types via authoritative location snapshots.
+- **Mobile UX Audit:** Identified that `LocationPickerSheet` and `_AddPlaceToItinerarySheet` exist but lack cross-itinerary dispatching. Designed `ItineraryPickerBottomSheet` and `DayPickerBottomSheet`.
+
+### 2. Deliverables Produced
+- Created comprehensive technical implementation plan: `Travel_Planner/docs/verification/phase-6/PHASE-6A-IMPLEMENTATION-PLAN.md` covering all 20 required sections:
+  - Executive summary, scope and non-goals.
+  - Complete architecture audit and data relationship diagrams.
+  - Flow A (Save Place to Itinerary) & Flow B (Schedule as Activity) sequence diagrams.
+  - Detailed mobile UX/UI specifications and state handling.
+  - Test plan across Backend (JUnit 5 / MockMvc) and Flutter Mobile (widget / integration).
+  - Open questions, regression risk mitigation, and acceptance criteria.
+- **Git Compliance:** Strictly adhered to NO COMMIT, NO PUSH policy. Working tree clean except for documentation artifact.
+
+## Session 60 — 2026-11-12
+**Focus:** Phase 6A.1 — Itinerary Picker & Save Place Integration (Flow A)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+
+### 1. Architectural Implementation
+- **Model Classification Helpers:** Enhanced `location_search_result.dart` with `isInternalPlace`, `internalPlaceId`, `isAdministrativeArea`, and `isExternalPoi` getters to accurately identify internal catalog places (`SYSTEM` provider, `place_<id>`) versus external POIs and administrative boundaries.
+- **ItineraryPickerBottomSheet Component:** Created `itinerary_picker_bottom_sheet.dart` to allow users to select an owned active itinerary and save a place:
+  - Supports paginated loading via `ItineraryCrudRepository.getMyItineraries(status: 'ACTIVE')` with infinite scrolling.
+  - Comprehensive state handling: loading skeleton, empty state with direct CTA to `CreateItineraryScreen`, error view with retry action.
+  - Save execution with double-submission guard (`_savingItineraryId != null`), graceful HTTP 409 Conflict handling (polite SnackBar notification and visual "Đã lưu" chip without crashing or aborting), and standard HTTP error handling (401, 403, 404).
+  - Smooth auto-dismissal after confirmation toast.
+- **LocationPickerSheet Integration:**
+  - Added bookmark icon button on search result list items for quick saving of internal places.
+  - In the selected location details card, embedded `_buildSaveToItineraryAction()` displaying:
+    - Active "Lưu vào chuyến đi" button for internal catalog places.
+    - Disabled informational notice for external POIs explaining they cannot be saved to Saved Places directly.
+    - Disabled informational notice for administrative boundaries.
+    - Disabled informational notice for manual pin-drops.
+- **ExploreScreen Integration:** Added direct map discovery entry point in AppBar actions (`Icons.map_outlined` with tooltip "Khám phá địa điểm") launching `showLocationPickerSheet`.
+
+### 2. Automated Test Suite & Verification
+- **New Tests:** Created `test/features/itinerary/itinerary_picker_test.dart` containing 12 unit and widget tests (12/12 PASS):
+  - Model classification helpers validation.
+  - Active itineraries rendering, pagination, empty state, and error/retry flow.
+  - Successful save place flow with double-submission guard and callback verification.
+  - HTTP 409 Conflict handling verification.
+  - Location picker sheet action integration across internal places, external POIs, and boundaries.
+- **Full Mobile Test Suite:** Executed `flutter test`: **386 PASS, 3 FAIL** (total 389 tests, +12 new passing tests, exactly 0 regressions from confirmed baseline failures).
+- **Backend Integration Suite:** Executed `ItineraryPlaceTest`: **19/19 PASS** (BUILD SUCCESS, 0 regressions).
+- **Static Analysis:** Executed `flutter analyze --no-pub`: 0 issues found in all new and modified files.
+
+### 3. Deliverables & Acceptance
+- Acceptance report: `Travel_Planner/docs/verification/phase-6/PHASE-6A.1-ACCEPTANCE-REPORT.md`.
+- Git policy compliance: STRICTLY NO COMMIT, NO PUSH strictly observed. Phase 6A.1 completed and accepted.
+
+## Session 61 — 2026-11-12
+**Focus:** Phase 6A.2 — Day Picker & Schedule as Activity Integration (Flow B)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+
+### 1. Architectural Implementation
+- **LocationActivityMapper Helper:** Created `location_activity_mapper.dart` to validate and map `LocationSearchResult` into `CreateActivityRequest`.
+  - For Internal Places (`isInternalPlace`): sets `canonicalPlaceId` and enforces `latitude = null` and `longitude = null` to strictly satisfy backend constraint in `ItineraryServiceImpl.applyLocation`.
+  - For External POIs and Manual Pins: preserves coordinates (`latitude`, `longitude`), `locationName`, `locationAddress`, `placeId`, and `locationProvider` while ensuring `canonicalPlaceId = null`.
+  - For Administrative Boundaries: throws `ArgumentError`, preventing boundaries from being scheduled as activities.
+- **DayPickerBottomSheet Component:** Created `day_picker_bottom_sheet.dart` to let users choose an active day from a selected itinerary:
+  - Fetches itinerary days using `ItineraryRepository.getItineraryDetail(itineraryId)`.
+  - Implements loading indicator, error state with retry button, and empty state with informative prompt when the itinerary has 0 days (`"Lịch trình này chưa có ngày nào. Vui lòng mở chi tiết lịch trình để thêm ngày trước."`).
+  - Utilizes `Material` with `ConstrainedBox` at the sheet root to prevent Flutter's ink splash assertions on `ListTile`.
+- **ItineraryPickerBottomSheet Schedule Mode:**
+  - Added `ItineraryPickerMode.scheduleActivity` and `showForSchedule` static method.
+  - Renders title `'Lên lịch vào chuyến đi'` with a `'Chọn'` button for each itinerary.
+  - Zero-day guard: when user taps an itinerary with `totalDays == 0`, shows SnackBar notice and stays on the picker sheet.
+  - Upon valid selection, dismisses sheet and returns `ItinerarySummary`.
+- **ActivityFormBottomSheet Pre-population:**
+  - Extended `ActivityFormBottomSheet`, `showActivityFormDialog`, and `showActivityFormBottomSheet` with optional `initialLocation: LocationSearchResult?`.
+  - In `initState()`, pre-populates activity name and location parameters (respecting canonical place ID vs coordinate exclusivity).
+- **LocationPickerSheet Orchestration:**
+  - Integrated `_handleScheduleActivity` bottom sheet sequence: `ItineraryPickerBottomSheet.showForSchedule` → `DayPickerBottomSheet.show` → `showActivityFormBottomSheet`.
+  - Added `ElevatedButton.icon` (`Key('schedule_activity_button')`) with title `"Lên lịch vào ngày"` for Internal Places, External POIs, and Manual Pins.
+  - Administrative Boundaries display disabled informational card without action button.
+- **ExploreScreen:** Passed `authNotifier: widget.authNotifier` to `showLocationPickerSheet`.
+
+### 2. Automated Test Suite & Verification
+- **New Unit & Widget Tests:**
+  - `test/features/itinerary/location_activity_mapper_test.dart`: 4/4 PASS.
+  - `test/features/itinerary/day_picker_test.dart`: 10/10 PASS (covering DayPicker UI states, Schedule mode, LocationPickerSheet integration, and ActivityForm pre-population).
+  - `test/features/itinerary/itinerary_picker_test.dart`: 12/12 PASS (Flow A regression check).
+  - Total tests in `test/features/itinerary/`: 26/26 PASS.
+- **Full Mobile Test Suite:** Executed `flutter test`: **400 PASS, 3 FAIL** (total 403 tests, +14 PASS, 0 regressions against pre-existing baseline).
+- **Backend Integration Suites:**
+  - `ItineraryPlaceTest`: **19/19 PASS** (BUILD SUCCESS, 28.27s).
+  - `ActivityLocationTest`: **24/24 PASS** (BUILD SUCCESS, 26.42s).
+- **Static Analysis:** Executed `flutter analyze --no-pub`: 0 issues found in all new and modified code.
+
+### 3. Deliverables & Acceptance
+- Acceptance report: `Travel_Planner/docs/verification/phase-6/PHASE-6A.2-ACCEPTANCE-REPORT.md`.
+- Development log: Updated with Session 61.
+- Git policy compliance: STRICTLY NO COMMIT, NO PUSH observed. Phase 6A.2 completed and ready for acceptance.
+
+## Session 62 — 2026-11-12
+**Focus:** Phase 6A.3 — End-to-End Integration & UX Hardening
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+
+### 1. Architectural & UX Hardening
+- **Cross-Flow Coexistence Verification:** Validated that Flow A (Save Place to Itinerary) and Flow B (Schedule as Activity) operate completely independently without cross-side-effects:
+  - Saving a Place to `itinerary_places` creates zero activities.
+  - Scheduling an Activity creates zero unwanted associations in `itinerary_places`.
+  - Both flows cleanly support the same Internal Place.
+- **Repeat Save Guard Hardened:**
+  - Added `_savedItineraryIds.contains(itinerary.itineraryId)` in `_handleSaveToItinerary` (`itinerary_picker_bottom_sheet.dart`) to immediately discard redundant tap events on already-saved itineraries.
+- **Chronological Day Ordering:**
+  - Enforced explicit ascending sort on itinerary days in `day_picker_bottom_sheet.dart` (`..sort((a, b) => a.dayNumber.compareTo(b.dayNumber))`).
+- **Responsive Overflow Prevention:**
+  - Ensured dual action buttons in `location_picker_sheet.dart` use `Expanded` with single-line ellipsis truncation, eliminating `RenderFlex` overflow risks on small viewports (320px-360px).
+- **Error & Feedback Polish:**
+  - All user-facing error messages confirmed in natural, user-friendly Vietnamese without debug traces.
+
+### 2. Automated Test Suite & Verification
+- **New E2E Integration Suite:** Created `test/features/itinerary/phase_6a_e2e_integration_test.dart` containing 10 passing tests (10/10 PASS):
+  - End-to-end Flow A save execution with UI feedback.
+  - Flow A 409 Conflict graceful notification without application crash.
+  - Flow A multi-tap double-submission prevention.
+  - Flow B Internal Place scheduling with canonical place ID and null coordinate invariants.
+  - Flow B External POI scheduling with coordinate snapshot and null canonical place ID.
+  - Flow B zero-day itinerary warning and progression guard.
+  - LocationPickerSheet full integration with dual action buttons.
+  - Administrative boundary exclusion in UI and mapper (`ArgumentError`).
+  - Cross-flow independence and coexistence verification.
+- **Subtotal in `test/features/itinerary/`:** **36/36 PASS (100%)**.
+- **Full Mobile Test Suite:** Executed `flutter test`: **410 PASS, 3 FAIL** (total 413 tests, +10 PASS, 0 regressions against pre-existing baseline).
+- **Backend Integration Suites:**
+  - `ItineraryPlaceTest`: **19/19 PASS** (BUILD SUCCESS).
+  - `ActivityLocationTest`: **24/24 PASS** (BUILD SUCCESS).
+  - `ItineraryCloneTest`: **11/11 PASS** (BUILD SUCCESS).
+  - Total backend tests: **54/54 PASS**.
+- **Static Analysis:** Executed `flutter analyze --no-pub`: 0 issues found in all Phase 6A code.
+
+### 3. Deliverables & Acceptance
+- Acceptance report: `Travel_Planner/docs/verification/phase-6/PHASE-6A.3-ACCEPTANCE-REPORT.md`.
+- Development log: Updated with Session 62.
+- Git policy compliance: STRICTLY NO COMMIT, NO PUSH observed. Phase 6A.3 completed and Phase 6A officially closed.
+
+## Session 63 — 2026-11-12
+**Focus:** Mobile Baseline Test Remediation — Post Phase 6A
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+
+### 1. Root Cause Analysis & Remediation
+- **Issue 1: `test/explore_test.dart:96` (`CreatorSummary` Display Name Fallback):**
+  - *Symptom:* `Expected 'traveller_bob', Actual 'Người dùng'`.
+  - *Root Cause Analysis:* In Phase 3, the project deliberately decoupled login credentials (`username`) from public identity (`handle`, `fullName`, `displayName`) for security and privacy protection (`user_handle_test.dart:295-320`). Production implementation `CreatorSummary.displayName` correctly falls back to `@handle` or `'Người dùng'`, never leaking private `username`. `explore_test.dart` contained an outdated legacy assertion pre-dating this contract.
+  - *Remediation:* Updated `explore_test.dart` to assert that when `fullName` is empty, `displayName` prefers `@handle` or defaults to `'Người dùng'`, maintaining the privacy guarantee.
+- **Issue 2: `test/features/social/rating_ui_layout_test.dart:153` (Rating Dialog on 360x640):**
+  - *Symptom:* `Found 0 widgets with type "AlertDialog"` (tap missed at `Offset(98.6, 651.6)` > 640 viewport height).
+  - *Root Cause Analysis:* Later commits (`0ded0d8`, `5bf77fe`) inserted Saved Places and Map Preview sections above Comments and Ratings in `ItineraryDetailScreen`, increasing preceding scroll height by ~350px. The original drag offset of `-900` left the "Chỉnh sửa" button just below the viewport.
+  - *Remediation:* Calibrated scroll drag offset from `-900` to `-1200`. The rating dialog opened cleanly with zero RenderFlex overflow.
+- **Issue 3: `test/features/social/rating_ui_layout_test.dart:274` (Comments Section Precedes Rating Section):**
+  - *Symptom:* `Found 0 widgets with text "Đánh giá (5)"`.
+  - *Root Cause Analysis:* In `ItineraryDetailScreen`, `ItineraryCommentsSection` is already ordered strictly before `_buildRatingSection`. However, a drag offset of `-350` was insufficient to pull the rating header into the lazy sliver viewport after header content grew.
+  - *Remediation:* Calibrated scroll drag offset from `-350` to `-700`. Both sections render simultaneously and `commentsTop < ratingTop` assertion passes cleanly.
+
+### 2. Automated Test Suite & Verification
+- **Targeted Suites:**
+  - `test/explore_test.dart`: **16/16 PASS**.
+  - `test/features/social/`: **14/14 PASS**.
+  - `test/features/itinerary/` (Phase 6A): **36/36 PASS** (100% regression-free).
+- **Full Mobile Test Suite:** Executed `flutter test`:
+  - **Pre-remediation:** 410 PASS, 3 FAIL (total 413).
+  - **Post-remediation:** **413 PASS, 0 FAIL, 0 SKIPPED (100% PASS)**.
+- **Static Analysis:** Executed `flutter analyze --no-pub`: 0 errors.
+
+### 3. Deliverables & Acceptance
+- Verification report: `Travel_Planner/docs/verification/post-phase-6a/mobile-baseline-remediation-report.md`.
+- Development log: Updated with Session 63.
+- Git policy compliance: STRICTLY NO COMMIT, NO PUSH observed. Flutter Mobile test suite achieved 100% clean baseline.
+
+
+## Session 64 — 2026-11-12
+**Focus:** Phase 6B.0 — Community Feed / Discovery: Architecture Audit & Technical Design
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** AUDIT & TECHNICAL DESIGN ONLY (Zero source code changes, zero database schema migrations)
+
+### 1. Architecture Audit & Core Findings
+- **Backend Model & Social Infrastructure:**
+  - Audited all 24 JPA entities across 22 MySQL tables. Existing social components (`Rating`, `Favorite`, `Comment`, `Friendship`, `Follow`, `Conversation`, `Message`) are fully mapped and operational.
+  - Confirmed that NO `Post`, `PostMedia`, `PostLike`, `PostComment`, or `PostReport` entities currently exist.
+- **Mobile Navigation Analysis:**
+  - Audited `MainNavigationShell` (5 tabs) and `CommunityScreen` (`features/messaging/presentation/screens/community_screen.dart`).
+  - Critical Discovery: While bottom navigation tab 1 is labeled "Cộng đồng" (`Icons.group`), it currently exclusively hosts private Chat, Friends, and Friend Requests. There is no social post feed on mobile.
+- **Web Admin Audit:**
+  - Confirmed only Place Management (`AdminPlacesScreen`) and Auth are functional. Subsystems `moderation/`, `itineraries/`, `comments/`, `users/`, and `violations/` contain only `.gitkeep`. Community moderation in Phase 6B.5 will establish the Web Admin moderation foundation.
+- **Media Architecture:**
+  - Verified `CloudinaryImageUploadService` (`POST /api/media/images`, max 5MB, JPEG/PNG/WebP magic-byte verified). Fully reusable for community post photo uploads without backend upload service changes.
+
+### 2. Technical Design & Architecture Decisions
+- **Content Model (ADR-6B-01):** Selected Model A (Standalone `Post` Entity) over activity-based synthesis. Ensures clear decoupling, support for standalone photo/text travel posts, and high-performance indexing.
+- **Navigation Architecture (ADR-6B-02):** Recommended Option B (Restructuring Tab 1 "Cộng đồng" to feature Community Feed as the primary view, with prominent top AppBar entry points for Chat and Friends). Flagged for user confirmation (`PENDING USER DECISION`).
+- **Interaction Model (ADR-6B-03):** Strictly decoupled `PostLike` and `PostComment` from Itinerary `Favorite` and `Comment` to preserve domain clarity and prevent polymorphic table pollution.
+- **Attached Itinerary Privacy Barrier (ADR-6B-04):** Enforced strict security isolation. If a referenced itinerary is `PRIVATE`, `HIDDEN`, or `DELETED`, the post renders a safe placeholder card without leaking private itinerary metadata.
+- **Performance & Indexing (ADR-6B-05):** Proposed 5 compound indexes. Offset pagination for MVP with an upgrade path to Keyset/Cursor pagination in Phase 6B.6. Chronological feed for MVP.
+
+### 3. Deliverables & Acceptance
+- Created complete documentation suite under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `01-current-architecture-audit.md`
+  - `02-community-feed-product-design.md`
+  - `03-community-feed-data-architecture.md` (includes PlantUML ERD)
+  - `04-community-feed-api-design.md` (11 REST endpoints with DTOs)
+  - `05-feed-query-performance-security.md`
+  - `06-phase-6b-implementation-roadmap.md` (Sub-phases 6B.0 through 6B.6)
+  - `07-phase-6b-architecture-decision-record.md` (7 ADRs)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md`
+- Copied acceptance report to `Travel_Planner/docs/verification/phase-6/PHASE-6B.0-ACCEPTANCE-REPORT.md`.
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Status: Phase 6B.0 AUDIT & DESIGN ACCEPTED; implementation of Phase 6B.1 is NOT AUTHORIZED until user approval of design decisions.
+
+
+## Session 65 — 2026-11-12
+**Focus:** Phase 6B.0 — Final Architecture Design Revision (User-Approved Decisions Integration)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** DESIGN REVISION ONLY (Zero source code changes, zero database schema migrations)
+
+### 1. User-Approved Decisions Incorporated
+- **ADR-6B-02 (Mobile Community Navigation):** Formally adopted **Option A (Feed-First with AppBar Action Icons)**. Bottom bar preserves 5 tabs; Tab 1 transitions to `CommunityFeedScreen`; top AppBar houses action shortcuts for Chat (`Icons.chat_bubble_outline` with unread badge) and Friends (`Icons.people_outline` with request badge). Existing Chat, Friends, and Invitation screens/routes remain 100% operational.
+- **ADR-6B-04 (Itinerary Attachment):** Formally adopted **Both Owned and Other Users' Public Itineraries**. Authors may attach any active public itinerary. Clearly separated **Post Author** from **Itinerary Owner** in UI card. Established fail-safe privacy barrier: if an attached itinerary becomes private or deleted, the post renders a safe fallback card without leaking private metadata.
+- **ADR-6B-05 (Post Comments):** Formally adopted **Flat Comments Only**. Removed `parent_comment_id` completely from `post_comments` table, ERD, and API DTOs.
+- **ADR-6B-06 (FRIENDS Visibility):** Formally adopted **Friendship Two-Way**. Access to `FRIENDS` posts is strictly gated on bidirectional active `Friendship` (`status = 'ACCEPTED'`). Unidirectional follow does not grant access.
+
+### 2. Technical Clarifications & Hardening
+- **Cloudinary Media Ownership Audit:** Identified that `POST /api/media/images` requires JWT authentication but currently does not record ownership in MySQL. Designed server-side whitelist validation in `PostService` and permanent association in `post_media`.
+- **Query Performance Strategy:** Established a Two-Query Strategy (Query 1: Paginated posts + `@ManyToOne` associations; Query 2: Batch fetch media by post IDs) to prevent Hibernate collection pagination memory warnings (`HHH000104`).
+- **Index Redundancy Audit:** Verified that `CONSTRAINT uk_post_likes UNIQUE (post_id, user_id)` in MySQL InnoDB automatically provides the required composite index. Redundant secondary index removed.
+
+### 3. Deliverables & Documentation
+- Synchronized all 8 design artifacts under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `01-current-architecture-audit.md` (Revised)
+  - `02-community-feed-product-design.md` (Revised)
+  - `03-community-feed-data-architecture.md` (Revised)
+  - `04-community-feed-api-design.md` (Revised)
+  - `05-feed-query-performance-security.md` (Revised)
+  - `06-phase-6b-implementation-roadmap.md` (Revised)
+  - `07-phase-6b-architecture-decision-record.md` (Revised, all ADRs marked APPROVED BY USER)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md` (Revised & copied to `docs/verification/phase-6/`)
+  - `PHASE-6B.0-FINAL-DESIGN-REVISION-REPORT.md` (Created)
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Status: Phase 6B.0 Final Design Revision ACCEPTED; ready for user review to authorize Phase 6B.1.
+
+
+## Session 66 — 2026-11-12
+**Focus:** Phase 6B.0 — Final Design Defect Remediation (Media Ownership, ADR Statuses, Lifecycle Invariants)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** DESIGN AND DOCUMENTATION ONLY (Zero source code modifications, zero database migrations)
+
+### 1. Remediated Architecture & Security Deficiencies
+- **Cloudinary Media Asset Ownership Model (ADR-6B-08):**
+  - *Identified Security Defect:* URL whitelisting does not prove ownership; existing `POST /api/media/images` accepts files without persisting ownership metadata in MySQL.
+  - *Remediation Design:* Adopted Design A (`media_assets` table tracking `uploaded_by`, `cloudinary_public_id`, `secure_url`, and `status`). Enforced strict validation during post creation rejecting unowned or previously attached images with `403 Forbidden`. Scheduled daily cleanup cron and async Cloudinary deletion for unattached assets.
+- **ADR Register Status Reclassification:**
+  - Formally reclassified ADRs: 6 user-approved decisions marked `APPROVED BY USER` (ADR-6B-01 through ADR-6B-06); 3 engineering proposals marked `PROPOSED (ACCEPTED TECHNICAL DESIGN)` (ADR-6B-07 Moderation Lifecycle, ADR-6B-08 Media Asset Ownership, ADR-6B-09 Multi-Query Strategy).
+- **Itinerary & Account Lifecycle Specifications:**
+  - Exhaustively documented the 5 lifecycle cases for referenced itineraries and banned accounts. Enforced independent authorization checks ensuring public posts never leak private itinerary metadata when an itinerary becomes `PRIVATE`, `DELETED`, `HIDDEN`, or its owner is `BANNED`.
+- **Multi-Query Feed Strategy & Pagination Hardening:**
+  - Detailed the coordinated 3-query strategy (Query 1: Paginated posts + single-valued associations; Query 2: Batch fetch media by post IDs; Query 3: Batch fetch viewer like state). Eliminates Hibernate collection pagination memory warnings (`HHH000104`) and N+1 query loops.
+- **Navigation Badges Audit:**
+  - Verified that pending friend requests count is supported via `totalElements` on `GET /api/users/me/friend-requests?direction=received`, whereas a global unread messages count endpoint does not currently exist and is scheduled for addition in Phase 6B.2.
+
+### 2. Deliverables & Documentation Updates
+- Updated all design artifacts under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `01-current-architecture-audit.md` (Remediated)
+  - `02-community-feed-product-design.md` (Remediated)
+  - `03-community-feed-data-architecture.md` (Remediated)
+  - `04-community-feed-api-design.md` (Remediated)
+  - `05-feed-query-performance-security.md` (Remediated)
+  - `06-phase-6b-implementation-roadmap.md` (Remediated)
+  - `07-phase-6b-architecture-decision-record.md` (Remediated)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md` (Remediated & copied to `docs/verification/phase-6/`)
+  - `PHASE-6B.0-FINAL-DEFECT-REMEDIATION-REPORT.md` (Created)
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Status: Phase 6B.0 Remediation ACCEPTED WITH LIMITATIONS; awaiting user authorization to proceed to Phase 6B.1.
+
+
+## Session 67 — 2026-11-12
+**Focus:** Phase 6B.0 — Final Media Architecture and Security Consistency Patch
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** DESIGN AND DOCUMENTATION ONLY (Zero source code modifications, zero database migrations)
+
+### 1. Key Architectural & Security Resolutions
+- **Media Asset API — Internal Identifiers (`mediaAssetIds`):**
+  - Completely replaced raw `imageUrls` with internal `mediaAssetIds: List<Long>` in `CreatePostRequest`.
+  - Documented superiority of internal IDs: indexed primary key lookup ($O(1)$ PK vs B-tree scans on `VARCHAR(500)` URLs), elimination of URL canonicalization flaws (protocol variations, percent-encoding, CDN transformations), prevention of URL forgery/injection, and clean decoupling of physical CDN paths from domain entities.
+  - Specified updated `POST /api/media/images` response payload returning both `mediaAssetId` and `secureUrl`.
+- **Media Relationship Model — Committed to Option B (Association Table `post_media`):**
+  - Eliminated relational duplication by committing to Option B:
+    - `media_assets` acts purely as a media catalog (`media_asset_id`, `uploaded_by`, `cloudinary_public_id`, `secure_url`, `media_type`, `status`, `created_at`) with **ZERO** post references.
+    - Association table `post_media` manages attachment sequence (`display_order`) and enforces the MVP rule of `1 asset = 1 post` via `CONSTRAINT uk_post_media_asset UNIQUE (media_asset_id)`.
+- **Media Lifecycle, Concurrency & Side-Effect Boundaries:**
+  - Specified 4 lifecycle states: `UNATTACHED` $\rightarrow$ `ATTACHED` $\rightarrow$ `DELETING` $\rightarrow$ `DELETED`.
+  - Post attachment uses atomic conditional update (`UPDATE media_assets SET status = 'ATTACHED' WHERE media_asset_id IN (:ids) AND uploaded_by = :userId AND status = 'UNATTACHED'`), rejecting mismatched row counts with `409 Conflict`.
+  - Concurrency collision with 24-hour orphan cleanup cron eliminated via atomic `status = 'DELETING'` transition.
+  - Post soft deletion retains media `ATTACHED` for restoration; hard purge transitions media to `DELETING`.
+  - Enforced external side-effect boundary: external Cloudinary HTTP deletions execute strictly **AFTER** database commit (`TransactionSynchronizationManager` or Spring event listeners).
+  - Cloudinary async retry policy specified with exponential backoff (3 attempts) and dead-letter state for manual reconciliation.
+- **Account Status Policy for `UserStatus` (`ACTIVE`, `INACTIVE`, `BANNED`):**
+  - Fully mapped behavior across feeds, post detail, and attached itinerary cards.
+  - `INACTIVE` accounts excluded from feeds; post detail returns 404 to other users; attached itinerary cards show `CREATOR_UNAVAILABLE` fallback; posts immediately reappear upon self-reactivation.
+  - `BANNED` accounts completely hidden from all feeds; direct access returns `404 Not Found` (strictly concealing banned content from enumeration); attached itinerary cards show `CREATOR_UNAVAILABLE` fallback with zero metadata leakage; posts immediately reappear if unbanned by admin.
+- **Post Authorization Consistency Across All 8 Endpoints:**
+  - Unified authorization rules across `/feed`, `/feed/following`, `/posts/{id}`, comments list/create, likes add/remove, and report.
+  - Standardized semantic distinctions: `401 Unauthorized` (unauthenticated), `403 Forbidden` (authenticated but unauthorized, e.g. non-friend on `FRIENDS` post), `404 Not Found` (non-existent, soft-deleted, moderated, banned, or private post accessed by non-author).
+- **Navigation Badges Reality Grounded:**
+  - Friend request count verified to be supported via existing `totalElements` on `GET /api/users/me/friend-requests?direction=received` (`FriendshipController.java`).
+  - Confirmed absence of global aggregate unread chat endpoint; committed to **Option B** by adding `GET /api/conversations/unread-total` to the Phase 6B.2 backend roadmap, with mobile using presence indicator in the interim.
+- **Security Claims Grounded in Reality:**
+  - Explicitly corrected past overstated assertions: classified media ownership validation as `"DESIGN GAP ADDRESSED — IMPLEMENTATION AND SECURITY VERIFICATION PENDING"`.
+  - Transparently stated that the current running codebase does not yet enforce media ownership.
+
+### 2. Deliverables & Documentation Updates
+- Updated all synchronized design artifacts under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `03-community-feed-data-architecture.md` (Patched: Option B DDL, PlantUML ERD, lifecycle, account status)
+  - `04-community-feed-api-design.md` (Patched: `mediaAssetIds`, `POST /api/media/images` response, authorization matrix, `GET /api/conversations/unread-total`)
+  - `05-feed-query-performance-security.md` (Patched: Option B multi-query join, offset pagination edge cases, security claims)
+  - `06-phase-6b-implementation-roadmap.md` (Patched: 6B.1, 6B.2, and 6B.6 deliverables)
+  - `07-phase-6b-architecture-decision-record.md` (Patched: ADR-6B-08 Option B association model)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md` (Updated in both `phase-6/` and `phase-6b-design/`)
+- Created comprehensive final consistency deliverable:
+  - `Travel_Planner/docs/verification/phase-6/PHASE-6B.0-FINAL-ARCHITECTURE-CONSISTENCY-REPORT.md`
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Final Status: Phase 6B.0 Architecture Consistency Patch ACCEPTED WITH LIMITATIONS. Implementation of Phase 6B.1 remains STRICTLY NOT AUTHORIZED pending user instruction.
+
+
+## Session 68 — 2026-11-12
+**Focus:** Phase 6B.0 — Final Architecture Acceptance & Deep Consistency Patch (Error Policy, Cloudinary Compensation, Worker Lease Claims, UserStatus Matrix, Itinerary Privacy)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** DOCUMENTATION ONLY (Zero source code modifications, zero database migrations)
+
+### 1. Six Targeted Architecture & Security Resolutions
+- **ISSUE 1 — Unified HTTP Error Codes & TOCTOU Elimination for Media Attachment:**
+  - Resolved status code ambiguity between `403` and `409` caused by single-step SQL updates.
+  - Established unambiguous HTTP error mapping:
+    - Duplicate IDs in request or length $> 5$ $\rightarrow$ `400 Bad Request`.
+    - Non-existent IDs $\rightarrow$ `404 Not Found`.
+    - Unowned assets $\rightarrow$ `404 Not Found` (Anti-Enumeration Policy concealing other users' asset IDs to prevent ID harvesting oracles).
+    - Already attached assets $\rightarrow$ `409 Conflict`.
+    - Assets in `DELETING` or `DELETED` status $\rightarrow$ `409 Conflict`.
+  - Eliminated TOCTOU race conditions via pessimistic write locking inside atomic `@Transactional` boundary: `SELECT ma FROM MediaAsset ma WHERE ma.mediaAssetId IN (:sortedIds) FOR UPDATE`.
+  - Maintained engine-level guarantee: `CONSTRAINT uk_post_media_asset UNIQUE (media_asset_id)` prevents concurrent double attachment.
+- **ISSUE 2 — Cloudinary Compensating Deletion on Database Save Failure:**
+  - Designed inline compensating deletion in `ImageUploadService`: if MySQL `media_assets` insert throws an exception, `cloudinary.uploader().destroy(publicId)` immediately deletes the uploaded remote file.
+  - Acknowledged real-world distributed transaction limitations (network partition, node crash); added structured ERROR logging (`EVENT=CLOUDINARY_ORPHAN_COMPENSATION_FAILED`).
+  - Added scheduled weekly remote Cloudinary folder reconciliation script for Phase 6B.6 using Admin API to prune unreferenced remote assets older than 7 days.
+  - Option B schema (`media_assets` and `post_media`) preserved without unnecessary complexity.
+- **ISSUE 3 — Retry, Worker Lease Claims & Crash Recovery for Media Cleanup:**
+  - Retained strict 4-state lifecycle (`UNATTACHED`, `ATTACHED`, `DELETING`, `DELETED`) without adding extraneous enums.
+  - Added tracking and locking columns to `media_assets`: `retry_count`, `next_retry_at`, `last_error`, `locked_at`, `locked_by`.
+  - Implemented worker lease claim mechanism (`locked_at < NOW() - 10 MINUTE`) enabling multi-instance workers to operate without collision and allowing automatic recovery after node crashes.
+  - Implemented idempotent deletion handling: Cloudinary response `not found` is treated as success and transitions row to `DELETED`.
+  - Classified errors: transient (exponential backoff with jitter) vs permanent (dead-letter threshold `retry_count = 999` with manual reconciliation alerts).
+  - Maintained absolute external side-effect boundary: Cloudinary deletions execute strictly **AFTER** database commit.
+- **ISSUE 4 — Comprehensive `UserStatus` Matrix (`ACTIVE`, `INACTIVE`, `BANNED`):**
+  - Fully mapped behavior across feeds, post detail, attached itinerary cards, and write operations.
+  - `INACTIVE` accounts: excluded from all feeds; post detail returns `404 Not Found` to other viewers; write operations (post creation, comment, like, report) blocked with `403 Forbidden`.
+  - Differentiated `INACTIVE` (voluntary deactivation/unverified, self-reactivated via auth/login) from `BANNED` (punitive administrative sanction, admin-only unban).
+  - Clarified that `GET /api/community/posts/{id}` is a read-only endpoint that cannot trigger account reactivation.
+  - Posts and attached itinerary cards automatically reappear when account status returns to `ACTIVE`.
+- **ISSUE 5 — Attached Itinerary Display & Privacy Invariants:**
+  - Formally established that **Post Author** and **Itinerary Owner** are independent identities. Post ownership never confers permission to view private itinerary data.
+  - Enforced independent evaluation: attached itinerary card renders ONLY if `itinerary.visibility == 'PUBLIC'` AND `itinerary.status == 'ACTIVE'` AND `itinerary.owner.status == 'ACTIVE'`.
+  - If any condition fails, post displays normally while DTO returns `itinerary = null` with specific reason code (`CREATOR_UNAVAILABLE`, `PRIVATE_OR_UNAVAILABLE`, etc.), leaking zero title, cover, duration, budget, or activity metadata.
+- **ISSUE 6 — Technical Claims Grounding & Navigation Badge Phasing:**
+  - Corrected InnoDB clustered index lookup description from $O(1)$ to balanced B+Tree search with $O(\log n)$ page inspection complexity.
+  - Disentangled URL tampering / resource authorization from SQL injection (which relies on parameter binding).
+  - Navigation badge reality: verified friend requests badge supported via existing `totalElements`; confirmed absence of global unread chat endpoint; decided to **HIDE** unread badge in Phase 6B MVP until `GET /api/conversations/unread-total` is delivered in Phase 6B.2, avoiding inaccurate partial cache representations.
+
+### 2. Deliverables & Documentation Updates
+- Updated design suite under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `02-community-feed-product-design.md` (Patched: unread chat badge hidden in MVP)
+  - `03-community-feed-data-architecture.md` (Patched: DDL with retry/lease columns, write lock validation, compensating action, `UserStatus` matrix, itinerary privacy)
+  - `04-community-feed-api-design.md` (Patched: HTTP error mapping table, authorization matrix with `INACTIVE`, badge policy)
+  - `05-feed-query-performance-security.md` (Patched: $O(\log n)$ B+Tree complexity, SQL injection distinction, itinerary privacy barrier)
+  - `06-phase-6b-implementation-roadmap.md` (Patched: Phase 6B.1, 6B.2, and 6B.6 deliverables)
+  - `07-phase-6b-architecture-decision-record.md` (Patched: ADR-6B-02 and ADR-6B-08)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md` (Synchronized in both `phase-6/` and `phase-6b-design/`)
+- Created final acceptance deliverable:
+  - `Travel_Planner/docs/verification/phase-6/PHASE-6B.0-FINAL-ARCHITECTURE-ACCEPTANCE-REPORT.md`
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Final Status: Phase 6B.0 Final Architecture Acceptance ACCEPTED WITH LIMITATIONS. Implementation of Phase 6B.1 remains STRICTLY NOT AUTHORIZED pending explicit user approval.
+
+
+## Session 69 — 2026-11-12
+**Focus:** Phase 6B.0 — Final Lifecycle & Privacy Hardening (Claim Tokens, Post Purge Cascade, Dead-Letter Recovery, Itinerary Privacy DTO, UserStatus Empirical Verification)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** DOCUMENTATION ONLY (Zero source code modifications, zero database migrations)
+
+### 1. Six Final Lifecycle & Privacy Resolutions
+- **ISSUE 1 — Media Asset Claim Token & Stale Worker Protection:**
+  - Designed unique UUID `claim_token` assigned during short batch lease transactions (< 50ms) using MySQL 8 `SKIP LOCKED`.
+  - Transaction commits immediately, releasing row locks prior to external Cloudinary HTTP calls.
+  - Result update checks `WHERE media_asset_id = :id AND claim_token = :token`. If `affectedRows == 0`, a stale worker discards DB updates to prevent overwriting newer owners.
+  - Maintained idempotency: Cloudinary response `"not found"` is treated as a deletion success, safely transitioning DB state to `DELETED`.
+- **ISSUE 2 — Media Asset Lifecycle on Post Deletion & Cascade Ordering:**
+  - Formally differentiated Post Soft-Delete (`status = 'DELETED'`) vs Post Hard-Purge. Soft-delete retains media `ATTACHED` to allow full post restoration within the 30-day grace window.
+  - Resolved `post_media` `ON DELETE CASCADE` hazard: Post purge service explicitly queries attached `media_asset_id`s and transitions them to `DELETING` before deleting `post_media` and `posts` rows, preventing untracked orphan records in remote CDN storage.
+- **ISSUE 3 — Retry Exhaustion & Dead-Letter Recovery:**
+  - Preserved strict 4-state lifecycle (`UNATTACHED`, `ATTACHED`, `DELETING`, `DELETED`) without extraneous enum pollution.
+  - Added `dead_lettered_at DATETIME(6) NULL` to replace arbitrary magic values (`retry_count = 999`).
+  - Specified exponential backoff with jitter (max 5 retries). Permanent errors or exhausted retries mark `dead_lettered_at = NOW()`, stopping infinite worker loops.
+  - Designed manual administrative recovery endpoint (`POST /api/admin/media-assets/{id}/retry`) resetting retry counters for manual or bulk re-evaluation.
+- **ISSUE 4 — Itinerary Privacy & Generic Reason Code:**
+  - Eliminated leakage of sensitive creator status (`BANNED`/`INACTIVE`) or itinerary state (`PRIVATE`/`DELETED`) to regular clients.
+  - Standardized client DTO payload: `itinerary: null`, `itineraryUnavailable: true`, `itineraryUnavailableReason: "UNAVAILABLE"`.
+  - Detailed diagnostic causes are restricted strictly to internal server logs; zero private trip metadata (title, cover, budget, activities) is transmitted when unavailable.
+- **ISSUE 5 — `UserStatus.INACTIVE` Empirical Source Verification & Open Question:**
+  - Conducted rigorous source code audit (`AuthServiceImpl.java:101-103`, `UserDetailsServiceImpl.java:28-36`).
+  - Disproved assumption that `INACTIVE` accounts self-reactivate upon login: login explicitly throws `ForbiddenException` (HTTP 403), Spring Security sets `disabled(true)`, and no account activation controller/service exists.
+  - Recorded as an **`OPEN QUESTION`** requiring product decision before Phase 6B.1 (Admin-only reactivation vs self-activation via OTP/Email). In Phase 6B.0, `INACTIVE` users remain blocked from login and all community write actions.
+- **ISSUE 6 — Anti-Enumeration & Locking Semantics:**
+  - Clarified anti-enumeration (`404 Not Found` for unowned assets) as resource concealment, not an authorization substitute.
+  - Standardized pessimistic locking using Spring Data JPA `@Lock(LockModeType.PESSIMISTIC_WRITE)` with ascending ID sorting to guarantee deadlock-free execution.
+
+### 2. Deliverables & Documentation Updates
+- Updated all synchronized design artifacts under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `03-community-feed-data-architecture.md` (Patched: DDL with `claim_token`, `dead_lettered_at`, worker lease claims, post purge cascade ordering, `UserStatus` empirical grounding)
+  - `04-community-feed-api-design.md` (Patched: DTO payload `itineraryUnavailableReason = "UNAVAILABLE"`, anti-enumeration vs authorization clarification, open question note for `INACTIVE`)
+  - `05-feed-query-performance-security.md` (Patched: index cleanup, worker claim token stale protection, distinction between anti-enumeration, authorization, and SQL injection)
+  - `06-phase-6b-implementation-roadmap.md` (Patched: Phase 6B.1 DDL deliverables, Phase 6B.6 dead-letter recovery)
+  - `07-phase-6b-architecture-decision-record.md` (Patched: ADR-6B-04 reason code `"UNAVAILABLE"`, ADR-6B-08 claim tokens, purge lifecycle)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md` (Synchronized in both `phase-6/` and `phase-6b-design/`)
+- Created final comprehensive session deliverable:
+  - `Travel_Planner/docs/verification/phase-6/PHASE-6B.0-SESSION-69-FINAL-LIFECYCLE-PRIVACY-REPORT.md`
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Final Status: Phase 6B.0 Architecture Hardening ACCEPTED WITH LIMITATIONS. Implementation of Phase 6B.1 remains STRICTLY NOT AUTHORIZED pending explicit user approval.
+
+
+## Session 70 — 2026-11-12
+**Focus:** Phase 6B.0 — Final Concurrency & Lifecycle Consistency Correction (Lock Ordering, Batch Claim Tokens, Attachment/Cleanup Race Condition, Cloudinary Error Classification, Overstatement Downgrade)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** DOCUMENTATION ONLY (Zero source code modifications, zero database migrations)
+
+### 1. Six Targeted Technical & Concurrency Resolutions
+- **ISSUE 1 — JPA Lock Ordering & Deadlock Semantics Correction:**
+  - Corrected inaccurate statement from Session 69 claiming that ascending ID sorting in JPA `@Lock(PESSIMISTIC_WRITE)` with `IN (:ids)` eliminates deadlocks.
+  - Clarified that SQL `IN (:ids)` is an unordered set membership predicate. MySQL InnoDB acquires row locks based on index structure and query execution path, not Java collection order. Sorting IDs mitigates lock inversion risk, but does not guarantee lock acquisition sequence.
+  - Formally differentiated Attachment flow (JPA pessimistic lock on specific assets inside user transaction with REST error mapping) from Cleanup Worker flow (atomic batch claim via `SKIP LOCKED` in short independent transactions).
+  - Enforced service-level deadlock catch (`CannotAcquireLockException`) and bounded retry policy (`@Retryable(maxAttempts = 3)`).
+  - Evaluated 4 locking strategies: JPA `@Lock(PESSIMISTIC_WRITE)`, Native SQL `SELECT ... FOR UPDATE`, MySQL 8 `FOR UPDATE SKIP LOCKED`, and Conditional Atomic `UPDATE`.
+- **ISSUE 2 — Batch-Level Claim Token & Worker Execution Semantics:**
+  - Standardized on batch-level UUID `claim_token` for Cleanup Worker in MVP.
+  - Specified exact 7-step execution flow: (1) Generate batch UUID, (2) Short claim transaction updating up to 50 rows via `LIMIT 50` and `SKIP LOCKED`, (3) Commit transaction immediately (< 50ms) to release row locks, (4) Query back claimed assets using `SELECT ... WHERE claim_token = :token`, (5) Iterate in memory, (6) Invoke Cloudinary API outside transaction, (7) Commit result verifying `media_asset_id = :id AND claim_token = :token AND status = 'DELETING'`.
+  - Stale worker handling: Token protects DB update rights (`affectedRows == 0` discards update); idempotent handling when Cloudinary returns `not found`. Token lifecycle formally specified (cleared on delete, retry reschedule, dead-letter, or lease reclaim).
+- **ISSUE 3 — Attachment / Cleanup Race Condition & Invariant Protection:**
+  - Dedicated Section 3.4 added to Data Architecture detailing competition when an asset is `UNATTACHED` for > 24h while simultaneously being attached by user and swept by worker.
+  - Enforced single-winner invariant: only `UNATTACHED -> ATTACHED` OR `UNATTACHED -> DELETING` is permitted; never `ATTACHED -> DELETING` based on age.
+  - Specified multi-asset attachment atomicity: failure of any single asset in a batch (up to 5) triggers complete transaction rollback.
+  - Formulated comprehensive 6-scenario Race-Condition Matrix table.
+- **ISSUE 4 — Cloudinary Error Classification & Systemic Failure Protection:**
+  - Replaced crude error bucket with a 6-tier classification: Idempotent Success, Transient, Service Unavailable (5xx), Systemic Configuration Failure (Invalid credentials / 401), Permanent Asset Data Error (malformed public_id), and Unknown.
+  - Systemic Configuration Failure handling (`PROPOSED DESIGN`): Alerts operations, pauses worker / opens circuit breaker, and DOES NOT increment asset retry count or cause false dead-lettering.
+  - Specified retry policy without magic numbers: bounded 5 retries with exponential backoff + jitter; manual recovery endpoint `POST /api/admin/media-assets/{id}/retry`.
+- **ISSUE 5 — Post Purge Lifecycle & Cascading Invariants:**
+  - Confirmed cascade ordering: Query attached asset IDs, update to `DELETING`, delete `post_media`, delete `posts`, commit, then dispatch async Cloudinary deletion.
+  - Grounded schema invariants: `CONSTRAINT uk_post_media_asset UNIQUE` guarantees at engine level that 1 asset belongs to at most 1 post; soft-delete and moderation `HIDDEN` retain media `ATTACHED` to enable 30-day post restoration.
+- **ISSUE 6 — Downgrade of Overstated Claims & Evidence Categorization:**
+  - Systematically replaced unverified assertions ("triệt tiêu hoàn toàn", "deadlock-free", "bảo đảm tuyệt đối", "100% đồng bộ") with precise technical descriptions.
+  - Standardized evidence classification across documents: `VERIFIED IN SOURCE`, `VERIFIED IN DOCUMENTATION`, `PROPOSED DESIGN`, `OPEN QUESTION`, `NOT IMPLEMENTED`, `NOT VERIFIED AT RUNTIME`.
+
+### 2. Deliverables & Documentation Updates
+- Updated design artifacts under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `03-community-feed-data-architecture.md` (Patched: JPA deadlock analysis, Section 3.4 race condition matrix, 7-step batch token flow, Cloudinary error classification table, systemic failure circuit breaker, purge ordering)
+  - `04-community-feed-api-design.md` (Patched: Section 4.1 concurrency defense, deadlock retry, multi-asset atomicity)
+  - `05-feed-query-performance-security.md` (Patched: Section 4.4 batch claim token, query-back flow, token update rights boundary)
+  - `06-phase-6b-implementation-roadmap.md` (Patched: Phase 6B.1 locking mitigation, Phase 6B.6 batch claim token, query-back by token, error classification & circuit breaker)
+  - `07-phase-6b-architecture-decision-record.md` (Patched: ADR-6B-08 locking semantics, batch claim token, error classification, purge invariants)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md` (Synchronized in both `phase-6/` and `phase-6b-design/`)
+- Created final comprehensive session report:
+  - `Travel_Planner/docs/verification/phase-6/PHASE-6B.0-SESSION-70-CONCURRENCY-LIFECYCLE-CONSISTENCY-REPORT.md`
+- Runtime Verification Status: `NOT VERIFIED AT RUNTIME` (Awaiting Phase 6B.1 implementation approval).
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Final Status: Phase 6B.0 Concurrency & Lifecycle Consistency ACCEPTED WITH LIMITATIONS. Implementation of Phase 6B.1 remains STRICTLY NOT AUTHORIZED pending explicit user approval.
+
+
+## Session 71 — 2026-11-12
+**Focus:** Phase 6B.0 — Final Technical Clarification & Documentation Consistency (MySQL 8 SKIP LOCKED Claim Flow, Lifecycle vs Lease State, 10-Scenario Race Matrix, Post Retention Verification)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** DOCUMENTATION ONLY (Zero source code modifications, zero database migrations)
+
+### 1. Four Final Technical Clarifications & Hardening
+- **ISSUE 1 — MySQL 8 `SKIP LOCKED` Claim Flow & Eligibility Predicate:**
+  - Corrected description from pseudocode `UPDATE ... LIMIT 50 SKIP LOCKED` to canonical MySQL 8 two-step transaction pattern: (1) `SELECT media_asset_id FROM media_assets WHERE ... ORDER BY media_asset_id ASC LIMIT 50 FOR UPDATE SKIP LOCKED`, followed by (2) `UPDATE media_assets SET status = 'DELETING', claim_token = :claimToken, locked_at = NOW(), locked_by = :workerId WHERE media_asset_id IN (:claimedIds)`, committed in a short transaction (< 50ms) to release row locks before remote Cloudinary HTTP calls.
+  - Specified comprehensive eligibility predicate distinguishing: newly purged assets (`status = 'DELETING' AND locked_at IS NULL`), orphan assets (`status = 'UNATTACHED' AND created_at < NOW() - 24h`), expired leases (`locked_at < NOW() - 10m`), scheduled retries (`next_retry_at <= NOW()`), with strict exclusion of dead-lettered (`dead_lettered_at IS NOT NULL`), exhausted retries (`retry_count >= 5`), and actively leased records (`locked_at >= NOW() - 10m`).
+  - Labeled SQL examples as architectural illustrations/pseudocode; reiterated lock ordering note (`ORDER BY` affects result set ordering, not internal row-lock acquisition sequence; concurrency on MySQL 8 is `NOT VERIFIED AT RUNTIME`).
+- **ISSUE 2 — Asset Lifecycle State vs Worker Claim / Lease State:**
+  - Formally decoupled domain Asset Lifecycle State (stored in enum `media_assets.status`: `UNATTACHED`, `ATTACHED`, `DELETING`, `DELETED`) from Worker Claim / Lease State (operational metadata: `claim_token`, `locked_at`, `locked_by`, `next_retry_at`, `retry_count`, `dead_lettered_at`, `last_error`).
+  - Clarified that `DELETING` does NOT imply an asset is actively being processed by a worker; it can be awaiting claim, actively leased, expired and awaiting reclaim, or dead-lettered.
+  - Standardized state transition table; prohibited Cleanup Worker from transitioning `ATTACHED -> DELETING` based on asset age.
+  - Formally specified batch-level token ownership: token protects DB update rights, does not recall in-flight HTTP calls, and does not guarantee exactly-once Cloudinary execution.
+- **ISSUE 3 — Race Condition Matrix & Transaction Outcome Semantics:**
+  - Replaced imprecise statement ("Bên chiếm khóa trước commit trước") with rigorous conditional state transition semantics.
+  - Formulated an exhaustive 10-Scenario Race Condition Matrix covering: attach-before-cleanup, cleanup-before-attach, concurrent lock contention, attach rollback, worker crash during lease, lease expiration and reclaim, stale worker rejected by token, Cloudinary deletion success with worker crash before DB commit (idempotent recovery), deadlock retry, and multi-asset batch atomicity (failure of 1 asset rolls back entire post).
+  - Explicitly documented the worker crash trade-off: an asset in `DELETING` with an active lease cannot be attached to a Post during the 10-minute lease window.
+- **ISSUE 4 — Post Restore & Hard-Purge Lifecycle Verification:**
+  - Investigated the origin of the "30 days" post restore retention window across codebase, Function Specification, and ADRs: confirmed that soft-delete preserving media `ATTACHED` is a `PROPOSED DESIGN`, while the specific duration of "30 days" is an engineering assumption without official business approval, formally classified as **`OPEN QUESTION 2`** awaiting Product Owner sign-off.
+  - Standardized Post / Media Lifecycle Matrix across 6 domain actions.
+  - Formulated strict restore safety rules: restore permitted only before hard-purge, media must be `ATTACHED`, post cannot be restored once hard-purge commits or if any asset is `DELETING`/`DELETED`.
+  - Reaffirmed hard-purge cascading invariants: cascade ordering (`post_media` query -> asset `DELETING` -> `post_media` delete -> `posts` delete -> commit), uniqueness constraint `uk_post_media_asset`, and rollback atomicity.
+
+### 2. Deliverables & Documentation Updates
+- Updated design suite under `Travel_Planner/docs/verification/phase-6/phase-6b-design/`:
+  - `03-community-feed-data-architecture.md` (Patched: Section 3.1 lifecycle vs claim state, Section 3.4 10-scenario race matrix and worker crash trade-off, Section 3.5 MySQL 8 `SKIP LOCKED` 2-step claim flow, Section 3.7 post restore invariants and 30-day retention Open Question)
+  - `04-community-feed-api-design.md` (Patched: header Session 71 Patch)
+  - `05-feed-query-performance-security.md` (Patched: Section 4.4 MySQL 8 `SKIP LOCKED` batch claim flow, header Session 71 Patch)
+  - `06-phase-6b-implementation-roadmap.md` (Patched: Phase 6B.6 MySQL 8 `SKIP LOCKED` claim flow, retention window Open Question, header Session 71 Patch)
+  - `07-phase-6b-architecture-decision-record.md` (Patched: ADR-6B-07 retention window Open Question, ADR-6B-08 MySQL 8 `SKIP LOCKED` claim flow, header Session 71 Patch)
+  - `PHASE-6B.0-ACCEPTANCE-REPORT.md` (Synchronized in both `phase-6/` and `phase-6b-design/`)
+- Created final comprehensive session report:
+  - `Travel_Planner/docs/verification/phase-6/PHASE-6B.0-SESSION-71-FINAL-TECHNICAL-CLARIFICATION-REPORT.md`
+- Runtime Verification Status: `NOT VERIFIED AT RUNTIME` (Awaiting Phase 6B.1 implementation approval).
+- Git Policy Compliance: STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved with zero resets or code modifications.
+- Final Status: Phase 6B.0 Technical Clarification ACCEPTED WITH LIMITATIONS. Implementation of Phase 6B.1 remains STRICTLY NOT AUTHORIZED pending explicit user approval.
+
+
+## Session 72 — 2026-11-12
+**Focus:** Complete Full-Stack Implementation of Phase 6B — Social Feed, Posts, Media, Interactions, Itinerary Sharing & Admin Moderation (Phase 6B.1 to 6B.6)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** FULL-STACK IMPLEMENTATION & AUTOMATED VERIFICATION
+
+### 1. Implementation Summary Across Phases
+- **Phase 6B.1 — Backend Post Core & Media Asset Management:**
+  - Enums created: `MediaAssetStatus` (`UNATTACHED`, `ATTACHED`, `DELETING`, `DELETED`), `PostStatus` (`ACTIVE`, `HIDDEN`, `DELETED`), `PostVisibility` (`PUBLIC`, `FRIENDS`, `PRIVATE`), `ReportStatus` (`PENDING`, `RESOLVED`, `DISMISSED`).
+  - Entities created: `MediaAsset` (pure storage catalog, zero post foreign keys), `Post` (independent post entity), `PostMedia` (association entity with `CONSTRAINT uk_post_media_asset UNIQUE (media_asset_id)` enforcing 1 asset = 1 post), `PostLike`, `PostComment` (strictly flat, zero parent comment column per ADR-6B-05), `PostReport`.
+  - Repositories: `MediaAssetRepository` with pessimistic locking, MySQL 8 `SKIP LOCKED` batch query `findCandidateIdsForCleanup`, `claimBatch`, `recordRetryFailure`, `markDeadLettered`; `PostRepository` with public/following feed queries, atomic counter queries for `likeCount` and `commentCount`; `PostMediaRepository`, `PostLikeRepository`, `PostCommentRepository`, `PostReportRepository`, `MessageRepository.countTotalUnread`.
+  - Services: `PostService` & `PostServiceImpl` handling post CRUD, anti-enumeration (404 on unowned or non-existent media assets), attachment validation (`max 5`, `no duplicates`, `status == UNATTACHED`), optimistic likes, flat comments, report creation, admin moderation, and hard-purge cascading; `MediaCleanupService` implementing `@Scheduled` two-transaction MySQL 8 `SKIP LOCKED` claim flow with exponential backoff and circuit breaker; `ImageUploadService` compensating Cloudinary deletion on DB failure.
+  - Controllers: `CommunityPostController`, `AdminCommunityController`, `ImageUploadController`, `ConversationController` (`GET /api/conversations/unread-total`).
+- **Phase 6B.2, 6B.3, 6B.4 — Mobile Social Feed & Interactions:**
+  - Architecture: `CommunityPostRepository`, `CommunityFeedNotifier`, `PostModel`, `PostAuthorModel`, `PostItineraryModel`, `PostCommentModel`.
+  - Shell Integration: Tab 1 `CommunityScreen` wraps `CommunityFeedScreen` preserving shell test assertions and title.
+  - AppBar: Action shortcuts to Chat Inbox (with real-time unread badge), Friends & Requests (with badge), and Notification bell (navigating to `NotificationsScreen`).
+  - Feed-First Navigation: TabBar with "Dành cho bạn" (public feed) and "Đang theo dõi" (following feed). Client-side offset pagination deduplication by `postId`.
+  - Photo Grid: Responsive grid rendering 1 to 5 photos with image error fallbacks.
+  - Social Interactions: Optimistic like toggling with atomic rollback on failure; flat comments bottom sheet (`PostCommentsSheet`); post report dialog (`ReportPostDialog`); post create/edit flow (`CreatePostScreen`) supporting 0-5 media attachments and attached itineraries.
+  - Itinerary Privacy & Fallback: Attached itinerary displays only when `visibility == PUBLIC` and `status == ACTIVE`. When unavailable/private/deleted, renders airtight fallback banner with zero leaked metadata.
+- **Phase 6B.5 — Flutter Web Admin Moderation:**
+  - Models: `AdminPostModel`, `AdminPostAuthorModel`, `AdminPostReportModel`, `AdminMediaAssetModel`.
+  - Repository: `ModerationRepository` consuming admin community endpoints (`/api/admin/community/posts`, `/purge`, `/reports`, `/media-assets`, `/retry`).
+  - UI: `AdminModerationScreen` with role guard (`ADMIN` check), 3 responsive tabs ("Bài viết", "Báo cáo vi phạm", "Tài nguyên Media").
+  - Post Moderation: Status filter (`ALL`, `ACTIVE`, `HIDDEN`, `DELETED`), hide/restore dialog with reason, hard-purge danger confirmation dialog triggering media cascade.
+  - Report Moderation: Status filter (`PENDING`, `RESOLVED`, `DISMISSED`), resolve / dismiss action handlers.
+  - Media Asset Management: Status filter, dead-letter checkbox filter, retry deletion button for failed/dead-lettered assets.
+  - Portal Navigation: Added "Kiểm duyệt" action button and popup menu entry in `WebPlaceholderScreen` for `ADMIN` role.
+- **Phase 6B.6 — Regression Testing & Verification:**
+  - Backend: 484/484 tests PASS (`BUILD SUCCESS`) including 31 new tests in `CommunityPostServiceTest`, `MediaCleanupServiceTest`, and `CommunityControllerIntegrationTest`.
+  - Mobile: 425/425 tests PASS including 12 new tests in `community_feed_test.dart` and 13 shell tests in `bottom_navigation_test.dart`.
+  - Web: 44/44 tests PASS including 11 new tests in `admin_moderation_test.dart`.
+  - Total Full-Stack Test Suite: **953 / 953 tests PASS (100%), 0 FAILURES, 0 REGRESSIONS**.
+  - Git Policy: Strictly observed NO COMMIT, NO PUSH. All prior uncommitted user modifications preserved intact.
+
+
+## Session 73 — 2026-11-12
+**Focus:** Phase 6B Bug Fix & My Itinerary UX Redesign (Community Post Creation Fix, My Itineraries 2-Tab Overview Redesign, Multi-Way Add Place to Itinerary, Activity Invariant Fix)
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** FULL-STACK BUG FIX, UX REDESIGN & AUTOMATED VERIFICATION
+
+### 1. Root Cause Analysis & Fixes
+- **Part A — Community Post Creation Failure:**
+  - **RCA:** Backend `PostResponse.java` used Lombok `@Getter` with boolean fields `isLikedByMe` and `isOwner`. Jackson serialized the methods `isLikedByMe()` / `isOwner()` to JSON properties `likedByMe` and `owner` by standard JavaBean naming rules, while client code and models expected `isLikedByMe` and `isOwner`. In addition, Flutter `CreatePostScreen` did not guard against rapid taps while image uploads were still in flight (sending null or partial asset IDs) and generic error handling swallowed `ApiException` messages.
+  - **Backend Fix:** Explicitly annotated both fields and getters in `PostResponse.java` with `@JsonProperty("isLikedByMe")` / `@JsonProperty("isOwner")` and duplicate convenience getters/annotations (`likedByMe`, `owner`) for dual compatibility.
+  - **Mobile Fix:** Enhanced `PostModel.fromJson` to parse both `isLikedByMe`/`likedByMe` and `isOwner`/`owner`. In `create_post_screen.dart`, disabled the "Đăng" submit button while uploading (`_isUploading`) or submitting (`_isSubmitting`), prevented submitting if any image upload is ongoing, validated `assetId != null`, and preserved the user's draft content and attached photos on any submission error with actionable error SnackBar display.
+  - Supported all 4 creation scenarios: (1) text only, (2) photos only (1–5 photos), (3) text + photos, (4) text + photos + attached public active itinerary.
+
+- **Part B — My Itineraries UX Redesign (Overview Screen & 2-Tab Navigation):**
+  - **UX Architecture:** Redesigned `MyItinerariesScreen` to land directly on an Overview Screen (Trang tổng quan) with a `TabBar` and never auto-redirect to an itinerary detail screen.
+  - **Tab 1: "Địa điểm đã lưu" (Saved Places):**
+    - Filter dropdown allows selecting "Tất cả lịch trình" or a specific itinerary owned by the user.
+    - Each saved place renders as a structured card displaying thumbnail / category placeholder, place name, category badge, source itinerary badge, address, and a 3-dot popup menu.
+    - Actions include "Xem chi tiết" (opening a clean bottom sheet with full place metadata and notes) and "Xóa khỏi lịch trình" (with deletion confirmation dialog).
+    - Invariant preserved: Deleting an `ItineraryPlace` association row deletes *only* the link between the itinerary and place; it never deletes the underlying `Place` entity, never modifies `Activity` records, and never alters other itineraries.
+    - Clean empty state with "Thêm địa điểm" CTA when no places are saved.
+  - **Tab 2: "Lịch trình" (Itineraries):**
+    - Preserves the full itinerary card list, cover images, title, location, duration, activity counter, and visibility chips (Tất cả, Công khai, Riêng tư, Bản nháp).
+    - Tapping an itinerary card navigates to `ItineraryDetailScreen`.
+    - Dynamic FAB adapts context: "Thêm địa điểm" on Tab 1, "Tạo lịch trình" on Tab 2.
+
+- **Part C — Add Places to Itinerary (2 Distinct Ways):**
+  - Created reusable modal sheet `AddPlaceToItinerarySheet` (`add_place_to_itinerary_sheet.dart`) with target itinerary selection and two tabs:
+    - **Way 1: Pick places from another itinerary ("Từ lịch trình khác"):** Dropdown selector for source itinerary. Displays source saved places with multi-select checkboxes. Any place already saved in the target itinerary is marked `✓ Đã có trong lịch trình nhận` with disabled checkbox to prevent duplicates. Bulk save via `POST /api/itineraries/{id}/places`.
+    - **Way 2: Search new place ("Tìm địa điểm mới"):** Integrates `LocationPickerSheet` with real-time map / place search. Upon explicit tap of "Lưu vào lịch trình", the selected place is canonicalized via backend `POST /api/places/resolve` (linking to existing canonical `Place` or creating a new ACTIVE canonical place), then linked to the target itinerary via `ItineraryPlace`. Zero auto-insertion on search or preview.
+  - **Backend Canonicalization Endpoint:** Implemented `POST /api/places/resolve` (`PlaceController.java` & `ResolvePlaceRequest.java`) calling `placeService.resolveOrPersistPlace(...)` with address normalization, coordinate bounds verification, and diacritic handling.
+
+- **Activity Creation/Edit Invariant Fix:**
+  - In `activity_form_dialog.dart`, fixed a bug where picking a saved place incorrectly set both `_canonicalPlaceId` and `_latitude` / `_longitude`, violating backend `applyLocation` invariant (`BadRequestException: Không thể đồng thời chỉ định địa điểm từ danh mục và tọa độ tùy chỉnh`). Ensured `_latitude = null` and `_longitude = null` whenever a canonical place is selected.
+
+### 2. Automated Test Results
+- **Backend Tests:**
+  - `PlaceControllerTest`: 8 / 8 PASS.
+  - `CommunityPostServiceTest`: 20 / 20 PASS.
+  - `CommunityControllerIntegrationTest`: 7 / 7 PASS.
+  - `ItineraryPlaceTest`: 19 / 19 PASS (fixed `cleanupDatabase` foreign key collision with `media_assets`).
+  - `PostServiceJpaIntegrationTest`: 1 / 1 PASS.
+  - `MediaCleanupServiceTest`: 8 / 8 PASS.
+  - Total Phase 6B & Itinerary Place backend tests: **63 / 63 PASS (100%)**, `BUILD SUCCESS`.
+- **Flutter Mobile Tests:**
+  - `my_itineraries_overview_test.dart`: 6 / 6 PASS.
+  - `add_place_to_itinerary_sheet_test.dart`: 3 / 3 PASS.
+  - `community_feed_test.dart`: 12 / 12 PASS.
+  - `my_itineraries_test.dart`: 12 / 12 PASS.
+  - `create_itinerary_test.dart`: 14 / 14 PASS.
+  - `itinerary_edit_delete_test.dart`: 13 / 13 PASS.
+  - `itinerary_picker_test.dart`: 4 / 4 PASS.
+  - Total targeted mobile test run: **110 / 110 PASS (100%)**.
+- **Flutter Web Tests:**
+  - `admin_moderation_test.dart`: 11 / 11 PASS.
+- **Git Policy Compliance:** STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved intact.
+
+---
+
+## Session 74 — 2026-11-12
+**Focus:** Correction Task — My Itinerary Navigation & Save Place from Other Itineraries
+**Branch:** `develop`
+**Git Commit HEAD:** `f997f34` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** UX CORRECTION, FEATURE IMPLEMENTATION & AUTOMATED VERIFICATION
+
+### 1. Root Cause Analysis & UX Alignment
+- **Problem Statement:** In Session 73, tabs ("Tổng quan" & "Lịch trình") were incorrectly implemented at the top level of `MyItinerariesScreen` (Screen A). The user required that:
+  1. `MyItinerariesScreen` (Screen A) must remain a direct list of user itineraries without tabs, preserving filter chips and FAB "Tạo lịch trình".
+  2. The 2 navigation areas/tabs belong strictly inside `ItineraryDetailScreen` (Screen B): Tab 1: "Tổng quan" (Overview + Saved Places) and Tab 2: "Hoạt động" (Activities by day).
+  3. When viewing another user's itinerary details, users must be able to save places directly from both Tab 1 (Saved Places) and Tab 2 (Activity locations) into their own itineraries.
+
+### 2. Implementation Details
+- **Screen A — `MyItinerariesScreen` (`my_itineraries_screen.dart`):**
+  - Completely removed top `TabBar`, `TabBarView`, and `TabController`.
+  - Restored clean single-view layout with AppBar "Lịch trình của tôi".
+  - Filter chips ("Tất cả", "Công khai", "Riêng tư", "Bản nháp") directly accessible below AppBar.
+  - Rendered `ListView.builder` with `MyItineraryCard` and pagination.
+  - Floating Action Button fixed as "Tạo lịch trình".
+  - Tapping an itinerary card navigates to `ItineraryDetailScreen`. Zero auto-redirect to detail.
+
+- **Screen B — `ItineraryDetailScreen` (`itinerary_detail_screen.dart`):**
+  - Introduced 2-tab navigation inside `ItineraryDetailScreen`:
+    - **Tab 1: "Tổng quan" (Overview):**
+      - Displays itinerary overview metadata card (cover, title, duration, location, budget, creator, description, stats).
+      - Displays scoped saved places section (`ItineraryPlace` list).
+      - If owner: Prominent "Thêm địa điểm" action (opens `AddPlaceToItinerarySheet` with 2 choices) and delete saved place action (`removePlaceFromItinerary` with confirmation dialog, deleting only link row without modifying `Place` or `Activity`).
+      - Friendly empty state when no places are saved.
+    - **Tab 2: "Hoạt động" (Activities):**
+      - Displays days and activities grouped by day.
+      - Preserves all day/activity management, timing, cost, inline reordering, map preview, and comments.
+      - Strict separation: Saved places are never mixed into the activity schedule.
+
+- **Feature — Save Place from Other Users' Itineraries (`save_place_to_itinerary_sheet.dart`):**
+  - In `ItineraryDetailScreen` of other users:
+    - Tab 1: Each saved place card has an explicit bookmark button (`Icons.bookmark_add_outlined`).
+    - Tab 2: Each activity card with a location/place has a bookmark button in its location preview.
+  - Tapping bookmark opens `SavePlaceToItinerarySheet` modal sheet:
+    - Displays preview of target place (thumbnail/placeholder, name, category, address).
+    - Fetches the current user's owned itineraries via `getMyItineraries`.
+    - User selects destination itinerary -> calls `POST /api/itineraries/{destId}/places`.
+    - If place is an external POI / snapshot without canonical placeId -> canonicalizes via backend `POST /api/places/resolve` first, then links.
+    - Displays success SnackBar feedback, transforms button into "Đã lưu" (`Icons.check_circle`), and handles 409 Conflict gracefully to prevent duplicates.
+    - Does NOT create an activity and does NOT clone days/activities.
+
+### 3. Automated Verification Results
+- **Mobile Widget & Feature Suites:**
+  - `my_itineraries_overview_test.dart`: **5 / 5 PASS (100%)** (verifies Screen A has no tabs, Screen B has 2 tabs, Tab 1 saved places & delete, Save place from other user in Tab 1, and Save place from activity in Tab 2).
+  - `add_place_to_itinerary_sheet_test.dart`: **3 / 3 PASS (100%)**.
+  - `my_itineraries_test.dart`: **12 / 12 PASS (100%)**.
+  - `create_itinerary_test.dart`: **14 / 14 PASS (100%)**.
+  - `itinerary_edit_delete_test.dart`: **13 / 13 PASS (100%)**.
+  - `itinerary_saved_places_test.dart`: **2 / 2 PASS (100%)**.
+  - Full `test/features/itinerary/` suite: **44 / 44 PASS (100%)**.
+- **Backend Regression Suite:**
+  - `PlaceControllerTest`, `CommunityPostServiceTest`, `CommunityControllerIntegrationTest`, `ItineraryPlaceTest`, `PostServiceJpaIntegrationTest`, `MediaCleanupServiceTest`: **63 / 63 PASS (100%)**, `BUILD SUCCESS`.
+- **Git Policy Compliance:** STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved intact.
