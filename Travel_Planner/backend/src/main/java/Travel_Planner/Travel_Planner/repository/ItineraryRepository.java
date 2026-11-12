@@ -59,4 +59,8 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, 
     @Modifying
     @Query("update Itinerary i set i.favoriteCount = i.favoriteCount - 1 where i.itineraryId = :itineraryId and i.favoriteCount > 0")
     int decrementFavoriteCount(@Param("itineraryId") Integer itineraryId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("update Itinerary i set i.reuseCount = coalesce(i.reuseCount, 0) + 1 where i.itineraryId = :itineraryId")
+    int incrementReuseCount(@Param("itineraryId") Integer itineraryId);
 }

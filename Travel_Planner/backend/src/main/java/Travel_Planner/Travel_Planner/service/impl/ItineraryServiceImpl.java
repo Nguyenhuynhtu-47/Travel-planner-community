@@ -43,6 +43,16 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final CommentRepository commentRepository;
     private final ItineraryPlaceRepository itineraryPlaceRepository;
 
+    private static final ThreadLocal<Runnable> testFaultInjector = new ThreadLocal<>();
+
+    public static void setTestFaultInjector(Runnable injector) {
+        testFaultInjector.set(injector);
+    }
+
+    public static void clearTestFaultInjector() {
+        testFaultInjector.remove();
+    }
+
     public ItineraryServiceImpl(
             ItineraryRepository itineraryRepository,
             RatingRepository ratingRepository,
@@ -666,9 +676,11 @@ public class ItineraryServiceImpl implements ItineraryService {
             throw new ForbiddenException("Bạn không có quyền sao chép lịch trình riêng tư này");
         }
 
-        // Increment reuse count of original itinerary
-        source.setReuseCount((source.getReuseCount() != null ? source.getReuseCount() : 0) + 1);
-        itineraryRepository.save(source);
+        // Increment reuse count of original itinerary atomically in database
+        int updatedRows = itineraryRepository.incrementReuseCount(id);
+        if (updatedRows == 0) {
+            throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
+        }
 
         // Build cloned itinerary with metadata and reset community metrics
         String rawTitle = source.getTitle() != null ? source.getTitle() : "Lịch trình";
@@ -730,6 +742,11 @@ public class ItineraryServiceImpl implements ItineraryService {
                         .displayOrder(sourceAct.getDisplayOrder())
                         .build();
                 activityRepository.save(clonedAct);
+            }
+
+            Runnable faultHook = testFaultInjector.get();
+            if (faultHook != null) {
+                faultHook.run();
             }
         }
 

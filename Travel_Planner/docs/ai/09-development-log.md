@@ -7198,3 +7198,78 @@ Direct read-only SQL queries against `travel_planner` confirmed:
   - Invariant 4: Total places catalog count remains 24.
 - **Documentation Deliverables:**
   - 11 verification artifacts produced in `docs/verification/phase-5/` (`00-architecture-audit.md` through `10-final-acceptance-report.md`).
+
+## Session 57 — 2026-11-12
+**Focus:** Phase 5.1 & Phase 5.2 — Clone Concurrency Hardening and Transaction Rollback Verification
+**Branch:** `develop`
+**Git Commit HEAD:** `695d317` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+
+### 1. Atomic `reuse_count` Increment & Concurrency Hardening (Phase 5.1)
+- **Elimination of Lost Update Risk:**
+  - Replaced the vulnerable read-modify-write pattern (`source.setReuseCount(...)` followed by `save(source)`) in `ItineraryServiceImpl.java`.
+  - Added atomic database update query in `ItineraryRepository.java`:
+    `@Modifying(flushAutomatically = true) @Query("update Itinerary i set i.reuseCount = coalesce(i.reuseCount, 0) + 1 where i.itineraryId = :itineraryId") int incrementReuseCount(@Param("itineraryId") Integer itineraryId);`
+  - Validated that affected rows > 0; otherwise throws `ResourceNotFoundException`.
+  - Synchronized persistence context via `entityManager.refresh(source)` to ensure managed entities in session reflect current DB state and prevent Hibernate dirty-checking from generating conflicting stale updates at commit time.
+- **Empirical Concurrency Verification:**
+  - Implemented `testConcurrentClone_TenSimultaneousRequests_IncrementsReuseCountExactlyTen` in `CloneConcurrencyAndRollbackTest.java`.
+  - Used `ExecutorService` with 10 threads and `CountDownLatch` gate to fire 10 simultaneous clone operations on a single source itinerary.
+  - **Result:** All 10 requests completed successfully in 557 ms.
+  - **Zero Lost Update:** Source `reuse_count` incremented from 0 to exactly 10.
+  - Created exactly 10 independent cloned itineraries linking back to the ancestor without data corruption or deadlock.
+
+### 2. Clone Transaction Rollback Verification (Phase 5.2)
+- **Architecture & Fault Injection Mechanism:**
+  - Audited transaction boundary of `cloneItinerary`: Spring `@Transactional` with default `JpaTransactionManager` on single connection pool.
+  - Introduced clean, package-private test hook `setCloneFaultInjector(Runnable)` in `ItineraryServiceImpl.java` with zero production overhead (null in production).
+  - Placed hook invocation immediately after Day 1 and Activity 1 are saved, ensuring partial data is in the database before error triggers.
+- **Empirical Rollback Verification:**
+  - Implemented `testCloneRollback_FailureMidWay_RollsBackAllDataAndPreservesBaseline` in `CloneConcurrencyAndRollbackTest.java`.
+  - Threw `RuntimeException` via fault hook mid-clone.
+  - **Result:** Spring transaction interceptor cleanly issued JDBC `ROLLBACK` to MySQL.
+  - **Prisinte Baseline Restored:** Database queries after rollback confirmed 100% match with baseline counts (itineraries, days, activities, itinerary_places, places, users).
+  - Source `reuse_count` remained 0; source title and metadata completely untouched; zero orphan records.
+
+### 3. Regression Testing & Invariants Verification
+- **Backend Test Suite:** **453 PASS / 0 FAIL / 0 ERROR** (+2 new comprehensive integration tests).
+- **Mobile Test Suite:** **374 PASS / 3 baseline mock failures / 0 regressions** (out of 377 tests).
+- **Web Test Suite:** **33 PASS / 0 FAIL / 0 ERROR** (out of 33 tests).
+- **Total Passing Tests:** **860 PASS** across the stack.
+- **Development Database Invariants on `travel_planner`:**
+  - Quarantined Northern Bắc Ninh administrative units: exactly 12.
+  - Null administrative area places (11, 12, 20, 22): exactly 4.
+  - Total activities: 121.
+  - Total places: 24.
+  - Total itineraries: 28.
+- **Documentation Deliverables:**
+  - `docs/verification/phase-5-remediation/PHASE-5.1-ATOMIC-REUSE-COUNT.md`
+  - `docs/verification/phase-5-remediation/PHASE-5.2-CLONE-ROLLBACK-VERIFICATION.md`
+  - `docs/verification/phase-5-remediation/PHASE-5-REMEDIATION-ACCEPTANCE-REPORT.md`
+
+## Session 58 — 2026-11-12
+**Focus:** Phase 5 Post-Remediation Technical Review — Final Verification Before Phase 6A
+**Branch:** `develop`
+**Git Commit HEAD:** `695d317` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+
+### 1. Spring Singleton Safety Hardening (`cloneFaultInjector` Refactoring)
+- **Vulnerability Identified:** The initial `cloneFaultInjector` in `ItineraryServiceImpl.java` was an instance-level `Runnable` field on a Spring singleton `@Service`, presenting race conditions and cross-test contamination risks in parallel execution environments.
+- **Thread-Safe Remediation:**
+  - Converted hook to `private static final ThreadLocal<Runnable> testFaultInjector = new ThreadLocal<>()`.
+  - Exposed static thread-safe setters: `setTestFaultInjector(Runnable)` and `clearTestFaultInjector()`.
+  - Wrapped fault execution inside `CloneConcurrencyAndRollbackTest.java` in a strict `try-finally` block and `@AfterEach tearDown()`.
+  - In production and other concurrent threads, `testFaultInjector.get()` evaluates to `null` with zero overhead.
+
+### 2. JPA Dirty Checking & `entityManager.refresh(source)` Evaluation
+- **Analysis:** Evaluated Hibernate Persistence Context dirty-checking mechanics. Because `source.setReuseCount(...)` and `save(source)` were completely removed in Phase 5.1, the `source` entity retains exact property parity with its loaded database snapshot. Hibernate dirty-checking detects `isDirty() == false` and emits NO update at commit time.
+- **Remediation:** Removed `entityManager.refresh(source)` and the `@PersistenceContext private EntityManager entityManager` field from `ItineraryServiceImpl.java`, eliminating redundant JDBC network round-trips (`SELECT`) and decoupling the service from `EntityManager`.
+
+### 3. Web & Mobile Test Suite Audit
+- **Web Test Suite:** Verified that the web project is 100% **Flutter Web** (`Travel_Planner/frontend/web/pubspec.yaml`), resolving past documentation transcription errors referencing "React / Vite Jest". Ran `flutter test`: 33/33 tests PASSED (5 test files).
+- **Mobile Baseline Failures:** Verified that the 3 Mobile failures (1 in `explore_test.dart`, 2 in `rating_ui_layout_test.dart`) are `CONFIRMED_BASELINE` mock/widget discrepancies pre-dating Phase 4. Zero regressions introduced.
+
+### 4. Verification & Status
+- **Backend Tests:** 453/453 PASS (including `CloneConcurrencyAndRollbackTest` 2/2 PASS, `ItineraryCloneTest` 11/11 PASS).
+- **Mobile Tests:** 374 PASS, 3 baseline failures (0 regressions).
+- **Web Tests:** 33/33 PASS.
+- **Documentation Deliverable:** `docs/verification/phase-5-remediation/PHASE-5-POST-REMEDIATION-TECHNICAL-REVIEW.md`.
+- **Verdict:** Phase 5 Remediation formally **ACCEPTED**; Phase 6A cleared for execution.

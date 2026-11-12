@@ -7,14 +7,14 @@
 
 ---
 
-## 1. Verified Test Results (Executed 2026-11-12 — Phase 3.3.1 Final Closure & Phase 4 Saved Places)
+## 1. Verified Test Results (Executed 2026-11-12 — Phase 5 Post-Remediation Review)
 
 | Component | Command | Result | Notes |
 |:---|:---|:---|:---|
-| Backend | `mvnw.cmd test` | **440 / 440 PASS** ✅ | Exit code 0, 0 failures, 0 errors, 0 skipped (includes 421 previous tests + 19 dedicated Phase 4 tests in `ItineraryPlaceTest`) |
-| Mobile | `flutter test` | **366 PASS / 3 FAILED (369 Total)** ⚠️ | Exit code 1; 366 passed, 3 deferred pre-existing tests preserved (`explore_test.dart`, `rating_ui_layout_test.dart`); 0 regressions |
-| Web | `flutter test` | **33 / 33 PASS** ✅ | Exit code 0, 0 failures, 0 errors (includes 33 tests in `admin_place_test.dart`) |
-| **Total Unique Tests Executed** | Multi-runner | **839 Tests (836 PASS / 3 FAILED)** | Accurate stack-wide test accounting across Backend, Mobile, and Web; 0 regressions |
+| Backend | `mvnw.cmd test` | **453 / 453 PASS** ✅ | Exit code 0, 0 failures, 0 errors, 0 skipped (includes 440 previous tests + 11 Phase 5 `ItineraryCloneTest` + 2 Phase 5.1/5.2 `CloneConcurrencyAndRollbackTest`) |
+| Mobile | `flutter test` | **374 PASS / 3 FAILED (377 Total)** ⚠️ | Exit code 1; 374 passed, 3 deferred pre-existing tests preserved (`explore_test.dart`, `rating_ui_layout_test.dart`); 0 regressions |
+| Web | `flutter test` | **33 / 33 PASS** ✅ | Exit code 0, 0 failures, 0 errors (Flutter Web suite in `frontend/web/test/`) |
+| **Total Unique Tests Executed** | Multi-runner | **863 Tests (860 PASS / 3 FAILED)** | Accurate stack-wide test accounting across Backend, Mobile, and Web; 0 regressions |
 
 ---
 
@@ -45,7 +45,7 @@
 | 18 | Ratings / Star ratings | **NOT IMPLEMENTED** | `Rating` entity + `RatingRepository` exist; no Controller, Service, or mobile UI |
 | 19 | Favorites (like itinerary) | **NOT IMPLEMENTED** | `Favorite` entity + `FavoriteRepository` exist; no Controller, Service, or mobile UI |
 | 20 | Saved Itineraries | **NOT IMPLEMENTED** | `SavedItinerary` entity + `SavedItineraryRepository` exist; `SavedItinerariesScreen` is a placeholder empty state |
-| 21 | Clone / Personalize Itinerary | **NOT IMPLEMENTED** | `original_itinerary_id` and `reuse_count` columns exist in DB; no API or UI |
+| 21 | Clone / Personalize Itinerary (Phase 5, 5.1 & 5.2) | **COMPLETED & FULLY HARDENED** | Deep-copy cloning with lineage tracking (`original_itinerary_id`), atomic database increment of `reuse_count` (Zero Lost Update verified via 10-thread concurrency test in 557ms), transaction rollback verification (clean rollback of all partial data to baseline on error), mobile clone UI with confirmation dialog and loading state. 453 backend tests PASS, 374 mobile tests PASS (0 regressions), 33 web tests PASS. Total 860 PASS across stack. |
 | 22 | Follow / Social Graph | **NOT IMPLEMENTED** | `Follow` entity + `FollowRepository` exist; `CommunityScreen` is empty state |
 | 23 | Notifications | **NOT IMPLEMENTED** | `NotificationsScreen` is a placeholder; no backend entity or API |
 | 24 | Web Admin — Dashboard & Statistics | **NOT IMPLEMENTED** | `dashboard/` directory contains only `.gitkeep` |
@@ -318,4 +318,5 @@ The following items could not be fully verified in this audit and require furthe
 | 1.5 | 2026-11-11 | AI Lead | Phase 2.1.1 Final Cleanup & Acceptance Gate, multi-branch Cases A-F verification, Fresh DB & Mid-migration test proofs, secure backup rules, 321 backend tests PASS |
 | 1.6 | 2026-11-11 | AI Lead | Phase 3.0 Administrative Data Audit & Architecture Design completed, Vietnam 2-level local government model aligned, zero source code or DB changes |
 | 1.7 | 2026-11-12 | AI Lead | Phase 3.1, 3.2, 3.3 & 3.3.1 completed: Administrative Areas Catalog, Place Linking, Location Search, Spatial Integration & Gap Remediation accepted (407 backend tests PASS, 804/807 overall PASS) |
+| 1.8 | 2026-11-12 | AI Lead | Phase 4 Saved Places, Phase 5 Clone Itinerary, Phase 5.1 Atomic reuse_count Concurrency Hardening & Phase 5.2 Transaction Rollback Verification completed (453 backend tests PASS, 860/863 overall PASS). |
 
