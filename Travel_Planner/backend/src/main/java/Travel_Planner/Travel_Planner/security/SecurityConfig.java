@@ -93,6 +93,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/places", "/api/places/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/administrative-areas", "/api/administrative-areas/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/community/feed", "/api/community/posts/{id:[0-9]+}", "/api/community/posts/{id:[0-9]+}/comments").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()

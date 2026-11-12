@@ -12,4 +12,5 @@ public interface MessagingService {
     MessagePageResponse messages(Long conversationId, Long beforeSequence, Long afterSequence, int size, String actorUsername);
     MessageResponse send(Long conversationId, SendMessageRequest request, String actorUsername);
     void markRead(Long conversationId, Long lastReadSequence, String actorUsername);
+    long totalUnread(String actorUsername);
 }

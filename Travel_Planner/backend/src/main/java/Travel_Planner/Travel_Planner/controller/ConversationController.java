@@ -8,6 +8,7 @@ import Travel_Planner.Travel_Planner.dto.response.MessagePageResponse;
 import Travel_Planner.Travel_Planner.dto.response.MessageResponse;
 import Travel_Planner.Travel_Planner.dto.response.PageResponse;
 import Travel_Planner.Travel_Planner.service.MessagingService;
+import Travel_Planner.Travel_Planner.dto.response.TotalUnreadResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,11 @@ public class ConversationController {
     public ResponseEntity<ConversationSummaryResponse> openDirect(@Valid @RequestBody OpenConversationRequest request,
             @AuthenticationPrincipal UserDetails actor) {
         return ResponseEntity.status(HttpStatus.CREATED).body(messaging.openDirect(request.getRecipientUserId(), actorName(actor)));
+    }
+
+    @GetMapping("/unread-total")
+    public ResponseEntity<TotalUnreadResponse> totalUnread(@AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(new TotalUnreadResponse(messaging.totalUnread(actorName(actor))));
     }
 
     @GetMapping

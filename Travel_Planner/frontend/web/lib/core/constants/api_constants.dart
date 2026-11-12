@@ -18,4 +18,11 @@ class ApiConstants {
   static const String placesEndpoint = '/api/places';
   static const String adminPlacesEndpoint = '/api/admin/places';
   static String adminPlaceDetailEndpoint(int id) => '/api/admin/places/$id';
+  static const String adminCommunityPostsEndpoint = '/api/admin/community/posts';
+  static String adminCommunityPostDetailEndpoint(int id) => '/api/admin/community/posts/$id';
+  static String adminCommunityPostPurgeEndpoint(int id) => '/api/admin/community/posts/$id/purge';
+  static const String adminCommunityReportsEndpoint = '/api/admin/community/reports';
+  static String adminCommunityReportDetailEndpoint(int id) => '/api/admin/community/reports/$id';
+  static const String adminCommunityMediaAssetsEndpoint = '/api/admin/community/media-assets';
+  static String adminCommunityMediaAssetRetryEndpoint(int id) => '/api/admin/community/media-assets/$id/retry';
 }

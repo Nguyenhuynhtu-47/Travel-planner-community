@@ -211,6 +211,13 @@ public class MessagingServiceImpl implements MessagingService {
         events.publishEvent(new CommittedChatEvent(actor.getUsername(), peer.getUsername(), event));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public long totalUnread(String actorUsername) {
+        User actor = activeUser(actorUsername);
+        return messages.countTotalUnread(actor.getUserId());
+    }
+
     private User activeUser(String username) {
         if (username == null || username.isBlank()) throw new UnauthorizedException("Bạn cần đăng nhập");
         User user = users.findByUsername(username).orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));

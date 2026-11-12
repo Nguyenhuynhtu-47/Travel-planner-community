@@ -27,6 +27,12 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
            "and m.sequenceNumber > r.lastReadSequence and m.sender.userId <> :readerId " +
            "group by m.conversation.conversationId")
     List<Object[]> countUnreadByConversation(@Param("readerId") Integer readerId, @Param("conversationIds") List<Long> conversationIds);
+
+    @Query("select count(m) from Message m " +
+           "where m.sender.userId <> :readerId " +
+           "and (m.conversation.userLow.userId = :readerId or m.conversation.userHigh.userId = :readerId) " +
+           "and m.sequenceNumber > coalesce((select r.lastReadSequence from ConversationReadState r where r.conversation = m.conversation and r.user.userId = :readerId), 0L)")
+    long countTotalUnread(@Param("readerId") Integer readerId);
 }
 
 

@@ -1,8 +1,20 @@
 package Travel_Planner.Travel_Planner.service.impl;
 
+import Travel_Planner.Travel_Planner.dto.response.ImageUploadResponse;
 import Travel_Planner.Travel_Planner.exception.AppException;
 import Travel_Planner.Travel_Planner.exception.BadRequestException;
+import Travel_Planner.Travel_Planner.exception.ForbiddenException;
+import Travel_Planner.Travel_Planner.exception.UnauthorizedException;
+import Travel_Planner.Travel_Planner.model.MediaAsset;
+import Travel_Planner.Travel_Planner.model.User;
+import Travel_Planner.Travel_Planner.model.enums.MediaAssetStatus;
+import Travel_Planner.Travel_Planner.model.enums.UserStatus;
+import Travel_Planner.Travel_Planner.repository.MediaAssetRepository;
+import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.service.ImageUploadService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
@@ -10,13 +22,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 
 import java.io.IOException;
@@ -26,6 +36,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.UUID;
 
 @Service
 public class CloudinaryImageUploadService implements ImageUploadService {
@@ -37,12 +48,25 @@ public class CloudinaryImageUploadService implements ImageUploadService {
     private final String cloudName;
     private final String apiKey;
     private final String apiSecret;
+    private final UserRepository userRepository;
+    private final MediaAssetRepository mediaAssetRepository;
 
     public CloudinaryImageUploadService(
             RestClient.Builder restClientBuilder,
             @Value("${cloudinary.cloud-name:}") String cloudName,
             @Value("${cloudinary.api-key:}") String apiKey,
             @Value("${cloudinary.api-secret:}") String apiSecret) {
+        this(restClientBuilder, cloudName, apiKey, apiSecret, null, null);
+    }
+
+    @Autowired
+    public CloudinaryImageUploadService(
+            RestClient.Builder restClientBuilder,
+            @Value("${cloudinary.cloud-name:}") String cloudName,
+            @Value("${cloudinary.api-key:}") String apiKey,
+            @Value("${cloudinary.api-secret:}") String apiSecret,
+            @Autowired(required = false) UserRepository userRepository,
+            @Autowired(required = false) MediaAssetRepository mediaAssetRepository) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
         requestFactory.setReadTimeout(Duration.ofSeconds(20));
@@ -50,14 +74,23 @@ public class CloudinaryImageUploadService implements ImageUploadService {
         this.cloudName = cloudName;
         this.apiKey = apiKey;
         this.apiSecret = apiSecret;
+        this.userRepository = userRepository;
+        this.mediaAssetRepository = mediaAssetRepository;
     }
 
     @Override
     public String uploadImage(MultipartFile file) {
+        return uploadImage(file, null).secureUrl();
+    }
+
+    @Override
+    public ImageUploadResponse uploadImage(MultipartFile file, String username) {
         byte[] bytes = validateAndRead(file);
         validateConfiguration();
+
+        CloudinaryUploadResult result;
         try {
-            return uploadValidatedImage(bytes);
+            result = uploadValidatedImage(bytes);
         } catch (AppException ex) {
             throw ex;
         } catch (RestClientResponseException ex) {
@@ -77,9 +110,91 @@ public class CloudinaryImageUploadService implements ImageUploadService {
             logger.error("Unexpected failure while preparing or sending Cloudinary image upload", ex);
             throw new AppException("Máy chủ gặp lỗi khi xử lý ảnh tải lên.", HttpStatus.BAD_GATEWAY);
         }
+
+        if (username != null && userRepository != null && mediaAssetRepository != null) {
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+            if (user.getStatus() != UserStatus.ACTIVE) {
+                try {
+                    deleteCloudinaryImage(result.publicId());
+                } catch (Exception ignored) {
+                }
+                throw new ForbiddenException("Tài khoản của bạn đang tạm khóa hoặc chưa được kích hoạt");
+            }
+
+            String publicId = result.publicId() != null && !result.publicId().isBlank()
+                    ? result.publicId()
+                    : "travel-planner/" + UUID.randomUUID();
+
+            MediaAsset asset = MediaAsset.builder()
+                    .uploadedBy(user)
+                    .cloudinaryPublicId(publicId)
+                    .secureUrl(result.secureUrl())
+                    .mediaType("IMAGE")
+                    .status(MediaAssetStatus.UNATTACHED)
+                    .build();
+
+            try {
+                asset = mediaAssetRepository.save(asset);
+                return new ImageUploadResponse(asset.getMediaAssetId(), asset.getSecureUrl());
+            } catch (Exception dbEx) {
+                logger.error("EVENT=CLOUDINARY_ORPHAN_COMPENSATION_FAILED DB save failed for uploaded image publicId={}, attempting compensating delete", publicId, dbEx);
+                try {
+                    deleteCloudinaryImage(publicId);
+                } catch (Exception compEx) {
+                    logger.error("EVENT=CLOUDINARY_ORPHAN_COMPENSATION_FAILED Compensating Cloudinary delete failed for publicId={}", publicId, compEx);
+                }
+                throw new AppException("Lỗi khi lưu trữ thông tin ảnh trong hệ thống", HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+        }
+
+        return new ImageUploadResponse(null, result.secureUrl());
     }
 
-    private String uploadValidatedImage(byte[] bytes) {
+    @Override
+    public void deleteCloudinaryImage(String publicId) {
+        if (publicId == null || publicId.isBlank()) return;
+        validateConfiguration();
+        long timestamp = Instant.now().getEpochSecond();
+        String signature = createDestroySignature(publicId, timestamp);
+
+        MultipartBodyBuilder multipart = new MultipartBodyBuilder();
+        multipart.part("public_id", publicId);
+        multipart.part("api_key", apiKey);
+        multipart.part("timestamp", Long.toString(timestamp));
+        multipart.part("signature", signature);
+
+        String destroyUrl = "https://api.cloudinary.com/v1_1/" + cloudName + "/image/destroy";
+        try {
+            JsonNode response = restClient.post()
+                    .uri(destroyUrl)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(multipart.build())
+                    .retrieve()
+                    .body(JsonNode.class);
+            String result = response == null ? null : response.path("result").asText(null);
+            if ("ok".equalsIgnoreCase(result) || "not found".equalsIgnoreCase(result)) {
+                logger.info("Cloudinary image destroyed successfully: publicId={}, result={}", publicId, result);
+            } else {
+                logger.warn("Cloudinary destroy returned non-ok result: publicId={}, result={}", publicId, result);
+                throw new AppException("Cloudinary xóa ảnh không thành công: " + result, HttpStatus.BAD_GATEWAY);
+            }
+        } catch (RestClientResponseException ex) {
+            int statusCode = ex.getStatusCode().value();
+            if (statusCode == 401) {
+                logger.error("SYSTEMIC_CONFIGURATION_FAILURE: Cloudinary credentials invalid during image destroy", ex);
+                throw new AppException("Lỗi cấu hình xác thực Cloudinary hệ thống", HttpStatus.UNAUTHORIZED);
+            }
+            throw new AppException("Cloudinary từ chối yêu cầu xóa ảnh (HTTP " + statusCode + ")", HttpStatus.BAD_GATEWAY);
+        } catch (AppException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            logger.error("Failed to delete Cloudinary image: publicId={}", publicId, ex);
+            throw new AppException("Không thể kết nối đến Cloudinary để xóa ảnh", HttpStatus.BAD_GATEWAY);
+        }
+    }
+
+    private CloudinaryUploadResult uploadValidatedImage(byte[] bytes) {
         long timestamp = Instant.now().getEpochSecond();
         String extension = imageExtension(bytes);
 
@@ -103,10 +218,11 @@ public class CloudinaryImageUploadService implements ImageUploadService {
                 .retrieve()
                 .body(JsonNode.class);
         String secureUrl = response == null ? null : response.path("secure_url").asText(null);
+        String publicId = response == null ? null : response.path("public_id").asText(null);
         if (secureUrl == null || !secureUrl.startsWith("https://") || secureUrl.length() > 500) {
             throw new AppException("Dịch vụ lưu trữ ảnh trả về dữ liệu không hợp lệ", HttpStatus.BAD_GATEWAY);
         }
-        return secureUrl;
+        return new CloudinaryUploadResult(secureUrl, publicId);
     }
 
     private byte[] validateAndRead(MultipartFile file) {
@@ -163,5 +279,19 @@ public class CloudinaryImageUploadService implements ImageUploadService {
         } catch (NoSuchAlgorithmException ex) {
             throw new AppException("Không thể xác thực yêu cầu tải ảnh", HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private String createDestroySignature(String publicId, long timestamp) {
+        String valueToSign = "public_id=" + publicId + "&timestamp=" + timestamp + apiSecret;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-1")
+                    .digest(valueToSign.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new AppException("Không thể xác thực yêu cầu xóa ảnh", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public record CloudinaryUploadResult(String secureUrl, String publicId) {
     }
 }

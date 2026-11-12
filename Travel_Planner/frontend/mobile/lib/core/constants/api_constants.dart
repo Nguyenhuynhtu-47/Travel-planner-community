@@ -32,6 +32,7 @@ class ApiConstants {
   static const String userItinerariesEndpoint = '/api/user/itineraries';
   static const String destinationsEndpoint = '/api/destinations';
   static const String placesEndpoint = '/api/places';
+  static const String placesResolveEndpoint = '/api/places/resolve';
   static const String healthEndpoint = '/api/health';
   static const String imageUploadEndpoint = '/api/media/images';
   static const String locationsEndpoint = '/api/locations';
@@ -55,4 +56,15 @@ class ApiConstants {
       '/api/itineraries/$itineraryId/places';
   static String itineraryPlaceDeleteEndpoint(int itineraryId, int placeId) =>
       '/api/itineraries/$itineraryId/places/$placeId';
+
+  // Community Feed & Social
+  static const String communityFeedEndpoint = '/api/community/feed';
+  static const String communityFollowingFeedEndpoint = '/api/community/feed/following';
+  static const String communityPostsEndpoint = '/api/community/posts';
+  static String communityPostDetailEndpoint(int postId) => '/api/community/posts/$postId';
+  static String communityPostLikesEndpoint(int postId) => '/api/community/posts/$postId/likes';
+  static String communityPostCommentsEndpoint(int postId) => '/api/community/posts/$postId/comments';
+  static String communityPostCommentDetailEndpoint(int postId, int commentId) => '/api/community/posts/$postId/comments/$commentId';
+  static String communityPostReportEndpoint(int postId) => '/api/community/posts/$postId/report';
+  static const String conversationsUnreadTotalEndpoint = '/api/conversations/unread-total';
 }
