@@ -141,7 +141,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Scroll down to rating section
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -1200));
       await tester.pumpAndSettle();
 
       final editBtnFinder = find.text('Chỉnh sửa');
@@ -264,7 +264,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Scroll so both Comments and Rating sections enter viewport
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -350));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
       await tester.pumpAndSettle();
 
       final commentsFinder = find.byType(ItineraryCommentsSection);
