@@ -409,4 +409,42 @@ class ItineraryCrudRepository {
       token: token,
     );
   }
+
+  /// Resolves an external or manual location into a canonical catalog Place.
+  Future<Map<String, dynamic>> resolvePlace({
+    String? provider,
+    String? providerPlaceId,
+    required String name,
+    String? address,
+    required double latitude,
+    required double longitude,
+    String? category,
+    String? type,
+    String? metadataJson,
+    required String token,
+  }) async {
+    final body = <String, dynamic>{
+      if (provider != null) 'provider': provider,
+      if (providerPlaceId != null) 'providerPlaceId': providerPlaceId,
+      'name': name,
+      if (address != null) 'address': address,
+      'latitude': latitude,
+      'longitude': longitude,
+      if (category != null) 'category': category,
+      if (type != null) 'type': type,
+      if (metadataJson != null) 'metadataJson': metadataJson,
+    };
+    final response = await _apiClient.post(
+      ApiConstants.placesResolveEndpoint,
+      body: body,
+      token: token,
+    );
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+    throw ApiException(
+      statusCode: 0,
+      message: 'Không thể giải quyết địa điểm.',
+    );
+  }
 }

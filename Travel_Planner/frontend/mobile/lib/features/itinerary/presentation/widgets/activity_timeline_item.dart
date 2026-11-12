@@ -10,6 +10,7 @@ class ActivityTimelineItem extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onComments;
   final VoidCallback? onTap;
+  final VoidCallback? onSavePlace;
 
   const ActivityTimelineItem({
     super.key,
@@ -19,6 +20,7 @@ class ActivityTimelineItem extends StatelessWidget {
     this.onDelete,
     this.onComments,
     this.onTap,
+    this.onSavePlace,
   });
 
   String _formatCost(double cost) {
@@ -159,7 +161,7 @@ class ActivityTimelineItem extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (onEdit != null || onDelete != null || onTap != null)
+                        if (onEdit != null || onDelete != null || onTap != null || onSavePlace != null)
                           SizedBox(
                             width: 24,
                             height: 24,
@@ -178,6 +180,9 @@ class ActivityTimelineItem extends StatelessWidget {
                                 } else if (value == 'delete' &&
                                     onDelete != null) {
                                   onDelete!();
+                                } else if (value == 'save_place' &&
+                                    onSavePlace != null) {
+                                  onSavePlace!();
                                 }
                               },
                               itemBuilder: (context) => [
@@ -189,6 +194,21 @@ class ActivityTimelineItem extends StatelessWidget {
                                         Icon(Icons.visibility_outlined, size: 16),
                                         SizedBox(width: 8),
                                         Text('Xem chi tiết'),
+                                      ],
+                                    ),
+                                  ),
+                                if (onSavePlace != null)
+                                  const PopupMenuItem<String>(
+                                    value: 'save_place',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.bookmark_add_outlined,
+                                          size: 16,
+                                          color: AppColors.primary,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Lưu địa điểm vào lịch trình'),
                                       ],
                                     ),
                                   ),
@@ -358,6 +378,23 @@ class ActivityTimelineItem extends StatelessWidget {
                                       ],
                                     ),
                                   ),
+                                  if (onSavePlace != null) ...[
+                                    const SizedBox(width: 4),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.bookmark_add_outlined,
+                                        size: 20,
+                                        color: AppColors.primary,
+                                      ),
+                                      tooltip: 'Lưu địa điểm vào lịch trình',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 32,
+                                        minHeight: 32,
+                                      ),
+                                      onPressed: onSavePlace,
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

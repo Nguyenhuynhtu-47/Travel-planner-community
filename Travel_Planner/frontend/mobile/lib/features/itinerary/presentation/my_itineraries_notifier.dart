@@ -27,6 +27,8 @@ class MyItinerariesNotifier extends ChangeNotifier {
   MyItinerariesNotifier({ItineraryCrudRepository? repository})
     : _repository = repository ?? ItineraryCrudRepository();
 
+  ItineraryCrudRepository get repository => _repository;
+
   MyItinerariesStatus get status => _status;
   bool get isLoading => _status == MyItinerariesStatus.loading;
   bool get isSuccess => _status == MyItinerariesStatus.success;

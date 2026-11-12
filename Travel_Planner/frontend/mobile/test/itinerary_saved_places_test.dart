@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/features/itinerary/data/models/itinerary_place.dart';
-import 'package:mobile/features/itinerary/data/models/place_summary.dart';
 
 void main() {
   group('Phase 4 - Itinerary-Scoped Saved Places Models', () {

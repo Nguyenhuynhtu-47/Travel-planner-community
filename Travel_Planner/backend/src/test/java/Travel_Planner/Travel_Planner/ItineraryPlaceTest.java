@@ -167,7 +167,8 @@ class ItineraryPlaceTest {
         itineraryDayRepository.deleteAll();
         itineraryRepository.deleteAll();
         placeRepository.deleteAll();
-        userRepository.deleteAll();
+        userRepository.findByUsername("itinerary_place_owner").ifPresent(userRepository::delete);
+        userRepository.findByUsername("itinerary_place_other").ifPresent(userRepository::delete);
     }
 
     @Test

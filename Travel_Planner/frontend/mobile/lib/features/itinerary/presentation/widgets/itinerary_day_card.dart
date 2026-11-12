@@ -15,6 +15,7 @@ class ItineraryDayCard extends StatefulWidget {
   final void Function(ActivityDetail activity)? onDeleteActivity;
   final void Function(ActivityDetail activity)? onActivityComments;
   final void Function(ActivityDetail activity)? onActivityTap;
+  final void Function(ActivityDetail activity)? onSavePlace;
   final VoidCallback? onReorderActivities;
   final Future<bool> Function(List<ReorderActivityItem> reorderedItems)?
   onSaveActivityOrder;
@@ -29,6 +30,7 @@ class ItineraryDayCard extends StatefulWidget {
     this.onDeleteActivity,
     this.onActivityComments,
     this.onActivityTap,
+    this.onSavePlace,
     this.onReorderActivities,
     this.onSaveActivityOrder,
   });
@@ -511,6 +513,9 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                             : null,
                         onComments: widget.onActivityComments != null
                             ? () => widget.onActivityComments!(act)
+                            : null,
+                        onSavePlace: widget.onSavePlace != null
+                            ? () => widget.onSavePlace!(act)
                             : null,
                       );
                     },

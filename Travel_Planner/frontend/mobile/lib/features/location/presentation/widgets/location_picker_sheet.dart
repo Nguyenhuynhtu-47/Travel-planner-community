@@ -8,8 +8,22 @@ import 'package:latlong2/latlong.dart' hide Path;
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_map_view.dart';
+import '../../../auth/presentation/auth_notifier.dart';
+import '../../../itinerary/data/itinerary_crud_repository.dart';
+import '../../../itinerary/presentation/widgets/activity_form_dialog.dart';
+import '../../../itinerary/presentation/widgets/day_picker_bottom_sheet.dart';
+import '../../../itinerary/presentation/widgets/itinerary_picker_bottom_sheet.dart';
 import '../../data/location_repository.dart';
 import '../../data/models/location_search_result.dart';
+
+class SimpleTokenAuthNotifier extends AuthNotifier {
+  final String _explicitToken;
+  SimpleTokenAuthNotifier(this._explicitToken);
+  @override
+  String? get token => _explicitToken;
+  @override
+  bool get isAuthenticated => true;
+}
 
 /// The result returned when a user confirms a selected location in [LocationPickerSheet].
 class CustomLocationResult {
@@ -73,6 +87,8 @@ Future<CustomLocationResult?> showLocationPickerSheet(
   String? initialPlaceId,
   String? initialProvider,
   String? token,
+  AuthNotifier? authNotifier,
+  ItineraryCrudRepository? itineraryCrudRepository,
 }) {
   return showModalBottomSheet<CustomLocationResult>(
     context: context,
@@ -88,6 +104,8 @@ Future<CustomLocationResult?> showLocationPickerSheet(
       initialPlaceId: initialPlaceId,
       initialProvider: initialProvider,
       token: token,
+      authNotifier: authNotifier,
+      itineraryCrudRepository: itineraryCrudRepository,
     ),
   );
 }
@@ -102,6 +120,8 @@ class LocationPickerSheet extends StatefulWidget {
   final String? initialPlaceId;
   final String? initialProvider;
   final String? token;
+  final AuthNotifier? authNotifier;
+  final ItineraryCrudRepository? itineraryCrudRepository;
 
   const LocationPickerSheet({
     super.key,
@@ -112,6 +132,8 @@ class LocationPickerSheet extends StatefulWidget {
     this.initialPlaceId,
     this.initialProvider,
     this.token,
+    this.authNotifier,
+    this.itineraryCrudRepository,
   });
 
   /// Static helper method to display the sheet.
@@ -124,6 +146,8 @@ class LocationPickerSheet extends StatefulWidget {
     String? initialPlaceId,
     String? initialProvider,
     String? token,
+    AuthNotifier? authNotifier,
+    ItineraryCrudRepository? itineraryCrudRepository,
   }) => showLocationPickerSheet(
     context,
     repository: repository,
@@ -133,6 +157,8 @@ class LocationPickerSheet extends StatefulWidget {
     initialPlaceId: initialPlaceId,
     initialProvider: initialProvider,
     token: token,
+    authNotifier: authNotifier,
+    itineraryCrudRepository: itineraryCrudRepository,
   );
 
   @override
@@ -158,6 +184,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   String? _selectedAddress;
   String? _selectedPlaceId;
   String? _selectedProvider;
+  LocationSearchResult? _selectedSearchResult;
   bool _isReverseGeocoding = false;
   late final String _searchSessionId;
 
@@ -391,6 +418,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
         _selectedAddress = null;
         _selectedPlaceId = null;
         _selectedProvider = null;
+        _selectedSearchResult = null;
       });
       return;
     }
@@ -407,6 +435,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
           : null;
       _selectedPlaceId = result.placeId.isNotEmpty ? result.placeId : null;
       _selectedProvider = result.provider ?? 'LOCATION_IQ';
+      _selectedSearchResult = result;
       _selectedPoint = point;
     });
 
@@ -427,6 +456,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       _selectedAddress = null;
       _selectedPlaceId = null;
       _selectedProvider = 'MANUAL_PIN';
+      _selectedSearchResult = null;
       _isReverseGeocoding = true;
     });
 
@@ -519,6 +549,268 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       locationProvider: _selectedProvider ?? 'MANUAL_PIN',
     );
     Navigator.of(context).pop(result);
+  }
+
+  Future<void> _handleScheduleActivity(LocationSearchResult location) async {
+    final token = widget.token;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Vui lòng đăng nhập để lên lịch hoạt động vào chuyến đi',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Step 1: Pick Itinerary in scheduleActivity mode
+    final selectedItinerary = await ItineraryPickerBottomSheet.showForSchedule(
+      context,
+      place: location,
+      token: token,
+      repository: widget.itineraryCrudRepository,
+      authNotifier: widget.authNotifier,
+    );
+
+    if (selectedItinerary == null || !mounted) return;
+
+    // Step 2: Pick Day in DayPickerBottomSheet
+    final selectedDay = await DayPickerBottomSheet.show(
+      context,
+      itinerary: selectedItinerary,
+      place: location,
+      token: token,
+      crudRepository: widget.itineraryCrudRepository,
+    );
+
+    if (selectedDay == null || !mounted) return;
+
+    // Step 3: Open Activity Form with prefilled location snapshot
+    final created = await showActivityFormBottomSheet(
+      context,
+      itineraryId: selectedItinerary.itineraryId,
+      dayId: selectedDay.dayId,
+      dayNumber: selectedDay.dayNumber,
+      dayTitle: selectedDay.title,
+      authNotifier: widget.authNotifier ?? SimpleTokenAuthNotifier(token),
+      repository: widget.itineraryCrudRepository ?? ItineraryCrudRepository(),
+      initialLocation: location,
+    );
+
+    if (created == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã thêm hoạt động vào Ngày ${selectedDay.dayNumber} của "${selectedItinerary.title}"!',
+          ),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
+  }
+
+  Widget _buildInfoNotice(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.hairlineSoft),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline,
+            size: 16,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaveToItineraryAction() {
+    final result = _selectedSearchResult;
+
+    // Case 1: Administrative boundary -> cannot be saved or scheduled
+    if (result != null && result.isAdministrativeArea) {
+      return _buildInfoNotice(
+        'Đây là ranh giới khu vực hành chính, không thể lưu vào lịch trình.',
+      );
+    }
+
+    // Case 2: Internal Place -> both Save to Itinerary and Schedule as Activity are active
+    if (result != null && result.isInternalPlace) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              key: const Key('save_to_itinerary_button'),
+              icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+              label: const Text(
+                'Lưu vào chuyến đi',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                if (widget.token == null || widget.token!.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                ItineraryPickerBottomSheet.show(
+                  context,
+                  place: result,
+                  token: widget.token!,
+                  repository: widget.itineraryCrudRepository,
+                  authNotifier: widget.authNotifier,
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ElevatedButton.icon(
+              key: const Key('schedule_activity_button'),
+              icon: const Icon(Icons.calendar_month_outlined, size: 16),
+              label: const Text(
+                'Lên lịch vào ngày',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => _handleScheduleActivity(result),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Case 3: External POI -> Schedule as Activity is active; Save to Itinerary has explanation
+    if (result != null && result.isExternalPoi) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              key: const Key('schedule_activity_button'),
+              icon: const Icon(Icons.calendar_month_outlined, size: 16),
+              label: const Text(
+                'Lên lịch vào ngày',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => _handleScheduleActivity(result),
+            ),
+          ),
+          const SizedBox(height: 6),
+          _buildInfoNotice(
+            'Địa điểm này chưa có trong danh mục địa điểm của Travel Planner. Bạn vẫn có thể lên lịch trực tiếp vào một ngày trong chuyến đi.',
+          ),
+        ],
+      );
+    }
+
+    // Case 4: Manual Pin or custom pinned location
+    if (_selectedPoint != null) {
+      final manualLocation = _selectedSearchResult ??
+          LocationSearchResult(
+            placeId: _selectedPlaceId ?? '',
+            name: _selectedName ?? fallbackLocationName,
+            formattedAddress: _selectedAddress ?? '',
+            provider: _selectedProvider ?? 'MANUAL_PIN',
+            latitude: _selectedPoint!.latitude,
+            longitude: _selectedPoint!.longitude,
+          );
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              key: const Key('schedule_activity_button'),
+              icon: const Icon(Icons.calendar_month_outlined, size: 16),
+              label: const Text(
+                'Lên lịch vào ngày',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => _handleScheduleActivity(manualLocation),
+            ),
+          ),
+          const SizedBox(height: 6),
+          _buildInfoNotice(
+            'Vị trí ghim thủ công chưa có trong danh mục địa điểm.',
+          ),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   @override
@@ -881,6 +1173,45 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                                               .ellipsis,
                                                         )
                                                       : null,
+                                                  trailing: item.isInternalPlace
+                                                      ? IconButton(
+                                                          key: Key(
+                                                            'save_result_${item.placeId}',
+                                                          ),
+                                                          icon: const Icon(
+                                                            Icons
+                                                                .bookmark_add_outlined,
+                                                            color: AppColors
+                                                                .primary,
+                                                            size: 20,
+                                                          ),
+                                                          tooltip:
+                                                              'Lưu vào chuyến đi',
+                                                          onPressed: () {
+                                                            if (widget.token ==
+                                                                    null ||
+                                                                widget.token!
+                                                                    .isEmpty) {
+                                                              ScaffoldMessenger.of(
+                                                                context,
+                                                              ).showSnackBar(
+                                                                const SnackBar(
+                                                                  content: Text(
+                                                                    'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
+                                                                  ),
+                                                                ),
+                                                              );
+                                                              return;
+                                                            }
+                                                            ItineraryPickerBottomSheet.show(
+                                                              context,
+                                                              place: item,
+                                                              token:
+                                                                  widget.token!,
+                                                            );
+                                                          },
+                                                        )
+                                                      : null,
                                                   onTap: () =>
                                                       _selectSearchResult(item),
                                                 );
@@ -948,78 +1279,88 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                             color: AppColors.primary.withValues(alpha: 0.3),
                           ),
                         ),
-                        child: Row(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryLight,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.pin_drop,
-                                color: AppColors.primary,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Row(
+                            Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.pin_drop,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Flexible(
-                                        child: Text(
-                                          _selectedName ?? fallbackLocationName,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.textPrimary,
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              _selectedName ??
+                                                  fallbackLocationName,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                          if (_isReverseGeocoding) ...[
+                                            const SizedBox(width: 6),
+                                            const SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 1.5,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ] else ...[
+                                            const SizedBox(width: 4),
+                                            GestureDetector(
+                                              onTap: _editLocationName,
+                                              child: const Icon(
+                                                Icons.edit_outlined,
+                                                size: 14,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
                                       ),
-                                      if (_isReverseGeocoding) ...[
-                                        const SizedBox(width: 6),
-                                        const SizedBox(
-                                          width: 12,
-                                          height: 12,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 1.5,
-                                            color: AppColors.primary,
-                                          ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _selectedAddress ??
+                                            'Tọa độ: ${_selectedPoint!.latitude.toStringAsFixed(5)}, ${_selectedPoint!.longitude.toStringAsFixed(5)}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
                                         ),
-                                      ] else ...[
-                                        const SizedBox(width: 4),
-                                        GestureDetector(
-                                          onTap: _editLocationName,
-                                          child: const Icon(
-                                            Icons.edit_outlined,
-                                            size: 14,
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                      ],
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ],
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _selectedAddress ??
-                                        'Tọa độ: ${_selectedPoint!.latitude.toStringAsFixed(5)}, ${_selectedPoint!.longitude.toStringAsFixed(5)}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 8),
+                            _buildSaveToItineraryAction(),
                           ],
                         ),
                       ),

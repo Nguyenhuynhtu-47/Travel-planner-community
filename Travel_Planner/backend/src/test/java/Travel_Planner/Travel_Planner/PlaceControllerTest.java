@@ -1,6 +1,7 @@
 package Travel_Planner.Travel_Planner;
 
 import Travel_Planner.Travel_Planner.dto.request.CreatePlaceRequest;
+import Travel_Planner.Travel_Planner.dto.request.ResolvePlaceRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdatePlaceRequest;
 import Travel_Planner.Travel_Planner.model.Place;
 import Travel_Planner.Travel_Planner.model.User;
@@ -257,5 +258,63 @@ public class PlaceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].status", is("HIDDEN")));
+    }
+
+    @Test
+    @DisplayName("User resolve POST /api/places/resolve canonicalizes new external place into Place catalog")
+    void testResolvePlace_NewPlace_Success() throws Exception {
+        ResolvePlaceRequest request = ResolvePlaceRequest.builder()
+                .provider("LOCATION_IQ")
+                .providerPlaceId("iq_123456")
+                .name("Quán Cà Phê Mới Lạ")
+                .address("123 Đường ABC, Hà Nội")
+                .latitude(new BigDecimal("21.0300000"))
+                .longitude(new BigDecimal("105.8500000"))
+                .category("CAFE")
+                .build();
+
+        mockMvc.perform(post("/api/places/resolve")
+                        .header("Authorization", userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.placeId", notNullValue()))
+                .andExpect(jsonPath("$.name", is("Quán Cà Phê Mới Lạ")))
+                .andExpect(jsonPath("$.category", is("CAFE")));
+    }
+
+    @Test
+    @DisplayName("User resolve POST /api/places/resolve returns existing place without duplicate insertion")
+    void testResolvePlace_ExistingPlace_ReturnsExisting() throws Exception {
+        ResolvePlaceRequest request = ResolvePlaceRequest.builder()
+                .provider("LOCATION_IQ")
+                .providerPlaceId("iq_unique_999")
+                .name("Điểm Du Lịch Nổi Tiếng")
+                .address("Hà Nội")
+                .latitude(new BigDecimal("21.0500000"))
+                .longitude(new BigDecimal("105.8200000"))
+                .category("ATTRACTION")
+                .build();
+
+        // Call first time
+        mockMvc.perform(post("/api/places/resolve")
+                        .header("Authorization", userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.placeId", notNullValue()));
+
+        long countAfterFirst = placeRepository.count();
+
+        // Call second time with same provider + providerPlaceId
+        mockMvc.perform(post("/api/places/resolve")
+                        .header("Authorization", userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.placeId", notNullValue()));
+
+        long countAfterSecond = placeRepository.count();
+        assertEquals(countAfterFirst, countAfterSecond, "Place count must not increase on duplicate resolve");
     }
 }

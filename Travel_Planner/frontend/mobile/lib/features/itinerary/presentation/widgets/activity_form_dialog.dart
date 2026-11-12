@@ -10,6 +10,7 @@ import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../location/data/location_repository.dart';
+import '../../../location/data/models/location_search_result.dart';
 import '../../../location/presentation/widgets/location_picker_sheet.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/activity_detail.dart';
@@ -28,6 +29,7 @@ Future<bool?> showActivityFormDialog(
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
   LocationRepository? locationRepository,
+  LocationSearchResult? initialLocation,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
@@ -44,6 +46,7 @@ Future<bool?> showActivityFormDialog(
       authNotifier: authNotifier,
       repository: repository,
       locationRepository: locationRepository,
+      initialLocation: initialLocation,
     ),
   );
 }
@@ -59,6 +62,7 @@ Future<bool?> showActivityFormBottomSheet(
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
   LocationRepository? locationRepository,
+  LocationSearchResult? initialLocation,
 }) => showActivityFormDialog(
   context,
   itineraryId: itineraryId,
@@ -69,6 +73,7 @@ Future<bool?> showActivityFormBottomSheet(
   authNotifier: authNotifier,
   repository: repository,
   locationRepository: locationRepository,
+  initialLocation: initialLocation,
 );
 
 class ActivityFormBottomSheet extends StatefulWidget {
@@ -80,6 +85,7 @@ class ActivityFormBottomSheet extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository repository;
   final LocationRepository? locationRepository;
+  final LocationSearchResult? initialLocation;
 
   const ActivityFormBottomSheet({
     super.key,
@@ -91,6 +97,7 @@ class ActivityFormBottomSheet extends StatefulWidget {
     required this.authNotifier,
     required this.repository,
     this.locationRepository,
+    this.initialLocation,
   });
 
   @override
@@ -151,10 +158,44 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
       _longitude = act.longitude;
       _placeId = act.placeId;
       _locationProvider = act.locationProvider;
+    } else if (widget.initialLocation != null) {
+      final loc = widget.initialLocation!;
+      if (loc.isInternalPlace) {
+        _destinationId = null;
+        _canonicalPlaceId = loc.internalPlaceId;
+        _latitude = null; // Strictly null to respect backend invariant
+        _longitude = null;
+        _locationName = loc.name;
+        _locationAddress =
+            loc.formattedAddress.isNotEmpty ? loc.formattedAddress : null;
+        _placeId = loc.placeId;
+        _locationProvider = 'PLACE_CATALOG';
+        if (loc.name.isNotEmpty) {
+          _lastAutoFilledActivityName = loc.name;
+        }
+      } else {
+        _destinationId = null;
+        _canonicalPlaceId = null;
+        _latitude = loc.latitude;
+        _longitude = loc.longitude;
+        _locationName = loc.name.isNotEmpty ? loc.name : 'Vị trí đã chọn';
+        _locationAddress =
+            loc.formattedAddress.isNotEmpty ? loc.formattedAddress : null;
+        _placeId = loc.placeId.isNotEmpty ? loc.placeId : null;
+        _locationProvider = loc.provider ?? 'MANUAL_PIN';
+        if (loc.name.isNotEmpty && loc.name != 'Vị trí đã ghim') {
+          _lastAutoFilledActivityName = loc.name;
+        }
+      }
     }
 
     _nameController = TextEditingController(
-      text: widget.initialActivity?.name ?? '',
+      text: widget.initialActivity?.name ??
+          (widget.initialLocation != null &&
+                  widget.initialLocation!.name.isNotEmpty &&
+                  widget.initialLocation!.name != 'Vị trí đã ghim'
+              ? widget.initialLocation!.name
+              : ''),
     );
     _descriptionController = TextEditingController(
       text: widget.initialActivity?.description ?? '',
@@ -422,8 +463,8 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           locationAddress: _locationCleared ? null : _locationAddress,
           customLocationName: _locationCleared ? null : _locationName,
           customAddress: _locationCleared ? null : _locationAddress,
-          latitude: _locationCleared ? null : _latitude,
-          longitude: _locationCleared ? null : _longitude,
+          latitude: _canonicalPlaceId != null ? null : (_locationCleared ? null : _latitude),
+          longitude: _canonicalPlaceId != null ? null : (_locationCleared ? null : _longitude),
           placeId: _locationCleared ? null : _placeId,
           locationProvider: _locationCleared ? null : _locationProvider,
           imageUrl: imageUrl,
@@ -449,8 +490,8 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
           locationAddress: _locationAddress,
           customLocationName: _locationName,
           customAddress: _locationAddress,
-          latitude: _latitude,
-          longitude: _longitude,
+          latitude: _canonicalPlaceId != null ? null : _latitude,
+          longitude: _canonicalPlaceId != null ? null : _longitude,
           placeId: _placeId,
           locationProvider: _locationProvider,
           imageUrl: imageUrl,
@@ -659,7 +700,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        if (_latitude != null && _longitude != null) ...[
+                        if (_locationName != null || (_latitude != null && _longitude != null)) ...[
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -714,13 +755,23 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                         ),
                                       ],
                                       const SizedBox(height: 2),
-                                      Text(
-                                        'Tọa độ: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textSecondary,
+                                      if (_latitude != null && _longitude != null)
+                                        Text(
+                                          'Tọa độ: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        )
+                                      else if (_canonicalPlaceId != null)
+                                        const Text(
+                                          'Địa điểm danh mục đã lưu',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -844,11 +895,11 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                           _destinationId = null;
                                           _locationName = sp.place.name;
                                           _locationAddress = sp.place.address;
-                                          _latitude = sp.place.latitude;
-                                          _longitude = sp.place.longitude;
+                                          _latitude = null; // Strictly null to respect backend invariant
+                                          _longitude = null;
                                           _placeId =
                                               sp.place.placeId.toString();
-                                          _locationProvider = 'SYSTEM';
+                                          _locationProvider = 'PLACE_CATALOG';
                                           _locationCleared = false;
                                           if (_nameController.text
                                               .trim()

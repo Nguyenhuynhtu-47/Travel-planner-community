@@ -38,7 +38,9 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ?? ItineraryCrudRepository();
+    _repository = widget.repository ??
+        widget.notifier?.repository ??
+        ItineraryCrudRepository();
     _notifier =
         widget.notifier ?? MyItinerariesNotifier(repository: _repository);
     _scrollController.addListener(_onScroll);
@@ -150,6 +152,7 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
         surfaceTintColor: Colors.transparent,
       ),
       floatingActionButton: FloatingActionButton.extended(
+        key: const Key('fab_create_itinerary'),
         onPressed: _navigateToCreateScreen,
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -200,7 +203,8 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
                         padding: const EdgeInsets.only(top: 80),
                         child: AppEmptyState(
                           title: 'Chưa có lịch trình nào',
-                          message: 'Bạn chưa tạo lịch trình nào hoặc không có lịch trình nào phù hợp với bộ lọc.',
+                          message:
+                              'Bạn chưa tạo lịch trình nào hoặc không có lịch trình nào phù hợp với bộ lọc.',
                           icon: Icons.map_outlined,
                           actionText: 'Tạo lịch trình ngay',
                           onActionPressed: _navigateToCreateScreen,
@@ -217,7 +221,7 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
                   child: ListView.builder(
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
                     itemCount:
                         _notifier.itineraries.length +
                         (_notifier.isLoadingMore ? 1 : 0),
@@ -274,137 +278,106 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
   }
 
   Widget _buildFilterBar() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.hairline)),
-      ),
-      child: ListenableBuilder(
-        listenable: _notifier,
-        builder: (context, _) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                // Visibility: All
-                _buildFilterChip(
-                  label: 'Tất cả',
-                  isSelected:
-                      _notifier.visibilityFilter == null &&
-                      _notifier.statusFilter == null,
-                  onSelected: () {
-                    _notifier.setVisibilityFilter(
-                      null,
-                      token: widget.authNotifier.token,
-                    );
-                    _notifier.setStatusFilter(
-                      null,
-                      token: widget.authNotifier.token,
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
+    return ListenableBuilder(
+      listenable: _notifier,
+      builder: (context, _) {
+        final isAll = _notifier.statusFilter == null && _notifier.visibilityFilter == null;
+        final isPublic = _notifier.visibilityFilter == 'PUBLIC';
+        final isPrivate = _notifier.visibilityFilter == 'PRIVATE';
+        final isDraft = _notifier.statusFilter == 'DRAFT';
 
-                // Visibility: Public
-                _buildFilterChip(
-                  label: 'Công khai',
-                  icon: Icons.public,
-                  isSelected: _notifier.visibilityFilter == 'PUBLIC',
-                  onSelected: () {
-                    final next = _notifier.visibilityFilter == 'PUBLIC'
-                        ? null
-                        : 'PUBLIC';
-                    _notifier.setVisibilityFilter(
-                      next,
-                      token: widget.authNotifier.token,
-                    );
-                  },
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              FilterChip(
+                label: const Text('Tất cả'),
+                selected: isAll,
+                onSelected: (_) {
+                  _notifier.setStatusFilter(null, token: widget.authNotifier.token);
+                  _notifier.setVisibilityFilter(null, token: widget.authNotifier.token);
+                },
+                selectedColor: AppColors.primaryLight,
+                checkmarkColor: AppColors.primary,
+                labelStyle: TextStyle(
+                  color: isAll ? AppColors.primary : AppColors.textPrimary,
+                  fontWeight: isAll ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 13,
                 ),
-                const SizedBox(width: 8),
-
-                // Visibility: Private
-                _buildFilterChip(
-                  label: 'Riêng tư',
-                  icon: Icons.lock_outline,
-                  isSelected: _notifier.visibilityFilter == 'PRIVATE',
-                  onSelected: () {
-                    final next = _notifier.visibilityFilter == 'PRIVATE'
-                        ? null
-                        : 'PRIVATE';
-                    _notifier.setVisibilityFilter(
-                      next,
-                      token: widget.authNotifier.token,
-                    );
-                  },
+                backgroundColor: AppColors.surface,
+                side: BorderSide(
+                  color: isAll ? AppColors.primary : AppColors.hairline,
                 ),
-                const SizedBox(width: 8),
-
-                // Status: Draft
-                _buildFilterChip(
-                  label: 'Bản nháp',
-                  icon: Icons.edit_note_rounded,
-                  isSelected: _notifier.statusFilter == 'DRAFT',
-                  onSelected: () {
-                    final next = _notifier.statusFilter == 'DRAFT'
-                        ? null
-                        : 'DRAFT';
-                    _notifier.setStatusFilter(
-                      next,
-                      token: widget.authNotifier.token,
-                    );
-                  },
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFilterChip({
-    required String label,
-    IconData? icon,
-    required bool isSelected,
-    required VoidCallback onSelected,
-  }) {
-    return InkWell(
-      onTap: onSelected,
-      borderRadius: BorderRadius.circular(20),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surfaceSoft,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.hairline,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                size: 14,
-                color: isSelected ? Colors.white : AppColors.textSecondary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: const Text('Công khai'),
+                selected: isPublic,
+                onSelected: (_) {
+                  _notifier.setStatusFilter(null, token: widget.authNotifier.token);
+                  _notifier.setVisibilityFilter('PUBLIC', token: widget.authNotifier.token);
+                },
+                selectedColor: AppColors.primaryLight,
+                checkmarkColor: AppColors.primary,
+                labelStyle: TextStyle(
+                  color: isPublic ? AppColors.primary : AppColors.textPrimary,
+                  fontWeight: isPublic ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 13,
+                ),
+                backgroundColor: AppColors.surface,
+                side: BorderSide(
+                  color: isPublic ? AppColors.primary : AppColors.hairline,
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: const Text('Riêng tư'),
+                selected: isPrivate,
+                onSelected: (_) {
+                  _notifier.setStatusFilter(null, token: widget.authNotifier.token);
+                  _notifier.setVisibilityFilter('PRIVATE', token: widget.authNotifier.token);
+                },
+                selectedColor: AppColors.primaryLight,
+                checkmarkColor: AppColors.primary,
+                labelStyle: TextStyle(
+                  color: isPrivate ? AppColors.primary : AppColors.textPrimary,
+                  fontWeight: isPrivate ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 13,
+                ),
+                backgroundColor: AppColors.surface,
+                side: BorderSide(
+                  color: isPrivate ? AppColors.primary : AppColors.hairline,
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: const Text('Bản nháp'),
+                selected: isDraft,
+                onSelected: (_) {
+                  _notifier.setVisibilityFilter(null, token: widget.authNotifier.token);
+                  _notifier.setStatusFilter('DRAFT', token: widget.authNotifier.token);
+                },
+                selectedColor: AppColors.primaryLight,
+                checkmarkColor: AppColors.primary,
+                labelStyle: TextStyle(
+                  color: isDraft ? AppColors.primary : AppColors.textPrimary,
+                  fontWeight: isDraft ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 13,
+                ),
+                backgroundColor: AppColors.surface,
+                side: BorderSide(
+                  color: isDraft ? AppColors.primary : AppColors.hairline,
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
             ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? Colors.white : AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

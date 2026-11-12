@@ -1,9 +1,11 @@
 package Travel_Planner.Travel_Planner.controller;
 
+import Travel_Planner.Travel_Planner.dto.request.ResolvePlaceRequest;
 import Travel_Planner.Travel_Planner.dto.response.PlaceDetailResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceResponse;
 import Travel_Planner.Travel_Planner.model.enums.PlaceCategory;
 import Travel_Planner.Travel_Planner.service.PlaceService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -48,6 +50,22 @@ public class PlaceController {
     @GetMapping("/{id}")
     public ResponseEntity<PlaceDetailResponse> getPlaceById(@PathVariable Long id) {
         return ResponseEntity.ok(placeService.getPublicPlaceById(id));
+    }
+
+    @PostMapping("/resolve")
+    public ResponseEntity<PlaceDetailResponse> resolvePlace(@Valid @RequestBody ResolvePlaceRequest request) {
+        PlaceDetailResponse response = placeService.resolveOrPersistPlace(
+                request.getProvider(),
+                request.getProviderPlaceId(),
+                request.getName(),
+                request.getAddress(),
+                request.getLatitude(),
+                request.getLongitude(),
+                request.getCategory(),
+                request.getType(),
+                request.getMetadataJson()
+        );
+        return ResponseEntity.ok(response);
     }
 }
 

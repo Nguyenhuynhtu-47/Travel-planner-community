@@ -650,7 +650,15 @@ void main() {
         expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
         expect(find.byIcon(Icons.delete_outline), findsOneWidget);
 
-        // Days section is immediately accessible and visible near the top
+        // Verify Tab 1 "Tổng quan" & Tab 2 "Hoạt động" exist
+        expect(find.text('Tổng quan'), findsWidgets);
+        expect(find.text('Hoạt động'), findsWidgets);
+
+        // Switch to Tab 2 "Hoạt động"
+        await tester.tap(find.text('Hoạt động'));
+        await tester.pumpAndSettle();
+
+        // Days section is visible in Hoạt động tab
         expect(find.text('Lịch trình theo ngày (3 ngày)'), findsOneWidget);
         expect(find.text('Thêm ngày'), findsOneWidget);
 

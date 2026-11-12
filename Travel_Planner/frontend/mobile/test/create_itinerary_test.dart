@@ -408,6 +408,10 @@ void main() {
       // Valid detail data is shown immediately without false "not found"
       expect(find.text('Chuyến đi Vũng Tàu'), findsOneWidget);
       expect(find.text('Không tìm thấy lịch trình'), findsNothing);
+      // Switch to Hoạt động tab to view days
+      await tester.tap(find.text('Hoạt động'));
+      await tester.pumpAndSettle();
+
       // Days and day-management are accessible
       expect(find.text('Ngày 1'), findsWidgets);
       expect(find.text('Ngày 2'), findsWidgets);

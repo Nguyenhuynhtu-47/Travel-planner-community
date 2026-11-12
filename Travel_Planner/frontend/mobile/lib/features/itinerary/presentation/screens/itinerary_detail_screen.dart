@@ -28,6 +28,8 @@ import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../data/models/reorder_activity_item.dart';
 import '../widgets/reorder_activities_dialog.dart';
 import '../widgets/itinerary_map_preview_card.dart';
+import '../widgets/add_place_to_itinerary_sheet.dart';
+import '../widgets/save_place_to_itinerary_sheet.dart';
 import 'activity_detail_screen.dart';
 import 'edit_itinerary_screen.dart';
 import 'itinerary_map_screen.dart';
@@ -47,6 +49,7 @@ class ItineraryDetailScreen extends StatefulWidget {
   final ItineraryCrudRepository? crudRepository;
   final SocialRepository? socialRepository;
   final ValueChanged<SocialStateUpdate>? onSocialUpdate;
+  final int initialTab;
 
   const ItineraryDetailScreen({
     super.key,
@@ -62,16 +65,19 @@ class ItineraryDetailScreen extends StatefulWidget {
     this.crudRepository,
     this.socialRepository,
     this.onSocialUpdate,
+    this.initialTab = 0,
   });
 
   @override
   State<ItineraryDetailScreen> createState() => _ItineraryDetailScreenState();
 }
 
-class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
+class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
+    with SingleTickerProviderStateMixin {
   late final ItineraryDetailNotifier _notifier;
   late final ItineraryCrudRepository _crudRepository;
   late final SocialRepository _socialRepository;
+  late final TabController _tabController;
   bool _isDeleting = false;
   bool _isCloning = false;
   int? _selectedDayNumber;
@@ -107,6 +113,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
         );
     _crudRepository = widget.crudRepository ?? ItineraryCrudRepository();
     _socialRepository = widget.socialRepository ?? SocialRepository();
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
     if (widget.initialDetail != null) {
       _userFavoritedOverride = widget.initialDetail!.isFavorited;
       _userSavedOverride = widget.initialDetail!.isSaved;
@@ -132,6 +143,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     if (widget.notifier == null) _notifier.dispose();
     super.dispose();
   }
@@ -1029,6 +1041,31 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   );
                 },
               ),
+              bottom: TabBar(
+                controller: _tabController,
+                indicatorColor: AppColors.primary,
+                indicatorWeight: 3,
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.info_outline, size: 18),
+                    text: 'Tổng quan',
+                  ),
+                  Tab(
+                    icon: Icon(Icons.event_note_outlined, size: 18),
+                    text: 'Hoạt động',
+                  ),
+                ],
+              ),
               actions: [
                 if (itinerary != null) ...[
                   IconButton(
@@ -1127,7 +1164,13 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
 
   Widget _buildBody(ItineraryDetail? itinerary, bool isOwner) {
     if (itinerary != null) {
-      return _buildContent(itinerary, isOwner);
+      return TabBarView(
+        controller: _tabController,
+        children: [
+          _buildOverviewTab(itinerary, isOwner),
+          _buildActivitiesTab(itinerary, isOwner),
+        ],
+      );
     }
     if (_notifier.isLoading) {
       return const Center(
@@ -1171,18 +1214,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     );
   }
 
-  Widget _buildContent(ItineraryDetail itinerary, bool isOwner) {
-    if (_selectedDayNumber != null &&
-        !itinerary.days.any((d) => d.dayNumber == _selectedDayNumber)) {
-      _selectedDayNumber = null;
-    }
-
-    final displayedDays = _selectedDayNumber == null
-        ? itinerary.days
-        : itinerary.days
-              .where((d) => d.dayNumber == _selectedDayNumber)
-              .toList();
-
+  // ================= TAB 1: TỔNG QUAN =================
+  Widget _buildOverviewTab(ItineraryDetail itinerary, bool isOwner) {
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: () async {
@@ -1239,16 +1272,63 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
               ),
             ),
 
-          // 1. Compact Header
+          // 1. Basic Information (Cover, Title, Destination, Stats, Creator, Description)
           SliverToBoxAdapter(child: _buildOverview(itinerary, isOwner)),
 
-          // 1.1 Itinerary-scoped Saved Places
-          SliverToBoxAdapter(child: _buildItinerarySavedPlaces(itinerary, isOwner)),
+          // 2. Itinerary-Scoped Saved Places (Tab 1 specific)
+          SliverToBoxAdapter(
+            child: _buildItinerarySavedPlacesSection(itinerary, isOwner),
+          ),
 
-          // 2. Day Section Header
+          // 3. Rating summary section if public & active
+          if ((itinerary.status == 'ACTIVE' ||
+                  itinerary.status == 'PUBLISHED') &&
+              itinerary.visibility == 'PUBLIC')
+            SliverToBoxAdapter(child: _buildRatingSection(itinerary, isOwner)),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        ],
+      ),
+    );
+  }
+
+  // ================= TAB 2: HOẠT ĐỘNG =================
+  Widget _buildActivitiesTab(ItineraryDetail itinerary, bool isOwner) {
+    if (_selectedDayNumber != null &&
+        !itinerary.days.any((d) => d.dayNumber == _selectedDayNumber)) {
+      _selectedDayNumber = null;
+    }
+
+    final displayedDays = _selectedDayNumber == null
+        ? itinerary.days
+        : itinerary.days
+              .where((d) => d.dayNumber == _selectedDayNumber)
+              .toList();
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        await Future.wait([
+          _notifier.loadDetail(token: _effectiveToken),
+          _loadItinerarySavedPlaces(),
+        ]);
+      },
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          if (_notifier.isLoading)
+            const SliverToBoxAdapter(
+              child: LinearProgressIndicator(
+                minHeight: 2,
+                color: AppColors.primary,
+                backgroundColor: AppColors.surfaceSoft,
+              ),
+            ),
+
+          // 1. Day Section Header
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Row(
                 children: [
                   Expanded(
@@ -1294,11 +1374,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
             ),
           ),
 
-          // 3. Compact Horizontal Day Selector
+          // 2. Compact Horizontal Day Selector
           if (itinerary.days.isNotEmpty)
             SliverToBoxAdapter(child: _buildDaySelector(itinerary)),
 
-          // 3.1. Embedded Itinerary Map Preview Card
+          // 3. Embedded Itinerary Map Preview Card
           if (itinerary.days.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -1321,7 +1401,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 ),
                 child: AppEmptyState(
                   title: 'Chưa có lịch trình theo ngày',
-                  message: 'Lịch trình này chưa có ngày hoặc hoạt động được lên kế hoạch.',
+                  message:
+                      'Lịch trình này chưa có ngày hoặc hoạt động được lên kế hoạch.',
                   icon: Icons.calendar_today_outlined,
                   actionText: isOwner ? 'Thêm ngày đầu tiên' : null,
                   onActionPressed: isOwner
@@ -1337,40 +1418,42 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                 itemCount: displayedDays.length,
                 itemBuilder: (context, index) {
                   final day = displayedDays[index];
-                    return ItineraryDayCard(
-                      day: day,
-                      onEdit: isOwner
-                          ? () => _handleEditDay(itinerary, day)
-                          : null,
-                      onDelete: isOwner
-                          ? () => _handleDeleteDay(itinerary, day)
-                          : null,
-                      onAddActivity: isOwner
-                          ? () => _handleAddActivity(itinerary, day)
-                          : null,
-                      onEditActivity: isOwner
-                          ? (act) => _handleEditActivity(itinerary, day, act)
-                          : null,
-                      onDeleteActivity: isOwner
-                          ? (act) => _handleDeleteActivity(itinerary, day, act)
-                          : null,
-                      onActivityTap: (act) =>
-                          _handleViewActivityDetail(act, day),
-                      onActivityComments: !isOwner &&
-                              itinerary.visibility == 'PUBLIC' &&
-                              (itinerary.status == 'ACTIVE' ||
-                                  itinerary.status == 'PUBLISHED')
-                          ? (act) =>
-                                _openActivityComments(act.activityId, act.name)
-                          : null,
-                      onReorderActivities: isOwner
-                          ? () => _handleReorderActivities(itinerary, day)
-                          : null,
-                      onSaveActivityOrder: isOwner
-                          ? (items) =>
-                                _handleSaveActivityOrder(itinerary, day, items)
-                          : null,
-                    );
+                  return ItineraryDayCard(
+                    day: day,
+                    onEdit: isOwner
+                        ? () => _handleEditDay(itinerary, day)
+                        : null,
+                    onDelete: isOwner
+                        ? () => _handleDeleteDay(itinerary, day)
+                        : null,
+                    onAddActivity: isOwner
+                        ? () => _handleAddActivity(itinerary, day)
+                        : null,
+                    onEditActivity: isOwner
+                        ? (act) => _handleEditActivity(itinerary, day, act)
+                        : null,
+                    onDeleteActivity: isOwner
+                        ? (act) => _handleDeleteActivity(itinerary, day, act)
+                        : null,
+                    onActivityTap: (act) =>
+                        _handleViewActivityDetail(act, day),
+                    onActivityComments: !isOwner &&
+                            itinerary.visibility == 'PUBLIC' &&
+                            (itinerary.status == 'ACTIVE' ||
+                                itinerary.status == 'PUBLISHED')
+                        ? (act) =>
+                              _openActivityComments(act.activityId, act.name)
+                        : null,
+                    onReorderActivities: isOwner
+                        ? () => _handleReorderActivities(itinerary, day)
+                        : null,
+                    onSaveActivityOrder: isOwner
+                        ? (items) =>
+                              _handleSaveActivityOrder(itinerary, day, items)
+                        : null,
+                    onSavePlace: (act) =>
+                        _openSavePlaceToMyItinerariesSheet(activity: act),
+                  );
                 },
               ),
             ),
@@ -1442,8 +1525,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                   authNotifier: widget.authNotifier,
                 ),
               ),
-            SliverToBoxAdapter(child: _buildRatingSection(itinerary, isOwner)),
           ],
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
     );
@@ -2099,43 +2182,6 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
     }
   }
 
-  Future<void> _handleSavePlaceToItinerary(PlaceSummary place) async {
-    if (_effectiveToken == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để lưu địa điểm vào lịch trình.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-    try {
-      await _crudRepository.savePlaceToItinerary(
-        widget.itineraryId,
-        place.placeId,
-        token: _effectiveToken!,
-      );
-      await _loadItinerarySavedPlaces();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã lưu "${place.name}" vào lịch trình!'),
-            backgroundColor: AppColors.primary,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e is ApiException ? e.message : 'Lỗi khi lưu địa điểm'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
   Future<void> _handleRemoveSavedPlace(ItineraryPlace ip) async {
     if (_effectiveToken == null) return;
     final confirmed = await showDialog<bool>(
@@ -2187,33 +2233,114 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
   }
 
   Future<void> _showAddPlaceToItineraryDialog() async {
-    if (_effectiveToken == null) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _AddPlaceToItinerarySheet(
-        crudRepository: _crudRepository,
-        token: _effectiveToken,
-        existingPlaceIds: _itinerarySavedPlaces.map((e) => e.place.placeId).toSet(),
-        onPlaceSelected: (place) {
-          Navigator.of(ctx).pop();
-          _handleSavePlaceToItinerary(place);
-        },
-      ),
+    final auth = widget.authNotifier;
+    if (auth == null || !auth.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để thêm địa điểm vào lịch trình.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final detail = _notifier.itineraryDetail;
+    final summary = detail != null
+        ? ItinerarySummary(
+            itineraryId: detail.itineraryId,
+            title: detail.title,
+            location: detail.location,
+            totalDays: detail.totalDays,
+            theme: detail.theme,
+            budget: detail.budget,
+            visibility: detail.visibility,
+            status: detail.status,
+            viewCount: 0,
+            favoriteCount: detail.favoriteCount,
+            ratingCount: detail.ratingCount,
+            averageRating: detail.averageRating,
+          )
+        : null;
+
+    final result = await showAddPlaceToItinerarySheet(
+      context,
+      authNotifier: auth,
+      repository: _crudRepository,
+      initialItinerary: summary,
+    );
+
+    if (result == true && mounted) {
+      _loadItinerarySavedPlaces();
+    }
+  }
+
+  Future<void> _openSavePlaceToMyItinerariesSheet({
+    PlaceSummary? place,
+    ActivityDetail? activity,
+  }) async {
+    final auth = widget.authNotifier;
+    if (auth == null || !auth.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để lưu địa điểm vào lịch trình.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    String locationName = '';
+    String? address;
+    double? lat;
+    double? lng;
+    int? placeId;
+    String? category;
+    String? imageUrl;
+
+    if (place != null) {
+      locationName = place.name;
+      address = place.address;
+      lat = place.latitude;
+      lng = place.longitude;
+      placeId = place.placeId;
+      category = place.category;
+      imageUrl = place.imageUrl;
+    } else if (activity != null) {
+      locationName = activity.effectiveLocationName ?? activity.name;
+      address = activity.effectiveAddress;
+      lat = activity.effectiveLatitude;
+      lng = activity.effectiveLongitude;
+      placeId = activity.place?.placeId ?? activity.canonicalPlaceId;
+      category = activity.place?.category ?? 'Hoạt động';
+      imageUrl = activity.effectiveImageUrl;
+    }
+
+    if (locationName.isEmpty) return;
+
+    await showSavePlaceToItinerarySheet(
+      context,
+      authNotifier: auth,
+      repository: _crudRepository,
+      locationName: locationName,
+      address: address,
+      latitude: lat,
+      longitude: lng,
+      canonicalPlaceId: placeId,
+      category: category,
+      imageUrl: imageUrl,
     );
   }
 
-  Widget _buildItinerarySavedPlaces(ItineraryDetail itinerary, bool isOwner) {
-    if (_itinerarySavedPlaces.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  Widget _buildItinerarySavedPlacesSection(
+    ItineraryDetail itinerary,
+    bool isOwner,
+  ) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.hairline),
       ),
       child: Column(
@@ -2221,278 +2348,368 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.bookmark_added_outlined, size: 20, color: AppColors.primary),
+              const Icon(
+                Icons.bookmark_border_rounded,
+                size: 22,
+                color: AppColors.primary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Địa điểm đã lưu (${_itinerarySavedPlaces.length})',
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
               if (isOwner)
-                TextButton.icon(
+                OutlinedButton.icon(
                   onPressed: _showAddPlaceToItineraryDialog,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Thêm địa điểm', style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(
+                  icon: const Icon(
+                    Icons.add_location_alt_outlined,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                  label: const Text(
+                    'Thêm địa điểm',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
             ],
           ),
-          if (_isLoadingSavedPlaces)
+          const SizedBox(height: 12),
+          if (_isLoadingSavedPlaces && _itinerarySavedPlaces.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                child: CircularProgressIndicator(color: AppColors.primary),
               ),
             )
           else if (_itinerarySavedPlaces.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'Lịch trình chưa có địa điểm nào được lưu. Hãy thêm các địa điểm để thuận tiện lập kế hoạch!',
-                style: TextStyle(fontSize: 13, color: AppColors.muted),
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _itinerarySavedPlaces.map((ip) {
-                  return Chip(
-                    avatar: const Icon(Icons.place, size: 16, color: AppColors.primary),
-                    label: Text(
-                      ip.place.name,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                    ),
-                    deleteIcon: isOwner ? const Icon(Icons.close, size: 16) : null,
-                    onDeleted: isOwner ? () => _handleRemoveSavedPlace(ip) : null,
-                    backgroundColor: AppColors.surfaceSoft,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: const BorderSide(color: AppColors.hairline),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AddPlaceToItinerarySheet extends StatefulWidget {
-  final ItineraryCrudRepository crudRepository;
-  final String? token;
-  final Set<int> existingPlaceIds;
-  final ValueChanged<PlaceSummary> onPlaceSelected;
-
-  const _AddPlaceToItinerarySheet({
-    required this.crudRepository,
-    required this.token,
-    required this.existingPlaceIds,
-    required this.onPlaceSelected,
-  });
-
-  @override
-  State<_AddPlaceToItinerarySheet> createState() => _AddPlaceToItinerarySheetState();
-}
-
-class _AddPlaceToItinerarySheetState extends State<_AddPlaceToItinerarySheet> {
-  final TextEditingController _searchController = TextEditingController();
-  List<PlaceSummary> _places = [];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchPlaces();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _fetchPlaces({String? keyword}) async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final list = await widget.crudRepository.getPlaces(
-        keyword: keyword,
-        token: widget.token,
-      );
-      if (mounted) {
-        setState(() {
-          _places = list;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Không thể tải danh sách địa điểm.';
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      margin: EdgeInsets.only(bottom: bottomInset),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.hairline,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                const Icon(Icons.bookmark_add_outlined, color: AppColors.primary),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Lưu địa điểm vào lịch trình',
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              alignment: Alignment.center,
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.place_outlined,
+                    size: 40,
+                    color: AppColors.muted.withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Chưa có địa điểm đã lưu',
                     style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Tìm kiếm địa điểm...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.hairline),
-                ),
-                filled: true,
-                fillColor: AppColors.surfaceSoft,
+                  const SizedBox(height: 4),
+                  Text(
+                    isOwner
+                        ? 'Lưu các địa điểm bạn muốn ghé thăm trong chuyến đi này để thuận tiện lên kế hoạch hoạt động.'
+                        : 'Chưa có địa điểm nào được lưu trong lịch trình này.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (isOwner) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.tonalIcon(
+                      onPressed: _showAddPlaceToItineraryDialog,
+                      icon: const Icon(Icons.add_location_alt_outlined, size: 16),
+                      label: const Text('Thêm địa điểm'),
+                    ),
+                  ],
+                ],
               ),
-              onSubmitted: (query) => _fetchPlaces(keyword: query),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _itinerarySavedPlaces.length,
+              separatorBuilder: (context, index) =>
+                  const Divider(height: 16, color: AppColors.hairline),
+              itemBuilder: (context, index) {
+                final ip = _itinerarySavedPlaces[index];
+                return _buildSavedPlaceCard(ip, isOwner);
+              },
             ),
-          ),
-          Expanded(
-            child: _buildList(),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildList() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-    }
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!, style: const TextStyle(color: AppColors.error)),
-            TextButton(
-              onPressed: () => _fetchPlaces(keyword: _searchController.text),
-              child: const Text('Thử lại'),
-            ),
-          ],
+  Widget _buildSavedPlaceCard(ItineraryPlace ip, bool isOwner) {
+    final p = ip.place;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Thumbnail or placeholder
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: p.imageUrl != null && p.imageUrl!.isNotEmpty
+              ? Image.network(
+                  p.imageUrl!,
+                  width: 52,
+                  height: 52,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildSavedPlacePlaceholder(),
+                )
+              : _buildSavedPlacePlaceholder(),
         ),
-      );
-    }
-    if (_places.isEmpty) {
-      return const Center(
-        child: Text('Không tìm thấy địa điểm nào.', style: TextStyle(color: AppColors.muted)),
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: _places.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
-      itemBuilder: (ctx, index) {
-        final place = _places[index];
-        final alreadySaved = widget.existingPlaceIds.contains(place.placeId);
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-          leading: CircleAvatar(
-            backgroundColor: AppColors.surfaceSoft,
-            child: Icon(
-              Icons.place,
-              color: alreadySaved ? AppColors.muted : AppColors.primary,
-            ),
-          ),
-          title: Text(
-            place.name,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: alreadySaved ? AppColors.muted : AppColors.textPrimary,
-            ),
-          ),
-          subtitle: place.address != null
-              ? Text(
-                  place.address!,
+        const SizedBox(width: 12),
+        // Info
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                p.name,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (p.category != null) ...[
+                const SizedBox(height: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    p.category!,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+              if (p.address != null && p.address!.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  p.address!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: alreadySaved ? AppColors.muted : AppColors.textSecondary,
-                  ),
-                )
-              : null,
-          trailing: alreadySaved
-              ? const Chip(
-                  label: Text('Đã lưu', style: TextStyle(fontSize: 11)),
-                  visualDensity: VisualDensity.compact,
-                )
-              : FilledButton.tonal(
-                  onPressed: () => widget.onPlaceSelected(place),
-                  child: const Text('Lưu'),
                 ),
+              ],
+            ],
+          ),
+        ),
+        // Actions
+        if (isOwner)
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.more_vert,
+              size: 20,
+              color: AppColors.textSecondary,
+            ),
+            padding: EdgeInsets.zero,
+            onSelected: (val) {
+              if (val == 'view') {
+                _showPlaceDetailsModal(p);
+              } else if (val == 'delete') {
+                _handleRemoveSavedPlace(ip);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'view',
+                child: Row(
+                  children: [
+                    Icon(Icons.visibility_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Xem chi tiết')),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline,
+                      size: 16,
+                      color: AppColors.error,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Xóa khỏi lịch trình',
+                        style: TextStyle(color: AppColors.error),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else
+          IconButton(
+            icon: const Icon(
+              Icons.bookmark_add_outlined,
+              size: 22,
+              color: AppColors.primary,
+            ),
+            tooltip: 'Lưu vào lịch trình của tôi',
+            onPressed: () => _openSavePlaceToMyItinerariesSheet(place: p),
+          ),
+      ],
+    );
+  }
+
+  void _showPlaceDetailsModal(PlaceSummary p) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.hairline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      p.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (p.category != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        p.category!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (p.address != null && p.address!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        p.address!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (p.description != null && p.description!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  p.description!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Đóng'),
+                ),
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildSavedPlacePlaceholder() {
+    return Container(
+      width: 52,
+      height: 52,
+      color: AppColors.surfaceSoft,
+      child: const Center(
+        child: Icon(Icons.place, color: AppColors.primary, size: 24),
+      ),
     );
   }
 }

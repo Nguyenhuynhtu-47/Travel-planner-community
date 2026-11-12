@@ -35,6 +35,35 @@ class LocationSearchResult {
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
+  /// Whether this result is an internal canonical Place from the catalog.
+  bool get isInternalPlace =>
+      provider == 'SYSTEM' &&
+      type == 'place' &&
+      placeId.startsWith('place_') &&
+      internalPlaceId != null;
+
+  /// Extracts the integer place_id for internal canonical places.
+  int? get internalPlaceId {
+    if (placeId.startsWith('place_')) {
+      return int.tryParse(placeId.substring('place_'.length));
+    }
+    return null;
+  }
+
+  /// Whether this result is an administrative area (province, city, district, boundary).
+  bool get isAdministrativeArea =>
+      !isInternalPlace &&
+      (isLocalityFallback ||
+          type == 'administrative' ||
+          category == 'boundary' ||
+          category == 'locality' ||
+          placeId.startsWith('admin_') ||
+          isCityOrAdministrative);
+
+  /// Whether this result is an external POI from third-party map providers (TomTom, LocationIQ, HERE).
+  bool get isExternalPoi =>
+      !isInternalPlace && !isAdministrativeArea && hasCoordinates;
+
   bool get isCityOrAdministrative {
     if (isLocalityFallback) return true;
     final t = (type ?? '').toLowerCase();
