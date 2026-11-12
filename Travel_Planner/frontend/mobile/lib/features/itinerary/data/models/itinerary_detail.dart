@@ -13,6 +13,8 @@ class ItineraryDetail {
   final int viewCount;
   final int favoriteCount;
   final int ratingCount;
+  final int reuseCount;
+  final int? originalItineraryId;
   final double averageRating;
   final String visibility;
   final String status;
@@ -36,6 +38,8 @@ class ItineraryDetail {
     required this.viewCount,
     required this.favoriteCount,
     required this.ratingCount,
+    this.reuseCount = 0,
+    this.originalItineraryId,
     required this.averageRating,
     required this.visibility,
     required this.status,
@@ -106,6 +110,12 @@ class ItineraryDetail {
       ratingCount: json['ratingCount'] is num
           ? (json['ratingCount'] as num).toInt()
           : (int.tryParse(json['ratingCount']?.toString() ?? '') ?? 0),
+      reuseCount: json['reuseCount'] is num
+          ? (json['reuseCount'] as num).toInt()
+          : (int.tryParse(json['reuseCount']?.toString() ?? '') ?? 0),
+      originalItineraryId: json['originalItineraryId'] is num
+          ? (json['originalItineraryId'] as num).toInt()
+          : (int.tryParse(json['originalItineraryId']?.toString() ?? '')),
       averageRating: rawAverageRating is num
           ? rawAverageRating.toDouble()
           : (num.tryParse(rawAverageRating?.toString() ?? '')?.toDouble() ??
@@ -136,6 +146,8 @@ class ItineraryDetail {
     int? viewCount,
     int? favoriteCount,
     int? ratingCount,
+    int? reuseCount,
+    int? originalItineraryId,
     double? averageRating,
     String? visibility,
     String? status,
@@ -160,6 +172,8 @@ class ItineraryDetail {
       viewCount: viewCount ?? this.viewCount,
       favoriteCount: favoriteCount ?? this.favoriteCount,
       ratingCount: ratingCount ?? this.ratingCount,
+      reuseCount: reuseCount ?? this.reuseCount,
+      originalItineraryId: originalItineraryId ?? this.originalItineraryId,
       averageRating: averageRating ?? this.averageRating,
       visibility: visibility ?? this.visibility,
       status: status ?? this.status,

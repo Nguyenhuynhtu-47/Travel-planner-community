@@ -253,11 +253,20 @@ To ensure high architectural rigor, zero regression, and prevent monolithic unve
    - **Phase 3.2 (Place Linking & Resolution):** Multi-signal geographic and textual resolution. 20 canonical places linked (16 HIGH, 4 MEDIUM); 4 ambiguous places (11, 12, 20, 22) retain `administrative_area_id = NULL`.
    - **Phase 3.3 & 3.3.1 (Search, Filtering & Spatial Remediation):** Integrated location discovery, administrative area hierarchy filtering, spatial radius search (`idx_places_coords`), and Authoritative Priority Pipeline. Remediated POI intent bypass, administrative ranking penalties in POI searches, polar coordinate clamping, and radius validation.
    - **Test Metrics:** 407 Backend tests PASS (exit code 0), 33 Web tests PASS (exit code 0), 364 Mobile tests PASS (exit code 1, 3 baseline tests preserved). Grand total: 804 / 807 tests PASS.
-4. **Phase 4: User Saved Places (NEXT MILESTONE):**
-   - Personal bookmarks and custom collections (`user_saved_places`).
-5. **Phase 5: Clone & Personalize Itinerary:**
-   - Forking itineraries with independent snapshot retention.
-6. **Phase 6: Explore-to-Itinerary Integration:**
+4. **Phase 4: Itinerary-Scoped Saved Places (COMPLETED & ACCEPTED):**
+   - Itinerary-scoped saved places management (`itinerary_places`) with unique constraint (`itinerary_id`, `place_id`).
+   - Deep integration with `ActivityFormBottomSheet` for fast bookmarking and direct activity linkage.
+   - Non-destructive association semantics: removing a saved place from an itinerary never affects the canonical `Place` or `Activity`.
+   - 440 Backend tests PASS, 33 Web tests PASS, 366 Mobile tests PASS.
+5. **Phase 5: Clone & Personalize Itinerary (COMPLETED & ACCEPTED):**
+   - Independent atomic deep copy of itineraries, days, activities, and saved places.
+   - Lineage tracking via `original_itinerary_id` and ancestor `reuse_count` incrementation.
+   - Access control matrix: public itineraries open to all authenticated users, private itineraries restricted to owner.
+   - Community metrics reset (`view_count = 0`, `favorite_count = 0`, `rating_count = 0`, `comment_count = 0`, `reuse_count = 0`).
+   - Zero duplication of `places` table records; complete non-destructive isolation.
+   - Mobile integration with confirmation dialog, progress indicator, AppBar action, and `${reuseCount} lượt sao chép` badge.
+   - 451 Backend tests PASS (11 dedicated tests), 33 Web tests PASS, 374 Mobile tests PASS (8 dedicated tests).
+6. **Phase 6: Explore-to-Itinerary Integration (NEXT MILESTONE):**
    - Direct injection of Explore places into itinerary timeline days.
 
 ---

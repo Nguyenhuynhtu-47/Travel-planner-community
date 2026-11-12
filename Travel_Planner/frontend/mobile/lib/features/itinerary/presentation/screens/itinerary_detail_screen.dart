@@ -73,6 +73,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
   late final ItineraryCrudRepository _crudRepository;
   late final SocialRepository _socialRepository;
   bool _isDeleting = false;
+  bool _isCloning = false;
   int? _selectedDayNumber;
   bool? _userFavoritedOverride;
   bool? _userSavedOverride;
@@ -197,6 +198,91 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
           backgroundColor: AppColors.error,
         ),
       );
+    }
+  }
+
+  Future<void> _handleClone(ItineraryDetail itinerary) async {
+    if (_isCloning) return;
+
+    final isAuthenticated = widget.authNotifier?.isAuthenticated ?? false;
+    if (!isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để sao chép lịch trình'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sao chép lịch trình'),
+        content: Text(
+          'Bạn có muốn tạo một bản sao độc lập của lịch trình "${itinerary.title}"? '
+          'Bản sao sẽ thuộc quyền sở hữu của bạn và bạn có thể tự do tùy chỉnh các ngày, hoạt động và địa điểm.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Sao chép'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isCloning = true);
+
+    try {
+      final clonedItinerary = await _crudRepository.cloneItinerary(
+        itinerary.itineraryId,
+        token: _effectiveToken,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã sao chép lịch trình thành công!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ItineraryDetailScreen(
+            itineraryId: clonedItinerary.itineraryId,
+            initialDetail: clonedItinerary,
+            authNotifier: widget.authNotifier,
+            isOwner: true,
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể sao chép lịch trình: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isCloning = false);
+      }
     }
   }
 
@@ -973,6 +1059,26 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
                         ? null
                         : () => _handleToggleFavorite(itinerary, isOwner),
                   ),
+                  if (_isCloning)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.copy_all_outlined),
+                      tooltip: 'Sao chép lịch trình',
+                      onPressed: () => _handleClone(itinerary),
+                    ),
                 ],
                 if (isOwner && itinerary != null) ...[
                   if (_isDeleting)
@@ -1823,6 +1929,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
               if (itinerary.theme != null && itinerary.theme!.trim().isNotEmpty)
                 _meta(Icons.category_outlined, itinerary.theme!.trim()),
               _meta(Icons.payments_outlined, _formatBudget(itinerary.budget)),
+              if (itinerary.reuseCount > 0)
+                _meta(
+                  Icons.copy_all_outlined,
+                  '${itinerary.reuseCount} lượt sao chép',
+                ),
             ],
           ),
 

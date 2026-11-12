@@ -55,6 +55,8 @@ public interface ItineraryService {
 
     void deleteItinerary(Integer id, String currentUsername);
 
+    ItineraryDetailResponse cloneItinerary(Integer id, String currentUsername);
+
     ItineraryDayResponse addDay(Integer itineraryId, CreateDayRequest request, String currentUsername);
 
     ItineraryDayResponse updateDay(Integer itineraryId, Integer dayId, UpdateDayRequest request, String currentUsername);

@@ -41,8 +41,8 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final FavoriteRepository favoriteRepository;
     private final SavedItineraryRepository savedItineraryRepository;
     private final CommentRepository commentRepository;
+    private final ItineraryPlaceRepository itineraryPlaceRepository;
 
-    @org.springframework.beans.factory.annotation.Autowired
     public ItineraryServiceImpl(
             ItineraryRepository itineraryRepository,
             RatingRepository ratingRepository,
@@ -54,6 +54,23 @@ public class ItineraryServiceImpl implements ItineraryService {
             SavedItineraryRepository savedItineraryRepository,
             CommentRepository commentRepository
     ) {
+        this(itineraryRepository, ratingRepository, itineraryDayRepository, activityRepository, userRepository,
+                placeRepository, favoriteRepository, savedItineraryRepository, commentRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ItineraryServiceImpl(
+            ItineraryRepository itineraryRepository,
+            RatingRepository ratingRepository,
+            ItineraryDayRepository itineraryDayRepository,
+            ActivityRepository activityRepository,
+            UserRepository userRepository,
+            PlaceRepository placeRepository,
+            FavoriteRepository favoriteRepository,
+            SavedItineraryRepository savedItineraryRepository,
+            CommentRepository commentRepository,
+            ItineraryPlaceRepository itineraryPlaceRepository
+    ) {
         this.itineraryRepository = itineraryRepository;
         this.ratingRepository = ratingRepository;
         this.itineraryDayRepository = itineraryDayRepository;
@@ -63,6 +80,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         this.favoriteRepository = favoriteRepository;
         this.savedItineraryRepository = savedItineraryRepository;
         this.commentRepository = commentRepository;
+        this.itineraryPlaceRepository = itineraryPlaceRepository;
     }
 
     @Override
@@ -415,6 +433,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .ratingCount(itinerary.getRatingCount())
                 .commentCount(itinerary.getCommentCount())
                 .reuseCount(itinerary.getReuseCount())
+                .originalItineraryId(itinerary.getOriginalItinerary() != null ? itinerary.getOriginalItinerary().getItineraryId() : null)
                 .averageRating(avgRating)
                 .isFavorited(isFavorited)
                 .isSaved(isSaved)
@@ -616,6 +635,118 @@ public class ItineraryServiceImpl implements ItineraryService {
         Itinerary itinerary = findOwnedItinerary(id, currentUsername, "xóa");
         itinerary.setStatus(ItineraryStatus.DELETED);
         itineraryRepository.save(itinerary);
+    }
+
+    @Override
+    @Transactional
+    public ItineraryDetailResponse cloneItinerary(Integer id, String currentUsername) {
+        if (id == null) {
+            throw new BadRequestException("Mã lịch trình không hợp lệ");
+        }
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Vui lòng đăng nhập để sao chép lịch trình");
+        }
+
+        User currentUser = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new UnauthorizedException("Người dùng không tồn tại"));
+
+        if (currentUser.getStatus() != UserStatus.ACTIVE) {
+            throw new ForbiddenException("Tài khoản của bạn đã bị khóa hoặc không hoạt động");
+        }
+
+        Itinerary source = itineraryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa"));
+
+        if (source.getStatus() == ItineraryStatus.DELETED || (source.getUser() != null && source.getUser().getStatus() != UserStatus.ACTIVE)) {
+            throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
+        }
+
+        boolean isOwner = source.getUser() != null && currentUsername.equals(source.getUser().getUsername());
+        if (source.getVisibility() != Visibility.PUBLIC && !isOwner) {
+            throw new ForbiddenException("Bạn không có quyền sao chép lịch trình riêng tư này");
+        }
+
+        // Increment reuse count of original itinerary
+        source.setReuseCount((source.getReuseCount() != null ? source.getReuseCount() : 0) + 1);
+        itineraryRepository.save(source);
+
+        // Build cloned itinerary with metadata and reset community metrics
+        String rawTitle = source.getTitle() != null ? source.getTitle() : "Lịch trình";
+        String cloneTitle = rawTitle + " (Bản sao)";
+        if (cloneTitle.length() > 150) {
+            cloneTitle = cloneTitle.substring(0, 150);
+        }
+
+        Itinerary clonedItinerary = Itinerary.builder()
+                .user(currentUser)
+                .originalItinerary(source)
+                .title(cloneTitle)
+                .description(source.getDescription())
+                .location(source.getLocation())
+                .coverImage(source.getCoverImage())
+                .totalDays(source.getTotalDays())
+                .budget(source.getBudget() != null ? source.getBudget() : BigDecimal.ZERO)
+                .theme(source.getTheme())
+                .visibility(Visibility.PRIVATE)
+                .status(ItineraryStatus.ACTIVE)
+                .viewCount(0)
+                .favoriteCount(0)
+                .ratingCount(0)
+                .commentCount(0)
+                .reuseCount(0)
+                .build();
+        clonedItinerary = itineraryRepository.save(clonedItinerary);
+
+        // Deep copy days and activities
+        List<ItineraryDay> sourceDays = itineraryDayRepository.findByItinerary_ItineraryIdOrderByDayNumberAsc(id);
+        for (ItineraryDay sourceDay : sourceDays) {
+            ItineraryDay clonedDay = ItineraryDay.builder()
+                    .itinerary(clonedItinerary)
+                    .dayNumber(sourceDay.getDayNumber())
+                    .title(sourceDay.getTitle())
+                    .date(sourceDay.getDate())
+                    .build();
+            clonedDay = itineraryDayRepository.save(clonedDay);
+
+            List<Activity> sourceActivities = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(sourceDay.getDayId());
+            for (Activity sourceAct : sourceActivities) {
+                Activity clonedAct = Activity.builder()
+                        .itineraryDay(clonedDay)
+                        .place(sourceAct.getPlace())
+                        .name(sourceAct.getName())
+                        .description(sourceAct.getDescription())
+                        .locationName(sourceAct.getLocationName())
+                        .locationAddress(sourceAct.getLocationAddress())
+                        .customLocationName(sourceAct.getCustomLocationName())
+                        .customAddress(sourceAct.getCustomAddress())
+                        .latitude(sourceAct.getLatitude())
+                        .longitude(sourceAct.getLongitude())
+                        .placeId(sourceAct.getPlaceId())
+                        .locationProvider(sourceAct.getLocationProvider())
+                        .imageUrl(sourceAct.getImageUrl())
+                        .startTime(sourceAct.getStartTime())
+                        .endTime(sourceAct.getEndTime())
+                        .cost(sourceAct.getCost() != null ? sourceAct.getCost() : BigDecimal.ZERO)
+                        .displayOrder(sourceAct.getDisplayOrder())
+                        .build();
+                activityRepository.save(clonedAct);
+            }
+        }
+
+        // Deep copy itinerary-scoped saved places (points to the same canonical Place entities)
+        if (itineraryPlaceRepository != null) {
+            List<ItineraryPlace> sourcePlaces = itineraryPlaceRepository.findAllByItineraryIdWithPlace(id);
+            for (ItineraryPlace sourcePlace : sourcePlaces) {
+                ItineraryPlace clonedPlace = ItineraryPlace.builder()
+                        .itinerary(clonedItinerary)
+                        .place(sourcePlace.getPlace())
+                        .savedAt(java.time.LocalDateTime.now())
+                        .build();
+                itineraryPlaceRepository.save(clonedPlace);
+            }
+        }
+
+        return getItineraryDetail(clonedItinerary.getItineraryId(), currentUsername);
     }
 
     @Override

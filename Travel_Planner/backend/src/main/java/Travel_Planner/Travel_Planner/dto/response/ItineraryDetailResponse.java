@@ -31,6 +31,7 @@ public class ItineraryDetailResponse {
     private Integer ratingCount;
     private Integer commentCount;
     private Integer reuseCount;
+    private Integer originalItineraryId;
     private Double averageRating;
     private Boolean isFavorited;
     private Boolean isSaved;

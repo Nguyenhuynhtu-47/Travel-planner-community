@@ -96,6 +96,16 @@ public class ItineraryController {
         return ResponseEntity.ok(Map.of("message", "Đã xóa lịch trình thành công"));
     }
 
+    @PostMapping("/{id}/clone")
+    public ResponseEntity<ItineraryDetailResponse> cloneItinerary(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String currentUsername = userDetails != null ? userDetails.getUsername() : null;
+        ItineraryDetailResponse response = itineraryService.cloneItinerary(id, currentUsername);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
     @PostMapping("/{id}/days")
     public ResponseEntity<ItineraryDayResponse> addDay(
             @PathVariable Integer id,

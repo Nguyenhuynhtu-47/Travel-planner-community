@@ -138,6 +138,24 @@ class ItineraryCrudRepository {
     );
   }
 
+  /// Clones an existing accessible itinerary for the authenticated user.
+  Future<ItineraryDetail> cloneItinerary(int itineraryId, {String? token}) async {
+    final response = await _apiClient.post(
+      '${ApiConstants.itinerariesEndpoint}/$itineraryId/clone',
+      body: const {},
+      token: token,
+    );
+
+    if (response is Map) {
+      return ItineraryDetail.fromJson(Map<String, dynamic>.from(response));
+    }
+
+    throw ApiException(
+      statusCode: 0,
+      message: 'Phản hồi từ máy chủ không hợp lệ.',
+    );
+  }
+
   /// Adds a new day to an itinerary.
   Future<ItineraryDayDetail> addDay(
     int itineraryId,

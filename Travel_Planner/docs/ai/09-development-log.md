@@ -7134,3 +7134,67 @@ Direct read-only SQL queries against `travel_planner` confirmed:
 ### 5. Documentation Deliverables
 - 11 verification artifacts produced in `docs/verification/phase-4/` (`00-current-architecture-audit.md` through `10-final-acceptance-report.md`).
 - Phase 3.3.1 officially closed; Phase 4 successfully accepted and ready for Phase 5.
+
+
+---
+
+## Session 56 — 2026-11-12
+**Focus:** Phase 5 Implementation & Verification — Clone Itinerary (Atomic Deep Copy & Lineage Tracking)
+**Branch:** `develop`
+**Git Commit HEAD:** `7ec1913` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+
+### 1. Architectural & Subsystem Design
+- **Lineage Architecture:**
+  - Implemented `POST /api/itineraries/{id}/clone` in `ItineraryController.java` and `ItineraryServiceImpl.java`.
+  - Links cloned itinerary back to ancestor via `original_itinerary_id` foreign key.
+  - Increment ancestor's `reuse_count` by 1 upon successful clone.
+  - Added `originalItineraryId` to `ItineraryDetailResponse` DTO for client reflection and ancestry analysis.
+- **Access Control Matrix:**
+  - Public itineraries: cloneable by any authenticated user.
+  - Private itineraries: cloneable ONLY by the owner (branching/drafting personal trips).
+  - Private itineraries of other users: rejected with `403 Forbidden` (`ForbiddenException`).
+  - Anonymous requests: rejected with `401 Unauthorized` via Spring Security.
+  - Banned/inactive users: rejected with `401 Unauthorized` (locked/disabled account in `UserDetailsServiceImpl`).
+  - Deleted or non-existent itineraries: return `404 Not Found` (`ResourceNotFoundException`).
+
+### 2. Deep-Copy Data Semantics & Non-Destructive Isolation
+- **Metadata Replication:**
+  - Title appended with ` (Bản sao)` (truncated to 150 chars max to fit varchar limit).
+  - Copies description, location, coverImage, totalDays, budget, theme.
+  - Default visibility: `Visibility.PRIVATE` (safely keeps clone private until user chooses to publish).
+  - Default status: `ItineraryStatus.ACTIVE`.
+  - Community metrics reset to zero: `viewCount = 0`, `favoriteCount = 0`, `ratingCount = 0`, `commentCount = 0`, `reuseCount = 0`.
+- **Hierarchical Duplication:**
+  - `ItineraryDay`: creates new day records preserving `dayNumber`, `title`, and `date`.
+  - `Activity`: creates new activity records preserving `name`, `description`, `startTime`, `endTime`, `cost`, `displayOrder`, `locationName`, `customLocationName`, `locationAddress`, `customAddress`, `latitude`, `longitude`, `placeId`, `locationProvider`, and `imageUrl`.
+  - `canonical_place_id`: cloned activities retain direct link to the canonical `Place`.
+  - `ItineraryPlace`: duplicates itinerary-scoped saved place associations pointing to the same canonical `Place` entities.
+  - **Zero Place Duplication:** Total rows in `places` table remains strictly unchanged.
+  - **Non-Destructive Isolation:** Updating or deleting the cloned itinerary, its days, activities, or saved places has zero effect on the ancestor itinerary.
+
+### 3. Mobile & Web Client Integration
+- **Flutter Mobile (`frontend/mobile`):**
+  - Extended `ItineraryDetail` model with `reuseCount` and `originalItineraryId`.
+  - Added `cloneItinerary(int itineraryId, {String? token})` to `ItineraryCrudRepository`.
+  - Updated `ItineraryDetailScreen`:
+    - Added copy icon button `Icons.copy_all_outlined` in `AppBar.actions`.
+    - Integrated confirmation dialog before clone initiation.
+    - Added in-flight loading state (`_isCloning` flag) disabling buttons and showing progress indicator to prevent double-tap races.
+    - On success: shows success SnackBar and navigates to the cloned itinerary detail view with `isOwner = true`.
+    - Overview metadata badge displays `${itinerary.reuseCount} lượt sao chép` when `reuseCount > 0`.
+  - Added dedicated unit and widget test suite: `test/itinerary_clone_test.dart` (8/8 PASS).
+- **Flutter Web (`frontend/web`):**
+  - Verified 100% backward compatibility with administrative and moderation features.
+  - Full test suite passed: 33/33 PASS.
+
+### 4. Verification & Testing Evidence
+- **Backend Test Suite:** **451 PASS / 0 FAIL / 0 ERROR** (11 dedicated tests in `ItineraryCloneTest`).
+- **Mobile Test Suite:** **374 PASS / 3 baseline mock failures / 0 regressions**.
+- **Web Test Suite:** **33 PASS / 0 FAIL / 0 ERROR**.
+- **Database Invariants Verified on `travel_planner`:**
+  - Invariant 1: Exactly 12 Northern Bắc Ninh administrative units quarantined (`UNVERIFIED_AND_QUARANTINED`).
+  - Invariant 2: Places 11, 12, 20, 22 retain `administrative_area_id = NULL`.
+  - Invariant 3: Total activities count remains 121.
+  - Invariant 4: Total places catalog count remains 24.
+- **Documentation Deliverables:**
+  - 11 verification artifacts produced in `docs/verification/phase-5/` (`00-architecture-audit.md` through `10-final-acceptance-report.md`).
