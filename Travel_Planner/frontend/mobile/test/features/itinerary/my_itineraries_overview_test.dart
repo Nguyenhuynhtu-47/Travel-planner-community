@@ -11,7 +11,9 @@ import 'package:mobile/features/itinerary/data/itinerary_crud_repository.dart';
 import 'package:mobile/features/itinerary/data/models/activity_detail.dart';
 import 'package:mobile/features/itinerary/data/models/itinerary_day_detail.dart';
 import 'package:mobile/features/itinerary/data/models/itinerary_detail.dart';
+import 'package:mobile/features/itinerary/data/models/itinerary_place.dart';
 import 'package:mobile/features/itinerary/data/models/place_summary.dart';
+import 'package:mobile/features/itinerary/presentation/itinerary_detail_notifier.dart';
 import 'package:mobile/features/itinerary/presentation/my_itineraries_notifier.dart';
 import 'package:mobile/features/itinerary/presentation/screens/itinerary_detail_screen.dart';
 import 'package:mobile/features/itinerary/presentation/screens/my_itineraries_screen.dart';
@@ -51,6 +53,8 @@ void main() {
 
     MockClient createMockClient({
       bool returnEmptyPlaces = false,
+      bool placesApiFails = false,
+      bool delayPlaces = false,
       int ownerUserId = 1,
       String ownerUsername = 'testuser',
     }) {
@@ -113,6 +117,16 @@ void main() {
 
         // Places for Itinerary 10
         if (uri.path == '/api/itineraries/10/places/all') {
+          if (delayPlaces) {
+            await Future.delayed(const Duration(milliseconds: 150));
+          }
+          if (placesApiFails) {
+            return http.Response(
+              jsonEncode({'message': 'Lỗi máy chủ khi tải địa điểm đã lưu.'}),
+              500,
+              headers: {'content-type': 'application/json'},
+            );
+          }
           if (returnEmptyPlaces) {
             return http.Response(
               jsonEncode([]),
@@ -584,6 +598,517 @@ void main() {
 
         expect(savedPlaceToItineraryId, equals(10));
         expect(savedPlaceId, equals(1));
+      },
+    );
+
+    testWidgets(
+      'Owner opens itinerary with 0 places: displays "Địa điểm đã lưu (0)", empty state, and "Thêm địa điểm" button',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              returnEmptyPlaces: true,
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Both tabs are present
+        expect(find.text('Tổng quan'), findsOneWidget);
+        expect(find.text('Hoạt động'), findsOneWidget);
+
+        // 2. Saved places section header is rendered with (0)
+        expect(find.text('Địa điểm đã lưu (0)'), findsOneWidget);
+
+        // 3. Empty state UI is rendered
+        expect(find.text('Chưa có địa điểm đã lưu'), findsOneWidget);
+        expect(
+          find.textContaining('Lưu các địa điểm bạn muốn ghé thăm trong chuyến đi này'),
+          findsOneWidget,
+        );
+
+        // 4. "Thêm địa điểm" button is rendered for owner (both in section header and empty state)
+        expect(find.text('Thêm địa điểm'), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'Viewer opens PUBLIC itinerary with 0 places: displays "Địa điểm đã lưu (0)", viewer empty state, NO "Thêm địa điểm" button',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        // Viewer is userId = 1, owner is userId = 999
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              returnEmptyPlaces: true,
+              ownerUserId: 999,
+              ownerUsername: 'otheruser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 999, ownerUsername: 'otheruser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: false,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Saved places section header is rendered with (0)
+        expect(find.text('Địa điểm đã lưu (0)'), findsOneWidget);
+
+        // 2. Viewer empty state UI is rendered
+        expect(find.text('Chưa có địa điểm đã lưu'), findsOneWidget);
+        expect(
+          find.text('Chưa có địa điểm nào được lưu trong lịch trình này.'),
+          findsOneWidget,
+        );
+
+        // 3. "Thêm địa điểm" action button must NOT be rendered for viewer
+        expect(find.text('Thêm địa điểm'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Toggling between Overview and Activities tabs preserves saved places section without data loss',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Step 1: In Tab 1 "Tổng quan", verify saved place is visible
+        expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+
+        // Step 2: Switch to Tab 2 "Hoạt động"
+        await tester.tap(find.text('Hoạt động'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Ngày 1: Phố Cổ'), findsOneWidget);
+
+        // Step 3: Switch back to Tab 1 "Tổng quan"
+        await tester.tap(find.text('Tổng quan'));
+        await tester.pumpAndSettle();
+
+        // Step 4: Verify saved place is still visible and intact
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+        expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Viewer with saved places sees the list and bookmark button, NO owner management actions',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              ownerUserId: 999,
+              ownerUsername: 'otheruser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 999, ownerUsername: 'otheruser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: false,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Header shows count (1)
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+
+        // 2. Place name and category/address are visible
+        expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+        expect(find.text('Tham quan'), findsOneWidget);
+
+        // 3. Viewer sees bookmark button to save place to own itineraries
+        expect(find.byIcon(Icons.bookmark_add_outlined), findsWidgets);
+
+        // 4. Viewer does NOT see owner "Thêm địa điểm" or owner more_vert popup menu
+        expect(find.text('Thêm địa điểm'), findsNothing);
+        expect(find.byIcon(Icons.more_vert), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Owner API failure does not hide the entire section: shows header, error card, retry button, and Add Place button',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              placesApiFails: true,
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Saved places section header is STILL RENDERED (never hidden on API error)
+        expect(find.text('Địa điểm đã lưu (0)'), findsOneWidget);
+
+        // 2. Error message card is rendered
+        expect(find.text('Lỗi máy chủ khi tải địa điểm đã lưu.'), findsOneWidget);
+        expect(find.text('Thử lại'), findsWidgets);
+
+        // 3. Owner can still access "Thêm địa điểm" action in the header
+        expect(find.text('Thêm địa điểm'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Add Activity and Overview display consistent saved-place data',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Verify Overview has saved place "Hồ Hoàn Kiếm"
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+        expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+
+        // 2. Switch to Tab 2 "Hoạt động"
+        await tester.tap(find.text('Hoạt động'));
+        await tester.pumpAndSettle();
+
+        // 3. Tap "Thêm hoạt động" on Day 1
+        final addActivityButton = find.text('Thêm hoạt động').first;
+        await tester.tap(addActivityButton);
+        await tester.pumpAndSettle();
+
+        // 4. Verify Add Activity modal bottom sheet displays consistent saved places
+        expect(find.text('Địa điểm đã lưu trong lịch trình:'), findsOneWidget);
+        expect(find.text('Hồ Hoàn Kiếm'), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'Repeated tab switching between Overview and Activities retains all content and never becomes blank',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Perform 6 back-and-forth tab switches
+        for (int i = 0; i < 3; i++) {
+          await tester.tap(find.text('Hoạt động'));
+          await tester.pumpAndSettle();
+          expect(find.text('Ngày 1: Phố Cổ'), findsOneWidget);
+
+          await tester.tap(find.text('Tổng quan'));
+          await tester.pumpAndSettle();
+          expect(find.text('Khám phá Hà Nội'), findsOneWidget);
+          expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+          expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+        }
+      },
+    );
+
+    testWidgets(
+      'Switching tabs while saved-place loading is in progress does not break layout or lose state',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              delayPlaces: true,
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+
+        // Initial pump before places async call completes
+        await tester.pump();
+
+        // Switch to Hoạt động while places call is pending
+        await tester.tap(find.text('Hoạt động'));
+        await tester.pump();
+
+        // Settle all futures (places call completes)
+        await tester.pumpAndSettle();
+        expect(find.text('Ngày 1: Phố Cổ'), findsOneWidget);
+
+        // Switch back to Tổng quan
+        await tester.tap(find.text('Tổng quan'));
+        await tester.pumpAndSettle();
+
+        // Verify Overview is completely rendered and not blank
+        expect(find.text('Khám phá Hà Nội'), findsOneWidget);
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+        expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'ItineraryDetailNotifier.savedPlaces is authoritative: direct notifier updates reflect immediately in Overview without stale state',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+        final notifier = ItineraryDetailNotifier(
+          itineraryId: 10,
+          initialDetail: detail,
+          crudRepository: repo,
+          initialSavedPlaces: [
+            ItineraryPlace(
+              id: 101,
+              itineraryId: 10,
+              place: const PlaceSummary(
+                placeId: 1,
+                name: 'Hồ Hoàn Kiếm',
+                category: 'Tham quan',
+                address: 'Hoàn Kiếm, Hà Nội',
+              ),
+              savedAt: DateTime.parse('2026-06-01T08:00:00Z'),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              notifier: notifier,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Initial authoritative state: 1 place
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+        expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+
+        // 2. Authoritative addition via notifier: add a 2nd place
+        notifier.addSavedPlace(
+          ItineraryPlace(
+            id: 102,
+            itineraryId: 10,
+            place: const PlaceSummary(
+              placeId: 2,
+              name: 'Văn Miếu Quốc Tử Giám',
+              category: 'Di tích',
+              address: 'Đống Đa, Hà Nội',
+            ),
+            savedAt: DateTime.parse('2026-06-01T09:00:00Z'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Immediately reflected in Overview: count becomes 2, both places visible
+        expect(find.text('Địa điểm đã lưu (2)'), findsOneWidget);
+        expect(find.text('Hồ Hoàn Kiếm'), findsOneWidget);
+        expect(find.text('Văn Miếu Quốc Tử Giám'), findsOneWidget);
+
+        // 3. Authoritative removal via notifier: remove place 1
+        notifier.removeSavedPlace(1);
+        await tester.pumpAndSettle();
+
+        // Immediately reflected: count becomes 1, place 1 gone, place 2 remains
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+        expect(find.text('Hồ Hoàn Kiếm'), findsNothing);
+        expect(find.text('Văn Miếu Quốc Tử Giám'), findsOneWidget);
+
+        // 4. Authoritative clear via notifier: empty state rendered
+        notifier.updateSavedPlaces([]);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Địa điểm đã lưu (0)'), findsOneWidget);
+        expect(find.text('Chưa có địa điểm đã lưu'), findsOneWidget);
+        expect(find.text('Văn Miếu Quốc Tử Giám'), findsNothing);
       },
     );
   });

@@ -73,11 +73,13 @@ class ItineraryDetailScreen extends StatefulWidget {
 }
 
 class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final ItineraryDetailNotifier _notifier;
   late final ItineraryCrudRepository _crudRepository;
   late final SocialRepository _socialRepository;
   late final TabController _tabController;
+  late final ScrollController _overviewScrollController;
+  late final ScrollController _activitiesScrollController;
   bool _isDeleting = false;
   bool _isCloning = false;
   int? _selectedDayNumber;
@@ -91,14 +93,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   bool _hasSocialChanges = false;
   bool _isTogglingFavorite = false;
   bool _isTogglingSave = false;
-  List<ItineraryPlace> _itinerarySavedPlaces = [];
-  bool _isLoadingSavedPlaces = false;
 
   String? get _effectiveToken => widget.token ?? widget.authNotifier?.token;
 
   @override
   void initState() {
     super.initState();
+    _crudRepository = widget.crudRepository ?? ItineraryCrudRepository();
+    _socialRepository = widget.socialRepository ?? SocialRepository();
     _notifier =
         widget.notifier ??
         ItineraryDetailNotifier(
@@ -110,9 +112,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
           repository: ItineraryRepository(
             apiClient: widget.crudRepository?.apiClient,
           ),
+          crudRepository: _crudRepository,
         );
-    _crudRepository = widget.crudRepository ?? ItineraryCrudRepository();
-    _socialRepository = widget.socialRepository ?? SocialRepository();
+    _overviewScrollController = ScrollController();
+    _activitiesScrollController = ScrollController();
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -144,6 +147,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _overviewScrollController.dispose();
+    _activitiesScrollController.dispose();
     if (widget.notifier == null) _notifier.dispose();
     super.dispose();
   }
@@ -409,6 +414,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       dayId: day.dayId,
       dayNumber: day.dayNumber,
       dayTitle: day.title,
+      initialSavedPlaces: _notifier.savedPlaces,
       authNotifier: widget.authNotifier!,
       repository: _crudRepository,
     );
@@ -421,6 +427,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         ),
       );
       _notifier.loadDetail(token: _effectiveToken);
+      _loadItinerarySavedPlaces();
     }
   }
 
@@ -438,6 +445,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       dayNumber: day.dayNumber,
       dayTitle: day.title,
       initialActivity: activity,
+      initialSavedPlaces: _notifier.savedPlaces,
       authNotifier: widget.authNotifier!,
       repository: _crudRepository,
     );
@@ -450,6 +458,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         ),
       );
       _notifier.loadDetail(token: _effectiveToken);
+      _loadItinerarySavedPlaces();
     }
   }
 
@@ -1167,8 +1176,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       return TabBarView(
         controller: _tabController,
         children: [
-          _buildOverviewTab(itinerary, isOwner),
-          _buildActivitiesTab(itinerary, isOwner),
+          _KeepAliveTabWrapper(
+            key: const PageStorageKey<String>('keep_alive_overview'),
+            child: _buildOverviewTab(itinerary, isOwner),
+          ),
+          _KeepAliveTabWrapper(
+            key: const PageStorageKey<String>('keep_alive_activities'),
+            child: _buildActivitiesTab(itinerary, isOwner),
+          ),
         ],
       );
     }
@@ -1225,6 +1240,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         ]);
       },
       child: CustomScrollView(
+        key: const PageStorageKey<String>('itinerary_overview_scroll'),
+        controller: _overviewScrollController,
+        primary: false,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           if (_notifier.isLoading)
@@ -1314,6 +1332,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         ]);
       },
       child: CustomScrollView(
+        key: const PageStorageKey<String>('itinerary_activities_scroll'),
+        controller: _activitiesScrollController,
+        primary: false,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           if (_notifier.isLoading)
@@ -2163,23 +2184,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   }
 
   Future<void> _loadItinerarySavedPlaces() async {
-    try {
-      setState(() => _isLoadingSavedPlaces = true);
-      final places = await _crudRepository.getSavedPlaces(
-        widget.itineraryId,
-        token: _effectiveToken,
-      );
-      if (mounted) {
-        setState(() {
-          _itinerarySavedPlaces = places;
-          _isLoadingSavedPlaces = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isLoadingSavedPlaces = false);
-      }
-    }
+    await _notifier.loadSavedPlaces(
+      token: _effectiveToken,
+      repository: _crudRepository,
+    );
   }
 
   Future<void> _handleRemoveSavedPlace(ItineraryPlace ip) async {
@@ -2212,6 +2220,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         ip.place.placeId,
         token: _effectiveToken!,
       );
+      _notifier.removeSavedPlace(ip.place.placeId);
       await _loadItinerarySavedPlaces();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2335,6 +2344,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     ItineraryDetail itinerary,
     bool isOwner,
   ) {
+    final savedPlaces = _notifier.savedPlaces;
+    final isLoading = _notifier.isLoadingSavedPlaces && savedPlaces.isEmpty;
+    final error = _notifier.savedPlacesError;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
@@ -2356,12 +2369,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Địa điểm đã lưu (${_itinerarySavedPlaces.length})',
+                  'Địa điểm đã lưu (${savedPlaces.length})',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (isOwner)
@@ -2381,6 +2396,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                     side: const BorderSide(color: AppColors.primary),
                     shape: RoundedRectangleBorder(
@@ -2391,14 +2409,43 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
             ],
           ),
           const SizedBox(height: 12),
-          if (_isLoadingSavedPlaces && _itinerarySavedPlaces.isEmpty)
+          if (isLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               ),
             )
-          else if (_itinerarySavedPlaces.isEmpty)
+          else if (error != null && savedPlaces.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              alignment: Alignment.center,
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 36,
+                    color: AppColors.error,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    error,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: _loadItinerarySavedPlaces,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Thử lại'),
+                  ),
+                ],
+              ),
+            )
+          else if (savedPlaces.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
               alignment: Alignment.center,
@@ -2441,16 +2488,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               ),
             )
           else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _itinerarySavedPlaces.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 16, color: AppColors.hairline),
-              itemBuilder: (context, index) {
-                final ip = _itinerarySavedPlaces[index];
-                return _buildSavedPlaceCard(ip, isOwner);
-              },
+            Column(
+              children: [
+                for (int i = 0; i < savedPlaces.length; i++) ...[
+                  if (i > 0)
+                    const Divider(height: 16, color: AppColors.hairline),
+                  _buildSavedPlaceCard(savedPlaces[i], isOwner),
+                ],
+              ],
             ),
         ],
       ),
@@ -2492,7 +2537,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (p.category != null) ...[
+              if (p.category != null && p.category!.trim().isNotEmpty) ...[
                 const SizedBox(height: 3),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -2504,7 +2549,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    p.category!,
+                    p.category!.trim(),
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -2513,10 +2558,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   ),
                 ),
               ],
-              if (p.address != null && p.address!.isNotEmpty) ...[
+              if (p.address != null && p.address!.trim().isNotEmpty) ...[
                 const SizedBox(height: 3),
                 Text(
-                  p.address!,
+                  p.address!.trim(),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -2711,5 +2756,25 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         child: Icon(Icons.place, color: AppColors.primary, size: 24),
       ),
     );
+  }
+}
+
+class _KeepAliveTabWrapper extends StatefulWidget {
+  final Widget child;
+  const _KeepAliveTabWrapper({super.key, required this.child});
+
+  @override
+  State<_KeepAliveTabWrapper> createState() => _KeepAliveTabWrapperState();
+}
+
+class _KeepAliveTabWrapperState extends State<_KeepAliveTabWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

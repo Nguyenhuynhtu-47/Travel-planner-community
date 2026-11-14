@@ -26,6 +26,7 @@ Future<bool?> showActivityFormDialog(
   required int dayNumber,
   String? dayTitle,
   ActivityDetail? initialActivity,
+  List<ItineraryPlace>? initialSavedPlaces,
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
   LocationRepository? locationRepository,
@@ -43,6 +44,7 @@ Future<bool?> showActivityFormDialog(
       dayNumber: dayNumber,
       dayTitle: dayTitle,
       initialActivity: initialActivity,
+      initialSavedPlaces: initialSavedPlaces,
       authNotifier: authNotifier,
       repository: repository,
       locationRepository: locationRepository,
@@ -59,6 +61,7 @@ Future<bool?> showActivityFormBottomSheet(
   required int dayNumber,
   String? dayTitle,
   ActivityDetail? initialActivity,
+  List<ItineraryPlace>? initialSavedPlaces,
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
   LocationRepository? locationRepository,
@@ -70,6 +73,7 @@ Future<bool?> showActivityFormBottomSheet(
   dayNumber: dayNumber,
   dayTitle: dayTitle,
   initialActivity: initialActivity,
+  initialSavedPlaces: initialSavedPlaces,
   authNotifier: authNotifier,
   repository: repository,
   locationRepository: locationRepository,
@@ -82,6 +86,7 @@ class ActivityFormBottomSheet extends StatefulWidget {
   final int dayNumber;
   final String? dayTitle;
   final ActivityDetail? initialActivity;
+  final List<ItineraryPlace>? initialSavedPlaces;
   final AuthNotifier authNotifier;
   final ItineraryCrudRepository repository;
   final LocationRepository? locationRepository;
@@ -94,6 +99,7 @@ class ActivityFormBottomSheet extends StatefulWidget {
     required this.dayNumber,
     this.dayTitle,
     this.initialActivity,
+    this.initialSavedPlaces,
     required this.authNotifier,
     required this.repository,
     this.locationRepository,
@@ -132,7 +138,9 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   String? _locationProvider;
   String? _lastAutoFilledActivityName;
   bool _locationCleared = false;
-  List<ItineraryPlace> _savedPlaces = [];
+  List<ItineraryPlace> _fallbackFetchedSavedPlaces = [];
+  List<ItineraryPlace> get _savedPlaces =>
+      widget.initialSavedPlaces ?? _fallbackFetchedSavedPlaces;
 
   bool get _isEditing => widget.initialActivity != null;
 
@@ -214,7 +222,9 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     if (widget.initialActivity?.endTime != null) {
       _endTime = _parseTimeOfDay(widget.initialActivity!.endTime!);
     }
-    _loadSavedPlaces();
+    if (widget.initialSavedPlaces == null) {
+      _loadSavedPlaces();
+    }
   }
 
   Future<void> _loadSavedPlaces() async {
@@ -226,7 +236,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
       );
       if (mounted) {
         setState(() {
-          _savedPlaces = list;
+          _fallbackFetchedSavedPlaces = list;
         });
       }
     } catch (_) {}

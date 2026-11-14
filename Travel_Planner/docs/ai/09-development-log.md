@@ -7964,3 +7964,253 @@ Direct read-only SQL queries against `travel_planner` confirmed:
 - **Backend Regression Suite:**
   - `PlaceControllerTest`, `CommunityPostServiceTest`, `CommunityControllerIntegrationTest`, `ItineraryPlaceTest`, `PostServiceJpaIntegrationTest`, `MediaCleanupServiceTest`: **63 / 63 PASS (100%)**, `BUILD SUCCESS`.
 - **Git Policy Compliance:** STRICTLY NO COMMIT, NO PUSH observed. Working tree preserved intact.
+
+---
+
+## Session 75 — 2026-11-14
+**Focus:** Bug Fix & Forensic Investigation — Saved Places Display in Owner's Itinerary Overview
+**Branch:** `develop`
+**Git Commit HEAD:** `e8471e5` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** ROOT CAUSE INVESTIGATION, COMPONENT PARITY & AUTOMATED VERIFICATION
+
+### 1. Root Cause Analysis & Architecture Comparison
+- **Symptom:** In user testing, when opening another user's public itinerary, the "Địa điểm đã lưu (0)" section and its empty state were clearly displayed in Tab 1 ("Tổng quan"). However, when opening an itinerary owned by the logged-in user, the "Địa điểm đã lưu" section was reported missing even though Tab 1 was present.
+- **Forensic Investigation across the 8 Specification Points:**
+  1. *Two Widget/Screen comparison:* Both flows use the exact same widget: `ItineraryDetailScreen` (`itinerary_detail_screen.dart`). Screen A (`MyItinerariesScreen`) pushes `ItineraryDetailScreen(isOwner: true, ...)` while Explore/Feed pushes `ItineraryDetailScreen(isOwner: false/null, ...)`.
+  2. *Owner overview omitted section check:* In `_buildOverviewTab`, Sliver 1 renders `_buildOverview(itinerary, isOwner)` and Sliver 2 unconditionally renders `_buildItinerarySavedPlacesSection(itinerary, isOwner)`.
+  3. *Branching condition audit (`isOwner`, `isPublic`, permission):*
+     - Historical regression identified in commit `f997f34`: The legacy method `_buildItinerarySavedPlaces` contained an early-exit guard:
+       `if (_itinerarySavedPlaces.isEmpty) return const SizedBox.shrink();`
+       This legacy guard caused the entire saved places section to disappear completely whenever an itinerary had 0 saved places.
+     - In commit `81fe039`, this was resolved by replacing it with `_buildItinerarySavedPlacesSection(itinerary, isOwner)` which renders the header `Địa điểm đã lưu (${_itinerarySavedPlaces.length})` and an empty state card (`Chưa có địa điểm đã lưu`) instead of shrinking to empty.
+  4. *DTO & Backend endpoint check:* `GET /api/itineraries/{id}` returns `ItineraryDetailResponse` for both owner and viewer. It does not carry saved places. Saved places are fetched independently via `GET /api/itineraries/{itineraryId}/places/all` (`ItineraryPlaceController`), returning `List<ItineraryPlaceResponse>`.
+  5. *API Call Lifecycle:* `_loadItinerarySavedPlaces()` is called on `initState` via post-frame callback and also refreshed in `RefreshIndicator.onRefresh` on both tabs.
+  6. *Entity Mapping:* `ItineraryPlace.fromJson` parses the canonical `PlaceResponse` correctly without dropping items.
+  7. *Exception / Loading States:* In `_loadItinerarySavedPlaces()`, if loading fails or catches an exception, `_isLoadingSavedPlaces` resets to `false` and empty list `[]` is rendered with the empty state instead of hiding the widget.
+  8. *Role-based Action Parity:*
+     - Owner view: Shows "Thêm địa điểm" (OutlinedButton in header + FilledButton in empty state) and PopupMenuButton ("Xem chi tiết", "Xóa khỏi lịch trình") per item.
+     - Viewer view: Read-only for itinerary structure; does NOT display "Thêm địa điểm", but offers bookmark button (`Icons.bookmark_add_outlined`) on each place card to copy to viewer's own itineraries.
+
+### 2. Code Hardening & Expanded Verification
+- **Automated Tests Added (`my_itineraries_overview_test.dart`):**
+  - `Owner opens itinerary with 0 places: displays "Địa điểm đã lưu (0)", empty state, and "Thêm địa điểm" button`: PASS.
+  - `Viewer opens PUBLIC itinerary with 0 places: displays "Địa điểm đã lưu (0)", viewer empty state, NO "Thêm địa điểm" button`: PASS.
+  - `Toggling between Overview and Activities tabs preserves saved places section without data loss`: PASS.
+- **Verification Results:**
+  - Mobile Itinerary Suite: **8 / 8 PASS (100%)** in `my_itineraries_overview_test.dart`.
+  - Full Mobile Feature Suite (`test/features/itinerary/`): **47 / 47 PASS (100%)**.
+  - All related CRUD, Create, Edit/Delete tests: **39 / 39 PASS (100%)**.
+  - Backend `ItineraryPlaceTest` & `PlaceControllerTest`: **27 / 27 PASS (100%)**, `BUILD SUCCESS`.
+- **Git Policy Compliance:** STRICTLY NO COMMIT, NO PUSH observed. Working tree clean.
+
+---
+
+## Session 76 — 2026-11-15
+**Focus:** Fix & Hardening — Owner Itinerary Saved Places Section Resilience & Viewport Layout
+**Branch:** `develop`
+**Git Commit HEAD:** `e8471e5` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** PRODUCTION BUG FIX, LAYOUT RESILIENCE & AUTOMATED TEST VERIFICATION
+
+### 1. Root Cause Breakdown
+Investigation of the difference between owner (`hello4`, ID: 285) and viewer itinerary detail views on Android revealed three contributing factors:
+1. **Unbounded Sliver Layout Hazard (Viewport Collision):**
+   - In `_buildItinerarySavedPlacesSection`, the saved places list was rendered via `ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics())` embedded inside a `Column` inside a `Container` inside a `SliverToBoxAdapter`.
+   - In Flutter sliver hierarchies, `SliverToBoxAdapter` provides unbounded vertical constraints (`maxHeight = double.infinity`). Nesting a scrollable viewport (`ListView`) inside unbounded slivers forces Flutter to calculate intrinsic scroll metrics, which causes layout collapsing, zero-height bounding boxes, or `RenderBox` exceptions on physical Android devices.
+   - Replaced `ListView.separated` with a direct declarative `Column` of item cards.
+2. **Silent Failure & Missing Error State Resilience:**
+   - `_loadItinerarySavedPlaces()` previously used an unhandled `catch (_)` block that cleared `_isLoadingSavedPlaces = false` without recording error state.
+   - If the API call encountered a network glitch, timeout, or server error (such as transient auth or serialization issues), the UI failed silently. Any uncaught layout or build error in production profile/release mode causes Flutter to collapse the faulty sliver to `SizedBox.shrink()`.
+   - Added `_savedPlacesError` state variable, captured exact error messages (with fallback), logged stack traces to `debugPrint`, and introduced an inline error card with a "Thử lại" (retry) button.
+   - Guaranteed that the section header (`Địa điểm đã lưu (${places.length})`) and owner actions (`Thêm địa điểm`) remain permanently visible even on API failure.
+3. **Data Parity & Defensive String Trimming:**
+   - Added `TextOverflow.ellipsis` to section headers and empty state descriptions.
+   - Added defensive `.trim().isNotEmpty` guards on `category` and `address` fields of `ItineraryPlace` to prevent whitespace-only tags from corrupting card dimensions.
+   - Verified that `PopupMenuItem` text rows avoid flex constraints that exceed menu width limits.
+
+### 2. Implementation Modifications
+- **`Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`:**
+  - Added `String? _savedPlacesError;` to state.
+  - Hardened `_loadItinerarySavedPlaces()` with explicit error capture and logging.
+  - Added dedicated error UI in `_buildItinerarySavedPlacesSection` with retry callback.
+  - Replaced nested `ListView.separated` with `Column(children: [...])`.
+  - Added overflow protection and string sanitation on place metadata.
+
+### 3. Automated Verification Results
+- **Test Suite Updates (`my_itineraries_overview_test.dart`):**
+  - Added test: `Viewer with saved places sees the list and bookmark button, NO owner management actions`.
+  - Added test: `Owner API failure does not hide the entire section: shows header, error card, retry button, and Add Place button`.
+  - Verified all 7 core behavioral requirements:
+    1. Owner with zero saved places: displays header, empty state card, and "Thêm địa điểm" button.
+    2. Owner with saved places: displays list with view/delete actions.
+    3. Viewer with zero saved places: displays header and viewer empty state without "Thêm địa điểm".
+    4. Viewer with saved places: displays list and bookmark button to save places to viewer's own trips.
+    5. Owner API failure resilience: keeps header and "Thêm địa điểm" visible, rendering error card + retry button.
+    6. Tab switching between "Tổng quan" and "Hoạt động": retains state and data without loss or duplication.
+    7. Owner-only and viewer-only permissions strictly separated.
+- **Automated Test Results:**
+  - `my_itineraries_overview_test.dart`: **10 / 10 PASS (100%)**.
+  - `test/features/itinerary/` full suite: **49 / 49 PASS (100%)**.
+  - `my_itineraries_test.dart`, `create_itinerary_test.dart`, `itinerary_edit_delete_test.dart`: **39 / 39 PASS (100%)**.
+  - `flutter analyze` on modified files: **0 issues found**.
+- **Git Policy Compliance:** STRICTLY NO COMMIT, NO PUSH observed. Working tree clean.
+
+---
+
+## Session 77 — 2026-11-15
+**Focus:** Bug Investigation & Fix — Itinerary Overview Data Missing and Tab Switching (Issues A, B, C)
+**Branch:** `develop`
+**Git Commit HEAD:** `e8471e5` (Git Policy: STRICTLY NO COMMIT, NO PUSH)
+**Mode:** PRODUCTION BUG FIX, SCROLL VIEWPORT RESILIENCE & AUTOMATED TEST VERIFICATION
+
+### 1. Root Cause Breakdown
+Detailed investigation of owner itinerary `hello4` (ID: 285) revealed the root causes for the reported anomalies:
+1. **Saved Places Missing in Overview vs Displayed in Add Activity (Issues A & B):**
+   - *Decoupled State Management:* `ItineraryDetailScreen` and `ActivityFormBottomSheet` (Add Activity) operated with separate, decoupled state stores.
+   - In MySQL database `travel_planner`, `itineraries` row 285 has 2 entries in `itinerary_places`: `place_id: 7` (`Đại Nội Huế (Hoàng Thành)`) and `place_id: 14` (`Đồi Chè Cầu Đất`). Both are returned by `GET /api/itineraries/285/places/all`.
+   - `ActivityFormBottomSheet` independently created a new instance of `ItineraryCrudRepository` and fetched places inside its own `initState()`, displaying them properly.
+   - Meanwhile, `ItineraryDetailScreen` fetched saved places asynchronously via `_loadItinerarySavedPlaces()` into local state `_itinerarySavedPlaces`. `ItineraryDetailNotifier` had no state awareness of `savedPlaces`. Any race condition or rebuild lifecycle mismatch left the screen state empty while the bottom sheet had fetched its own copy.
+2. **Overview Becoming Completely Blank After Tab Switching (Issue C):**
+   - *PrimaryScrollController Sharing & Viewport Collision:* Both Tab 0 (Overview) and Tab 1 (Activities) used `CustomScrollView` without explicit `ScrollController`s or `primary: false`. By default in Flutter, nested scroll views in a `Scaffold` attach to the ambient `PrimaryScrollController`. When the user scrolled in Tab 1 (e.g. 1000px down on activities), the shared controller stored this 1000px offset. Switching back to Tab 0 forced the Overview scrollview to jump to 1000px. Because the Overview content height is ~500–700px, all slivers scrolled past the visible bounds into blank space.
+   - *Tab Tree Disposal:* `TabBarView` unmounts off-screen tabs by default unless kept alive via `AutomaticKeepAliveClientMixin`. On tab re-entry, reconstructing the unmounted sliver tree while scroll offsets were colliding exacerbated the blank screen failure.
+   - *Ticker Contention:* `ItineraryDetailScreen` mixed in `SingleTickerProviderStateMixin`, which risks ticker conflicts when multiple animations (tabs, refresh indicators, sheets) execute concurrently.
+3. **Shared vs Distinct Defect Analysis:**
+   - Issues A/B and Issue C are distinct architectural defects that amplified each other:
+     - Issue A/B: State duplication and missing unified store across detail view and modal sheets.
+     - Issue C: Flutter viewport scroll offset collision, unmounted tab tree disposal, and ticker contention.
+
+### 2. Implementation Modifications & Authoritative Single Source of Truth Refactoring
+1. **`Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/itinerary_detail_notifier.dart`:**
+   - Appointed `ItineraryDetailNotifier.savedPlaces` as the sole authoritative single source of truth.
+   - Added state methods: `loadSavedPlaces({String? token, ItineraryCrudRepository? repository})`, `updateSavedPlaces(List<ItineraryPlace> places)`, `removeSavedPlace(int placeId)`, and `addSavedPlace(ItineraryPlace place)`.
+   - Guaranteed automatic UI reactivity by broadcasting state transitions (`isLoadingSavedPlaces`, `savedPlacesError`, `savedPlaces`) via `notifyListeners()`.
+2. **`Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/widgets/activity_form_dialog.dart`:**
+   - Modified `_ActivityFormBottomSheetState` to directly reference `widget.initialSavedPlaces` when provided (`get _savedPlaces => widget.initialSavedPlaces ?? _fallbackFetchedSavedPlaces;`).
+   - If `widget.initialSavedPlaces` is passed, `_loadSavedPlaces()` is bypassed entirely, eliminating duplicate network traffic and preventing independent stale copies from ever existing.
+3. **`Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`:**
+   - Completely eradicated local shadow state fields (`_itinerarySavedPlaces`, `_isLoadingSavedPlaces`, `_savedPlacesError`).
+   - Eliminated the fallback expression `_itinerarySavedPlaces.isNotEmpty ? _itinerarySavedPlaces : _notifier.savedPlaces`.
+   - Refactored `_buildItinerarySavedPlacesSection` to read directly from `_notifier.savedPlaces`, `_notifier.isLoadingSavedPlaces`, and `_notifier.savedPlacesError`.
+   - Delegated `_loadItinerarySavedPlaces()` directly to `_notifier.loadSavedPlaces(token: _effectiveToken, repository: _crudRepository)`.
+   - Bound Add/Edit Activity actions directly to `initialSavedPlaces: _notifier.savedPlaces`.
+   - Bound place removal (`_handleRemoveSavedPlace`) to `_notifier.removeSavedPlace(ip.place.placeId)` followed by server reconciliation, ensuring immediate reactive updates and backend sync.
+   - Preserved `_KeepAliveTabWrapper` and explicit `ScrollController` instances with `primary: false` to keep tabs stable and prevent viewport scroll collisions.
+
+### 3. Verification & Results
+- **Automated Tests Added (`my_itineraries_overview_test.dart`):**
+   - Test 11: `Add Activity and Overview display consistent saved-place data`.
+   - Test 12: `Repeated tab switching between Overview and Activities retains all content and never becomes blank` (6 repeated tab toggles).
+   - Test 13: `Switching tabs while saved-place loading is in progress does not break layout or lose state`.
+   - Test 14: `ItineraryDetailNotifier.savedPlaces is authoritative: direct notifier updates reflect immediately in Overview without stale state` (verifies direct add, remove, and clear operations via notifier).
+- **Automated Test Results:**
+   - `my_itineraries_overview_test.dart`: **14 / 14 PASS (100%)**.
+   - `my_itineraries_test.dart`, `create_itinerary_test.dart`, `itinerary_edit_delete_test.dart`: **39 / 39 PASS (100%)**.
+   - Full Mobile Itinerary Suite (`test/features/itinerary/`): **53 / 53 PASS (100%)**.
+   - `flutter analyze` on modified files: **0 issues found**.
+- **Real Database & API Data Confirmation:**
+   - Confirmed `itinerary_id: 285` (`hello4`) has 2 linked places in MySQL database: `Đại Nội Huế (Hoàng Thành)` (place 7) and `Đồi Chè Cầu Đất` (place 14).
+   - Confirmed `GET /api/itineraries/285/places/all` returns both places.
+   - Confirmed unified rendering across Overview and Add Activity bottom sheet with zero divergent data.
+- **Android Physical Device Status:**
+   - `adb devices` shows no currently attached physical device.
+   - All fixes and edge cases thoroughly validated in automated widget and integration tests.
+- **Git Policy Compliance:** STRICTLY NO COMMIT, NO PUSH observed. All working tree changes preserved.
+
+
+---
+
+## 79. Session Entry: Live Physical Android Device Debugging & Root Cause Resolution (2026-11-15)
+
+### 79.1. Context and Objective
+- Physical Android device connected: **Samsung Galaxy A34 5G (`SM A346E` / `RFCW8105T0H`)** running Android 16 (API 36).
+- Application process: `com.example.mobile` (PID: `32159`).
+- Problem statement: When opening user-owned itinerary `hello4` (id: 285) on the physical device, the "Địa điểm đã lưu" section in the Overview tab was completely invisible (leaving a large blank gap between description and "Đánh giá (0)"), even though the Add Activity bottom sheet correctly displayed the two saved places (`Đại Nội Huế (Hoàng Thành)` and `Đồi Chè Cầu Đất`), and other users' itineraries displayed saved places correctly.
+- Goal: Perform live diagnostic inspection on the connected physical device via ADB and Dart VM Service, identify the definitive root cause with runtime evidence, apply the production fix, verify with automated tests, and visually confirm on the physical device via ADB screencaps.
+
+### 79.2. Live Device Diagnostic Inspection & Smoking Gun Evidence
+1. **Dart VM Service Connection:**
+   - Identified open Dart VM Service port `37403` on the device and forwarded via `adb forward tcp:37403 tcp:37403`.
+   - Connected to isolate `isolates/65311904636603`.
+2. **Widget Tree vs. Render Tree Analysis:**
+   - Invoked `ext.flutter.debugDumpApp`: Confirmed that `Text("Địa điểm đã lưu (2)")`, `Text("Đại Nội Huế (Hoàng Thành)")`, `Text("Đồi Chè Cầu Đất")`, and `Text("Thêm địa điểm")` all existed in the live widget hierarchy. Data was successfully retrieved and present in memory.
+   - Invoked `ext.flutter.debugDumpRenderTree`: Discovered the smoking gun:
+     ```
+     RenderSliverToBoxAdapter#b874e geometry: SliverGeometry(scrollExtent: 294.0, paintExtent: 294.0)
+       └─child: RenderPadding#70c04 NEEDS-LAYOUT NEEDS-PAINT
+           size: MISSING
+           └─child: RenderFlex#aa414 NEEDS-LAYOUT NEEDS-PAINT
+               size: MISSING
+               └─child: RenderConstrainedBox#9b3e1 NEEDS-LAYOUT NEEDS-PAINT
+                   constraints: BoxConstraints(0.0<=w<=380.0, 0.0<=h<=Infinity)
+                   additionalConstraints: BoxConstraints(w=Infinity, 40.0<=h<=Infinity)
+     ```
+3. **The True Root Cause:**
+   - In `app_theme.dart` (lines 90-97), the application theme defines:
+     ```dart
+     outlinedButtonTheme: OutlinedButtonThemeData(
+       style: OutlinedButton.styleFrom(
+         foregroundColor: AppColors.textPrimary,
+         minimumSize: const Size.fromHeight(48), // Size(double.infinity, 48)!
+         ...
+       ),
+     )
+     ```
+     `Size.fromHeight(48)` enforces `minWidth = double.infinity`.
+   - In `_buildItinerarySavedPlacesSection` of `itinerary_detail_screen.dart`, the header row contained:
+     ```dart
+     Row(
+       children: [
+         Icon(...),
+         Expanded(child: Text('Địa điểm đã lưu (${savedPlaces.length})', ...)),
+         if (isOwner)
+           OutlinedButton.icon(
+             onPressed: _showAddPlaceToItineraryDialog,
+             style: OutlinedButton.styleFrom(
+               // OMITTED minimumSize override!
+               visualDensity: VisualDensity.compact,
+               side: const BorderSide(color: AppColors.primary),
+               ...
+             ),
+           ),
+       ],
+     )
+     ```
+   - Because `OutlinedButton.styleFrom` did not specify `minimumSize: Size.zero`, it inherited `Size.fromHeight(48)` (`w = Infinity`).
+   - In Flutter, placing an unbounded horizontal constraint (`w = Infinity`) inside a horizontal flex `Row` alongside an `Expanded` flex child causes an unhandled layout assertion failure in `RenderFlex` / `RenderConstrainedBox`.
+   - This layout crash aborted `performLayout()` for `RenderFlex` and `RenderPadding`, leaving them with `size: MISSING`.
+   - When painting, Flutter skips any RenderObject with `size: MISSING`, leaving the section completely unpainted (an invisible blank gap of ~294 to 823 logical pixels).
+4. **Why Viewers and Add Activity Worked:**
+   - **Viewers:** When `isOwner == false`, the `if (isOwner)` condition was omitted. The `Row` contained only `Icon` and `Expanded`, which experienced no layout conflict and painted normally.
+   - **Add Activity:** Displayed saved places using `ActionChip` inside `Wrap`, avoiding the `OutlinedButton` infinite-width constraint inside a `Row`.
+
+### 79.3. Production Code Fix
+- In `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`:
+  Updated `OutlinedButton.styleFrom` on the "Thêm địa điểm" button to explicitly set:
+  ```dart
+  style: OutlinedButton.styleFrom(
+    minimumSize: Size.zero,
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    visualDensity: VisualDensity.compact,
+    side: const BorderSide(color: AppColors.primary),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(20),
+    ),
+  ),
+  ```
+  This immediately eliminates the inherited infinite width constraint and restores correct flex layout.
+
+### 79.4. Physical Device Verification & Quality Assurance
+1. **Static Analysis & Automated Tests:**
+   - `flutter analyze lib/features/itinerary/ test/features/itinerary/`: **0 errors, 0 warnings**.
+   - `flutter test test/features/itinerary/my_itineraries_overview_test.dart`: **14 / 14 PASS (100%)**.
+2. **On-Device Live Verification (`RFCW8105T0H`):**
+   - Hot-restarted the running Flutter application process on the physical Samsung Galaxy A34.
+   - Captured physical screen (`adb shell screencap`): Confirmed that the "Địa điểm đã lưu (2)" card renders immediately:
+     - Header: Bookmark icon, `Địa điểm đã lưu (2)` title, `Thêm địa điểm` outlined compact pill button.
+     - Item 1: `Đại Nội Huế (Hoàng Thành)` with attraction badge, address, thumbnail, and 3-dot context menu.
+     - Item 2: `Đồi Chè Cầu Đất` with attraction badge, address, thumbnail, and 3-dot context menu.
+     - Subsequent `Đánh giá (0)` section renders cleanly directly below without gaps.
+   - Tested interactive tab switching via `adb shell input tap`:
+     - Tapped `Hoạt động` tab: Timeline activities and interactive map loaded immediately.
+     - Tapped back to `Tổng quan` tab: Saved places section rendered with zero flicker, zero data loss, and zero layout exceptions.
+3. **Repository State:** STRICTLY NO COMMIT, NO PUSH adhered to. All uncommitted working tree modifications preserved.

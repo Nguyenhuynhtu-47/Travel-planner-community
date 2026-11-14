@@ -2,18 +2,25 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../explore/data/models/itinerary_summary.dart';
+import '../data/itinerary_crud_repository.dart';
 import '../data/itinerary_repository.dart';
 import '../data/models/itinerary_detail.dart';
+import '../data/models/itinerary_place.dart';
 
 class ItineraryDetailNotifier extends ChangeNotifier {
   final int itineraryId;
   final ItineraryRepository _repository;
+  final ItineraryCrudRepository? crudRepository;
 
   ItinerarySummary? initialSummary;
   ItineraryDetail? itineraryDetail;
   bool isLoading;
   String? errorMessage;
   int? errorStatusCode;
+
+  List<ItineraryPlace> savedPlaces = [];
+  bool isLoadingSavedPlaces = false;
+  String? savedPlacesError;
 
   ItineraryDetailNotifier({
     required this.itineraryId,
@@ -22,6 +29,8 @@ class ItineraryDetailNotifier extends ChangeNotifier {
     bool? initialIsFavorited,
     bool? initialIsSaved,
     ItineraryRepository? repository,
+    this.crudRepository,
+    List<ItineraryPlace>? initialSavedPlaces,
   }) : itineraryDetail =
            initialDetail ??
            (initialSummary != null
@@ -50,6 +59,9 @@ class ItineraryDetailNotifier extends ChangeNotifier {
                  )
                : null),
        isLoading = initialDetail == null,
+       savedPlaces = initialSavedPlaces != null
+           ? List<ItineraryPlace>.from(initialSavedPlaces)
+           : [],
        _repository = repository ?? ItineraryRepository();
 
   bool get isSuccess => itineraryDetail != null;
@@ -57,6 +69,58 @@ class ItineraryDetailNotifier extends ChangeNotifier {
   bool get isNotFound => errorStatusCode == 404;
   bool get isUnauthorized => errorStatusCode == 401 || errorStatusCode == 403;
   bool get isNetworkError => errorStatusCode == 0;
+
+  void updateSavedPlaces(List<ItineraryPlace> places) {
+    savedPlaces = places;
+    savedPlacesError = null;
+    isLoadingSavedPlaces = false;
+    notifyListeners();
+  }
+
+  void setSavedPlacesError(String error) {
+    savedPlacesError = error;
+    isLoadingSavedPlaces = false;
+    notifyListeners();
+  }
+
+  void removeSavedPlace(int placeId) {
+    savedPlaces = savedPlaces.where((p) => p.place.placeId != placeId).toList();
+    notifyListeners();
+  }
+
+  void addSavedPlace(ItineraryPlace place) {
+    if (!savedPlaces.any((p) => p.place.placeId == place.place.placeId)) {
+      savedPlaces = [...savedPlaces, place];
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadSavedPlaces({
+    String? token,
+    ItineraryCrudRepository? repository,
+  }) async {
+    final repo = repository ?? crudRepository;
+    if (repo == null) return;
+    isLoadingSavedPlaces = true;
+    savedPlacesError = null;
+    notifyListeners();
+
+    try {
+      final places = await repo.getSavedPlaces(
+        itineraryId,
+        token: token,
+      );
+      savedPlaces = places;
+      savedPlacesError = null;
+    } catch (e) {
+      savedPlacesError = e is ApiException
+          ? e.message
+          : 'Không thể tải danh sách địa điểm đã lưu.';
+    } finally {
+      isLoadingSavedPlaces = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> loadDetail({String? token}) async {
     isLoading = true;
