@@ -513,7 +513,7 @@ void main() {
       expect(find.text('Dành cho bạn'), findsOneWidget);
       expect(find.text('Đang theo dõi'), findsOneWidget);
       expect(find.byTooltip('Tin nhắn'), findsOneWidget);
-      expect(find.byTooltip('Bạn bè & Lời mời'), findsOneWidget);
+      expect(find.byTooltip('Bạn bè & Lời mời'), findsNothing);
       expect(find.byTooltip('Thông báo'), findsOneWidget);
       expect(find.text('Đăng bài'), findsOneWidget);
     });

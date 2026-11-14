@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/services/image_picker_service.dart';
@@ -326,11 +327,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('Hồ sơ cá nhân'),
+          title: const AppPageTitle(title: 'Hồ sơ cá nhân'),
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.textPrimary,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
           actions: [
             IconButton(
               tooltip: 'Thông báo',
-              icon: const Icon(Icons.notifications_outlined),
+              icon: const Icon(Icons.notifications_outlined, size: 24),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -339,7 +344,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
             ),
+            const SizedBox(width: 8),
           ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(
+              height: 0.5,
+              color: AppColors.hairlineSoft,
+            ),
+          ),
         ),
         body: AppEmptyState(
           icon: Icons.account_circle_outlined,
@@ -361,11 +374,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Hồ sơ cá nhân'),
+        title: const AppPageTitle(title: 'Hồ sơ cá nhân'),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
             tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined, size: 24),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -376,10 +393,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           IconButton(
             tooltip: 'Đăng xuất',
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, size: 22),
             onPressed: _logout,
           ),
+          const SizedBox(width: 8),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 0.5,
+            color: AppColors.hairlineSoft,
+          ),
+        ),
       ),
       body: _loading
           ? const Center(

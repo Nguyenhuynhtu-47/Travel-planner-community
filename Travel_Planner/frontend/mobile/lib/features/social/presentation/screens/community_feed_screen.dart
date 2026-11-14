@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../messaging/presentation/screens/community_screen.dart' as messaging;
@@ -74,20 +75,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   void _openChatInbox() {
     if (!_isAuthenticated) {
       _showLoginRequiredPrompt('trò chuyện cùng bạn bè');
-      return;
-    }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => messaging.CommunityScreen(
-          authNotifier: widget.authNotifier,
-        ),
-      ),
-    );
-  }
-
-  void _openFriends() {
-    if (!_isAuthenticated) {
-      _showLoginRequiredPrompt('xem danh sách bạn bè');
       return;
     }
     Navigator.of(context).push(
@@ -228,13 +215,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
-            title: const Text(
-              'Cộng đồng du lịch',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
+            title: const AppPageTitle(title: 'Cộng đồng du lịch'),
             backgroundColor: AppColors.background,
             foregroundColor: AppColors.textPrimary,
             surfaceTintColor: Colors.transparent,
+            elevation: 0,
             actions: [
               // Chat Inbox Shortcut
               IconButton(
@@ -242,26 +227,15 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                 icon: Badge(
                   isLabelVisible: _notifier.unreadMessagesCount > 0,
                   label: Text('${_notifier.unreadMessagesCount}'),
-                  child: const Icon(Icons.chat_bubble_outline),
+                  child: const Icon(Icons.chat_bubble_outline, size: 22),
                 ),
                 onPressed: _openChatInbox,
-              ),
-
-              // Friends Shortcut
-              IconButton(
-                tooltip: 'Bạn bè & Lời mời',
-                icon: Badge(
-                  isLabelVisible: _notifier.friendRequestsCount > 0,
-                  label: Text('${_notifier.friendRequestsCount}'),
-                  child: const Icon(Icons.people_outline),
-                ),
-                onPressed: _openFriends,
               ),
 
               // Notifications Shortcut
               IconButton(
                 tooltip: 'Thông báo',
-                icon: const Icon(Icons.notifications_outlined),
+                icon: const Icon(Icons.notifications_outlined, size: 24),
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -270,7 +244,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                   );
                 },
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
             ],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(48),

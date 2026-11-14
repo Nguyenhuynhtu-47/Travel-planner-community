@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/data/itinerary_crud_repository.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -239,9 +240,20 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          widget.editingPost != null ? 'Chỉnh sửa bài viết' : 'Tạo bài viết',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+        title: AppPageTitle(
+          title: widget.editingPost != null ? 'Chỉnh sửa bài viết' : 'Tạo bài viết',
+          fontSize: 18,
+        ),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 0.5,
+            color: AppColors.hairlineSoft,
+          ),
         ),
         actions: [
           Padding(

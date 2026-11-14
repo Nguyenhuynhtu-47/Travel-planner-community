@@ -8214,3 +8214,187 @@ Detailed investigation of owner itinerary `hello4` (ID: 285) revealed the root c
      - Tapped `Hoạt động` tab: Timeline activities and interactive map loaded immediately.
      - Tapped back to `Tổng quan` tab: Saved places section rendered with zero flicker, zero data loss, and zero layout exceptions.
 3. **Repository State:** STRICTLY NO COMMIT, NO PUSH adhered to. All uncommitted working tree modifications preserved.
+
+---
+
+## 80. Session 80 — UI Polish: Remove Header Icons & Redesign Add Place Action (2026-11-15)
+
+### 80.1. Objective & Scope
+1. **Itinerary Detail Screen AppBar:**
+   - Remove the bookmark-plus header icon (`Icons.bookmark_add_outlined` / tooltip `'Lưu địa điểm vào lịch trình'`) from top toolbar.
+   - Preserve 5 remaining actions: Bookmark (`effectiveSaved`), Favorite (`effectiveFavorited`), Clone (`_handleClone`), Edit (`_handleEdit`), Delete (`_handleDelete`).
+   - Rebalance toolbar spacing for natural alignment on standard and narrow screen widths.
+2. **Home Screen (`ExploreScreen`) AppBar:**
+   - Remove the circled map icon (`Icons.map_outlined` / tooltip `'Khám phá địa điểm'`) next to the notification bell.
+   - Preserve notification bell icon and user avatar / guest login button.
+   - Retain underlying map preview cards, route listeners, and location picker sheet widgets intact.
+3. **Redesign "Thêm địa điểm" Button:**
+   - Redesign from plain red outlined pill to a compact modern action button:
+     - Icon: `Icons.bookmark_add_outlined` (16dp).
+     - Label: `Thêm địa điểm` (12sp, w600).
+     - Background: Soft pink (`AppColors.primaryLight` / `#FFF0F2`).
+     - Foreground: Primary pink/red accent (`AppColors.primary` / `#FF385C`).
+     - Medium rounded corners (8dp).
+     - Spacing & layout: Header `Row` with title in `Expanded` (with ellipsis) and button right-aligned on single row.
+
+### 80.2. Modified Files
+1. `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/itinerary_detail_screen.dart`:
+   - Removed `Icons.bookmark_add_outlined` from AppBar `actions`.
+   - Balanced action button hitboxes (`minWidth: 38, minHeight: 38`, `VisualDensity.compact`).
+   - Replaced `OutlinedButton` with custom compact `Material` + `InkWell` in `_buildItinerarySavedPlacesSection`.
+   - Structured header as `Row` with `Expanded` title and right-aligned button.
+2. `Travel_Planner/frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart`:
+   - Removed `IconButton(key: Key('explore_location_search_button'), icon: Icon(Icons.map_outlined), ...)` from AppBar `actions`.
+   - Preserved notification bell and profile avatar with balanced edge padding.
+3. `Travel_Planner/frontend/mobile/test/features/itinerary/my_itineraries_overview_test.dart`:
+   - Added Test 15: verified AppBar bookmark-plus removal, 5 remaining actions, and redesigned button presence/tap behavior.
+   - Added Test 16: verified saved places header renders cleanly without overflow.
+4. `Travel_Planner/frontend/mobile/test/explore_test.dart`:
+   - Added test verifying removal of map icon while preserving notification and auth buttons.
+
+### 80.3. Verification Results
+1. `flutter analyze`: **0 issues found** across all modified files and tests.
+2. `flutter test test/features/itinerary/my_itineraries_overview_test.dart test/explore_test.dart`: **33 / 33 PASS (100%)**.
+3. **Physical Device Verification (`RFCW8105T0H` Samsung Galaxy A34 5G):**
+   - Verified AppBar rendered cleanly with back button, title, and 5 remaining action icons without overflow.
+   - Verified redesigned soft-pink "Thêm địa điểm" button rendered cleanly in Overview header.
+4. **Git Compliance:** STRICTLY NO COMMIT, NO PUSH adhered to. All uncommitted changes safely preserved.
+
+---
+
+## 81. Session 81 — UI Refinement: Page Headers & Community App Bar (2026-11-15)
+
+### 81.1. Objective & Scope
+1. **Trang Cộng đồng du lịch (`community_feed_screen.dart`):**
+   - Giữ lại icon tin nhắn (`Icons.chat_bubble_outline`) với badge tin nhắn chưa đọc.
+   - Xóa icon hình người/bạn bè (`Icons.people_outline`) theo đúng yêu cầu nghiệp vụ.
+   - Giữ nguyên icon thông báo (`Icons.notifications_outlined`).
+   - Cân chỉnh khoảng cách action icons (`SizedBox(width: 8)`).
+   - Thiết kế lại header: Title `Cộng đồng du lịch` (20sp, w700, letterSpacing -0.3) + Subtitle `Chia sẻ & kết nối những hành trình` (12sp, muted).
+   - Giữ nguyên toàn bộ logic Chat, thông báo, và 2 tab `Dành cho bạn` / `Đang theo dõi`.
+2. **Trang Tạo lịch trình mới (`create_itinerary_screen.dart`):**
+   - Nâng cấp AppBar với hierarchy rõ ràng: Title `Tạo lịch trình mới` (20sp, w700) + Subtitle `Lên kế hoạch và chia sẻ chuyến đi của bạn` (12sp, muted).
+   - Bổ sung nút action `Làm mới biểu mẫu` (`Icons.refresh_rounded`) gọi `_resetForm`.
+   - Bổ sung hairline divider tinh tế ở mép dưới (`0.5px hairlineSoft`) phân tách tiêu đề và form nhập liệu.
+3. **Trang Bộ sưu tập (`collection_screen.dart`):**
+   - Nâng cấp AppBar: Title `Bộ sưu tập` (20sp, w700) + Subtitle `Lịch trình đã lưu & yêu thích` (12sp, muted).
+   - Cân chỉnh action icon thông báo và khoảng cách lề phải.
+   - Giữ nguyên TabBar `Đã lưu` và `Yêu thích`.
+4. **Các trang chức năng liên quan:**
+   - `my_itineraries_screen.dart`: Title `Lịch trình của tôi` + Subtitle `Quản lý chuyến đi cá nhân` + hairline divider.
+   - `profile_screen.dart`: Cả 2 trạng thái (chưa đăng nhập & đã đăng nhập) nâng cấp Title `Hồ sơ cá nhân` + Subtitle `Tài khoản & tùy chọn cá nhân` + hairline divider + action icons cân đối.
+   - `notifications_screen.dart`: Title `Thông báo` (18sp, w700) + hairline divider.
+   - `edit_itinerary_screen.dart`: Title `Chỉnh sửa lịch trình` (18sp, w700) + hairline divider.
+   - `create_post_screen.dart`: Title `Tạo bài viết` / `Chỉnh sửa bài viết` (18sp, w700) + hairline divider.
+   - `messaging/presentation/screens/community_screen.dart`: Title `Cộng đồng du lịch` + Subtitle `Tin nhắn & Bạn bè` + action padding.
+5. **Ngoại lệ bắt buộc:**
+   - **Trang Khám phá (`explore_screen.dart`) được giữ nguyên hoàn toàn**, không chỉnh sửa header, spacing hay layout.
+
+### 81.2. Files Modified
+1. `Travel_Planner/frontend/mobile/lib/features/social/presentation/screens/community_feed_screen.dart`
+2. `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/create_itinerary_screen.dart`
+3. `Travel_Planner/frontend/mobile/lib/features/collection/presentation/screens/collection_screen.dart`
+4. `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/my_itineraries_screen.dart`
+5. `Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart`
+6. `Travel_Planner/frontend/mobile/lib/features/notifications/presentation/screens/notifications_screen.dart`
+7. `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/edit_itinerary_screen.dart`
+8. `Travel_Planner/frontend/mobile/lib/features/social/presentation/screens/create_post_screen.dart`
+9. `Travel_Planner/frontend/mobile/lib/features/messaging/presentation/screens/community_screen.dart`
+10. `Travel_Planner/frontend/mobile/test/features/social/community_feed_test.dart`
+11. `Travel_Planner/docs/ai/09-development-log.md`
+
+### 81.3. Verification Results
+1. `flutter analyze`: **0 issues found** trên tất cả các file đã chỉnh sửa.
+2. `flutter test test/features/social/community_feed_test.dart test/features/collection/collection_screen_test.dart test/create_itinerary_test.dart test/features/itinerary/my_itineraries_overview_test.dart test/explore_test.dart`: **60 / 60 PASS (100%)**.
+3. **Kiểm tra không tràn viền/lỗi hiển thị**: Tất cả các Page Header có subtitle ngắn gọn, `mainAxisSize: MainAxisSize.min`, không gây flex overflow, hiển thị thoáng đãng và phân cấp rõ rệt.
+4. **Git Rule**: STRICTLY NO COMMIT, NO PUSH tuân thủ nghiêm ngặt.
+
+---
+
+## 82. Session 82 — UI Revision: Page Header Design — Remove Descriptive Subtitles (2026-11-15)
+
+### 82.1. Objective & Design Rework
+- **Eliminate Subtitles**: Removed all explanatory sentences, slogans, and descriptive subtitles beneath page titles across mobile screen headers per explicit user requirement.
+- **Stand-Alone Page Titles with Subtle Graphic Anchor**: Created a clean, minimal visual hierarchy using `AppPageTitle` (`lib/shared/widgets/app_page_title.dart`):
+  - Primary titles styled at ~20sp, `FontWeight.w700`, `letterSpacing: -0.3`, `color: AppColors.textPrimary`.
+  - Subtle short accent line (`width: 24`, `height: 2.5`, `color: AppColors.primary`, `borderRadius: 1.5`) directly anchored beneath the title.
+  - Zero bloated toolbar heights (standard 56dp `AppBar` height preserved everywhere, eliminating `toolbarHeight: 60`).
+  - Single-source reusable implementation across all screens without duplicating custom header code.
+- **Scope of Screens Updated**:
+  1. `CommunityFeedScreen`: Title `Cộng đồng du lịch` with accent line. Subtitle "Chia sẻ & kết nối những hành trình" completely removed. Toolbar height normalized to standard. Chat and Notifications actions preserved; Friends shortcut remains removed. TabBar intact.
+  2. `CreateItineraryScreen`: Title `Tạo lịch trình mới` with accent line. Subtitle "Lên kế hoạch và chia sẻ chuyến đi của bạn" completely removed. Reset-form action button preserved. Hairline bottom divider preserved.
+  3. `CollectionScreen`: Title `Bộ sưu tập` with accent line. Subtitle "Lịch trình đã lưu & yêu thích" completely removed. Notifications action preserved. TabBar intact.
+  4. `MyItinerariesScreen`: Title `Lịch trình của tôi` with accent line. Subtitle "Quản lý chuyến đi cá nhân" completely removed. Hairline bottom divider preserved.
+  5. `ProfileScreen`: Title `Hồ sơ cá nhân` with accent line for both guest and authenticated states. Subtitle "Tài khoản & tùy chọn cá nhân" completely removed. Notifications and Logout actions preserved. Hairline bottom divider preserved.
+  6. `NotificationsScreen`: Title `Thông báo` (18sp, `w700`) with accent line. Hairline bottom divider preserved.
+  7. `EditItineraryScreen`: Title `Chỉnh sửa lịch trình` (18sp, `w700`) with accent line. Hairline bottom divider preserved.
+  8. `CreatePostScreen`: Title `Tạo bài viết` / `Chỉnh sửa bài viết` (18sp, `w700`) with accent line. Hairline bottom divider preserved.
+  9. `Messaging CommunityScreen`: Title `Cộng đồng du lịch` (18sp, `w700`) with accent line. Subtitle "Tin nhắn & Bạn bè" completely removed.
+- **Untouched Boundary**: `ExploreScreen` remained completely untouched with zero edits to headers, spacing, or layout.
+
+### 82.2. Files Created & Modified
+- **Created**:
+  - `Travel_Planner/frontend/mobile/lib/shared/widgets/app_page_title.dart`
+- **Modified**:
+  - `Travel_Planner/frontend/mobile/lib/features/social/presentation/screens/community_feed_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/create_itinerary_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/collection/presentation/screens/collection_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/my_itineraries_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/profile/presentation/screens/profile_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/notifications/presentation/screens/notifications_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/edit_itinerary_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/social/presentation/screens/create_post_screen.dart`
+  - `Travel_Planner/frontend/mobile/lib/features/messaging/presentation/screens/community_screen.dart`
+  - `Travel_Planner/docs/ai/09-development-log.md`
+
+### 82.3. Quality Assurance & Regression Testing
+1. **Flutter Analyzer**:
+   - `flutter analyze [modified files]`: **0 errors, 0 warnings**.
+2. **Automated Test Suite**:
+   - `flutter test test/features/social/community_feed_test.dart test/features/collection/collection_screen_test.dart test/create_itinerary_test.dart test/features/itinerary/my_itineraries_overview_test.dart test/explore_test.dart`: **60 / 60 PASS (100%)**.
+3. **Layout & Overflow Check**:
+   - Total height of `AppPageTitle` is 26.5dp, centering cleanly inside the standard 56dp AppBar toolbar without any flex overflows or excessive empty space.
+4. **Git Discipline**:
+   - STRICTLY NO COMMIT, NO PUSH strictly observed. All uncommitted changes preserved on `develop`.
+
+---
+
+## 83. Session 83 — UI Alignment: CollectionScreen Page Header Parity (2026-11-15)
+
+### 83.1. Objective & Root Cause Analysis
+- **Objective**: Standardize the Page Header of `CollectionScreen` (`collection_screen.dart`) to have exact vertical alignment, padding, and spacing parity with `CommunityFeedScreen` and other standard screens.
+  - Preserve `AppPageTitle(title: 'Bộ sưu tập')` (20sp, w700, pink accent bar).
+  - No subtitles or descriptions.
+  - Preserve notification icon, TabBar (`Đã lưu` / `Yêu thích`), and all logic.
+  - Do not modify `ExploreScreen` or other screens.
+  - Verify on physical Android device (`SM A346E` Samsung Galaxy A34 5G).
+- **On-Device Root Cause Investigation (`adb shell uiautomator dump`)**:
+  - Comparison between `CommunityFeedScreen` and `CollectionScreen`:
+    - `CommunityFeedScreen`: Title `Cộng đồng du lịch` located at `bounds="[45,107][517,196]"` (centered in standard 56dp toolbar, top status bar at 75px, toolbar height = 144px / ~56dp).
+    - `CollectionScreen`: Title `Bộ sưu tập` was squashed to `bounds="[45,75][324,157]"` touching the status bar at y=75!
+  - **Root Cause**: `CollectionScreen`'s `TabBar` used icon + text tabs (`Tab(icon: Icon(...), text: 'Đã lưu')`), which has a Flutter default height of `kTextAndIconTabHeight = 72.0` dp. Because `bottom: PreferredSize(preferredSize: const Size.fromHeight(48), ...)` specified 48dp while the child asked for 72dp, Flutter's `AppBar` layout gave the bottom widget 72dp out of total allocated space, squeezing the toolbar from 56dp down to 32dp (82px on device). This pushed the title and notification icon up against the status bar.
+
+### 83.2. Code Adjustments
+- `Travel_Planner/frontend/mobile/lib/features/collection/presentation/screens/collection_screen.dart`:
+  - Updated `TabBar` inside `bottom: PreferredSize(preferredSize: Size.fromHeight(48), ...)` to text-only tabs:
+    - `Tab(text: 'Đã lưu')`
+    - `Tab(text: 'Yêu thích')`
+    - Matches identical 48dp text-only structure and styling of `CommunityFeedScreen`'s `Tab(text: 'Dành cho bạn')` / `Tab(text: 'Đang theo dõi')`.
+  - Updated divider border to `Border(bottom: BorderSide(color: AppColors.hairlineSoft, width: 1))`.
+  - Removed obsolete `unselectedLabelStyle`.
+  - Maintained `AppPageTitle(title: 'Bộ sưu tập')`.
+  - Maintained `IconButton(tooltip: 'Thông báo', ...)` with `const SizedBox(width: 8)`.
+
+### 83.3. Quality Assurance & Physical Device Verification
+1. **Physical Device Measurement (`RFCW8105T0H` Samsung Galaxy A34 5G)**:
+   - UI hierarchy dump (`collection_fixed_dump.xml`):
+     - Title `Bộ sưu tập`: **`bounds="[45, 107][324, 196]"`** — Exact match with `CommunityFeedScreen` title vertical bounds `[45, 107][517, 196]`.
+     - Notification icon: **`bounds="[923, 84][1058, 219]"`** — Exact match with `CommunityFeedScreen` notification icon bounds `[923, 84][1058, 219]`.
+     - TabBar: **`bounds="[0, 228][1080, 365]"`** — Exact 48dp height without overflowing or squeezing the toolbar.
+   - Screen capture saved to `device_collection_perfect.png`.
+2. **Flutter Analyzer**:
+   - `flutter analyze lib/features/collection/presentation/screens/collection_screen.dart lib/shared/widgets/app_page_title.dart`: **No issues found! (0 errors, 0 warnings)**.
+3. **Automated Test Suite**:
+   - `flutter test test/features/collection/collection_screen_test.dart test/features/social/community_feed_test.dart test/create_itinerary_test.dart test/features/itinerary/my_itineraries_overview_test.dart test/explore_test.dart`: **60 / 60 PASS (100%)**.
+4. **Git Discipline**:
+   - STRICTLY NO COMMIT, NO PUSH strictly observed. All uncommitted changes preserved.

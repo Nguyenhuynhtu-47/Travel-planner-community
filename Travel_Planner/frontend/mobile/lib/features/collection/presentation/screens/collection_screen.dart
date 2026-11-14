@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
@@ -166,17 +167,15 @@ class _CollectionScreenState extends State<CollectionScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Bộ sưu tập',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-        ),
+        title: const AppPageTitle(title: 'Bộ sưu tập'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
             tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined, size: 24),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -185,13 +184,14 @@ class _CollectionScreenState extends State<CollectionScreen>
               );
             },
           ),
+          const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Container(
             decoration: const BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
+                bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
               ),
             ),
             child: TabBar(
@@ -204,19 +204,9 @@ class _CollectionScreenState extends State<CollectionScreen>
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
               tabs: const [
-                Tab(
-                  icon: Icon(Icons.bookmark_outline, size: 20),
-                  text: 'Đã lưu',
-                ),
-                Tab(
-                  icon: Icon(Icons.favorite_outline, size: 20),
-                  text: 'Yêu thích',
-                ),
+                Tab(text: 'Đã lưu'),
+                Tab(text: 'Yêu thích'),
               ],
             ),
           ),

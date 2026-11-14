@@ -1111,5 +1111,102 @@ void main() {
         expect(find.text('Văn Miếu Quốc Tử Giám'), findsNothing);
       },
     );
+
+    testWidgets(
+      'UI Polish: ItineraryDetailScreen AppBar removes bookmark-plus header icon, preserves remaining 5 actions, and renders redesigned Add Place button in Overview',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Confirm the bookmark-plus header action is REMOVED from AppBar
+        expect(find.byTooltip('Lưu địa điểm vào lịch trình'), findsNothing);
+
+        // 2. Confirm the 5 remaining header actions are PRESERVED
+        expect(find.byTooltip('Lưu lịch trình'), findsOneWidget); // 1. Bookmark
+        expect(find.byTooltip('Yêu thích'), findsOneWidget); // 2. Favorite
+        expect(find.byTooltip('Sao chép lịch trình'), findsOneWidget); // 3. Clone
+        expect(find.byTooltip('Chỉnh sửa lịch trình'), findsOneWidget); // 4. Edit
+        expect(find.byTooltip('Xóa lịch trình'), findsOneWidget); // 5. Delete
+
+        // 3. Confirm redesigned "Thêm địa điểm" button exists in Overview with bookmark-plus icon
+        expect(find.text('Thêm địa điểm'), findsOneWidget);
+        expect(find.byIcon(Icons.bookmark_add_outlined), findsOneWidget);
+
+        // 4. Tap "Thêm địa điểm" to verify it opens the dialog
+        await tester.tap(find.text('Thêm địa điểm'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Thêm địa điểm vào lịch trình'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'UI Polish: Redesigned Add Place button and saved places header renders cleanly without overflow',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(
+            client: createMockClient(
+              ownerUserId: 1,
+              ownerUsername: 'testuser',
+            ),
+          ),
+        );
+        final detail = buildTestDetail(ownerUserId: 1, ownerUsername: 'testuser');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialDetail: detail,
+              authNotifier: authNotifier,
+              crudRepository: repo,
+              socialRepository: SocialRepository(apiClient: repo.apiClient),
+              isOwner: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify both title and button render cleanly without overflow errors
+        expect(find.text('Địa điểm đã lưu (1)'), findsOneWidget);
+        expect(find.text('Thêm địa điểm'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

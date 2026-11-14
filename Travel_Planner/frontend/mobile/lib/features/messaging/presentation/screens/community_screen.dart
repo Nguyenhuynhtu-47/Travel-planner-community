@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../data/messaging_repository.dart';
@@ -304,13 +305,11 @@ class _CommunityScreenState extends State<CommunityScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Cộng đồng du lịch',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-        ),
+        title: const AppPageTitle(title: 'Cộng đồng du lịch', fontSize: 18),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
         actions: [
           if (auth?.isAuthenticated == true)
             IconButton(
@@ -334,6 +333,7 @@ class _CommunityScreenState extends State<CommunityScreen>
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: auth?.isAuthenticated != true

@@ -1037,13 +1037,25 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
           child: Scaffold(
             backgroundColor: AppColors.background,
             appBar: AppBar(
-              title: const Text('Chi tiết lịch trình'),
+              titleSpacing: 0,
+              title: const Text(
+                'Chi tiết lịch trình',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               backgroundColor: AppColors.background,
               foregroundColor: AppColors.textPrimary,
               surfaceTintColor: Colors.transparent,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 tooltip: 'Quay lại',
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                padding: const EdgeInsets.all(6),
                 onPressed: () {
                   Navigator.of(context).pop(
                     _hasSocialChanges ? _buildSocialUpdate(itinerary) : null,
@@ -1078,6 +1090,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               actions: [
                 if (itinerary != null) ...[
                   IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    padding: const EdgeInsets.all(6),
                     icon: Icon(
                       effectiveSaved
                           ? Icons.bookmark
@@ -1092,6 +1107,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                         : () => _handleToggleSave(itinerary),
                   ),
                   IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    padding: const EdgeInsets.all(6),
                     icon: Icon(
                       effectiveFavorited
                           ? Icons.favorite
@@ -1107,7 +1125,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   ),
                   if (_isCloning)
                     const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      padding: EdgeInsets.symmetric(horizontal: 10),
                       child: Center(
                         child: SizedBox(
                           width: 20,
@@ -1121,6 +1139,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     )
                   else
                     IconButton(
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                      padding: const EdgeInsets.all(6),
                       icon: const Icon(Icons.copy_all_outlined),
                       tooltip: 'Sao chép lịch trình',
                       onPressed: () => _handleClone(itinerary),
@@ -1129,7 +1150,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 if (isOwner && itinerary != null) ...[
                   if (_isDeleting)
                     const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      padding: EdgeInsets.symmetric(horizontal: 10),
                       child: Center(
                         child: SizedBox(
                           width: 20,
@@ -1143,16 +1164,17 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     )
                   else ...[
                     IconButton(
-                      icon: const Icon(Icons.bookmark_add_outlined),
-                      tooltip: 'Lưu địa điểm vào lịch trình',
-                      onPressed: _showAddPlaceToItineraryDialog,
-                    ),
-                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                      padding: const EdgeInsets.all(6),
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: 'Chỉnh sửa lịch trình',
                       onPressed: () => _handleEdit(itinerary),
                     ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                      padding: const EdgeInsets.all(6),
                       icon: const Icon(
                         Icons.delete_outline,
                         color: AppColors.error,
@@ -1162,6 +1184,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     ),
                   ],
                 ],
+                const SizedBox(width: 4),
               ],
             ),
             body: _buildBody(itinerary, isOwner),
@@ -2379,33 +2402,42 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (isOwner)
-                OutlinedButton.icon(
-                  onPressed: _showAddPlaceToItineraryDialog,
-                  icon: const Icon(
-                    Icons.add_location_alt_outlined,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
-                  label: const Text(
-                    'Thêm địa điểm',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: Size.zero,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    side: const BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+              if (isOwner) ...[
+                const SizedBox(width: 8),
+                Material(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: _showAddPlaceToItineraryDialog,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.bookmark_add_outlined,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'Thêm địa điểm',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
