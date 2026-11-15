@@ -631,27 +631,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
     ];
     final totalUniqueCount = allItemsPool.map((e) => e.itineraryId).toSet().length;
 
-    // Track displayed IDs to prevent the same itinerary from appearing across multiple sections
-    final seenIds = <int>{};
-
     // If there is only 1 itinerary in total (e.g. in test mock), let Section F render it via ItineraryCard
     final isSingleItemMode = totalUniqueCount <= 1;
 
+    // Curated carousel sections render independently using their own notifier data
     final featuredItems = isSingleItemMode
         ? <ItinerarySummary>[]
-        : _filterUnrendered(_exploreNotifier.featuredSection.items, seenIds);
+        : _exploreNotifier.featuredSection.items.take(6).toList();
 
     final recommendedItems = isSingleItemMode
         ? <ItinerarySummary>[]
-        : _filterUnrendered(_exploreNotifier.recommendedSection.items, seenIds);
+        : _exploreNotifier.recommendedSection.items.take(6).toList();
 
     final topRatedItems = isSingleItemMode
         ? <ItinerarySummary>[]
-        : _filterUnrendered(_exploreNotifier.topRatedSection.items, seenIds);
+        : _exploreNotifier.topRatedSection.items.take(6).toList();
 
     final popularItems = isSingleItemMode
         ? <ItinerarySummary>[]
-        : _filterUnrendered(_exploreNotifier.popularSection.items, seenIds);
+        : _exploreNotifier.popularSection.items.take(6).toList();
+
+    // Track displayed IDs across all curated sections above so Section F (Recent) does not repeat them
+    final seenIds = <int>{
+      ...featuredItems.map((e) => e.itineraryId),
+      ...recommendedItems.map((e) => e.itineraryId),
+      ...topRatedItems.map((e) => e.itineraryId),
+      ...popularItems.map((e) => e.itineraryId),
+    };
 
     // Section F receives either its own recent items, or any remaining unrendered items from pool
     final recentPool = _exploreNotifier.recentSection.items.isNotEmpty

@@ -8491,3 +8491,34 @@ Detailed investigation of owner itinerary `hello4` (ID: 285) revealed the root c
    - `flutter analyze`: **0 errors, 0 warnings** related to newly added or updated code.
 3. **Git Hygiene**:
    - STRICTLY NO COMMIT, NO PUSH. All uncommitted changes preserved.
+
+---
+
+## 86. Session Entry: Fix Explore Section Cross-Deduplication Bug (2026-11-15)
+
+### 86.1. Context & Problem Statement
+- **Reported Bug:** On `ExploreScreen`, itineraries under two sections ("Đánh giá cao nhất" - Top Rated, and "Phổ biến nhất" - Popular) failed to render any cards, leaving an empty blank area beneath each section header.
+- **Investigation & Root Cause Analysis:**
+  1. *Database & Backend Inspection:* The MySQL database contained 15 public and active itineraries. In the seed dataset, the top itineraries by view count (`viewCount,desc`), top itineraries by average rating (`rating,desc` with `minRating >= 4.0`), and top itineraries by favorite count (`favoriteCount,desc`) shared identical IDs (`263, 262, 264, 267, 261, 270`). Both backend API endpoints returned HTTP 200 with 6 valid items each.
+  2. *Data Layer Verification:* `ExploreRepository` and `ExploreNotifier` correctly fetched, parsed, and stored all items in `_topRatedSection` and `_popularSection` with `SectionStatus.success`.
+  3. *UI Layer Defect:* In `ExploreScreen._buildDiscoveryHomepage()`, a shared mutable `seenIds = <int>{}` was used with `_filterUnrendered` sequentially across Featured, Recommended, Top Rated, and Popular carousels. Because Section A (Featured) populated `seenIds` with all top 6 IDs, `_filterUnrendered` subsequently purged 100% of the items in Top Rated and Popular (`topRatedItems = []`, `popularItems = []`), causing their list views to render nothing under the header.
+
+### 86.2. Solution & Architectural Changes
+- Implemented **Solution 1 (Independent Carousel Rendering)** in [explore_screen.dart](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/lib/features/explore/presentation/screens/explore_screen.dart):
+  - Made Featured, Recommended, Top Rated, and Popular carousels render independently from their authoritative notifier states (`_exploreNotifier.<section>Section.items.take(6).toList()`).
+  - Removed shared `seenIds` / `_filterUnrendered` stripping between these curated carousel sections, ensuring each section displays its own ranked items and highlight badges (`CompactCardHighlight.rating`, `CompactCardHighlight.popular`, `CompactCardHighlight.theme`).
+  - Retained deduplication specifically for the final vertical Recent itineraries section (Section F) so items already displayed in the carousels above are not duplicated unnecessarily.
+  - Preserved existing layout structure, ranking algorithms, sorting parameters, loading states, error states, and empty states.
+
+### 86.3. Quality Assurance & Regression Verification
+1. **Regression Tests Added ([explore_sections_test.dart](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/mobile/test/explore_sections_test.dart)):**
+   - Added `ExploreSection Cross-Deduplication Regression Tests`:
+     - Test 1: Verified that all sections (Featured, Recommended, Top Rated, and Popular) display their valid cards even when every itinerary ID overlaps (100% ID overlap), each preserving its own distinct ordering and ranking badges, while Recent itineraries properly deduplicate and omit IDs rendered above.
+     - Test 2: Verified loading skeletons, section-specific error views (`SectionErrorView`), and empty states behave as expected without layout breaks.
+2. **Automated Test Results:**
+   - `test/explore_test.dart` & `test/explore_sections_test.dart`: **32 / 32 PASS (100%)**
+   - Full regression suite across Explore, Bottom Navigation, Create Itinerary, and My Itineraries: **86 / 86 PASS (100%)**
+3. **Flutter Analyzer:**
+   - `flutter analyze`: **0 errors, 0 warnings** across all modified files.
+4. **Git Hygiene:**
+   - STRICTLY NO COMMIT, NO PUSH. All uncommitted changes preserved.

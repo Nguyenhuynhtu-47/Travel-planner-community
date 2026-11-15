@@ -525,4 +525,160 @@ void main() {
       expect(find.text('Khám phá theo chủ đề'), findsOneWidget);
     });
   });
+
+  group('ExploreSection Cross-Deduplication Regression Tests', () {
+    testWidgets(
+      'All sections display valid cards when itinerary IDs overlap, preserving independent ordering and deduplicating recent',
+      (tester) async {
+        final mockClient = MockClient((request) async {
+          final path = request.url.path;
+          final query = request.url.queryParameters;
+
+          List<Map<String, dynamic>> items = [];
+
+          if (path.contains('/recommendations')) {
+            items = [
+              sampleItineraryJson(id: 1, title: 'Gợi ý 1'),
+              sampleItineraryJson(id: 2, title: 'Gợi ý 2'),
+              sampleItineraryJson(id: 3, title: 'Gợi ý 3'),
+            ];
+          } else if (query['sort'] == 'viewCount,desc') {
+            items = [
+              sampleItineraryJson(id: 1, title: 'Nổi bật 1'),
+              sampleItineraryJson(id: 2, title: 'Nổi bật 2'),
+              sampleItineraryJson(id: 3, title: 'Nổi bật 3'),
+            ];
+          } else if (query['minRating'] == '4.0' || query['sort'] == 'rating,desc') {
+            items = [
+              sampleItineraryJson(id: 3, title: 'Top Rated 3', averageRating: 5.0),
+              sampleItineraryJson(id: 2, title: 'Top Rated 2', averageRating: 4.9),
+              sampleItineraryJson(id: 1, title: 'Top Rated 1', averageRating: 4.8),
+            ];
+          } else if (query['sort'] == 'favoriteCount,desc') {
+            items = [
+              sampleItineraryJson(id: 2, title: 'Popular 2', favoriteCount: 300),
+              sampleItineraryJson(id: 1, title: 'Popular 1', favoriteCount: 200),
+              sampleItineraryJson(id: 3, title: 'Popular 3', favoriteCount: 100),
+            ];
+          } else {
+            // Recent returns overlapping ID 1, plus fresh IDs 4 and 5
+            items = [
+              sampleItineraryJson(id: 1, title: 'Recent 1'),
+              sampleItineraryJson(id: 4, title: 'Recent 4'),
+              sampleItineraryJson(id: 5, title: 'Recent 5'),
+            ];
+          }
+
+          return http.Response(
+            jsonEncode({
+              'content': items,
+              'pageNumber': 0,
+              'pageSize': 6,
+              'totalElements': items.length,
+              'totalPages': 1,
+              'last': true,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final authNotifier = AuthNotifier();
+        final exploreNotifier = ExploreNotifier(
+          repository: ExploreRepository(apiClient: ApiClient(client: mockClient)),
+        );
+        await exploreNotifier.loadInitialItineraries();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ExploreScreen(
+              authNotifier: authNotifier,
+              exploreNotifier: exploreNotifier,
+            ),
+          ),
+        );
+
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // 1. Featured renders its items
+        expect(find.text('Chuyến đi nổi bật'), findsOneWidget);
+        expect(find.text('Nổi bật 1'), findsOneWidget);
+        expect(find.text('Nổi bật 2'), findsOneWidget);
+        expect(find.text('Nổi bật 3'), findsOneWidget);
+
+        // 2. Recommended renders its items independently
+        expect(find.text('Gợi ý cho bạn'), findsOneWidget);
+        expect(find.text('Gợi ý 1'), findsOneWidget);
+
+        // 3. Top Rated renders its items independently despite 100% ID overlap with Featured
+        expect(find.text('Đánh giá cao nhất'), findsOneWidget);
+        expect(find.text('Top Rated 3'), findsOneWidget);
+        expect(find.text('Top Rated 2'), findsOneWidget);
+        expect(find.text('Top Rated 1'), findsOneWidget);
+
+        // 4. Popular renders its items independently despite 100% ID overlap with Featured
+        expect(find.text('Phổ biến nhất'), findsOneWidget);
+        expect(find.text('Popular 2'), findsOneWidget);
+        expect(find.text('Popular 1'), findsOneWidget);
+        expect(find.text('Popular 3'), findsOneWidget);
+
+        // 5. Recent properly applies deduplication: ID 1 is omitted, IDs 4 and 5 are displayed
+        expect(find.text('Mới chia sẻ gần đây'), findsOneWidget);
+        expect(find.text('Recent 4'), findsOneWidget);
+        expect(find.text('Recent 5'), findsOneWidget);
+        expect(find.text('Recent 1'), findsNothing);
+      },
+    );
+
+    testWidgets('Loading, error, and empty states remain correct', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockClient = MockClient((request) async {
+        final query = request.url.queryParameters;
+        if (query['minRating'] == '4.0' || query['sort'] == 'rating,desc') {
+          return http.Response('Error loading top rated', 500);
+        }
+        return http.Response(
+          jsonEncode({
+            'content': [
+              sampleItineraryJson(id: 1, title: 'Lịch trình cơ bản 1'),
+              sampleItineraryJson(id: 2, title: 'Lịch trình cơ bản 2'),
+            ],
+            'pageNumber': 0,
+            'pageSize': 6,
+            'totalElements': 2,
+            'totalPages': 1,
+            'last': true,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final authNotifier = AuthNotifier();
+      final exploreNotifier = ExploreNotifier(
+        repository: ExploreRepository(apiClient: ApiClient(client: mockClient)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ExploreScreen(
+            authNotifier: authNotifier,
+            exploreNotifier: exploreNotifier,
+          ),
+        ),
+      );
+
+      // Initial load renders and triggers home sections
+      await exploreNotifier.loadInitialItineraries();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byType(SectionErrorView), findsOneWidget);
+      expect(find.text('Không thể tải lịch trình đánh giá cao.'), findsOneWidget);
+    });
+  });
 }
