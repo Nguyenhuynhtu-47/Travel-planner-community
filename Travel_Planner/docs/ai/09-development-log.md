@@ -8398,3 +8398,96 @@ Detailed investigation of owner itinerary `hello4` (ID: 285) revealed the root c
    - `flutter test test/features/collection/collection_screen_test.dart test/features/social/community_feed_test.dart test/create_itinerary_test.dart test/features/itinerary/my_itineraries_overview_test.dart test/explore_test.dart`: **60 / 60 PASS (100%)**.
 4. **Git Discipline**:
    - STRICTLY NO COMMIT, NO PUSH strictly observed. All uncommitted changes preserved.
+
+---
+
+## 84. Session Entry: Redesign My Itineraries, 3-Step Create Itinerary Flow & Instagram-inspired User Profiles (2026-11-15)
+
+### 84.1. Context & Objectives
+1. **Bottom Navigation Shell**:
+   - Replaced bottom navigation tab index 4 `'Hồ sơ'` with `'Lịch trình của tôi'` (`MyItinerariesScreen`) using `Icons.luggage_outlined` / `Icons.luggage`.
+   - Preserved `ProfileScreen` accessibility by providing avatar tap targets in `ExploreScreen` and `MyItinerariesScreen` AppBar.
+   - Maintained profile navigation when tapping authors/avatars in community feed and post cards.
+2. **My Itineraries Screen (Wanderlog-inspired)**:
+   - Modernized UI prioritizing trip cover photos, titles, destination metadata, and filter chips (`Tất cả`, `Công khai`, `Riêng tư`, `Bản nháp`).
+   - Retained search, pagination, pull-to-refresh, edit, and delete actions.
+   - Added user profile avatar button in AppBar with tooltip `'Hồ sơ cá nhân'` that pushes `ProfileScreen`.
+   - Assigned unique `heroTag: 'my_itineraries_fab'` to avoid Hero animation tag collisions when navigating inside `IndexedStack`.
+3. **Create Itinerary Flow (3-Step Wizard)**:
+   - Refactored form into a structured 3-step wizard flow:
+     - **Bước 1**: Tiêu đề lịch trình + Điểm đến / Địa điểm (validation: title 3-150 chars, location required).
+     - **Bước 2**: Số ngày (1-30) + Ngân sách VNĐ (validation: bounds 1-30, non-negative budget).
+     - **Bước 3**: Phong cách / Thể loại + Mô tả + Chọn ảnh bìa (with 5MB validation) + Quyền riêng tư (Riêng tư / Công khai) + Nút `'Tạo lịch trình'`.
+   - Added `PopScope` supporting backwards step navigation across steps before popping screen.
+   - Replaced unbounded layout flex with `Expanded` + `TextOverflow.ellipsis` on step title in progress indicator to ensure 0 overflow on 360px wide screens.
+4. **User Profile (Instagram-inspired)**:
+   - Aligned own profile (`ProfileScreen`) and other users' public profile (`PublicProfileScreen`) with consistent Instagram-style header:
+     - Avatar (radius 38), stats row (Lịch trình, Người theo dõi, Đang theo dõi), display name, @handle, bio, and role/status badges.
+     - Action buttons: `'Chỉnh sửa hồ sơ'` on own profile; `'Theo dõi'` / `'Đang theo dõi'`, `'Nhắn tin'`, and relationship actions on other users' profiles.
+     - Below header: clean itineraries list/tabs.
+5. **Profile Settings Separation**:
+   - Added settings gear icon (`Icons.settings_outlined`) in top-right AppBar on own profile only.
+   - Created `PersonalInfoScreen` dedicated to managing personal info (Full name, phone, address, bio, handle), account settings, avatar change, and logout.
+   - Ensured other users' public profile never shows the gear icon.
+6. **State & Backward Compatibility**:
+   - Maintained `_editor()` and `_openSettings()` on `ProfileScreen` ensuring full compatibility with legacy `user_handle_test.dart` and `bottom_navigation_test.dart`.
+   - Used `Stack` with opacity/interactive scoping for "Lịch trình" and "Thông tin tài khoản" tabs, ensuring Finder accessibility and instant tab switching without widget offstaging or state loss.
+
+### 84.2. Quality Assurance & Test Verification
+1. **Automated Test Suites**:
+   - `test/bottom_navigation_test.dart`: **13 / 13 PASS (100%)** (including small screen 360x640 layout test).
+   - `test/create_itinerary_test.dart`: **12 / 12 PASS (100%)** (covering all 3 steps, validation, visibility option equality, submission, API error handling, and back/forward navigation).
+   - `test/features/profile/`: **8 / 8 PASS (100%)** (covering `public_profile_screen_test.dart` and `user_handle_test.dart`).
+   - `test/features/itinerary/my_itineraries_overview_test.dart` & `test/my_itineraries_test.dart`: **PASS (100%)**.
+   - Comprehensive suite run: **53 / 53 PASS (100%)**.
+2. **Flutter Analyzer**:
+   - `flutter analyze`: **0 errors, 0 warnings** across all mobile code.
+3. **Device Status**:
+   - Device `RFCW8105T0H` verified offline/unattached during final step; all widget, layout, safe area, and navigation tests validated on simulated dimensions (360x640, 390x844, 1080x2400).
+4. **Git Discipline**:
+   - STRICTLY NO COMMIT, NO PUSH strictly observed. All working tree changes intact.
+
+---
+
+## 85. Session Entry: Create Itinerary Intro / Splash Screen (2026-11-15)
+
+### 85.1. Context & Objectives
+- **Requirement**: Before entering the 3-step itinerary creation wizard, present a dedicated, visually appealing introductory / splash screen.
+- **Intro Screen Details**:
+  - Main heading: `Bắt đầu hành trình của bạn`.
+  - Short supporting text: `Lên kế hoạch cho chuyến đi tiếp theo của bạn một cách dễ dàng.`.
+  - Prominent CTA button: `Bắt đầu` (`AppPrimaryButton`).
+  - Travel-themed visual container (`Icons.explore_rounded` in `AppColors.primary`).
+  - 3-step preview breakdown card detailing the upcoming steps (Thông tin chuyến đi, Thời gian & ngân sách, Phong cách & hoàn tất).
+- **Navigation Flow**:
+  - `Create Itinerary Entry → Intro Screen → Step 1 → Step 2 → Step 3 → Submit Flow`.
+  - Intro screen is separate and not counted as one of the 3 wizard steps (Step Indicator remains `Bước 1/3`, `Bước 2/3`, `Bước 3/3`).
+  - Tapping `Bắt đầu` navigates forward to Step 1.
+  - Back navigation from Step 1 (via AppBar back button, `PopScope`, or bottom `Quay lại` button) seamlessly returns to the Intro screen.
+  - Form state in all steps is 100% preserved when navigating back to the Intro screen and returning to Step 1.
+  - Back navigation from Intro screen follows normal app hierarchy (pops route if pushed, or maintains active tab if root in `IndexedStack`).
+  - Existing validation, draft handling, cover image picking, and API submission remain completely intact.
+
+### 85.2. Files Modified
+- `Travel_Planner/frontend/mobile/lib/features/itinerary/presentation/screens/create_itinerary_screen.dart`:
+  - Added `bool _showIntro = true;` and constructor parameter `final bool initialShowIntro;` (default `true`).
+  - Implemented `_buildIntroScreen()` and `_introStepItem()`.
+  - Wired `_previousStep()` from Step 1 to return to Intro screen (`_showIntro = true`).
+  - Handled AppBar leading back button and `PopScope` to return to Intro screen when on Step 1 (`_currentStep == 0 && !_showIntro`).
+- `Travel_Planner/frontend/mobile/test/create_itinerary_test.dart`:
+  - Added test case verifying Intro screen rendering, visual container, heading, supporting text, and CTA button.
+  - Updated wizard tests to tap `Bắt đầu` to enter Step 1.
+- `Travel_Planner/frontend/mobile/test/bottom_navigation_test.dart`:
+  - Updated Create Itinerary tab switching tests to ensure visible and tap `Bắt đầu`.
+
+### 85.3. Quality Assurance & Verification
+1. **Automated Test Results**:
+   - `test/create_itinerary_test.dart`: **13 / 13 PASS (100%)**
+   - `test/bottom_navigation_test.dart`: **13 / 13 PASS (100%)**
+   - `test/features/profile/`: **8 / 8 PASS (100%)**
+   - `test/features/itinerary/my_itineraries_overview_test.dart` & `test/my_itineraries_test.dart`: **20 / 20 PASS (100%)**
+   - Combined test suite: **62 / 62 PASS (100%)**
+2. **Flutter Analyzer**:
+   - `flutter analyze`: **0 errors, 0 warnings** related to newly added or updated code.
+3. **Git Hygiene**:
+   - STRICTLY NO COMMIT, NO PUSH. All uncommitted changes preserved.

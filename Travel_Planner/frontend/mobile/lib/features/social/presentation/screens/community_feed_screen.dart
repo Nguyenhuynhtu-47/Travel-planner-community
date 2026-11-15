@@ -7,6 +7,8 @@ import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../messaging/presentation/screens/community_screen.dart' as messaging;
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
+import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../community_feed_notifier.dart';
 import '../../data/community_post_repository.dart';
 import '../../data/models/post_model.dart';
@@ -207,6 +209,23 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     );
   }
 
+  void _openUserProfile(int userId) {
+    if (userId <= 0) return;
+    final currentUserId = int.tryParse(
+      '${widget.authNotifier?.currentUser?['userId'] ?? ''}',
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => currentUserId == userId && widget.authNotifier != null
+            ? ProfileScreen(authNotifier: widget.authNotifier!)
+            : PublicProfileScreen(
+                userId: userId,
+                authNotifier: widget.authNotifier,
+              ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -365,6 +384,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
             onDelete: () => _confirmDeletePost(post),
             onReport: () => _openReport(post),
             onItineraryTap: _openItineraryDetail,
+            onUserTap: _openUserProfile,
           );
         },
       ),

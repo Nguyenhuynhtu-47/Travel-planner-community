@@ -10,6 +10,7 @@ class PostCardWidget extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
   final void Function(int itineraryId)? onItineraryTap;
+  final void Function(int userId)? onUserTap;
 
   const PostCardWidget({
     super.key,
@@ -20,6 +21,7 @@ class PostCardWidget extends StatelessWidget {
     this.onDelete,
     this.onReport,
     this.onItineraryTap,
+    this.onUserTap,
   });
 
   String _formatTime(DateTime time) {
@@ -79,76 +81,95 @@ class PostCardWidget extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppColors.surfaceStrong,
-                  backgroundImage: post.author.avatar != null &&
-                          post.author.avatar!.isNotEmpty
-                      ? NetworkImage(post.author.avatar!)
-                      : null,
-                  child: post.author.avatar == null || post.author.avatar!.isEmpty
-                      ? const Icon(Icons.person, color: AppColors.muted)
-                      : null,
-                ),
-                const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              post.author.displayName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: AppColors.textPrimary,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onUserTap != null && post.author.userId > 0
+                        ? () => onUserTap!(post.author.userId)
+                        : null,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: AppColors.surfaceStrong,
+                          backgroundImage: post.author.avatar != null &&
+                                  post.author.avatar!.isNotEmpty
+                              ? NetworkImage(post.author.avatar!)
+                              : null,
+                          child: post.author.avatar == null ||
+                                  post.author.avatar!.isEmpty
+                              ? const Icon(Icons.person, color: AppColors.muted)
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      post.author.displayName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (post.author.handle.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        '@${post.author.handle.replaceFirst('@', '')}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: AppColors.muted,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (post.author.handle.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                '@${post.author.handle.replaceFirst('@', '')}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.muted,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Text(
+                                    _formatTime(post.createdAt),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.muted,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    '•',
+                                    style: TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Tooltip(
+                                    message: _visibilityTooltip(post.visibility),
+                                    child: Icon(
+                                      _visibilityIcon(post.visibility),
+                                      size: 13,
+                                      color: AppColors.muted,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text(
-                            _formatTime(post.createdAt),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.muted,
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 6),
-                          const Text('•', style: TextStyle(color: AppColors.muted, fontSize: 10)),
-                          const SizedBox(width: 6),
-                          Tooltip(
-                            message: _visibilityTooltip(post.visibility),
-                            child: Icon(
-                              _visibilityIcon(post.visibility),
-                              size: 13,
-                              color: AppColors.muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 PopupMenuButton<String>(

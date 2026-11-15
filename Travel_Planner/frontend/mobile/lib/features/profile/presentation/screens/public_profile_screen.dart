@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -356,6 +355,41 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     );
   }
 
+  Widget _statItem(String label, int count, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -378,113 +412,242 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         ? profile.fullName!.trim()
         : '@$handleDisplay';
     return Scaffold(
-      appBar: AppBar(title: Text(name)),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(
+          name,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 0.5,
+            color: AppColors.hairlineSoft,
+          ),
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           controller: _scroll,
-          padding: const EdgeInsets.all(AppSpacing.base),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
-            Center(
-              child: CircleAvatar(
-                radius: 42,
-                backgroundImage: profile.avatar?.isNotEmpty == true
-                    ? NetworkImage(profile.avatar!)
-                    : null,
-                child: profile.avatar?.isNotEmpty == true
-                    ? null
-                    : const Icon(Icons.person_outline),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Center(
-              child: Text(
-                name,
-                style: AppTextStyles.displaySm.copyWith(
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-            Center(
-              child: Text(
-                '@$handleDisplay',
-                style: AppTextStyles.bodySm.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            if (profile.bio?.trim().isNotEmpty == true) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                profile.bio!.trim(),
-                textAlign: TextAlign.center,
-                style: AppTextStyles.bodyMd.copyWith(color: AppColors.textBody),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.base),
+            // Instagram-inspired Header
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                InkWell(
-                  onTap: () => _openUsers(true),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                  child: _count('Người theo dõi', profile.followerCount),
+                CircleAvatar(
+                  radius: 38,
+                  backgroundColor: AppColors.surfaceStrong,
+                  backgroundImage: profile.avatar?.isNotEmpty == true
+                      ? NetworkImage(profile.avatar!)
+                      : null,
+                  child: profile.avatar?.isNotEmpty == true
+                      ? null
+                      : const Icon(Icons.person_outline, size: 38, color: AppColors.textSecondary),
                 ),
-                const SizedBox(width: AppSpacing.xl),
-                InkWell(
-                  onTap: () => _openUsers(false),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                  child: _count('Đang theo dõi', profile.followingCount),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: _statItem('Lịch trình', _itineraries.length),
+                      ),
+                      Expanded(
+                        child: _statItem(
+                          'Người theo dõi',
+                          profile.followerCount,
+                          onTap: () => _openUsers(true),
+                        ),
+                      ),
+                      Expanded(
+                        child: _statItem(
+                          'Đang theo dõi',
+                          profile.followingCount,
+                          onTap: () => _openUsers(false),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            if (!profile.isOwnProfile)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.md),
-                child: FilledButton(
-                  onPressed: _followBusy ? null : _toggleFollow,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.textPrimary,
-                  ),
-                  child: _followBusy
-                      ? const SizedBox.square(
-                          dimension:
-                              AppSpacing.md + AppSpacing.xs + AppSpacing.xxs,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.textPrimary,
-                          ),
-                        )
-                      : Text(_following ? 'Đang theo dõi' : 'Theo dõi'),
-                ),
-              ),
-            if (!profile.isOwnProfile)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: _relationshipActions(profile),
-              ),
-            if (profile.isOwnProfile && widget.authNotifier != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.md),
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          ProfileScreen(authNotifier: widget.authNotifier!),
-                    ),
-                  ),
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Chỉnh sửa hồ sơ'),
-                ),
-              ),
-            const Divider(height: AppSpacing.xxl),
+            const SizedBox(height: 14),
+
+            // Name & Handle
             Text(
-              'Lịch trình công khai',
-              style: AppTextStyles.titleMd.copyWith(
+              name,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
+                letterSpacing: -0.2,
               ),
             ),
+            const SizedBox(height: 2),
+            Text(
+              '@$handleDisplay',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (profile.bio?.trim().isNotEmpty == true) ...[
+              const SizedBox(height: 6),
+              Text(
+                profile.bio!.trim(),
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: AppColors.textPrimary,
+                  height: 1.35,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+
+            // Action Buttons
+            if (!profile.isOwnProfile) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _following
+                        ? OutlinedButton(
+                            onPressed: _followBusy ? null : _toggleFollow,
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(38),
+                              side: const BorderSide(color: AppColors.border),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: _followBusy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Text(
+                                    'Đang theo dõi',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                          )
+                        : FilledButton(
+                            onPressed: _followBusy ? null : _toggleFollow,
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(38),
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: _followBusy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Theo dõi',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                          ),
+                  ),
+                  if (profile.canMessage) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _openConversation,
+                        icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                        label: const Text(
+                          'Nhắn tin',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(38),
+                          side: const BorderSide(color: AppColors.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (profile.canSendFriendRequest || profile.friendshipStatus != null) ...[
+                const SizedBox(height: 8),
+                _relationshipActions(profile),
+              ],
+            ],
+            if (profile.isOwnProfile && widget.authNotifier != null)
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        ProfileScreen(authNotifier: widget.authNotifier!),
+                  ),
+                ),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Chỉnh sửa hồ sơ'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(38),
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: AppColors.hairlineSoft),
+            const SizedBox(height: 16),
+
+            // Itineraries Header
+            Row(
+              children: [
+                const Icon(Icons.map_outlined, size: 18, color: AppColors.primary),
+                const SizedBox(width: 6),
+                const Text(
+                  'Lịch trình công khai',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_itineraries.length}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             if (_itineraries.isEmpty)
               const AppEmptyState(
                 title: 'Chưa có lịch trình công khai',
@@ -526,20 +689,4 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       ),
     );
   }
-
-  Widget _count(String label, int count) => Padding(
-    padding: const EdgeInsets.all(AppSpacing.sm),
-    child: Column(
-      children: [
-        Text(
-          '$count',
-          style: AppTextStyles.titleMd.copyWith(color: AppColors.textPrimary),
-        ),
-        Text(
-          label,
-          style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-        ),
-      ],
-    ),
-  );
 }

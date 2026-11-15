@@ -13,6 +13,7 @@ import 'package:mobile/features/explore/data/explore_repository.dart';
 import 'package:mobile/features/explore/presentation/explore_notifier.dart';
 import 'package:mobile/features/explore/presentation/screens/explore_screen.dart';
 import 'package:mobile/features/itinerary/data/itinerary_crud_repository.dart';
+import 'package:mobile/features/itinerary/presentation/screens/my_itineraries_screen.dart';
 import 'package:mobile/features/itinerary/presentation/screens/create_itinerary_screen.dart';
 import 'package:mobile/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:mobile/features/profile/data/profile_repository.dart';
@@ -182,14 +183,14 @@ void main() {
         expect(bottomNav.items[1].label, equals('Cộng đồng'));
         expect(bottomNav.items[2].label, equals('Tạo lịch trình'));
         expect(bottomNav.items[3].label, equals('Bộ sưu tập'));
-        expect(bottomNav.items[4].label, equals('Hồ sơ'));
+        expect(bottomNav.items[4].label, equals('Lịch trình của tôi'));
 
         // Verify correct icons
         expect(find.byIcon(Icons.explore), findsOneWidget); // selected
         expect(find.byIcon(Icons.group_outlined), findsOneWidget);
         expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
         expect(find.byIcon(Icons.collections_bookmark_outlined), findsOneWidget);
-        expect(find.byIcon(Icons.person_outline), findsOneWidget);
+        expect(find.byIcon(Icons.luggage_outlined), findsOneWidget);
       },
     );
 
@@ -230,6 +231,10 @@ void main() {
         );
         expect(bottomNav.currentIndex, equals(2));
         expect(find.byType(CreateItineraryScreen), findsOneWidget);
+        expect(find.text('Bắt đầu hành trình của bạn'), findsOneWidget);
+        await tester.ensureVisible(find.text('Bắt đầu'));
+        await tester.tap(find.text('Bắt đầu'));
+        await tester.pumpAndSettle();
         expect(find.text('Tiêu đề lịch trình *'), findsOneWidget);
 
         // 3. Tap Collection (Index 3)
@@ -245,16 +250,16 @@ void main() {
         expect(find.text('Đã lưu'), findsOneWidget);
         expect(find.text('Yêu thích'), findsOneWidget);
 
-        // 4. Tap Profile (Index 4)
-        await tester.tap(find.byIcon(Icons.person_outline));
+        // 4. Tap My Itineraries (Index 4)
+        await tester.tap(find.byIcon(Icons.luggage_outlined));
         await tester.pumpAndSettle();
 
         bottomNav = tester.widget<BottomNavigationBar>(
           find.byType(BottomNavigationBar),
         );
         expect(bottomNav.currentIndex, equals(4));
-        expect(find.byType(ProfileScreen), findsOneWidget);
-        expect(find.text('Hồ sơ cá nhân'), findsOneWidget);
+        expect(find.byType(MyItinerariesScreen), findsOneWidget);
+        expect(find.text('Lịch trình của tôi'), findsWidgets);
 
         // 5. Tap Explore (Index 0)
         await tester.tap(find.byIcon(Icons.explore_outlined));
@@ -276,6 +281,11 @@ void main() {
 
       // Go to Create tab
       await tester.tap(find.byIcon(Icons.add_circle_outline));
+      await tester.pumpAndSettle();
+
+      // Tap 'Bắt đầu' on Intro screen
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
       await tester.pumpAndSettle();
 
       // Enter custom text in the title field
@@ -349,7 +359,7 @@ void main() {
     );
 
     testWidgets(
-      'Tapping the Explore header avatar selects the existing Profile tab',
+      'Tapping the Explore header avatar opens ProfileScreen',
       (tester) async {
         await tester.pumpWidget(buildTestShell());
         await tester.pumpAndSettle();
@@ -357,35 +367,22 @@ void main() {
         await tester.tap(find.byTooltip('Hồ sơ cá nhân'));
         await tester.pumpAndSettle();
 
-        final bottomNav = tester.widget<BottomNavigationBar>(
-          find.byType(BottomNavigationBar),
-        );
-        expect(bottomNav.currentIndex, equals(4));
         expect(find.byType(ProfileScreen), findsOneWidget);
       },
     );
 
-    testWidgets('ProfileScreen provides access to MyItinerariesScreen', (
+    testWidgets('MyItinerariesScreen provides access to ProfileScreen via avatar', (
       tester,
     ) async {
       await tester.pumpWidget(buildTestShell(initialIndex: 4));
       await tester.pumpAndSettle();
 
+      expect(find.byType(MyItinerariesScreen), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Hồ sơ cá nhân'));
+      await tester.pumpAndSettle();
+
       expect(find.byType(ProfileScreen), findsOneWidget);
-
-      await tester.scrollUntilVisible(
-        find.text('Lịch trình của tôi'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Lịch trình của tôi'), findsOneWidget);
-
-      await tester.tap(find.text('Lịch trình của tôi'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Lịch trình của tôi'), findsWidgets);
     });
 
     testWidgets(
@@ -472,7 +469,13 @@ void main() {
       (tester) async {
         final guestAuth = MockAuthNotifier(); // token == null
         await tester.pumpWidget(
-          buildTestShell(customAuthNotifier: guestAuth, initialIndex: 4),
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: ProfileScreen(
+              authNotifier: guestAuth,
+              repository: profileRepository,
+            ),
+          ),
         );
         await tester.pumpAndSettle();
 
@@ -505,7 +508,7 @@ void main() {
         Icons.group_outlined,
         Icons.add_circle_outline,
         Icons.collections_bookmark_outlined,
-        Icons.person_outline,
+        Icons.luggage_outlined,
         Icons.explore_outlined,
       ]) {
         await tester.tap(find.byIcon(icon));

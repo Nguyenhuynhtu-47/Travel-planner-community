@@ -21,6 +21,7 @@ class CreateItineraryScreen extends StatefulWidget {
   final ItineraryCrudRepository? repository;
   final void Function(int createdItineraryId)? onCreated;
   final ImagePickerService? imagePickerService;
+  final bool initialShowIntro;
 
   const CreateItineraryScreen({
     super.key,
@@ -28,6 +29,7 @@ class CreateItineraryScreen extends StatefulWidget {
     this.repository,
     this.onCreated,
     this.imagePickerService,
+    this.initialShowIntro = true,
   });
 
   @override
@@ -35,7 +37,12 @@ class CreateItineraryScreen extends StatefulWidget {
 }
 
 class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
-  final _formKey = GlobalKey<FormState>();
+  int _currentStep = 0;
+  bool _showIntro = true;
+
+  final _step1Key = GlobalKey<FormState>();
+  final _step2Key = GlobalKey<FormState>();
+  final _step3Key = GlobalKey<FormState>();
 
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
@@ -64,6 +71,7 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
   @override
   void initState() {
     super.initState();
+    _showIntro = widget.initialShowIntro;
     _repository = widget.repository ?? ItineraryCrudRepository();
     _imagePickerService =
         widget.imagePickerService ?? DeviceImagePickerService();
@@ -90,9 +98,31 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
     _selectedCoverImage = null;
     _selectedCoverBytes = null;
     setState(() {
+      _showIntro = true;
+      _currentStep = 0;
       _visibility = 'PRIVATE';
       _isSubmitting = false;
     });
+  }
+
+  void _nextStep() {
+    if (_currentStep == 0) {
+      if (_step1Key.currentState?.validate() == true) {
+        setState(() => _currentStep = 1);
+      }
+    } else if (_currentStep == 1) {
+      if (_step2Key.currentState?.validate() == true) {
+        setState(() => _currentStep = 2);
+      }
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    } else {
+      setState(() => _showIntro = true);
+    }
   }
 
   Future<void> _pickCoverImage() async {
@@ -128,14 +158,29 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
   Future<void> _submit() async {
     if (_isSubmitting) return;
 
-    if (!_formKey.currentState!.validate()) {
+    // Validate current step (Step 3)
+    if (_step3Key.currentState?.validate() != true) {
+      return;
+    }
+
+    // Verify step 1 and step 2
+    if (_titleController.text.trim().isEmpty ||
+        _locationController.text.trim().isEmpty) {
+      setState(() => _currentStep = 0);
+      _step1Key.currentState?.validate();
+      return;
+    }
+
+    final totalDays = int.tryParse(_totalDaysController.text.trim());
+    final budget = double.tryParse(_budgetController.text.trim());
+    if (totalDays == null || totalDays < 1 || totalDays > 30 ||
+        budget == null || budget < 0) {
+      setState(() => _currentStep = 1);
+      _step2Key.currentState?.validate();
       return;
     }
 
     setState(() => _isSubmitting = true);
-
-    final totalDays = int.tryParse(_totalDaysController.text.trim()) ?? 1;
-    final budget = double.tryParse(_budgetController.text.trim()) ?? 0.0;
 
     try {
       String? coverImage;
@@ -183,8 +228,7 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
         ),
       );
 
-      // Navigate to detail screen so user can review the new itinerary,
-      // and when they return, pass true to refresh MyItineraries list.
+      // Navigate to detail screen so user can review the new itinerary
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ItineraryDetailScreen(
@@ -226,242 +270,674 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const AppPageTitle(title: 'Tạo lịch trình mới'),
+    final canPopScope = _showIntro && Navigator.of(context).canPop();
+
+    return PopScope(
+      canPop: canPopScope,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (!_showIntro) {
+          _previousStep();
+        }
+      },
+      child: Scaffold(
         backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Làm mới biểu mẫu',
-            icon: const Icon(Icons.refresh_rounded, size: 22),
-            onPressed: _resetForm,
-          ),
-          const SizedBox(width: 8),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 0.5,
-            color: AppColors.hairlineSoft,
+        appBar: AppBar(
+          title: const AppPageTitle(title: 'Tạo lịch trình mới'),
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.textPrimary,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          leading: _showIntro
+              ? (Navigator.of(context).canPop()
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => Navigator.of(context).pop(),
+                    )
+                  : null)
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: _currentStep > 0 ? 'Quay lại bước trước' : 'Quay lại',
+                  onPressed: _previousStep,
+                ),
+          actions: [
+            if (!_showIntro) ...[
+              IconButton(
+                tooltip: 'Làm mới biểu mẫu',
+                icon: const Icon(Icons.refresh_rounded, size: 22),
+                onPressed: _resetForm,
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(
+              height: 0.5,
+              color: AppColors.hairlineSoft,
+            ),
           ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title
-              AppTextField(
-                label: 'Tiêu đề lịch trình *',
-                hint: 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm',
-                controller: _titleController,
-                textInputAction: TextInputAction.next,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Tiêu đề không được để trống';
-                  }
-                  if (value.trim().length < 3 || value.trim().length > 150) {
-                    return 'Tiêu đề phải từ 3 đến 150 ký tự';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Destination / Location
-              ItineraryLocationSearchField(
-                controller: _locationController,
-                token: widget.authNotifier.token,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Điểm đến không được để trống';
-                  }
-                  if (value.trim().length > 150) {
-                    return 'Điểm đến tối đa 150 ký tự';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Row: Days & Budget
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        body: _showIntro
+            ? _buildIntroScreen()
+            : Column(
                 children: [
-                  // Total days
+                  _buildProgressIndicator(),
                   Expanded(
-                    child: AppTextField(
-                      label: 'Số ngày (1-30) *',
-                      hint: '3',
-                      controller: _totalDaysController,
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.next,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Vui lòng nhập số ngày';
-                        }
-                        final days = int.tryParse(value.trim());
-                        if (days == null) {
-                          return 'Phải là số nguyên';
-                        }
-                        if (days < 1 || days > 30) {
-                          return 'Từ 1 đến 30 ngày';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-
-                  // Budget
-                  Expanded(
-                    child: AppTextField(
-                      label: 'Ngân sách (VNĐ) *',
-                      hint: '3000000',
-                      controller: _budgetController,
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.next,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Vui lòng nhập ngân sách';
-                        }
-                        final b = double.tryParse(value.trim());
-                        if (b == null) {
-                          return 'Số tiền không hợp lệ';
-                        }
-                        if (b < 0) {
-                          return 'Không được âm';
-                        }
-                        return null;
-                      },
+                    child: IndexedStack(
+                      index: _currentStep,
+                      children: [
+                        _buildStep1(),
+                        _buildStep2(),
+                        _buildStep3(),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+      ),
+    );
+  }
 
-              // Theme / Category
-              AppTextField(
-                label: 'Chủ đề / Thể loại',
-                hint: 'Ví dụ: Nghỉ dưỡng, Phượt...',
-                controller: _themeController,
-                textInputAction: TextInputAction.next,
-                validator: (value) {
-                  if (value != null && value.trim().length > 100) {
-                    return 'Chủ đề tối đa 100 ký tự';
-                  }
-                  return null;
-                },
+  Widget _buildIntroScreen() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Travel Visual Container
+              Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primary.withAlpha(22),
+                  border: Border.all(
+                    color: AppColors.primary.withAlpha(50),
+                    width: 2,
+                  ),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.explore_rounded,
+                    size: 44,
+                    color: AppColors.primary,
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 18),
 
-              // Quick theme chips
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: _suggestedThemes.map((t) {
-                  final isSelected = _themeController.text.trim() == t;
-                  return ChoiceChip(
-                    label: Text(
-                      t,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.textPrimary,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                      ),
-                    ),
-                    selected: isSelected,
-                    selectedColor: AppColors.primary,
-                    backgroundColor: AppColors.surfaceSoft,
-                    showCheckmark: false,
-                    onSelected: (selected) {
-                      setState(() {
-                        _themeController.text = selected ? t : '';
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-
-              // Description
-              AppTextField(
-                label: 'Mô tả chuyến đi',
-                hint: 'Giới thiệu ngắn về mục tiêu, trải nghiệm trong chuyến đi...',
-                controller: _descriptionController,
-                maxLines: 4,
-                minLines: 2,
-                keyboardType: TextInputType.multiline,
-              ),
-              const SizedBox(height: 16),
-
-              ImageUploadPreview(
-                selectedBytes: _selectedCoverBytes,
-                imageUrl: null,
-                buttonLabel: 'Chọn ảnh bìa',
-                onPick: _pickCoverImage,
-              ),
-              const SizedBox(height: 20),
-
-              // Visibility Selection
+              // Main Heading
               const Text(
-                'Quyền riêng tư',
+                'Bắt đầu hành trình của bạn',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
 
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Private option
-                    Expanded(
-                      child: _buildVisibilityOption(
-                        title: 'Riêng tư',
-                        subtitle: 'Chỉ bạn xem được',
-                        icon: Icons.lock_outline,
-                        value: 'PRIVATE',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+              // Supporting Text
+              const Text(
+                'Lên kế hoạch cho chuyến đi tiếp theo của bạn một cách dễ dàng.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.4,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 22),
 
-                    // Public option
-                    Expanded(
-                      child: _buildVisibilityOption(
-                        title: 'Công khai',
-                        subtitle: 'Mọi người đều xem được',
-                        icon: Icons.public,
-                        value: 'PUBLIC',
-                      ),
+              // 3-Step Overview Card
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.hairlineSoft),
+                ),
+                child: Column(
+                  children: [
+                    _introStepItem(
+                      stepNum: '1',
+                      title: 'Thông tin chuyến đi',
+                      subtitle: 'Đặt tên lịch trình và chọn địa điểm khám phá',
+                      icon: Icons.place_outlined,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                      child: Divider(height: 1, color: AppColors.hairlineSoft),
+                    ),
+                    _introStepItem(
+                      stepNum: '2',
+                      title: 'Thời gian & ngân sách',
+                      subtitle: 'Ước tính số ngày du lịch và chi phí dự kiến',
+                      icon: Icons.calendar_today_outlined,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                      child: Divider(height: 1, color: AppColors.hairlineSoft),
+                    ),
+                    _introStepItem(
+                      stepNum: '3',
+                      title: 'Phong cách & hoàn tất',
+                      subtitle: 'Chọn thể loại, ảnh bìa và tạo lịch trình',
+                      icon: Icons.tune_outlined,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
-              // Submit Button
+              // CTA Button: Bắt đầu
               AppPrimaryButton(
-                text: 'Tạo lịch trình',
-                isLoading: _isSubmitting,
-                onPressed: _submit,
+                text: 'Bắt đầu',
+                onPressed: () {
+                  setState(() => _showIntro = false);
+                },
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _introStepItem({
+    required String stepNum,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceSoft,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: AppColors.primary),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    const stepTitles = [
+      'Thông tin chuyến đi',
+      'Thời gian & ngân sách',
+      'Phong cách chuyến đi',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          bottom: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Bước ${_currentStep + 1}/3',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  stepTitles[_currentStep],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.end,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (_currentStep + 1) / 3,
+              backgroundColor: AppColors.surfaceSoft,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              minHeight: 5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Step 1: Tiêu đề & Điểm đến
+  Widget _buildStep1() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+      child: Form(
+        key: _step1Key,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Thông tin chuyến đi',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Đặt tên cho lịch trình và chọn địa điểm bạn muốn ghé thăm.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            AppTextField(
+              label: 'Tiêu đề lịch trình *',
+              hint: 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm',
+              controller: _titleController,
+              textInputAction: TextInputAction.next,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Tiêu đề không được để trống';
+                }
+                if (value.trim().length < 3 || value.trim().length > 150) {
+                  return 'Tiêu đề phải từ 3 đến 150 ký tự';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+
+            // Destination / Location
+            ItineraryLocationSearchField(
+              controller: _locationController,
+              token: widget.authNotifier.token,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Điểm đến không được để trống';
+                }
+                if (value.trim().length > 150) {
+                  return 'Điểm đến tối đa 150 ký tự';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 32),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _previousStep,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Quay lại',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppPrimaryButton(
+                    text: 'Tiếp theo',
+                    onPressed: _nextStep,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Step 2: Thời gian & Ngân sách
+  Widget _buildStep2() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+      child: Form(
+        key: _step2Key,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Thời gian và ngân sách',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Ước tính số ngày du lịch và chi phí dự kiến cho toàn bộ chuyến đi.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Row: Days & Budget
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Total days
+                Expanded(
+                  child: AppTextField(
+                    label: 'Số ngày (1-30) *',
+                    hint: '3',
+                    controller: _totalDaysController,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Vui lòng nhập số ngày';
+                      }
+                      final days = int.tryParse(value.trim());
+                      if (days == null) {
+                        return 'Phải là số nguyên';
+                      }
+                      if (days < 1 || days > 30) {
+                        return 'Từ 1 đến 30 ngày';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 14),
+
+                // Budget
+                Expanded(
+                  child: AppTextField(
+                    label: 'Ngân sách (VNĐ) *',
+                    hint: '3000000',
+                    controller: _budgetController,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Vui lòng nhập ngân sách';
+                      }
+                      final b = double.tryParse(value.trim());
+                      if (b == null) {
+                        return 'Số tiền không hợp lệ';
+                      }
+                      if (b < 0) {
+                        return 'Không được âm';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _previousStep,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Quay lại',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppPrimaryButton(
+                    text: 'Tiếp theo',
+                    onPressed: _nextStep,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Step 3: Phong cách, Mô tả, Ảnh bìa, Quyền riêng tư & Tạo
+  Widget _buildStep3() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+      child: Form(
+        key: _step3Key,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Phong cách chuyến đi',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Chọn chủ đề, mô tả và thiết lập chế độ hiển thị cho lịch trình.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Theme / Category
+            AppTextField(
+              label: 'Chủ đề / Thể loại',
+              hint: 'Ví dụ: Nghỉ dưỡng, Phượt...',
+              controller: _themeController,
+              textInputAction: TextInputAction.next,
+              validator: (value) {
+                if (value != null && value.trim().length > 100) {
+                  return 'Chủ đề tối đa 100 ký tự';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 8),
+
+            // Quick theme chips
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: _suggestedThemes.map((t) {
+                final isSelected = _themeController.text.trim() == t;
+                return ChoiceChip(
+                  label: Text(
+                    t,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isSelected
+                          ? Colors.white
+                          : AppColors.textPrimary,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedColor: AppColors.primary,
+                  backgroundColor: AppColors.surfaceSoft,
+                  showCheckmark: false,
+                  onSelected: (selected) {
+                    setState(() {
+                      _themeController.text = selected ? t : '';
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 18),
+
+            // Description
+            AppTextField(
+              label: 'Mô tả chuyến đi',
+              hint: 'Giới thiệu ngắn về mục tiêu, trải nghiệm trong chuyến đi...',
+              controller: _descriptionController,
+              maxLines: 4,
+              minLines: 2,
+              keyboardType: TextInputType.multiline,
+            ),
+            const SizedBox(height: 18),
+
+            ImageUploadPreview(
+              selectedBytes: _selectedCoverBytes,
+              imageUrl: null,
+              buttonLabel: 'Chọn ảnh bìa',
+              onPick: _pickCoverImage,
+            ),
+            const SizedBox(height: 20),
+
+            // Visibility Selection
+            const Text(
+              'Quyền riêng tư',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _buildVisibilityOption(
+                      title: 'Riêng tư',
+                      subtitle: 'Chỉ bạn xem được',
+                      icon: Icons.lock_outline,
+                      value: 'PRIVATE',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildVisibilityOption(
+                      title: 'Công khai',
+                      subtitle: 'Mọi người đều xem được',
+                      icon: Icons.public,
+                      value: 'PUBLIC',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _previousStep,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Quay lại',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppPrimaryButton(
+                    text: 'Tạo lịch trình',
+                    isLoading: _isSubmitting,
+                    onPressed: _submit,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

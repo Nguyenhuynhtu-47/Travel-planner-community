@@ -11,6 +11,7 @@ import '../../../explore/data/models/itinerary_summary.dart';
 import '../my_itineraries_notifier.dart';
 import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/my_itinerary_card.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import 'create_itinerary_screen.dart';
 import 'edit_itinerary_screen.dart';
 import 'itinerary_detail_screen.dart';
@@ -149,6 +150,46 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(24),
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProfileScreen(authNotifier: widget.authNotifier),
+                  ),
+                );
+                if (mounted) setState(() {});
+              },
+              child: Tooltip(
+                message: 'Hồ sơ cá nhân',
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: CircleAvatar(
+                    radius: 17,
+                    backgroundColor: AppColors.surfaceStrong,
+                    backgroundImage: widget.authNotifier.currentUser?['avatar'] != null &&
+                            widget.authNotifier.currentUser!['avatar'].toString().trim().isNotEmpty
+                        ? NetworkImage(
+                            widget.authNotifier.currentUser!['avatar'].toString().trim(),
+                          )
+                        : null,
+                    child: widget.authNotifier.currentUser?['avatar'] == null ||
+                            widget.authNotifier.currentUser!['avatar'].toString().trim().isEmpty
+                        ? const Icon(
+                            Icons.person_outline,
+                            size: 20,
+                            color: AppColors.textSecondary,
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
@@ -158,6 +199,7 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'my_itineraries_fab',
         key: const Key('fab_create_itinerary'),
         onPressed: _navigateToCreateScreen,
         backgroundColor: AppColors.primary,

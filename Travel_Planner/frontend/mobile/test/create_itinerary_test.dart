@@ -197,7 +197,7 @@ void main() {
   });
 
   group('CreateItineraryScreen Form & Validation Widget Tests', () {
-    testWidgets('renders all form input fields and visibility options', (
+    testWidgets('renders intro screen with heading, supporting text, visual, and CTA button', (
       tester,
     ) async {
       final authNotifier = AuthNotifier();
@@ -206,11 +206,86 @@ void main() {
         MaterialApp(home: CreateItineraryScreen(authNotifier: authNotifier)),
       );
 
+      // Intro Screen elements
       expect(find.text('Tạo lịch trình mới'), findsOneWidget);
+      expect(find.text('Bắt đầu hành trình của bạn'), findsOneWidget);
+      expect(
+        find.text('Lên kế hoạch cho chuyến đi tiếp theo của bạn một cách dễ dàng.'),
+        findsOneWidget,
+      );
+      expect(find.text('Bắt đầu'), findsOneWidget);
+
+      // Ensure intro screen is NOT counted as one of the 3 steps
+      expect(find.text('Bước 1/3'), findsNothing);
+      expect(find.text('Bước 2/3'), findsNothing);
+      expect(find.text('Bước 3/3'), findsNothing);
+
+      // Tap 'Bắt đầu' proceeds to Step 1
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bước 1/3'), findsOneWidget);
+      expect(find.text('Tiêu đề lịch trình *'), findsOneWidget);
+
+      // Back navigation from Step 1 returns to Intro screen
+      await tester.ensureVisible(find.text('Quay lại'));
+      await tester.tap(find.text('Quay lại'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bắt đầu hành trình của bạn'), findsOneWidget);
+      expect(find.text('Bước 1/3'), findsNothing);
+    });
+
+    testWidgets('renders all form input fields across the 3 steps', (
+      tester,
+    ) async {
+      final authNotifier = AuthNotifier();
+
+      await tester.pumpWidget(
+        MaterialApp(home: CreateItineraryScreen(authNotifier: authNotifier)),
+      );
+
+      // Tap 'Bắt đầu' on Intro screen
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
+      await tester.pumpAndSettle();
+
+      // Step 1
+      expect(find.text('Tạo lịch trình mới'), findsOneWidget);
+      expect(find.text('Bước 1/3'), findsOneWidget);
+      expect(find.text('Thông tin chuyến đi'), findsWidgets);
       expect(find.text('Tiêu đề lịch trình *'), findsOneWidget);
       expect(find.text('Điểm đến / Địa điểm *'), findsOneWidget);
+      expect(find.text('Tiếp theo'), findsOneWidget);
+
+      // Fill Step 1 and proceed
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
+        'Khám phá Đà Lạt',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Ví dụ: Đà Lạt, Lâm Đồng'),
+        'Đà Lạt',
+      );
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+
+      // Step 2
+      expect(find.text('Bước 2/3'), findsOneWidget);
+      expect(find.text('Thời gian và ngân sách'), findsOneWidget);
       expect(find.text('Số ngày (1-30) *'), findsOneWidget);
       expect(find.text('Ngân sách (VNĐ) *'), findsOneWidget);
+      expect(find.text('Quay lại'), findsOneWidget);
+      expect(find.text('Tiếp theo'), findsOneWidget);
+
+      // Proceed to Step 3
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+
+      // Step 3
+      expect(find.text('Bước 3/3'), findsOneWidget);
+      expect(find.text('Phong cách chuyến đi'), findsWidgets);
       expect(find.text('Chủ đề / Thể loại'), findsOneWidget);
       expect(find.text('Mô tả chuyến đi'), findsOneWidget);
       expect(find.text('Chọn ảnh bìa'), findsOneWidget);
@@ -221,7 +296,7 @@ void main() {
     });
 
     testWidgets(
-      'shows validation errors when submitting empty required fields',
+      'shows validation errors when submitting empty required fields in Step 1 and Step 2',
       (tester) async {
         final authNotifier = AuthNotifier();
 
@@ -229,36 +304,72 @@ void main() {
           MaterialApp(home: CreateItineraryScreen(authNotifier: authNotifier)),
         );
 
-        // Clear default days and budget to test validation
-        await tester.enterText(find.widgetWithText(TextField, '3'), '');
-        await tester.enterText(find.widgetWithText(TextField, '3000000'), '');
+        // Tap 'Bắt đầu' on Intro screen
+        await tester.ensureVisible(find.text('Bắt đầu'));
+        await tester.tap(find.text('Bắt đầu'));
+        await tester.pumpAndSettle();
 
-        // Tap submit
-        await tester.ensureVisible(find.text('Tạo lịch trình'));
-        await tester.tap(find.text('Tạo lịch trình'));
+        // Tap next in Step 1 without entering anything
+        await tester.tap(find.text('Tiếp theo'));
         await tester.pumpAndSettle();
 
         expect(find.text('Tiêu đề không được để trống'), findsOneWidget);
         expect(find.text('Điểm đến không được để trống'), findsOneWidget);
+
+        // Enter valid Step 1 data
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
+          'Khám phá Đà Lạt',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Ví dụ: Đà Lạt, Lâm Đồng'),
+          'Đà Lạt',
+        );
+        await tester.tap(find.text('Tiếp theo'));
+        await tester.pumpAndSettle();
+
+        // Now in Step 2: clear default days and budget to test validation
+        await tester.enterText(find.widgetWithText(TextField, '3'), '');
+        await tester.enterText(find.widgetWithText(TextField, '3000000'), '');
+
+        await tester.tap(find.text('Tiếp theo'));
+        await tester.pumpAndSettle();
+
         expect(find.text('Vui lòng nhập số ngày'), findsOneWidget);
         expect(find.text('Vui lòng nhập ngân sách'), findsOneWidget);
       },
     );
 
-    testWidgets('validates day bounds and negative budget', (tester) async {
+    testWidgets('validates day bounds and negative budget in Step 2', (tester) async {
       final authNotifier = AuthNotifier();
 
       await tester.pumpWidget(
         MaterialApp(home: CreateItineraryScreen(authNotifier: authNotifier)),
       );
 
+      // Tap 'Bắt đầu' on Intro screen
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
+      await tester.pumpAndSettle();
+
+      // Enter valid Step 1
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
+        'Khám phá Đà Lạt',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Ví dụ: Đà Lạt, Lâm Đồng'),
+        'Đà Lạt',
+      );
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+
       // Enter invalid days (> 30)
       await tester.enterText(find.widgetWithText(TextField, '3'), '45');
       // Enter negative budget
       await tester.enterText(find.widgetWithText(TextField, '3000000'), '-100');
 
-      await tester.ensureVisible(find.text('Tạo lịch trình'));
-      await tester.tap(find.text('Tạo lịch trình'));
+      await tester.tap(find.text('Tiếp theo'));
       await tester.pumpAndSettle();
 
       expect(find.text('Từ 1 đến 30 ngày'), findsOneWidget);
@@ -266,7 +377,7 @@ void main() {
     });
 
     testWidgets(
-      'Private and Public visibility options have identical widths and heights',
+      'Private and Public visibility options have identical widths and heights in Step 3',
       (tester) async {
         // Test on standard mobile screen
         tester.view.physicalSize = const Size(390, 844);
@@ -279,6 +390,26 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(home: CreateItineraryScreen(authNotifier: authNotifier)),
         );
+
+        // Tap 'Bắt đầu' on Intro screen
+        await tester.ensureVisible(find.text('Bắt đầu'));
+        await tester.tap(find.text('Bắt đầu'));
+        await tester.pumpAndSettle();
+
+        // Advance to Step 3
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
+          'Chuyến đi Vũng Tàu',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Ví dụ: Đà Lạt, Lâm Đồng'),
+          'Vũng Tàu',
+        );
+        await tester.tap(find.text('Tiếp theo'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Tiếp theo'));
+        await tester.pumpAndSettle();
 
         final privateFinder = find.widgetWithText(InkWell, 'Riêng tư');
         final publicFinder = find.widgetWithText(InkWell, 'Công khai');
@@ -380,7 +511,12 @@ void main() {
         ),
       );
 
-      // Fill in valid data
+      // Tap 'Bắt đầu' on Intro screen
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Fill in title and location
       await tester.enterText(
         find.widgetWithText(TextField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
         'Chuyến đi Vũng Tàu',
@@ -389,8 +525,16 @@ void main() {
         find.widgetWithText(TextField, 'Ví dụ: Đà Lạt, Lâm Đồng'),
         'Vũng Tàu',
       );
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
 
-      // Tap 'Công khai' visibility option
+      // Step 2: Set days and budget
+      await tester.enterText(find.widgetWithText(TextField, '3'), '2');
+      await tester.enterText(find.widgetWithText(TextField, '3000000'), '2000000');
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+
+      // Step 3: Tap 'Công khai' visibility option
       await tester.ensureVisible(find.text('Công khai'));
       await tester.tap(find.text('Công khai'));
       await tester.pumpAndSettle();
@@ -442,6 +586,12 @@ void main() {
         ),
       );
 
+      // Tap 'Bắt đầu' on Intro screen
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
+      await tester.pumpAndSettle();
+
+      // Step 1
       await tester.enterText(
         find.widgetWithText(TextField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
         'Chuyến đi Vũng Tàu',
@@ -450,7 +600,14 @@ void main() {
         find.widgetWithText(TextField, 'Ví dụ: Đà Lạt, Lâm Đồng'),
         'Vũng Tàu',
       );
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
 
+      // Step 2
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+
+      // Step 3
       await tester.ensureVisible(find.text('Tạo lịch trình'));
       await tester.tap(find.text('Tạo lịch trình'));
       await tester.pumpAndSettle();
@@ -461,6 +618,77 @@ void main() {
       );
       // Still on create screen
       expect(find.byType(CreateItineraryScreen), findsOneWidget);
+    });
+
+    testWidgets('navigates back and forward across steps with back buttons', (
+      tester,
+    ) async {
+      final authNotifier = AuthNotifier();
+
+      await tester.pumpWidget(
+        MaterialApp(home: CreateItineraryScreen(authNotifier: authNotifier)),
+      );
+
+      // Intro Screen
+      expect(find.text('Bắt đầu hành trình của bạn'), findsOneWidget);
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
+      await tester.pumpAndSettle();
+
+      // Step 1
+      expect(find.text('Bước 1/3'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Ví dụ: Khám phá Đà Lạt 3 ngày 2 đêm'),
+        'Hà Nội mùa thu',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Ví dụ: Đà Lạt, Lâm Đồng'),
+        'Hà Nội',
+      );
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+
+      // Step 2
+      expect(find.text('Bước 2/3'), findsOneWidget);
+
+      // Tap 'Quay lại' in bottom row
+      await tester.tap(find.text('Quay lại'));
+      await tester.pumpAndSettle();
+
+      // Back in Step 1, inputs preserved
+      expect(find.text('Bước 1/3'), findsOneWidget);
+      expect(find.text('Hà Nội mùa thu'), findsOneWidget);
+      expect(find.text('Hà Nội'), findsOneWidget);
+
+      // Tap 'Quay lại' in Step 1 returns to Intro Screen
+      await tester.ensureVisible(find.text('Quay lại'));
+      await tester.tap(find.text('Quay lại'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bắt đầu hành trình của bạn'), findsOneWidget);
+      expect(find.text('Bước 1/3'), findsNothing);
+
+      // Tap 'Bắt đầu' again: inputs in Step 1 are still preserved
+      await tester.ensureVisible(find.text('Bắt đầu'));
+      await tester.tap(find.text('Bắt đầu'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bước 1/3'), findsOneWidget);
+      expect(find.text('Hà Nội mùa thu'), findsOneWidget);
+      expect(find.text('Hà Nội'), findsOneWidget);
+
+      // Move forward again to Step 2
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bước 2/3'), findsOneWidget);
+
+      // Move to Step 3
+      await tester.tap(find.text('Tiếp theo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bước 3/3'), findsOneWidget);
+
+      // Tap AppBar back button
+      await tester.tap(find.byTooltip('Quay lại bước trước'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bước 2/3'), findsOneWidget);
     });
   });
 

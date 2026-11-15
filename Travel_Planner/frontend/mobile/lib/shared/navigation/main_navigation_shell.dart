@@ -6,6 +6,7 @@ import '../../features/explore/presentation/explore_notifier.dart';
 import '../../features/explore/presentation/screens/explore_screen.dart';
 import '../../features/itinerary/data/itinerary_crud_repository.dart';
 import '../../features/itinerary/presentation/screens/create_itinerary_screen.dart';
+import '../../features/itinerary/presentation/screens/my_itineraries_screen.dart';
 import '../../features/profile/data/profile_repository.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/collection/presentation/screens/collection_screen.dart';
@@ -18,7 +19,7 @@ import '../../features/social/presentation/screens/community_screen.dart';
 /// 2. Cộng đồng (Community)
 /// 3. Tạo lịch trình (Create itinerary) - Center
 /// 4. Bộ sưu tập (Collections / Saved & Favorites)
-/// 5. Hồ sơ cá nhân (Personal profile)
+/// 5. Lịch trình của tôi (My Itineraries)
 class MainNavigationShell extends StatefulWidget {
   final AuthNotifier authNotifier;
   final int initialIndex;
@@ -69,7 +70,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           ExploreScreen(
             authNotifier: widget.authNotifier,
             exploreNotifier: widget.exploreNotifier,
-            onProfileTap: () => _onDestinationTapped(4),
+            onProfileTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ProfileScreen(
+                  authNotifier: widget.authNotifier,
+                  repository: widget.profileRepository,
+                ),
+              ),
+            ),
           ),
           CommunityScreen(authNotifier: widget.authNotifier),
           CreateItineraryScreen(
@@ -77,7 +85,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             repository: widget.itineraryRepository,
             onCreated: (_) {
               setState(() {
-                _currentIndex = 0;
+                _currentIndex = 4; // Switch to My Itineraries after creation
               });
             },
           ),
@@ -86,9 +94,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             notifier: widget.collectionNotifier,
             repository: widget.collectionRepository,
           ),
-          ProfileScreen(
+          MyItinerariesScreen(
             authNotifier: widget.authNotifier,
-            repository: widget.profileRepository,
+            repository: widget.itineraryRepository,
           ),
         ],
       ),
@@ -136,10 +144,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               tooltip: 'Bộ sưu tập',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Hồ sơ',
-              tooltip: 'Hồ sơ',
+              icon: Icon(Icons.luggage_outlined),
+              activeIcon: Icon(Icons.luggage),
+              label: 'Lịch trình của tôi',
+              tooltip: 'Lịch trình của tôi',
             ),
           ],
         ),
