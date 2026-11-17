@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/network/api_exception.dart';
 import '../data/auth_repository.dart';
 import '../data/auth_storage.dart';
+import '../data/google_sign_in_service.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
@@ -110,6 +111,88 @@ class AuthNotifier extends ChangeNotifier {
     } catch (_) {
       _status = AuthStatus.error;
       _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> loginWithGoogle({GoogleSignInService? googleSignInService}) async {
+    if (_status == AuthStatus.loading) {
+      return false;
+    }
+
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    _validationErrors = null;
+    notifyListeners();
+
+    try {
+      final googleService = googleSignInService ?? GoogleSignInServiceImpl();
+      final idToken = await googleService.signInAndGetIdToken();
+
+      if (idToken == null) {
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+        return false;
+      }
+
+      final response = await _repository.loginWithGoogle(idToken: idToken);
+
+      final token = response['token'] as String;
+      final user = response['user'] as Map<String, dynamic>;
+
+      await _storage.saveToken(token);
+      await _storage.saveUser(user);
+
+      _token = token;
+      _currentUser = user;
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      debugPrint('[AuthNotifier] ApiException during Google login: ${e.statusCode} - ${e.message}');
+      _status = AuthStatus.error;
+      _errorMessage = e.message;
+      _validationErrors = e.validationErrors;
+      notifyListeners();
+      return false;
+    } catch (e, st) {
+      debugPrint('[AuthNotifier] General exception during Google login: $e');
+      debugPrint('[AuthNotifier] StackTrace: $st');
+      _status = AuthStatus.error;
+      _errorMessage = 'Đăng nhập Google thất bại: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> linkGoogle({
+    required String idToken,
+  }) async {
+    if (_token == null) {
+      _status = AuthStatus.error;
+      _errorMessage = 'Bạn chưa đăng nhập.';
+      notifyListeners();
+      return false;
+    }
+
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.linkGoogle(token: _token!, idToken: idToken);
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _status = AuthStatus.error;
+      _errorMessage = 'Liên kết tài khoản Google thất bại. Vui lòng thử lại sau.';
       notifyListeners();
       return false;
     }

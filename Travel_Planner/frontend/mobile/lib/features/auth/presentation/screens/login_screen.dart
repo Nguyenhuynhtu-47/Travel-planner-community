@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../auth_notifier.dart';
+import '../widgets/google_sign_in_button.dart';
 import 'email_verification_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
@@ -71,6 +72,45 @@ class _LoginScreenState extends State<LoginScreen> {
                 : null,
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    widget.authNotifier.clearErrors();
+    final success = await widget.authNotifier.loginWithGoogle();
+
+    if (success && mounted) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+    } else if (!success && mounted) {
+      final error = widget.authNotifier.errorMessage;
+      if (error != null && error.isNotEmpty) {
+        final isConflict = error.contains('liên kết') || error.contains('đã được sử dụng');
+        if (isConflict) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Tài khoản đã tồn tại'),
+              content: Text(error),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Đã hiểu'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error, style: const TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
       }
     }
   }
@@ -209,6 +249,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           text: 'Đăng nhập',
                           isLoading: widget.authNotifier.isLoading,
                           onPressed: _submit,
+                        ),
+                        const AuthDividerWithText(text: 'Hoặc'),
+                        GoogleSignInButton(
+                          text: 'Đăng nhập bằng Google',
+                          isLoading: widget.authNotifier.isLoading,
+                          onPressed: _signInWithGoogle,
                         ),
                         const SizedBox(height: 24),
                         Row(

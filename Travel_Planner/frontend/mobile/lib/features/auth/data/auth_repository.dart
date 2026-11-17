@@ -36,6 +36,32 @@ class AuthRepository {
     return response as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> loginWithGoogle({
+    required String idToken,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConstants.googleAuthEndpoint,
+      body: {
+        'idToken': idToken,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> linkGoogle({
+    required String token,
+    required String idToken,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConstants.googleLinkEndpoint,
+      token: token,
+      body: {
+        'idToken': idToken,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> verifyEmail({
     required String email,
     required String code,

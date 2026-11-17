@@ -6,6 +6,11 @@ class ApiConstants {
     'API_BASE_URL',
   );
 
+  // Override at build/run time with --dart-define=GOOGLE_SERVER_CLIENT_ID=<WEB_CLIENT_ID>.
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
+
   static String get baseUrl {
     if (_configuredBaseUrl.isNotEmpty) {
       return _configuredBaseUrl;
@@ -23,6 +28,8 @@ class ApiConstants {
 
   static const String registerEndpoint = '/api/auth/register';
   static const String loginEndpoint = '/api/auth/login';
+  static const String googleAuthEndpoint = '/api/auth/google';
+  static const String googleLinkEndpoint = '/api/auth/google/link';
   static const String meEndpoint = '/api/auth/me';
   static const String verifyEmailEndpoint = '/api/auth/verify-email';
   static const String resendVerificationEndpoint =

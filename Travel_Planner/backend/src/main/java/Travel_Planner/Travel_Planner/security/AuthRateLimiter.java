@@ -176,6 +176,15 @@ public class AuthRateLimiter {
         return true;
     }
 
+    public boolean tryConsumeGoogleAuth(String clientIp) {
+        if (!enabled) {
+            return true;
+        }
+        String safeIp = normalizeKey(clientIp);
+        Bucket ipBucket = loginIpBuckets.get(safeIp, k -> createBucket(loginCapacity, loginDurationMinutes));
+        return ipBucket == null || ipBucket.tryConsume(1);
+    }
+
     public boolean tryConsumeRegister(String clientIp) {
         if (!enabled) {
             return true;

@@ -2,6 +2,8 @@ package Travel_Planner.Travel_Planner.controller;
 
 import Travel_Planner.Travel_Planner.dto.request.ChangePasswordRequest;
 import Travel_Planner.Travel_Planner.dto.request.ForgotPasswordRequest;
+import Travel_Planner.Travel_Planner.dto.request.GoogleAuthRequest;
+import Travel_Planner.Travel_Planner.dto.request.GoogleLinkRequest;
 import Travel_Planner.Travel_Planner.dto.request.LoginRequest;
 import Travel_Planner.Travel_Planner.dto.request.RegisterRequest;
 import Travel_Planner.Travel_Planner.dto.request.ResendVerificationRequest;
@@ -11,6 +13,7 @@ import Travel_Planner.Travel_Planner.dto.request.VerifyResetOtpRequest;
 import Travel_Planner.Travel_Planner.dto.response.AuthResponse;
 import Travel_Planner.Travel_Planner.dto.response.ChangePasswordResponse;
 import Travel_Planner.Travel_Planner.dto.response.ForgotPasswordResponse;
+import Travel_Planner.Travel_Planner.dto.response.GoogleLinkResponse;
 import Travel_Planner.Travel_Planner.dto.response.RegisterResponse;
 import Travel_Planner.Travel_Planner.dto.response.ResendVerificationResponse;
 import Travel_Planner.Travel_Planner.dto.response.ResetPasswordResponse;
@@ -21,6 +24,7 @@ import Travel_Planner.Travel_Planner.security.AuthRateLimiter;
 import Travel_Planner.Travel_Planner.security.ClientIpResolver;
 import Travel_Planner.Travel_Planner.service.AuthService;
 import Travel_Planner.Travel_Planner.service.EmailVerificationService;
+import Travel_Planner.Travel_Planner.service.GoogleAuthService;
 import Travel_Planner.Travel_Planner.service.PasswordResetService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -41,6 +45,7 @@ public class AuthController {
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
     private final PasswordResetService passwordResetService;
+    private final GoogleAuthService googleAuthService;
     private final AuthRateLimiter authRateLimiter;
     private final ClientIpResolver clientIpResolver;
 
@@ -48,11 +53,13 @@ public class AuthController {
             AuthService authService,
             EmailVerificationService emailVerificationService,
             PasswordResetService passwordResetService,
+            GoogleAuthService googleAuthService,
             AuthRateLimiter authRateLimiter,
             ClientIpResolver clientIpResolver) {
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
         this.passwordResetService = passwordResetService;
+        this.googleAuthService = googleAuthService;
         this.authRateLimiter = authRateLimiter;
         this.clientIpResolver = clientIpResolver;
     }
@@ -103,6 +110,26 @@ public class AuthController {
         }
         AuthResponse response = authService.login(request);
         authRateLimiter.resetAccount(request.getUsernameOrEmail());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> googleAuth(
+            @Valid @RequestBody GoogleAuthRequest request,
+            HttpServletRequest httpRequest) {
+        String clientIp = clientIpResolver.resolveClientIp(httpRequest);
+        if (!authRateLimiter.tryConsumeGoogleAuth(clientIp)) {
+            throw new RateLimitExceededException("Bạn đã gửi quá nhiều yêu cầu đăng nhập. Vui lòng thử lại sau 1 phút.", 60);
+        }
+        AuthResponse response = googleAuthService.authenticateWithGoogle(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/google/link")
+    public ResponseEntity<GoogleLinkResponse> linkGoogle(
+            @Valid @RequestBody GoogleLinkRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        GoogleLinkResponse response = googleAuthService.linkGoogleAccount(userDetails.getUsername(), request);
         return ResponseEntity.ok(response);
     }
 
