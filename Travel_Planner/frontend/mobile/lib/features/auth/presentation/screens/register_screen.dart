@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../auth_notifier.dart';
+import 'email_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
@@ -77,7 +78,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
-      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đăng ký thành công! Vui lòng kiểm tra email để lấy mã xác thực.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EmailVerificationScreen(
+            authNotifier: widget.authNotifier,
+            email: _emailController.text.trim(),
+          ),
+        ),
+      );
     } else if (mounted) {
       final error = widget.authNotifier.errorMessage;
       if (error != null) {

@@ -5,6 +5,7 @@ import Travel_Planner.Travel_Planner.dto.request.RegisterRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdateProfileRequest;
 import Travel_Planner.Travel_Planner.dto.response.AuthResponse;
 import Travel_Planner.Travel_Planner.dto.response.PublicProfileResponse;
+import Travel_Planner.Travel_Planner.dto.response.RegisterResponse;
 import Travel_Planner.Travel_Planner.dto.response.UserResponse;
 import Travel_Planner.Travel_Planner.exception.ConflictException;
 import Travel_Planner.Travel_Planner.model.User;
@@ -59,6 +60,7 @@ public class UserHandleDatabasePersistenceTest {
     @AfterEach
     void tearDown() {
         try {
+            jdbcTemplate.update("DELETE FROM email_verification_tokens WHERE user_id IN (SELECT user_id FROM (SELECT user_id FROM users WHERE username IN (?, ?)) AS temp)", testUsername1, testUsername2);
             userRepository.findByUsername(testUsername1).ifPresent(userRepository::delete);
             userRepository.findByUsername(testUsername2).ifPresent(userRepository::delete);
         } catch (Exception ignored) {
@@ -76,8 +78,8 @@ public class UserHandleDatabasePersistenceTest {
                 .fullName("Test Persistence User")
                 .build();
 
-        AuthResponse authResponse = authService.register(registerRequest);
-        assertNotNull(authResponse.getToken());
+        RegisterResponse authResponse = authService.register(registerRequest);
+        assertTrue(authResponse.getRequiresVerification());
         assertEquals(testHandle1, authResponse.getUser().getHandle());
 
         // Verify directly in MySQL using JDBC query
@@ -101,6 +103,7 @@ public class UserHandleDatabasePersistenceTest {
                 .build();
 
         authService.register(registerRequest);
+        jdbcTemplate.update("UPDATE users SET email_verified = TRUE WHERE username = ?", testUsername1);
 
         // Simulate new login session
         LoginRequest loginRequest = new LoginRequest();
@@ -195,7 +198,7 @@ public class UserHandleDatabasePersistenceTest {
                 .fullName("Public Creator")
                 .build();
 
-        AuthResponse authResponse = authService.register(registerRequest);
+        RegisterResponse authResponse = authService.register(registerRequest);
         Integer userId = authResponse.getUser().getUserId();
 
         // Query public profile by userId

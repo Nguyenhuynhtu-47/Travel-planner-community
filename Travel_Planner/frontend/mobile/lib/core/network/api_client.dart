@@ -40,7 +40,7 @@ class ApiClient {
           .post(uri, headers: headers, body: jsonEncode(body))
           .timeout(_requestTimeout);
 
-      return _handleResponse(response);
+      return _handleResponse(response, path: path, token: token);
     } on TimeoutException {
       throw _timeoutException();
     } on SocketException {
@@ -85,7 +85,7 @@ class ApiClient {
       final response = await _client
           .get(uri, headers: headers)
           .timeout(_requestTimeout);
-      return _handleResponse(response);
+      return _handleResponse(response, path: path, token: token);
     } on TimeoutException {
       throw _timeoutException();
     } on SocketException {
@@ -116,7 +116,7 @@ class ApiClient {
       final response = await _client
           .put(uri, headers: headers, body: jsonEncode(body))
           .timeout(_requestTimeout);
-      return _handleResponse(response);
+      return _handleResponse(response, path: path, token: token);
     } on TimeoutException {
       throw _timeoutException();
     } on SocketException {
@@ -147,7 +147,7 @@ class ApiClient {
       final response = await _client
           .patch(uri, headers: headers, body: jsonEncode(body))
           .timeout(_requestTimeout);
-      return _handleResponse(response);
+      return _handleResponse(response, path: path, token: token);
     } on TimeoutException {
       throw _timeoutException();
     } on SocketException {
@@ -182,7 +182,7 @@ class ApiClient {
             body: body != null ? jsonEncode(body) : null,
           )
           .timeout(_requestTimeout);
-      return _handleResponse(response);
+      return _handleResponse(response, path: path, token: token);
     } on TimeoutException {
       throw _timeoutException();
     } on SocketException {
@@ -222,7 +222,7 @@ class ApiClient {
           .timeout(_requestTimeout);
       final response = await http.Response.fromStream(streamedResponse)
           .timeout(_requestTimeout);
-      return _handleResponse(response);
+      return _handleResponse(response, path: path, token: token);
     } on TimeoutException {
       throw _timeoutException();
     } on SocketException {
@@ -243,7 +243,22 @@ class ApiClient {
     message: 'Máy chủ không phản hồi sau 15 giây. Hãy kiểm tra điện thoại và máy tính có cùng Wi-Fi, địa chỉ API và trạng thái backend.',
   );
 
-  dynamic _handleResponse(http.Response response) {
+  bool _isPublicAuthPath(String path) {
+    final cleanPath = path.split('?').first;
+    return cleanPath == ApiConstants.loginEndpoint ||
+        cleanPath == ApiConstants.registerEndpoint ||
+        cleanPath == ApiConstants.verifyEmailEndpoint ||
+        cleanPath == ApiConstants.resendVerificationEndpoint ||
+        cleanPath == ApiConstants.forgotPasswordEndpoint ||
+        cleanPath == ApiConstants.verifyResetOtpEndpoint ||
+        cleanPath == ApiConstants.resetPasswordEndpoint;
+  }
+
+  dynamic _handleResponse(
+    http.Response response, {
+    String? path,
+    String? token,
+  }) {
     dynamic responseData;
     try {
       if (response.body.isNotEmpty) {
@@ -258,7 +273,11 @@ class ApiClient {
     }
 
     if (response.statusCode == 401) {
-      _notifyUnauthorized();
+      final isPublicAuth = path != null && _isPublicAuthPath(path);
+      // Only notify unauthorized if it was an authenticated request or not a public unauthenticated auth flow
+      if (!isPublicAuth || (token != null && token.isNotEmpty)) {
+        _notifyUnauthorized();
+      }
     }
 
     String message = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';

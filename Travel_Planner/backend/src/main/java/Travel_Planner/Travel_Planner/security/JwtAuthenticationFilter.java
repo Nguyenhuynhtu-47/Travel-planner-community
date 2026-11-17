@@ -35,15 +35,41 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String jwt = getJwtFromRequest(request);
 
         if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
-            String username = tokenProvider.getUsernameFromToken(jwt);
+            try {
+                String username = tokenProvider.getUsernameFromToken(jwt);
+                Integer tokenVersionFromJwt = tokenProvider.getTokenVersionFromToken(jwt);
 
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-            if (userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                if (userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
+                    // Global JWT Revocation Check via strict token_version comparison
+                    if (userDetails instanceof CustomUserDetails customUser) {
+                        int currentDbVersion = customUser.getTokenVersion() != null ? customUser.getTokenVersion() : 1;
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                        // 1. Missing tokenVersion claim: compatible ONLY when current database version is exactly 1
+                        if (tokenVersionFromJwt == null) {
+                            if (currentDbVersion != 1) {
+                                SecurityContextHolder.clearContext();
+                                filterChain.doFilter(request, response);
+                                return;
+                            }
+                        } else {
+                            // 2. Present claim: must strictly equal current database version (rejects stale and future versions)
+                            if (tokenVersionFromJwt != currentDbVersion) {
+                                SecurityContextHolder.clearContext();
+                                filterChain.doFilter(request, response);
+                                return;
+                            }
+                        }
+                    }
+
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            } catch (Exception e) {
+                SecurityContextHolder.clearContext();
             }
         }
 

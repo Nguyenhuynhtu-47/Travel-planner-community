@@ -7,16 +7,21 @@ import Travel_Planner.Travel_Planner.repository.MediaAssetRepository;
 import Travel_Planner.Travel_Planner.service.ImageUploadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 
 @Service
 public class MediaCleanupService {
@@ -31,16 +36,47 @@ public class MediaCleanupService {
     private final ImageUploadService imageUploadService;
     private final boolean cleanupEnabled;
     private final String workerId = "worker-" + UUID.randomUUID().toString().substring(0, 8);
+    private final TransactionTemplate transactionTemplate;
 
     private volatile boolean circuitBreakerTripped = false;
 
+    @Autowired
     public MediaCleanupService(
             MediaAssetRepository mediaAssetRepository,
             ImageUploadService imageUploadService,
+            @Autowired(required = false) PlatformTransactionManager transactionManager,
             @Value("${app.media.cleanup.enabled:true}") boolean cleanupEnabled) {
         this.mediaAssetRepository = mediaAssetRepository;
         this.imageUploadService = imageUploadService;
         this.cleanupEnabled = cleanupEnabled;
+        if (transactionManager != null) {
+            this.transactionTemplate = new TransactionTemplate(transactionManager);
+            this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        } else {
+            this.transactionTemplate = null;
+        }
+    }
+
+    public MediaCleanupService(
+            MediaAssetRepository mediaAssetRepository,
+            ImageUploadService imageUploadService,
+            boolean cleanupEnabled) {
+        this(mediaAssetRepository, imageUploadService, null, cleanupEnabled);
+    }
+
+    private <T> T executeInNewTransaction(Supplier<T> action) {
+        if (transactionTemplate != null) {
+            return transactionTemplate.execute(status -> action.get());
+        }
+        return action.get();
+    }
+
+    private void executeInNewTransactionWithoutResult(Runnable action) {
+        if (transactionTemplate != null) {
+            transactionTemplate.executeWithoutResult(status -> action.run());
+        } else {
+            action.run();
+        }
     }
 
     @Scheduled(fixedDelayString = "${app.media.cleanup.interval-ms:60000}", initialDelay = 30000)
@@ -103,47 +139,53 @@ public class MediaCleanupService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ClaimResult claimBatch(int limit) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime unattachedCutoff = now.minusHours(UNATTACHED_HOURS);
-        LocalDateTime leaseCutoff = now.minusMinutes(LEASE_MINUTES);
+        return executeInNewTransaction(() -> {
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime unattachedCutoff = now.minusHours(UNATTACHED_HOURS);
+            LocalDateTime leaseCutoff = now.minusMinutes(LEASE_MINUTES);
 
-        List<Long> candidateIds;
-        try {
-            candidateIds = mediaAssetRepository.findCandidateIdsForCleanup(unattachedCutoff, leaseCutoff, now, limit);
-        } catch (Exception ex) {
-            logger.debug("Native SKIP LOCKED query failed, falling back to standard claim", ex);
-            candidateIds = Collections.emptyList();
-        }
+            List<Long> candidateIds;
+            try {
+                candidateIds = mediaAssetRepository.findCandidateIdsForCleanup(unattachedCutoff, leaseCutoff, now, limit);
+            } catch (Exception ex) {
+                logger.debug("Native SKIP LOCKED query failed, falling back to standard claim", ex);
+                candidateIds = Collections.emptyList();
+            }
 
-        if (candidateIds.isEmpty()) {
-            return new ClaimResult(Collections.emptyList(), null);
-        }
+            if (candidateIds.isEmpty()) {
+                return new ClaimResult(Collections.emptyList(), null);
+            }
 
-        String claimToken = UUID.randomUUID().toString();
-        mediaAssetRepository.claimBatch(candidateIds, MediaAssetStatus.DELETING, claimToken, workerId, now);
+            String claimToken = UUID.randomUUID().toString();
+            mediaAssetRepository.claimBatch(candidateIds, MediaAssetStatus.DELETING, claimToken, workerId, now);
 
-        return new ClaimResult(candidateIds, claimToken);
+            return new ClaimResult(candidateIds, claimToken);
+        });
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int recordSuccess(Long assetId, String claimToken) {
-        return mediaAssetRepository.updateCleanedAsset(assetId, claimToken, MediaAssetStatus.DELETED, LocalDateTime.now());
+        return executeInNewTransaction(() ->
+            mediaAssetRepository.updateCleanedAsset(assetId, claimToken, MediaAssetStatus.DELETED, LocalDateTime.now())
+        );
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleFailure(Long assetId, String claimToken, int currentRetries, String error) {
-        LocalDateTime now = LocalDateTime.now();
-        if (currentRetries + 1 >= MAX_RETRIES) {
-            logger.error("MediaCleanupService: Asset id={} exhausted retries ({}). Marking DEAD-LETTER.", assetId, currentRetries + 1);
-            mediaAssetRepository.markDeadLettered(assetId, claimToken, "Max retry limit reached: " + error, now);
-        } else {
-            // Exponential backoff with jitter: 2^retry * 15s + random(0..5s)
-            long delaySec = (long) (Math.pow(2, currentRetries) * 15) + ThreadLocalRandom.current().nextInt(6);
-            LocalDateTime nextRetryAt = now.plusSeconds(delaySec);
-            logger.warn("MediaCleanupService: Asset id={} failed (attempt {}), scheduling retry at {}: {}",
-                    assetId, currentRetries + 1, nextRetryAt, error);
-            mediaAssetRepository.recordRetryFailure(assetId, claimToken, nextRetryAt, error, now);
-        }
+        executeInNewTransactionWithoutResult(() -> {
+            LocalDateTime now = LocalDateTime.now();
+            if (currentRetries + 1 >= MAX_RETRIES) {
+                logger.error("MediaCleanupService: Asset id={} exhausted retries ({}). Marking DEAD-LETTER.", assetId, currentRetries + 1);
+                mediaAssetRepository.markDeadLettered(assetId, claimToken, "Max retry limit reached: " + error, now);
+            } else {
+                // Exponential backoff with jitter: 2^retry * 15s + random(0..5s)
+                long delaySec = (long) (Math.pow(2, currentRetries) * 15) + ThreadLocalRandom.current().nextInt(6);
+                LocalDateTime nextRetryAt = now.plusSeconds(delaySec);
+                logger.warn("MediaCleanupService: Asset id={} failed (attempt {}), scheduling retry at {}: {}",
+                        assetId, currentRetries + 1, nextRetryAt, error);
+                mediaAssetRepository.recordRetryFailure(assetId, claimToken, nextRetryAt, error, now);
+            }
+        });
     }
 
     public void resetCircuitBreaker() {
@@ -157,4 +199,5 @@ public class MediaCleanupService {
     public record ClaimResult(List<Long> claimedIds, String claimToken) {
     }
 }
+
 

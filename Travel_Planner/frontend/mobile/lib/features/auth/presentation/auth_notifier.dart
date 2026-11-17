@@ -134,6 +134,50 @@ class AuthNotifier extends ChangeNotifier {
         fullName: fullName,
       );
 
+      // In Phase 1, registration returns requiresVerification: true without token
+      final token = response['token'] as String?;
+      final user = response['user'] as Map<String, dynamic>?;
+
+      if (token != null && user != null) {
+        await _storage.saveToken(token);
+        await _storage.saveUser(user);
+        _token = token;
+        _currentUser = user;
+        _status = AuthStatus.authenticated;
+      } else {
+        _status = AuthStatus.unauthenticated;
+      }
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = e.message;
+      _validationErrors = e.validationErrors;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _status = AuthStatus.error;
+      _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    _validationErrors = null;
+    notifyListeners();
+
+    try {
+      final response = await _repository.verifyEmail(
+        email: email,
+        code: code,
+      );
+
       final token = response['token'] as String;
       final user = response['user'] as Map<String, dynamic>;
 
@@ -156,6 +200,154 @@ class AuthNotifier extends ChangeNotifier {
       _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<String?> resendVerification({
+    required String email,
+  }) async {
+    try {
+      final response = await _repository.resendVerification(
+        email: email,
+      );
+      return response['message'] as String?;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    _validationErrors = null;
+    notifyListeners();
+
+    try {
+      final response = await _repository.forgotPassword(email: email);
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return response;
+    } on ApiException catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = e.message;
+      _validationErrors = e.validationErrors;
+      notifyListeners();
+      rethrow;
+    } catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyResetOtp({
+    required String email,
+    required String otp,
+  }) async {
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    _validationErrors = null;
+    notifyListeners();
+
+    try {
+      final response = await _repository.verifyResetOtp(
+        email: email,
+        otp: otp,
+      );
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return response;
+    } on ApiException catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = e.message;
+      _validationErrors = e.validationErrors;
+      notifyListeners();
+      rethrow;
+    } catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    String? otp,
+    String? resetToken,
+    required String newPassword,
+    String? confirmPassword,
+  }) async {
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    _validationErrors = null;
+    notifyListeners();
+
+    try {
+      final response = await _repository.resetPassword(
+        email: email,
+        otp: otp,
+        resetToken: resetToken,
+        newPassword: newPassword,
+        confirmPassword: confirmPassword,
+      );
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return response;
+    } on ApiException catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = e.message;
+      _validationErrors = e.validationErrors;
+      notifyListeners();
+      rethrow;
+    } catch (e) {
+      _status = AuthStatus.error;
+      _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken == null || activeToken.isEmpty) {
+      throw ApiException(
+        statusCode: 401,
+        message: 'Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.',
+      );
+    }
+
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    _validationErrors = null;
+    notifyListeners();
+
+    try {
+      final response = await _repository.changePassword(
+        token: activeToken,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      // Clear session locally because backend incremented token_version
+      await logout();
+      return response;
+    } on ApiException catch (e) {
+      _status = AuthStatus.authenticated;
+      _errorMessage = e.message;
+      _validationErrors = e.validationErrors;
+      notifyListeners();
+      rethrow;
+    } catch (e) {
+      _status = AuthStatus.authenticated;
+      _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
+      notifyListeners();
+      rethrow;
     }
   }
 
