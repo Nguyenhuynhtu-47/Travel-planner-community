@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/presentation/auth_notifier.dart';
+import 'package:mobile/features/explore/data/models/page_result.dart';
+import 'package:mobile/features/messaging/data/messaging_repository.dart';
+import 'package:mobile/features/messaging/data/models/friend_request.dart';
 import 'package:mobile/features/social/data/community_post_repository.dart';
 import 'package:mobile/features/social/data/models/post_comment_model.dart';
 import 'package:mobile/features/social/data/models/post_model.dart';
@@ -26,14 +29,23 @@ class MockCommunityPostRepository extends CommunityPostRepository {
   int deleteCommentCallCount = 0;
   int createPostCallCount = 0;
   String? lastCreatedContent;
+  int unreadCount = 3;
 
   @override
-  Future<List<PostModel>> getPublicFeed({int page = 0, int size = 10, String? token}) async {
+  Future<List<PostModel>> getPublicFeed({
+    int page = 0,
+    int size = 10,
+    String? token,
+  }) async {
     return publicFeedToReturn;
   }
 
   @override
-  Future<List<PostModel>> getFollowingFeed({int page = 0, int size = 10, required String token}) async {
+  Future<List<PostModel>> getFollowingFeed({
+    int page = 0,
+    int size = 10,
+    required String token,
+  }) async {
     return followingFeedToReturn;
   }
 
@@ -75,14 +87,22 @@ class MockCommunityPostRepository extends CommunityPostRepository {
       commentId: 888,
       postId: postId,
       content: content,
-      author: const PostAuthorModel(userId: 100, handle: 'traveler_bob', fullName: 'Bob Traveler'),
+      author: const PostAuthorModel(
+        userId: 100,
+        handle: 'traveler_bob',
+        fullName: 'Bob Traveler',
+      ),
       isOwner: true,
       createdAt: DateTime.now(),
     );
   }
 
   @override
-  Future<void> deleteComment(int postId, int commentId, {required String token}) async {
+  Future<void> deleteComment(
+    int postId,
+    int commentId, {
+    required String token,
+  }) async {
     deleteCommentCallCount++;
   }
 
@@ -99,7 +119,11 @@ class MockCommunityPostRepository extends CommunityPostRepository {
     return PostModel(
       postId: 999,
       content: content,
-      author: const PostAuthorModel(userId: 100, handle: 'traveler_bob', fullName: 'Bob Traveler'),
+      author: const PostAuthorModel(
+        userId: 100,
+        handle: 'traveler_bob',
+        fullName: 'Bob Traveler',
+      ),
       mediaUrls: const [],
       mediaAssetIds: mediaAssetIds ?? const [],
       visibility: visibility,
@@ -113,15 +137,48 @@ class MockCommunityPostRepository extends CommunityPostRepository {
   }
 
   @override
-  Future<void> reportPost(int postId, {required String reason, String? details, required String token}) async {
+  Future<void> reportPost(
+    int postId, {
+    required String reason,
+    String? details,
+    required String token,
+  }) async {
     reportCallCount++;
     lastReportReason = reason;
   }
 
   @override
   Future<int> getTotalUnread({required String token}) async {
-    return 3;
+    return unreadCount;
   }
+}
+
+class FakeMessagingRepository extends MessagingRepository {
+  int friendRequests = 0;
+  int pendingRequestsCount = 0;
+  int unreadStrangerMessages = 0;
+
+  @override
+  Future<PageResult<FriendRequest>> requests(
+    String token,
+    String direction, {
+    int page = 0,
+  }) async => PageResult<FriendRequest>(
+    content: const [],
+    pageNumber: page,
+    pageSize: 30,
+    totalElements: friendRequests,
+    totalPages: friendRequests == 0 ? 0 : 1,
+    isLast: true,
+  );
+
+  @override
+  Future<int> pendingMessageRequestCount(String token) async =>
+      pendingRequestsCount;
+
+  @override
+  Future<int> unreadMessageRequestCount(String token) async =>
+      unreadStrangerMessages;
 }
 
 class FakeTestAuthNotifier extends AuthNotifier {
@@ -248,11 +305,16 @@ void main() {
 
   group('Phase 6B - CommunityFeedNotifier', () {
     late MockCommunityPostRepository repo;
+    late FakeMessagingRepository messagingRepo;
     late CommunityFeedNotifier notifier;
 
     setUp(() {
       repo = MockCommunityPostRepository();
-      notifier = CommunityFeedNotifier(repository: repo);
+      messagingRepo = FakeMessagingRepository();
+      notifier = CommunityFeedNotifier(
+        repository: repo,
+        messagingRepository: messagingRepo,
+      );
     });
 
     test('loadPublic populates posts and deduplicates', () async {
@@ -268,7 +330,11 @@ void main() {
         createdAt: DateTime.now(),
         mediaUrls: const [],
         mediaAssetIds: const [],
-        author: const PostAuthorModel(userId: 1, handle: 'user1', fullName: 'User 1'),
+        author: const PostAuthorModel(
+          userId: 1,
+          handle: 'user1',
+          fullName: 'User 1',
+        ),
       );
 
       repo.publicFeedToReturn = [sample, sample]; // Duplicate in response
@@ -280,38 +346,76 @@ void main() {
       expect(notifier.isLoading, false);
     });
 
-    test('toggleLike optimistically increments and rollbacks on failure', () async {
-      final post = PostModel(
-        postId: 102,
-        content: 'Post 102',
-        visibility: 'PUBLIC',
-        status: 'ACTIVE',
-        likeCount: 5,
-        commentCount: 0,
-        isLikedByMe: false,
-        isOwner: false,
-        createdAt: DateTime.now(),
-        mediaUrls: const [],
-        mediaAssetIds: const [],
-        author: const PostAuthorModel(userId: 1, handle: 'user1', fullName: 'User 1'),
-      );
+    test('fetchBadges keeps unread messages, friend requests, and stranger requests separate', () async {
+      messagingRepo.friendRequests = 4;
+      messagingRepo.pendingRequestsCount = 2;
+      messagingRepo.unreadStrangerMessages = 5;
 
-      repo.publicFeedToReturn = [post];
-      await notifier.loadPublic(null, refresh: true);
+      await notifier.fetchBadges('test-token');
 
-      // Successful like
-      repo.shouldFailLike = false;
-      await notifier.toggleLike(102, 'valid-token');
-      expect(notifier.publicPosts.first.isLikedByMe, true);
-      expect(notifier.publicPosts.first.likeCount, 6);
-
-      // Failed unlike -> should rollback
-      repo.shouldFailLike = true;
-      await notifier.toggleLike(102, 'valid-token');
-      // Rolled back to previous state
-      expect(notifier.publicPosts.first.isLikedByMe, true);
-      expect(notifier.publicPosts.first.likeCount, 6);
+      expect(notifier.unreadMessagesCount, 3);
+      expect(notifier.unreadStrangerMessagesCount, 5);
+      expect(notifier.unreadMessagesTotal, 8);
+      expect(notifier.friendRequestsCount, 4);
+      expect(notifier.messageRequestsCount, 2);
+      expect(notifier.hasCommunityActivity, isTrue);
     });
+
+    test(
+      'read stranger requests do not keep the community message badge active',
+      () async {
+        repo.unreadCount = 0;
+        messagingRepo.friendRequests = 0;
+        messagingRepo.pendingRequestsCount = 2;
+        messagingRepo.unreadStrangerMessages = 0;
+
+        await notifier.fetchBadges('test-token');
+
+        expect(notifier.messageRequestsCount, 2);
+        expect(notifier.unreadStrangerMessagesCount, 0);
+        expect(notifier.hasCommunityActivity, isFalse);
+      },
+    );
+
+    test(
+      'toggleLike optimistically increments and rollbacks on failure',
+      () async {
+        final post = PostModel(
+          postId: 102,
+          content: 'Post 102',
+          visibility: 'PUBLIC',
+          status: 'ACTIVE',
+          likeCount: 5,
+          commentCount: 0,
+          isLikedByMe: false,
+          isOwner: false,
+          createdAt: DateTime.now(),
+          mediaUrls: const [],
+          mediaAssetIds: const [],
+          author: const PostAuthorModel(
+            userId: 1,
+            handle: 'user1',
+            fullName: 'User 1',
+          ),
+        );
+
+        repo.publicFeedToReturn = [post];
+        await notifier.loadPublic(null, refresh: true);
+
+        // Successful like
+        repo.shouldFailLike = false;
+        await notifier.toggleLike(102, 'valid-token');
+        expect(notifier.publicPosts.first.isLikedByMe, true);
+        expect(notifier.publicPosts.first.likeCount, 6);
+
+        // Failed unlike -> should rollback
+        repo.shouldFailLike = true;
+        await notifier.toggleLike(102, 'valid-token');
+        // Rolled back to previous state
+        expect(notifier.publicPosts.first.isLikedByMe, true);
+        expect(notifier.publicPosts.first.likeCount, 6);
+      },
+    );
 
     test('updateCommentCount and removePost modify list dynamically', () async {
       final post = PostModel(
@@ -326,7 +430,11 @@ void main() {
         createdAt: DateTime.now(),
         mediaUrls: const [],
         mediaAssetIds: const [],
-        author: const PostAuthorModel(userId: 1, handle: 'user1', fullName: 'User 1'),
+        author: const PostAuthorModel(
+          userId: 1,
+          handle: 'user1',
+          fullName: 'User 1',
+        ),
       );
 
       repo.publicFeedToReturn = [post];
@@ -344,7 +452,9 @@ void main() {
   });
 
   group('Phase 6B - PostCardWidget', () {
-    testWidgets('renders author, content, and attached itinerary card', (tester) async {
+    testWidgets('renders author, content, and attached itinerary card', (
+      tester,
+    ) async {
       final post = PostModel(
         postId: 201,
         content: 'Lịch trình Phú Quốc siêu đẹp',
@@ -409,7 +519,9 @@ void main() {
       expect(tappedItineraryId, 301);
     });
 
-    testWidgets('renders fallback banner when itineraryUnavailable is true', (tester) async {
+    testWidgets('renders fallback banner when itineraryUnavailable is true', (
+      tester,
+    ) async {
       final post = PostModel(
         postId: 202,
         content: 'Lịch trình bí mật',
@@ -434,22 +546,24 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightTheme,
-          home: Scaffold(
-            body: PostCardWidget(post: post),
-          ),
+          home: Scaffold(body: PostCardWidget(post: post)),
         ),
       );
 
       expect(find.text('Lịch trình không khả dụng'), findsOneWidget);
       expect(
-        find.text('Lịch trình đính kèm đã bị xóa, đặt về riêng tư hoặc không còn khả dụng.'),
+        find.text(
+          'Lịch trình đính kèm đã bị xóa, đặt về riêng tư hoặc không còn khả dụng.',
+        ),
         findsOneWidget,
       );
     });
   });
 
   group('Phase 6B - ReportPostDialog', () {
-    testWidgets('allows selecting a reason and submitting report', (tester) async {
+    testWidgets('allows selecting a reason and submitting report', (
+      tester,
+    ) async {
       final repo = MockCommunityPostRepository();
 
       await tester.pumpWidget(
@@ -493,10 +607,18 @@ void main() {
   });
 
   group('Phase 6B - CommunityFeedScreen', () {
-    testWidgets('renders TabBar with 2 tabs and AppBar shortcuts', (tester) async {
+    testWidgets('renders TabBar with 2 tabs and AppBar shortcuts', (
+      tester,
+    ) async {
       final repo = MockCommunityPostRepository();
+      final messagingRepo = FakeMessagingRepository()
+        ..friendRequests = 2
+        ..pendingRequestsCount = 1;
       final auth = FakeTestAuthNotifier(authenticated: true);
-      final notifier = CommunityFeedNotifier(repository: repo);
+      final notifier = CommunityFeedNotifier(
+        repository: repo,
+        messagingRepository: messagingRepo,
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -513,14 +635,16 @@ void main() {
       expect(find.text('Dành cho bạn'), findsOneWidget);
       expect(find.text('Đang theo dõi'), findsOneWidget);
       expect(find.byTooltip('Tin nhắn'), findsOneWidget);
-      expect(find.byTooltip('Bạn bè & Lời mời'), findsNothing);
+      expect(find.byTooltip('Bạn bè và lời mời'), findsOneWidget);
       expect(find.byTooltip('Thông báo'), findsOneWidget);
       expect(find.text('Đăng bài'), findsOneWidget);
     });
   });
 
   group('Phase 6B - PostCommentsSheet', () {
-    testWidgets('renders flat comments list and submits new comment', (tester) async {
+    testWidgets('renders flat comments list and submits new comment', (
+      tester,
+    ) async {
       final repo = MockCommunityPostRepository();
       final notifier = CommunityFeedNotifier(repository: repo);
 
@@ -574,7 +698,9 @@ void main() {
   });
 
   group('Phase 6B - CreatePostScreen', () {
-    testWidgets('renders input fields, visibility selector, and submits post', (tester) async {
+    testWidgets('renders input fields, visibility selector, and submits post', (
+      tester,
+    ) async {
       final repo = MockCommunityPostRepository();
       final auth = FakeTestAuthNotifier(authenticated: true);
       final notifier = CommunityFeedNotifier(repository: repo);
@@ -608,7 +734,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repo.createPostCallCount, 1);
-      expect(repo.lastCreatedContent, 'Chuyến đi Vũng Tàu cuối tuần tuyệt vời!');
+      expect(
+        repo.lastCreatedContent,
+        'Chuyến đi Vũng Tàu cuối tuần tuyệt vời!',
+      );
     });
   });
 }
