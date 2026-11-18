@@ -7,6 +7,7 @@ import Travel_Planner.Travel_Planner.model.*;
 import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.impl.CommentServiceImpl;
+import Travel_Planner.Travel_Planner.service.FriendshipService;
 import org.junit.jupiter.api.Test;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,6 +17,25 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 class CommentThreadServiceTest {
+    @Test
+    void blockedViewerCannotReadCommentsForBlockedOwnersItinerary() {
+        CommentRepository comments = mock(CommentRepository.class);
+        ItineraryRepository itineraries = mock(ItineraryRepository.class);
+        ActivityRepository activities = mock(ActivityRepository.class);
+        UserRepository users = mock(UserRepository.class);
+        FriendshipService friendships = mock(FriendshipService.class);
+        User owner = user(1, "owner");
+        User viewer = user(2, "viewer");
+        Itinerary itinerary = itinerary(owner);
+        when(itineraries.findByIdWithUser(10)).thenReturn(Optional.of(itinerary));
+        when(users.findByUsername("viewer")).thenReturn(Optional.of(viewer));
+        when(friendships.isBlockedBetween(2, 1)).thenReturn(true);
+        CommentServiceImpl service = new CommentServiceImpl(comments, itineraries, activities, users, friendships);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.getComments(10, 0, 10, "viewer"));
+        verify(comments, never()).pageItineraryRoots(any(), any(), any(), any());
+    }
+
     @Test
     void replyStoresImmediateParentAndResolvedRoot() {
         CommentRepository comments = mock(CommentRepository.class);

@@ -8,8 +8,12 @@ import Travel_Planner.Travel_Planner.dto.response.PublicProfileResponse;
 import Travel_Planner.Travel_Planner.dto.response.UserResponse;
 import Travel_Planner.Travel_Planner.exception.ConflictException;
 import Travel_Planner.Travel_Planner.model.User;
+import Travel_Planner.Travel_Planner.model.enums.InboundMessagePolicy;
+import Travel_Planner.Travel_Planner.model.enums.UserStatus;
+import Travel_Planner.Travel_Planner.repository.UserMessagingSettingsRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.service.AuthService;
+import Travel_Planner.Travel_Planner.service.MessagingSettingsService;
 import Travel_Planner.Travel_Planner.service.ProfileService;
 import Travel_Planner.Travel_Planner.service.PublicUserService;
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.UUID;
 
@@ -40,6 +45,12 @@ public class UserHandleDatabasePersistenceTest {
     private PublicUserService publicUserService;
 
     @Autowired
+    private MessagingSettingsService messagingSettingsService;
+
+    @Autowired
+    private UserMessagingSettingsRepository messagingSettingsRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private String testUsername1;
@@ -59,10 +70,35 @@ public class UserHandleDatabasePersistenceTest {
     @AfterEach
     void tearDown() {
         try {
-            userRepository.findByUsername(testUsername1).ifPresent(userRepository::delete);
+            userRepository.findByUsername(testUsername1).ifPresent(user -> {
+                messagingSettingsRepository.deleteById(user.getUserId());
+                userRepository.delete(user);
+            });
             userRepository.findByUsername(testUsername2).ifPresent(userRepository::delete);
         } catch (Exception ignored) {
         }
+    }
+
+    @Test
+    @DisplayName("Lưu quyền riêng tư lần đầu tạo row @MapsId mà không lỗi Hibernate merge")
+    void testFirstMessagingSettingsUpdatePersistsWithMapsId() {
+        authService.register(RegisterRequest.builder()
+                .username(testUsername1)
+                .handle(testHandle1)
+                .email(testUsername1 + "@example.com")
+                .password("Password123!")
+                .fullName("Messaging Settings Test")
+                .build());
+
+        var updated = messagingSettingsService.update(InboundMessagePolicy.FRIENDS_ONLY, testUsername1);
+        var reloaded = messagingSettingsService.get(testUsername1);
+
+        assertEquals(InboundMessagePolicy.FRIENDS_ONLY, updated.getInboundPolicy());
+        assertEquals(InboundMessagePolicy.FRIENDS_ONLY, reloaded.getInboundPolicy());
+        assertEquals(1, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_messaging_settings WHERE user_id = ?",
+                Integer.class,
+                userRepository.findByUsername(testUsername1).orElseThrow().getUserId()));
     }
 
     @Test
@@ -110,6 +146,25 @@ public class UserHandleDatabasePersistenceTest {
         AuthResponse loginResponse = authService.login(loginRequest);
         assertNotNull(loginResponse.getToken());
         assertEquals(testHandle1, loginResponse.getUser().getHandle(), "Handle must remain intact upon re-login!");
+    }
+
+    @Test
+    @DisplayName("Tìm tên tiếng Việt theo tiền tố không dấu dùng collation MySQL hiện tại")
+    void testSearchMatchesVietnameseNameWithoutDiacritics() {
+        User user = User.builder()
+                .username(testUsername1)
+                .handle(testHandle1)
+                .email(testUsername1 + "@example.com")
+                .password("not-used-in-test")
+                .fullName("Nguyễn Huệ")
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.saveAndFlush(user);
+
+        var result = userRepository.searchActiveUsers("nguyen%", "nguyen", PageRequest.of(0, 20));
+
+        assertTrue(result.getContent().stream().anyMatch(found -> found.getUserId().equals(user.getUserId())),
+                "MySQL search collation should match an unaccented prefix against Nguyễn");
     }
 
     @Test
