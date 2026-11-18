@@ -1,41 +1,42 @@
 ﻿# 05. Database và dữ liệu
 
 ## Persistence và giới hạn xác minh
-Backend dùng Spring Data JPA với MySQL connector. Entity source cho biết mapping dự kiến, không xác nhận schema đang chạy. Không thấy Flyway/Liquibase migration trong resources/db. Nhưng UserHandleBackfillRunner chạy lúc startup và dùng JdbcTemplate/DatabaseMetaData để có thể ALTER TABLE users: thêm handle, backfill giá trị thiếu, đặt NOT NULL và unique key. Đây là startup DDL quan trọng; không chạy tùy tiện trên production.
+Backend dùng Spring Data JPA/MySQL, một số runner dùng JDBC. Entity mô tả mapping mà code kỳ vọng; nó không chứng minh schema của DB local đã được migrate. Trong source hiện không có Flyway/Liquibase migrations quản lý toàn bộ schema. Startup runners gồm chuyển Destination cũ sang Place, migration snapshot vị trí Activity, AdministrativeArea/Place links và backfill handle. Hành vi phụ thuộc điều kiện DB và profile; đọc từng runner trước khi chạy với DB quan trọng.
 
-## Entity inventory
-User, Destination, Itinerary, ItineraryDay, Activity, Comment, Rating, Favorite, SavedItinerary, Follow, ItineraryShare, OfflineDownload, CachedRouteResult, WaypointCoordinate; enums trong model/enums. Cột/quan hệ chi tiết được trích ở file-level Java index và annotations của entity.
+## Domain chính
+`User`, `Itinerary`, `ItineraryDay`, `Activity`, `Place`, `PlaceProviderMapping`, `AdministrativeArea`, `ItineraryPlace`, `Comment`, `Rating`, `Favorite`, `SavedItinerary`, `Follow`, `ItineraryShare`, `OfflineDownload`, `CachedRouteResult`, `WaypointCoordinate`, `Friendship`, `Conversation`, `Message`, `ConversationReadState`, `UserMessagingSettings`, `UserBlock`, `Post`, `PostComment`, `PostLike`, `PostMedia`, `PostReport`, `MediaAsset` cùng enums. `Conversation` có status/requester/recipient/request timestamps nullable cho message request; legacy null được xem là accepted. Đây là JPA mapping, chưa xác minh trên MySQL thật. Danh mục đầy đủ theo source ở `04-BACKEND-DANH-MUC-FILE.md`.
 
 ~~~mermaid
 erDiagram
  USER ||--o{ ITINERARY : owns
  ITINERARY ||--o{ ITINERARY_DAY : contains
  ITINERARY_DAY ||--o{ ACTIVITY : contains
- DESTINATION o|--o{ ITINERARY : destination
- ACTIVITY }o|--|| DESTINATION : optional_catalog_link
- USER ||--o{ COMMENT : author
- ITINERARY o|--o{ COMMENT : scope
- ACTIVITY o|--o{ COMMENT : scope
- COMMENT o|--o{ COMMENT : parent
- COMMENT o|--o{ COMMENT : root
- USER ||--o{ RATING : creates
- ITINERARY ||--o{ RATING : receives
- USER ||--o{ FAVORITE : creates
- ITINERARY ||--o{ FAVORITE : target
- USER ||--o{ SAVED_ITINERARY : saves
- ITINERARY ||--o{ SAVED_ITINERARY : target
- USER ||--o{ FOLLOW : follows
+ PLACE o|--o{ ACTIVITY : canonical_reference
+ ITINERARY ||--o{ ITINERARY_PLACE : saves
+ PLACE ||--o{ ITINERARY_PLACE : saved_place
+ PLACE ||--o{ PLACE_PROVIDER_MAPPING : provider_alias
+ ADMINISTRATIVE_AREA o|--o{ PLACE : classifies
+ USER ||--o{ COMMENT : writes
+ ITINERARY o|--o{ COMMENT : itinerary_scope
+ ACTIVITY o|--o{ COMMENT : activity_scope
+ COMMENT o|--o{ COMMENT : parent_and_root_thread
+ USER ||--o{ FRIENDSHIP : participates
+ USER ||--o{ CONVERSATION : participates
+ CONVERSATION ||--o{ MESSAGE : contains
+ USER ||--o{ POST : authors
+ POST ||--o{ POST_COMMENT : contains
+ POST ||--o{ POST_MEDIA : contains
 ~~~
-Sơ đồ khái quát; nullable, cascade/fetch, indexes và constraint phải kiểm tra annotation/database.
+Sơ đồ khái quát. Tên bảng, nullability, cascade, fetch, unique/index và khóa ngoại cần kiểm tra annotation/entity và schema thực.
 
-## Lịch trình và địa điểm
-Itinerary có nhiều ngày; mỗi ngày có activities và thứ tự. Activity có thể tham chiếu Destination catalogue hoặc custom location fields như tên/address/lat/lon/place/provider id. Custom map search không bắt buộc tạo Destination chung. Route cache/waypoints có entities riêng.
+## Activity location so với Place catalog
+Activity lưu snapshot địa điểm/địa chỉ/tọa độ/provider/placeId và imageUrl; có thể gắn optional `canonicalPlaceId` tới `Place`. Chọn kết quả POI bên ngoài hoặc pin thủ công không có nghĩa tự tạo một hàng `Place`. `Place` là catalog nội bộ; Activity snapshot giữ vị trí đã chọn kể cả khi provider/catalog đổi. `destinationId` chỉ còn trong DTO tương thích; source model hiện không có entity/controller Destination.
 
-## Comment và community
-Comment có author, itinerary/activity scope, parentComment và rootComment. Reply giữ parent cụ thể để đúng quan hệ trả lời, root để query cả thread. Rating/Favorite/SavedItinerary/Follow biểu diễn quan hệ user-target; counters aggregate trên itinerary được services cập nhật.
+## Comments và quan hệ xã hội
+Comment có scope itinerary hoặc activity, parent trực tiếp và root để truy vấn reply theo thread. Post comments là miền riêng với comments itinerary/activity. Favorite, SavedItinerary, Rating, Follow và ItineraryPlace là các quan hệ khác nhau; không gộp. Messaging dùng Conversation/Message/read state; friendship/block/settings là miền liên quan nhưng không đồng nghĩa với follow.
 
-## Handle và schema startup
-User.handle khác private login username. UserHandleBackfillRunner có thể thêm cột handle, sinh handle cũ dựa fullName/userId, rồi thử đổi NOT NULL và unique index. Constraint exceptions được ghi log theo implementation. DB migration chưa version hóa; trước khi thay runner cần backup, xem DB thật và startup logs.
+## Schema ở startup
+Các runner migration không phải migration tool có version history. Đặc biệt DestinationConsolidationMigrationRunner và ActivityLocationMigrationRunner xử lý dữ liệu schema legacy theo điều kiện; Hibernate DDL mode cũng ảnh hưởng. Không xóa/bỏ qua runner để chữa lỗi khởi động trước khi xem cấu trúc DB và log. Backup và kiểm tra trên DB sao chép trước khi thay schema production.
 
 ## Xác minh database thật
-Cần xem DB URL/profile, SHOW CREATE TABLE, FK/index và metadata ở môi trường được phép. Không kết nối hoặc sửa DB trong task viết tài liệu.
+Entity và code không cho biết DB local hiện có cột/index nào. Để kết luận DB cụ thể cần kiểm tra URL/profile đang chạy, `SHOW CREATE TABLE`, metadata, migration logs và trạng thái runner. Tài liệu guide này không kết nối hay thay đổi DB.

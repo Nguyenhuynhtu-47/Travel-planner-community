@@ -1,39 +1,29 @@
 ﻿# 13. Luồng xử lý end-to-end
 
 ## Đăng nhập
-~~~mermaid
-sequenceDiagram
- participant UI as Login
- participant N as AuthNotifier
- participant R as AuthRepository
- participant A as ApiClient
- participant C as AuthController
- participant S as AuthServiceImpl
- participant DB as UserRepository
- UI->>N: credentials
- N->>R: login()
- R->>A: POST /api/auth/login
- A->>C: JSON
- C->>S: authenticate
- S->>DB: find username/email
- S->>S: BCrypt + status + JWT
- S-->>A: AuthResponse
- A-->>N: token and user
- N->>N: save through AuthStorage
- N-->>UI: authenticated state
-~~~
+Login screen → AuthNotifier → AuthRepository → ApiClient → `POST /api/auth/login` → AuthController/AuthService → user lookup + password/status/JWT → AuthResponse → AuthStorage → authenticated state. Request tiếp theo gắn Bearer token; 401 được ApiClient báo cho app để đồng bộ logout.
 
 ## Tạo itinerary/activity
-Screen → request model toJson → ItineraryCrudRepository → ApiClient with Bearer → POST itinerary/nested day/activity → ItineraryController → ItineraryService validates business rules/owner → JPA repositories/entities → response DTO → Flutter model/notifier → rebuild. Reorder sends ordered list and backend safely updates order to avoid collisions. Delete status behavior must be read in implementation.
+Create/detail screen → notifier/repository → request JSON → `POST /api/itineraries`, sau đó `/api/itineraries/{id}/days` và `/api/itineraries/{id}/days/{dayId}/activities` → ItineraryController/Service → ownership/validation → repositories/entities → response DTO → mobile models/state/UI. Reorder gửi danh sách thứ tự. Backend kiểm soát chủ sở hữu và scope.
 
-## Search place and add activity
-Picker debounces input and tags request IDs so stale results are ignored → LocationRepository skips query <2 chars and requests /api/locations/search with mode/session → LocationController/LocationService validate and select provider → query understanding, geographic filter/ranking/cache → DTO results → user chooses place or map pin → CustomLocationResult validates coordinates → create/update activity request persists location metadata. TomTom suggestion may require details endpoint. CARTO tile fetch is a separate stream.
+## Search map và gắn vị trí
+`LocationPickerSheet` → `LocationRepository` → `GET /api/locations/search` → LocationController/LocationService/provider + filtering/ranking/cache → `LocationSearchResultResponse` → người dùng chọn POI hoặc pin → reverse/details nếu cần → `LocationActivityMapper`.
+- Place nội bộ: resolve qua `POST /api/places/resolve`, gửi `canonicalPlaceId`; activity tham chiếu Place.
+- POI external/manual pin: gửi snapshot tên/địa chỉ/tọa độ/provider/placeId; không tự ghi catalog Place.
+- Mobile vẫn giữ method `/api/destinations` không được sử dụng; backend không cung cấp endpoint này. `destinationId` trong DTO activity là tương thích cũ, không phải API/catalog.
+CARTO tile fetch độc lập với search, reverse, route và media.
 
-## Comments/replies
-CommentsSection constructs CommentsNotifier scoped to itinerary OR activity. Root page loaded first; replies fetched independently. Submit with parentCommentId calls reply endpoint, not root comment endpoint. Backend requires public target and active user; resolves root by traversing parent chain; saves parent and root IDs. Client holds reply list under root, does not indent indefinitely. Delete is soft and content placeholder retained. Guests read public resources; writes require auth.
+## Saved Place itinerary
+Picker/add sheet → resolve provider result thành Place canonical nếu cần → `POST /api/itineraries/{itineraryId}/places` với `placeId` → `ItineraryPlaceController/service` kiểm tra quyền và lưu relation → GET list/all để hiển thị → DELETE `/{placeId}` để bỏ. Đây không đồng nghĩa thêm activity.
 
-## Profile/handle
-Profile API gets current identity from security principal. Public user endpoints address by numeric id or normalized handle. Handle service strips accents and normalizes; format 3–30 chars; collision fallback uses id/counter. App startup runner backfills missing handles. This is different from private login username.
+## Comment thread
+Comments section scope itinerary hoặc activity → repository lấy trang root; reply tải riêng theo thread → gửi `parentCommentId` trực tiếp → `/api/comments/{commentId}/replies` → backend kiểm tra target/scope/visibility, lưu parent/root → DTO trả về → notifier gắn reply vào root thread. Post comments thuộc API/community model riêng.
 
-## Upload
-Image picker provides bytes/name → multipart POST /api/media/images with JWT → backend validates file and signs Cloudinary call with server secret → secureUrl response → frontend stores URL in profile/activity. Secret never belongs in Flutter.
+## Community post và media
+Feed/repository gọi `/api/community/feed` hoặc `/feed/following`; create/edit/like/comment/report qua `/api/community/posts...`. Upload file qua multipart `/api/media/images` → backend kiểm tra và upload Cloudinary → secure URL/media asset được dùng bởi UI. Admin moderation đi qua `/api/admin/community/...`. Không đồng nhất post với itinerary comment.
+
+## Messaging và friendship
+REST list/create direct conversation, page/send message, mark read, unread qua `/api/conversations...`; message request dùng `GET /api/conversations/message-requests`, `/count`, `/unread-count` và `POST /{conversationId}/accept|decline`. Conversation cũ có status null được hiểu accepted; pending request chỉ có một tin mở đầu, decline cho gửi lại sau 1 ngày. FriendshipController xử lý friend requests/friends/blocks; MessagingSettingsController xử lý preference. `GET /api/users/search?q=&page=&size=` yêu cầu active viewer, tìm prefix theo fullName/handle và trả public fields cùng relationship action flags; quan hệ được batch load. WebSocket/STOMP dùng `/ws` cho sự kiện realtime với interceptor xác thực session; app shell sở hữu shared client và feed refetch badge sau event/resume. Mobile chia các destination Inbox, Stranger Inbox, Friends/Invites và User Search nhưng dùng chung repository. NotificationsScreen vẫn chưa nối notification API.
+
+## Public profile và upload
+Current profile qua `/api/user/profile`; public profile/follow qua `/api/users/...`. Avatar/post/activity image URL được lấy từ upload flow nếu người dùng upload; geocoding/tile provider không mặc nhiên cấp ảnh đại diện địa điểm.

@@ -2,30 +2,29 @@
 
 | Thay đổi | Bắt đầu | Kiểm tra ảnh hưởng |
 |---|---|---|
-| UI mobile | features/<name>/presentation | notifier → repository/model → widget tests |
-| base URL/HTTP errors | api_constants.dart, api_client.dart | all repositories, auth 401 |
-| Backend endpoint | controller | DTO, service, repository/entity, SecurityConfig, tests, Flutter clients |
-| Activity location | ActivityFormDialog, LocationPickerSheet | LocationRepository, request DTO, ActivityService/entity, map |
-| Place search | LocationController/LocationServiceImpl | query parser, providers, geo filters, rate/cache, env config |
-| Comment reply | CommentsSection/Notifier/Repository, CommentServiceImpl | scope, parent/root, paging, visibility, soft-delete |
-| Profile/handle | ProfileController/ProfileService/UserHandleService | User entity, DTO, startup backfill, public profile |
-| Database | entities and schema startup logic | backup, DDL, constraints, transaction, DB tests |
-| Web admin | frontend/web locations feature | destination repository, server ADMIN check, forms |
+| UI mobile | `features/<name>/presentation` | notifier/state → repository/model → widget tests |
+| base URL/HTTP errors | `api_constants.dart`, `api_client.dart` | tất cả repositories, auth 401 |
+| Backend endpoint | controller | DTO, service, repository/entity, `SecurityConfig`, tests, Flutter clients |
+| Activity location | `ActivityFormDialog`, `LocationPickerSheet` | `LocationRepository`, request DTO, Activity service/entity, map; phân biệt snapshot với canonical Place |
+| Place search/catalog | `LocationController`/`LocationService`, `PlaceController`/`PlaceService` | provider, resolve, geographic filters, rate/cache, env config, saved-place APIs |
+| Comment reply | comments section/notifier/repository, `CommentServiceImpl` | scope, parent/root, paging, visibility, soft-delete |
+| Profile/social/chat | Profile/PublicUser/Friendship/Conversation controllers | REST vs STOMP, auth, relationship scope, UI state |
+| Database | entities và startup runners | backup, DDL, constraints, startup order, DB tests và schema thật |
+| Web admin | `frontend/web` locations/moderation features | Place/admin APIs, server-side ADMIN check, forms; authenticated shell còn placeholder |
 
 ## Debug từ giao diện xuống DB
-1. Ghi nhận user action và HTTP path/method/query/body, tuyệt đối không log token.
-2. Tìm callback trong widget, xem notifier/state transition.
-3. Mở repository để xác nhận request serialization, ApiClient/base URL.
-4. Đối chiếu Controller, validation, principal và security matchers.
-5. Theo Service tới Repository/entity hoặc external provider.
-6. So response DTO với parser/model rồi UI loading/error/success.
-7. Tìm test tương ứng, đọc fixtures/assertions trước khi sửa.
+1. Ghi action và HTTP path/method/query/body, tuyệt đối không log token/secret.
+2. Tìm widget/screen event và notifier/state transition.
+3. Mở repository để xác nhận request serialization, ApiClient/base URL và response model.
+4. Đối chiếu Controller, DTO validation, principal và SecurityConfig.
+5. Theo Service tới Repository/entity hoặc provider ngoài.
+6. So response DTO với parser/model rồi xem UI loading/error/success.
+7. Tìm test tương ứng; kiểm tra fixtures/assertions và xác nhận test đã chạy ở môi trường phù hợp.
 
 ## Rủi ro và dấu hiệu cần thận trọng
-- Navigator hiện gọi trực tiếp; core/router placeholder.
-- Mobile/Web là hai app độc lập, cùng backend nhưng code không tự đồng bộ.
-- Destination catalog và custom activity location khác nhau.
-- Location service có provider selection, rate limits, cache, query parsing/geographic ranking.
-- Startup handle backfill có DDL; kiểm tra DB thật trước production.
-- Một số docs cũ ghi auth permitAll/no JWT, trái với code hiện hành.
-- PlaceholderHomeScreen, empty folders có thể là code chưa dùng; chưa chạy call graph đầy đủ, không xóa chỉ theo suy đoán.
+- Mobile client còn `/api/destinations` legacy nhưng backend không có endpoint này; `getDestinations()` hiện không có call site. Activity DTO `destinationId` chỉ tương thích chuyển tiếp sang canonical Place ID.
+- Place catalog, itinerary saved-place relation và Activity location snapshot là ba mô hình riêng.
+- Mobile notifications hiện chỉ empty state, chưa có backend notification API. Web đăng nhập được nhưng shell/dashboard chưa hoàn chỉnh.
+- Location service có provider selection, rate limits, cache, query parsing/geographic ranking; kiểm tra runtime config thay vì đoán provider.
+- Startup runners thay đổi schema/dữ liệu. Entity không chứng minh DB local đã có schema tương ứng; kiểm tra schema và backup trước thao tác production.
+- Mobile/Web là hai app riêng; sửa client này không tự cập nhật app kia.

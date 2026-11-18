@@ -1,552 +1,815 @@
 ﻿# 04 — Backend: danh mục file và cách lần theo
 
-Request điển hình: Controller → service interface/implementation → repository → JPA entity. DTO định nghĩa biên HTTP; security filter/config áp dụng xác thực; GlobalExceptionHandler chuẩn hóa lỗi. Tích hợp bản đồ, routing và upload được tách qua provider/service. Danh mục tự trích dưới đây giúp định vị khai báo; chữ ký đa dòng, Lombok-generated members và quan hệ gọi runtime có thể không đầy đủ.
+Request điển hình: Controller → service interface/implementation → repository → entity. DTO định nghĩa hợp đồng HTTP; security/config điều khiển xác thực và startup. Source tree được kiểm kê ngày 2026-11-16. Mỗi mục ghi class/interface/enum/record được trích từ khai báo; Lombok members và quan hệ gọi không được suy diễn. Không thấy controller Destination độc lập trong source hiện tại.
 
 ## Package
-- controller: REST API.
-- service, service.impl: hợp đồng và quy tắc nghiệp vụ/tích hợp.
-- repository: truy vấn Spring Data/JPA.
-- model, model.enums: entity và enum.
-- dto: request/response và cấu trúc nội bộ tìm kiếm.
-- security: JWT, principal, quyền, IP client.
-- config: cấu hình và runner.
-- seeder: dữ liệu mẫu.
-- exception: lỗi nghiệp vụ và ánh xạ phản hồi.
-- util: tiện ích thuần.
+- `controller`: REST API và ranh giới HTTP.
+- `service`, `service.impl`: nghiệp vụ, provider orchestration, quyền/scope.
+- `repository`: truy vấn persistence.
+- `model`, `model.enums`: entity và kiểu domain.
+- `dto`: request/response và kiểu trao đổi nội bộ.
+- `security`, `config`, `exception`: auth, cấu hình/startup runners, lỗi.
+- `resolver`, `seeder`, `util`: phân giải dữ liệu, seed và helper.
 
 ## File source
 
+### Travel_Planner/Travel_Planner/config/ActivityLocationMigrationRunner.java
+- Khai báo: public class ActivityLocationMigrationRunner
+
+### Travel_Planner/Travel_Planner/config/AdministrativeAreaMigrationRunner.java
+- Khai báo: public class AdministrativeAreaMigrationRunner; public static class ProvinceSourceDto; public static class CommuneSourceDto
+
+### Travel_Planner/Travel_Planner/config/AdministrativeAreaValidator.java
+- Khai báo: public class AdministrativeAreaValidator; public static class ValidationResult; public static class DatabaseAuditResult
+
+### Travel_Planner/Travel_Planner/config/ChatStompAuthInterceptor.java
+- Khai báo: public class ChatStompAuthInterceptor
+
+### Travel_Planner/Travel_Planner/config/ChatWebSocketConfig.java
+- Khai báo: public class ChatWebSocketConfig
+
+### Travel_Planner/Travel_Planner/config/ChatWebSocketSessionRegistry.java
+- Khai báo: public class ChatWebSocketSessionRegistry
+
+### Travel_Planner/Travel_Planner/config/DestinationConsolidationMigrationRunner.java
+- Khai báo: public class DestinationConsolidationMigrationRunner
+
 ### Travel_Planner/Travel_Planner/config/MapProperties.java
-- Types: public class MapProperties {; public static class Geocoding {; public static class TomTom {; public static class Routing {
+- Khai báo: public class MapProperties; public static class Geocoding; public static class TomTom; public static class Routing
+
+### Travel_Planner/Travel_Planner/config/PlaceAdministrativeAreaMigrationRunner.java
+- Khai báo: public class PlaceAdministrativeAreaMigrationRunner
 
 ### Travel_Planner/Travel_Planner/config/UserHandleBackfillRunner.java
-- Types: public class UserHandleBackfillRunner implements ApplicationRunner {
-- Method declarations (excerpt): public void run(ApplicationArguments args) {; public void ensureSchemaAndBackfill() {; private void ensureColumnExists() {; private void backfillUsers() {; private void ensureConstraints() {
+- Khai báo: public class UserHandleBackfillRunner
 
 ### Travel_Planner/Travel_Planner/controller/ActivityCommentController.java
-- Types: public class ActivityCommentController {
-- HTTP annotations: @RequestMapping("/api/activities/{activityId}/comments"), @GetMapping, @PostMapping
+- Khai báo: public class ActivityCommentController
 
-### Travel_Planner/Travel_Planner/controller/AdminDestinationController.java
-- Types: public class AdminDestinationController {
-- Method declarations (excerpt): public ResponseEntity<DestinationResponse> getDestinationById(@PathVariable Integer id) {; public ResponseEntity<Void> deleteDestination(@PathVariable Integer id) {
-- HTTP annotations: @RequestMapping("/api/admin/destinations"), @GetMapping, @GetMapping("/{id}"), @PostMapping, @PutMapping("/{id}"), @DeleteMapping("/{id}")
+### Travel_Planner/Travel_Planner/controller/AdminCommunityController.java
+- Khai báo: public class AdminCommunityController
+
+### Travel_Planner/Travel_Planner/controller/AdministrativeAreaController.java
+- Khai báo: public class AdministrativeAreaController
+
+### Travel_Planner/Travel_Planner/controller/AdminPlaceAdministrativeAreaController.java
+- Khai báo: public class AdminPlaceAdministrativeAreaController
+
+### Travel_Planner/Travel_Planner/controller/AdminPlaceController.java
+- Khai báo: public class AdminPlaceController
 
 ### Travel_Planner/Travel_Planner/controller/AuthController.java
-- Types: public class AuthController {
-- Method declarations (excerpt): public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {; public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {; public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-- HTTP annotations: @RequestMapping("/api/auth"), @PostMapping("/register"), @PostMapping("/login"), @GetMapping("/me")
+- Khai báo: public class AuthController
 
 ### Travel_Planner/Travel_Planner/controller/CommentController.java
-- Types: public class CommentController {
-- HTTP annotations: @RequestMapping("/api/itineraries/{itineraryId}/comments"), @GetMapping, @PostMapping
+- Khai báo: public class CommentController
 
 ### Travel_Planner/Travel_Planner/controller/CommentThreadController.java
-- Types: public class CommentThreadController {
-- HTTP annotations: @RequestMapping("/api/comments"), @GetMapping("/{commentId}/replies"), @PostMapping("/{commentId}/replies"), @PutMapping("/{commentId}"), @DeleteMapping("/{commentId}")
+- Khai báo: public class CommentThreadController
 
-### Travel_Planner/Travel_Planner/controller/DestinationController.java
-- Types: public class DestinationController {
-- Method declarations (excerpt): public ResponseEntity<DestinationResponse> getDestinationById(@PathVariable Integer id) {
-- HTTP annotations: @RequestMapping("/api/destinations"), @GetMapping, @GetMapping("/{id}")
+### Travel_Planner/Travel_Planner/controller/CommunityPostController.java
+- Khai báo: public class CommunityPostController
+
+### Travel_Planner/Travel_Planner/controller/ConversationController.java
+- Khai báo: public class ConversationController
 
 ### Travel_Planner/Travel_Planner/controller/FavoriteController.java
-- Types: public class FavoriteController {
-- HTTP annotations: @PostMapping("/api/itineraries/{itineraryId}/favorites"), @DeleteMapping("/api/itineraries/{itineraryId}/favorites"), @GetMapping("/api/user/favorites")
+- Khai báo: public class FavoriteController
+
+### Travel_Planner/Travel_Planner/controller/FriendshipController.java
+- Khai báo: public class FriendshipController
 
 ### Travel_Planner/Travel_Planner/controller/HealthController.java
-- Types: public class HealthController {
-- Method declarations (excerpt): public ResponseEntity<Map<String, Object>> getHealth() {
-- HTTP annotations: @RequestMapping("/api"), @GetMapping("/health")
+- Khai báo: public class HealthController
 
 ### Travel_Planner/Travel_Planner/controller/ImageUploadController.java
-- Types: public class ImageUploadController {
-- Method declarations (excerpt): public ResponseEntity<ImageUploadResponse> uploadImage(@RequestPart("file") MultipartFile file) {
-- HTTP annotations: @RequestMapping("/api/media"), @PostMapping(path = "/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+- Khai báo: public class ImageUploadController
 
 ### Travel_Planner/Travel_Planner/controller/ItineraryController.java
-- Types: public class ItineraryController {
-- HTTP annotations: @RequestMapping("/api/itineraries"), @GetMapping, @GetMapping("/recommendations"), @GetMapping("/{id}"), @PostMapping, @PutMapping("/{id}"), @DeleteMapping("/{id}"), @PostMapping("/{id}/days"), @PutMapping("/{id}/days/{dayId}"), @DeleteMapping("/{id}/days/{dayId}"), @PostMapping("/{id}/days/{dayId}/activities"), @PutMapping("/{id}/days/{dayId}/activities/{activityId}"), @DeleteMapping("/{id}/days/{dayId}/activities/{activityId}"), @PutMapping("/{id}/days/{dayId}/activities/reorder")
+- Khai báo: public class ItineraryController
+
+### Travel_Planner/Travel_Planner/controller/ItineraryPlaceController.java
+- Khai báo: public class ItineraryPlaceController
 
 ### Travel_Planner/Travel_Planner/controller/LocationController.java
-- Types: public class LocationController {
-- Method declarations (excerpt): private void enforceRateLimit(HttpServletRequest request, Authentication authentication) {
-- HTTP annotations: @RequestMapping("/api/locations"), @GetMapping("/search"), @GetMapping("/providers/tomtom/details"), @GetMapping("/reverse-geocode"), @GetMapping("/nearby")
+- Khai báo: public class LocationController
+
+### Travel_Planner/Travel_Planner/controller/MessagingSettingsController.java
+- Khai báo: public class MessagingSettingsController
+
+### Travel_Planner/Travel_Planner/controller/PlaceController.java
+- Khai báo: public class PlaceController
 
 ### Travel_Planner/Travel_Planner/controller/ProfileController.java
-- Types: public class ProfileController {
-- Method declarations (excerpt): public UserResponse getProfile(@AuthenticationPrincipal UserDetails userDetails) {
-- HTTP annotations: @RequestMapping("/api/user/profile"), @GetMapping, @PutMapping
+- Khai báo: public class ProfileController
 
 ### Travel_Planner/Travel_Planner/controller/PublicUserController.java
-- Types: public class PublicUserController {
-- Method declarations (excerpt): public ResponseEntity<Void> follow(@PathVariable Integer userId, @AuthenticationPrincipal UserDetails viewer) {; public ResponseEntity<Void> unfollow(@PathVariable Integer userId, @AuthenticationPrincipal UserDetails viewer) {
-- HTTP annotations: @RequestMapping("/api/users"), @GetMapping("/{userId:[0-9]+}/public-profile"), @GetMapping(value = {"/by-handle/{handle}", "/by-handle/{handle}/public-profile"}), @GetMapping("/{userId:[0-9]+}/itineraries"), @PostMapping("/{userId:[0-9]+}/follow"), @DeleteMapping("/{userId:[0-9]+}/follow"), @GetMapping("/{userId:[0-9]+}/followers"), @GetMapping("/{userId:[0-9]+}/following")
+- Khai báo: public class PublicUserController
 
 ### Travel_Planner/Travel_Planner/controller/RatingController.java
-- Types: public class RatingController {
-- Method declarations (excerpt): public ResponseEntity<RatingSummaryResponse> getRatingSummary(@PathVariable Integer itineraryId) {
-- HTTP annotations: @RequestMapping("/api/itineraries/{itineraryId}/ratings"), @PostMapping, @GetMapping, @GetMapping("/me"), @DeleteMapping
+- Khai báo: public class RatingController
 
 ### Travel_Planner/Travel_Planner/controller/RouteController.java
-- Types: public class RouteController {
-- HTTP annotations: @RequestMapping("/api/itineraries/{itineraryId}/days/{dayId}/route"), @GetMapping
+- Khai báo: public class RouteController
 
 ### Travel_Planner/Travel_Planner/controller/SavedItineraryController.java
-- Types: public class SavedItineraryController {
-- HTTP annotations: @PostMapping("/api/itineraries/{itineraryId}/save"), @DeleteMapping("/api/itineraries/{itineraryId}/save"), @GetMapping("/api/user/saved-itineraries")
+- Khai báo: public class SavedItineraryController
 
 ### Travel_Planner/Travel_Planner/controller/UserItineraryController.java
-- Types: public class UserItineraryController {
-- HTTP annotations: @RequestMapping("/api/user/itineraries"), @GetMapping
+- Khai báo: public class UserItineraryController
 
 ### Travel_Planner/Travel_Planner/dto/location/GeographicTargetArea.java
-- Types: public class GeographicTargetArea {
+- Khai báo: public class GeographicTargetArea
 
 ### Travel_Planner/Travel_Planner/dto/location/ParsedLocationQuery.java
-- Types: public class ParsedLocationQuery {
-- Method declarations (excerpt): public boolean hasExplicitLocation() {
+- Khai báo: public class ParsedLocationQuery
 
 ### Travel_Planner/Travel_Planner/dto/location/SearchIntent.java
-- Types: public enum SearchIntent {
+- Khai báo: public enum SearchIntent
+
+### Travel_Planner/Travel_Planner/dto/request/BatchResolvePlacesRequest.java
+- Khai báo: public class BatchResolvePlacesRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/CreateActivityRequest.java
-- Types: public class CreateActivityRequest {
+- Khai báo: public class CreateActivityRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/CreateCommentRequest.java
-- Types: public class CreateCommentRequest {
+- Khai báo: public class CreateCommentRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/CreateDayRequest.java
-- Types: public class CreateDayRequest {
-
-### Travel_Planner/Travel_Planner/dto/request/CreateDestinationRequest.java
-- Types: public class CreateDestinationRequest {
+- Khai báo: public class CreateDayRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/CreateItineraryRequest.java
-- Types: public class CreateItineraryRequest {
+- Khai báo: public class CreateItineraryRequest
+
+### Travel_Planner/Travel_Planner/dto/request/CreatePlaceRequest.java
+- Khai báo: public class CreatePlaceRequest
+
+### Travel_Planner/Travel_Planner/dto/request/CreatePostCommentRequest.java
+- Khai báo: public class CreatePostCommentRequest
+
+### Travel_Planner/Travel_Planner/dto/request/CreatePostReportRequest.java
+- Khai báo: public class CreatePostReportRequest
+
+### Travel_Planner/Travel_Planner/dto/request/CreatePostRequest.java
+- Khai báo: public class CreatePostRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/LoginRequest.java
-- Types: public class LoginRequest {
+- Khai báo: public class LoginRequest
+
+### Travel_Planner/Travel_Planner/dto/request/ManualLinkAdministrativeAreaRequest.java
+- Khai báo: public class ManualLinkAdministrativeAreaRequest
+
+### Travel_Planner/Travel_Planner/dto/request/MarkConversationReadRequest.java
+- Khai báo: public class MarkConversationReadRequest
+
+### Travel_Planner/Travel_Planner/dto/request/ModeratePostRequest.java
+- Khai báo: public class ModeratePostRequest
+
+### Travel_Planner/Travel_Planner/dto/request/OpenConversationRequest.java
+- Khai báo: public class OpenConversationRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/RateItineraryRequest.java
-- Types: public class RateItineraryRequest {
+- Khai báo: public class RateItineraryRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/RegisterRequest.java
-- Types: public class RegisterRequest {
+- Khai báo: public class RegisterRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/ReorderActivityItem.java
-- Types: public class ReorderActivityItem {
+- Khai báo: public class ReorderActivityItem
+
+### Travel_Planner/Travel_Planner/dto/request/ResolvePlaceRequest.java
+- Khai báo: public class ResolvePlaceRequest
+
+### Travel_Planner/Travel_Planner/dto/request/SavePlaceToItineraryRequest.java
+- Khai báo: public class SavePlaceToItineraryRequest
+
+### Travel_Planner/Travel_Planner/dto/request/SendMessageRequest.java
+- Khai báo: public class SendMessageRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/UpdateActivityRequest.java
-- Types: public class UpdateActivityRequest {
+- Khai báo: public class UpdateActivityRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/UpdateDayRequest.java
-- Types: public class UpdateDayRequest {
-
-### Travel_Planner/Travel_Planner/dto/request/UpdateDestinationRequest.java
-- Types: public class UpdateDestinationRequest {
+- Khai báo: public class UpdateDayRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/UpdateItineraryRequest.java
-- Types: public class UpdateItineraryRequest {
+- Khai báo: public class UpdateItineraryRequest
+
+### Travel_Planner/Travel_Planner/dto/request/UpdateMessagingSettingsRequest.java
+- Khai báo: public class UpdateMessagingSettingsRequest
+
+### Travel_Planner/Travel_Planner/dto/request/UpdatePlaceRequest.java
+- Khai báo: public class UpdatePlaceRequest
+
+### Travel_Planner/Travel_Planner/dto/request/UpdatePostCommentRequest.java
+- Khai báo: public class UpdatePostCommentRequest
+
+### Travel_Planner/Travel_Planner/dto/request/UpdatePostRequest.java
+- Khai báo: public class UpdatePostRequest
 
 ### Travel_Planner/Travel_Planner/dto/request/UpdateProfileRequest.java
-- Types: public class UpdateProfileRequest {
+- Khai báo: public class UpdateProfileRequest
 
 ### Travel_Planner/Travel_Planner/dto/response/ActivityResponse.java
-- Types: public class ActivityResponse {
+- Khai báo: public class ActivityResponse
+
+### Travel_Planner/Travel_Planner/dto/response/AdministrativeAreaResponse.java
+- Khai báo: public class AdministrativeAreaResponse
+
+### Travel_Planner/Travel_Planner/dto/response/AdministrativeAreaSearchResultResponse.java
+- Khai báo: public class AdministrativeAreaSearchResultResponse
+
+### Travel_Planner/Travel_Planner/dto/response/AdministrativeAreaSummaryResponse.java
+- Khai báo: public class AdministrativeAreaSummaryResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/AuthResponse.java
-- Types: public class AuthResponse {
+- Khai báo: public class AuthResponse
+
+### Travel_Planner/Travel_Planner/dto/response/BatchLinkingReportResponse.java
+- Khai báo: public class BatchLinkingReportResponse
+
+### Travel_Planner/Travel_Planner/dto/response/ChatEventResponse.java
+- Khai báo: public class ChatEventResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/CommentResponse.java
-- Types: public class CommentResponse {
+- Khai báo: public class CommentResponse
+
+### Travel_Planner/Travel_Planner/dto/response/ConversationSummaryResponse.java
+- Khai báo: public class ConversationSummaryResponse
+
+### Travel_Planner/Travel_Planner/dto/response/MessageRequestCountResponse.java
+- Khai báo: public record MessageRequestCountResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/CreatorSummaryResponse.java
-- Types: public class CreatorSummaryResponse {
+- Khai báo: public class CreatorSummaryResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/DeleteRatingResponse.java
-- Types: public class DeleteRatingResponse {
-
-### Travel_Planner/Travel_Planner/dto/response/DestinationResponse.java
-- Types: public class DestinationResponse {
+- Khai báo: public class DeleteRatingResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/ErrorResponse.java
-- Types: public class ErrorResponse {
+- Khai báo: public class ErrorResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/FavoriteResponse.java
-- Types: public class FavoriteResponse {
+- Khai báo: public class FavoriteResponse
+
+### Travel_Planner/Travel_Planner/dto/response/FriendRequestResponse.java
+- Khai báo: public class FriendRequestResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/ImageUploadResponse.java
-- Types: public record ImageUploadResponse(String secureUrl) {
-- Method declarations (excerpt): public record ImageUploadResponse(String secureUrl) {
+- Khai báo: public record ImageUploadResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/ItineraryDayResponse.java
-- Types: public class ItineraryDayResponse {
+- Khai báo: public class ItineraryDayResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/ItineraryDetailResponse.java
-- Types: public class ItineraryDetailResponse {
+- Khai báo: public class ItineraryDetailResponse
+
+### Travel_Planner/Travel_Planner/dto/response/ItineraryPlaceResponse.java
+- Khai báo: public class ItineraryPlaceResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/ItinerarySummaryResponse.java
-- Types: public class ItinerarySummaryResponse {
+- Khai báo: public class ItinerarySummaryResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/LocationSearchResultResponse.java
-- Types: public class LocationSearchResultResponse {
+- Khai báo: public class LocationSearchResultResponse
+
+### Travel_Planner/Travel_Planner/dto/response/MediaAssetResponse.java
+- Khai báo: public class MediaAssetResponse
+
+### Travel_Planner/Travel_Planner/dto/response/MessagePageResponse.java
+- Khai báo: public class MessagePageResponse
+
+### Travel_Planner/Travel_Planner/dto/response/MessageResponse.java
+- Khai báo: public class MessageResponse
+
+### Travel_Planner/Travel_Planner/dto/response/MessagingSettingsResponse.java
+- Khai báo: public class MessagingSettingsResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/PageResponse.java
-- Types: public class PageResponse<T> {
-- Method declarations (excerpt): public static <T> PageResponse<T> from(Page<T> page) {
+- Khai báo: public class PageResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PlaceDetailResponse.java
+- Khai báo: public class PlaceDetailResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PlaceProviderMappingResponse.java
+- Khai báo: public class PlaceProviderMappingResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PlaceResolutionResultResponse.java
+- Khai báo: public class PlaceResolutionResultResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PlaceResponse.java
+- Khai báo: public class PlaceResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PostAuthorResponse.java
+- Khai báo: public class PostAuthorResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PostCommentResponse.java
+- Khai báo: public class PostCommentResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PostItineraryAttachmentResponse.java
+- Khai báo: public class PostItineraryAttachmentResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PostReportResponse.java
+- Khai báo: public class PostReportResponse
+
+### Travel_Planner/Travel_Planner/dto/response/PostResponse.java
+- Khai báo: public class PostResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/PublicProfileResponse.java
-- Types: public class PublicProfileResponse {
+- Khai báo: public class PublicProfileResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/PublicUserSummaryResponse.java
-- Types: public class PublicUserSummaryResponse {
+- Khai báo: public class PublicUserSummaryResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/RatingResponse.java
-- Types: public class RatingResponse {
+- Khai báo: public class RatingResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/RatingSummaryResponse.java
-- Types: public class RatingSummaryResponse {
+- Khai báo: public class RatingSummaryResponse
+
+### Travel_Planner/Travel_Planner/dto/response/RelationshipContextResponse.java
+- Khai báo: public class RelationshipContextResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/RouteResponse.java
-- Types: public class RouteResponse {
+- Khai báo: public class RouteResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/RouteWaypointResponse.java
-- Types: public class RouteWaypointResponse {
+- Khai báo: public class RouteWaypointResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/SavedItineraryResponse.java
-- Types: public class SavedItineraryResponse {
+- Khai báo: public class SavedItineraryResponse
+
+### Travel_Planner/Travel_Planner/dto/response/TotalUnreadResponse.java
+- Khai báo: public record TotalUnreadResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/UserRatingStatusResponse.java
-- Types: public class UserRatingStatusResponse {
+- Khai báo: public class UserRatingStatusResponse
 
 ### Travel_Planner/Travel_Planner/dto/response/UserResponse.java
-- Types: public class UserResponse {
+- Khai báo: public class UserResponse
 
 ### Travel_Planner/Travel_Planner/exception/AppException.java
-- Types: public class AppException extends RuntimeException {
-- Method declarations (excerpt): public HttpStatus getStatus() {
+- Khai báo: public class AppException
 
 ### Travel_Planner/Travel_Planner/exception/BadRequestException.java
-- Types: public class BadRequestException extends AppException {
+- Khai báo: public class BadRequestException
 
 ### Travel_Planner/Travel_Planner/exception/ConflictException.java
-- Types: public class ConflictException extends AppException {
+- Khai báo: public class ConflictException
 
 ### Travel_Planner/Travel_Planner/exception/ForbiddenException.java
-- Types: public class ForbiddenException extends AppException {
+- Khai báo: public class ForbiddenException
 
 ### Travel_Planner/Travel_Planner/exception/GlobalExceptionHandler.java
-- Types: public class GlobalExceptionHandler {
-- Method declarations (excerpt): public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {; public ResponseEntity<ErrorResponse> handleAppException(AppException ex, HttpServletRequest request) {; public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {; public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {; public ResponseEntity<ErrorResponse> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException ex, HttpServletRequest request) {; public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex, HttpServletRequest request) {
+- Khai báo: public class GlobalExceptionHandler
 
 ### Travel_Planner/Travel_Planner/exception/RateLimitExceededException.java
-- Types: public class RateLimitExceededException extends AppException {
+- Khai báo: public class RateLimitExceededException
 
 ### Travel_Planner/Travel_Planner/exception/ResourceNotFoundException.java
-- Types: public class ResourceNotFoundException extends AppException {
+- Khai báo: public class ResourceNotFoundException
 
 ### Travel_Planner/Travel_Planner/exception/RoutingProviderException.java
-- Types: public class RoutingProviderException extends RuntimeException {
-- Method declarations (excerpt): public HttpStatus getStatus() {; public boolean isTimeout() {; public boolean isRateLimit() {
+- Khai báo: public class RoutingProviderException
 
 ### Travel_Planner/Travel_Planner/exception/UnauthorizedException.java
-- Types: public class UnauthorizedException extends AppException {
+- Khai báo: public class UnauthorizedException
 
 ### Travel_Planner/Travel_Planner/model/Activity.java
-- Types: public class Activity {
-- Method declarations (excerpt): protected void onCreate() {; protected void onUpdate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class Activity
+
+### Travel_Planner/Travel_Planner/model/AdministrativeArea.java
+- Khai báo: public class AdministrativeArea
 
 ### Travel_Planner/Travel_Planner/model/CachedRouteResult.java
-- Types: public record CachedRouteResult(
+- Khai báo: public record CachedRouteResult
 
 ### Travel_Planner/Travel_Planner/model/Comment.java
-- Types: public class Comment {
-- Method declarations (excerpt): protected void onCreate() {; protected void onUpdate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn, Enumerated
+- Khai báo: public class Comment
 
-### Travel_Planner/Travel_Planner/model/Destination.java
-- Types: public class Destination {
-- Method declarations (excerpt): protected void onCreate() {; protected void onUpdate() {
-- JPA annotations: Entity, Table, Id, Column, Enumerated
+### Travel_Planner/Travel_Planner/model/Conversation.java
+- Khai báo: public class Conversation
+
+### Travel_Planner/Travel_Planner/model/ConversationReadState.java
+- Khai báo: public class ConversationReadState
+
+### Travel_Planner/Travel_Planner/model/ConversationReadStateId.java
+- Khai báo: public class ConversationReadStateId
+
+### Travel_Planner/Travel_Planner/model/enums/AdministrativeAreaStatus.java
+- Khai báo: public enum AdministrativeAreaStatus
+
+### Travel_Planner/Travel_Planner/model/enums/AdministrativeAreaTrustClassification.java
+- Khai báo: public enum AdministrativeAreaTrustClassification
+
+### Travel_Planner/Travel_Planner/model/enums/AdministrativeAreaType.java
+- Khai báo: public enum AdministrativeAreaType
 
 ### Travel_Planner/Travel_Planner/model/enums/CommentStatus.java
-- Types: public enum CommentStatus {
+- Khai báo: public enum CommentStatus
 
-### Travel_Planner/Travel_Planner/model/enums/DestinationStatus.java
-- Types: public enum DestinationStatus {
+### Travel_Planner/Travel_Planner/model/enums/ConfidenceClassification.java
+- Khai báo: public enum ConfidenceClassification
+
+### Travel_Planner/Travel_Planner/model/enums/FriendshipStatus.java
+- Khai báo: public enum FriendshipStatus
+
+### Travel_Planner/Travel_Planner/model/enums/InboundMessagePolicy.java
+- Khai báo: public enum InboundMessagePolicy
+
+### Travel_Planner/Travel_Planner/model/enums/ConversationStatus.java
+- Khai báo: public enum ConversationStatus
 
 ### Travel_Planner/Travel_Planner/model/enums/ItineraryStatus.java
-- Types: public enum ItineraryStatus {
+- Khai báo: public enum ItineraryStatus
+
+### Travel_Planner/Travel_Planner/model/enums/MediaAssetStatus.java
+- Khai báo: public enum MediaAssetStatus
+
+### Travel_Planner/Travel_Planner/model/enums/PlaceCategory.java
+- Khai báo: public enum PlaceCategory
+
+### Travel_Planner/Travel_Planner/model/enums/PlaceStatus.java
+- Khai báo: public enum PlaceStatus
+
+### Travel_Planner/Travel_Planner/model/enums/PostStatus.java
+- Khai báo: public enum PostStatus
+
+### Travel_Planner/Travel_Planner/model/enums/PostVisibility.java
+- Khai báo: public enum PostVisibility
+
+### Travel_Planner/Travel_Planner/model/enums/ReportStatus.java
+- Khai báo: public enum ReportStatus
 
 ### Travel_Planner/Travel_Planner/model/enums/Role.java
-- Types: public enum Role {
+- Khai báo: public enum Role
 
 ### Travel_Planner/Travel_Planner/model/enums/UserStatus.java
-- Types: public enum UserStatus {
+- Khai báo: public enum UserStatus
 
 ### Travel_Planner/Travel_Planner/model/enums/Visibility.java
-- Types: public enum Visibility {
+- Khai báo: public enum Visibility
 
 ### Travel_Planner/Travel_Planner/model/Favorite.java
-- Types: public class Favorite {
-- Method declarations (excerpt): protected void onCreate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class Favorite
 
 ### Travel_Planner/Travel_Planner/model/Follow.java
-- Types: public class Follow {
-- Method declarations (excerpt): protected void onCreate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class Follow
+
+### Travel_Planner/Travel_Planner/model/Friendship.java
+- Khai báo: public class Friendship
 
 ### Travel_Planner/Travel_Planner/model/Itinerary.java
-- Types: public class Itinerary {
-- Method declarations (excerpt): protected void onCreate() {; protected void onUpdate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn, Enumerated
+- Khai báo: public class Itinerary
 
 ### Travel_Planner/Travel_Planner/model/ItineraryDay.java
-- Types: public class ItineraryDay {
-- Method declarations (excerpt): protected void onCreate() {; protected void onUpdate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class ItineraryDay
+
+### Travel_Planner/Travel_Planner/model/ItineraryPlace.java
+- Khai báo: public class ItineraryPlace
 
 ### Travel_Planner/Travel_Planner/model/ItineraryShare.java
-- Types: public class ItineraryShare {
-- Method declarations (excerpt): protected void onCreate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class ItineraryShare
+
+### Travel_Planner/Travel_Planner/model/MediaAsset.java
+- Khai báo: public class MediaAsset
+
+### Travel_Planner/Travel_Planner/model/Message.java
+- Khai báo: public class Message
 
 ### Travel_Planner/Travel_Planner/model/OfflineDownload.java
-- Types: public class OfflineDownload {
-- Method declarations (excerpt): protected void onCreate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class OfflineDownload
+
+### Travel_Planner/Travel_Planner/model/Place.java
+- Khai báo: public class Place
+
+### Travel_Planner/Travel_Planner/model/PlaceProviderMapping.java
+- Khai báo: public class PlaceProviderMapping
+
+### Travel_Planner/Travel_Planner/model/Post.java
+- Khai báo: public class Post
+
+### Travel_Planner/Travel_Planner/model/PostComment.java
+- Khai báo: public class PostComment
+
+### Travel_Planner/Travel_Planner/model/PostLike.java
+- Khai báo: public class PostLike
+
+### Travel_Planner/Travel_Planner/model/PostMedia.java
+- Khai báo: public class PostMedia
+
+### Travel_Planner/Travel_Planner/model/PostReport.java
+- Khai báo: public class PostReport
 
 ### Travel_Planner/Travel_Planner/model/Rating.java
-- Types: public class Rating {
-- Method declarations (excerpt): protected void onCreate() {; protected void onUpdate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class Rating
 
 ### Travel_Planner/Travel_Planner/model/SavedItinerary.java
-- Types: public class SavedItinerary {
-- Method declarations (excerpt): protected void onCreate() {
-- JPA annotations: Entity, Table, Id, Column, ManyToOne, JoinColumn
+- Khai báo: public class SavedItinerary
 
 ### Travel_Planner/Travel_Planner/model/User.java
-- Types: public class User {
-- Method declarations (excerpt): protected void onCreate() {; protected void onUpdate() {
-- JPA annotations: Entity, Table, Id, Column, Enumerated
+- Khai báo: public class User
+
+### Travel_Planner/Travel_Planner/model/UserBlock.java
+- Khai báo: public class UserBlock
+
+### Travel_Planner/Travel_Planner/model/UserMessagingSettings.java
+- Khai báo: public class UserMessagingSettings
 
 ### Travel_Planner/Travel_Planner/model/WaypointCoordinate.java
-- Types: public record WaypointCoordinate(double latitude, double longitude) {}
-- Method declarations (excerpt): public record WaypointCoordinate(double latitude, double longitude) {
+- Khai báo: public record WaypointCoordinate
 
 ### Travel_Planner/Travel_Planner/repository/ActivityRepository.java
-- Types: public interface ActivityRepository extends JpaRepository<Activity, Integer> {
+- Khai báo: public interface ActivityRepository
+
+### Travel_Planner/Travel_Planner/repository/AdministrativeAreaRepository.java
+- Khai báo: public interface AdministrativeAreaRepository
 
 ### Travel_Planner/Travel_Planner/repository/CommentRepository.java
-- Types: public interface CommentRepository extends JpaRepository<Comment, Integer> {
+- Khai báo: public interface CommentRepository
 
-### Travel_Planner/Travel_Planner/repository/DestinationRepository.java
-- Types: public interface DestinationRepository extends JpaRepository<Destination, Integer> {
+### Travel_Planner/Travel_Planner/repository/ConversationReadStateRepository.java
+- Khai báo: public interface ConversationReadStateRepository
+
+### Travel_Planner/Travel_Planner/repository/ConversationRepository.java
+- Khai báo: public interface ConversationRepository
 
 ### Travel_Planner/Travel_Planner/repository/FavoriteRepository.java
-- Types: public interface FavoriteRepository extends JpaRepository<Favorite, Integer> {
+- Khai báo: public interface FavoriteRepository
 
 ### Travel_Planner/Travel_Planner/repository/FollowRepository.java
-- Types: public interface FollowRepository extends JpaRepository<Follow, Integer> {
+- Khai báo: public interface FollowRepository
+
+### Travel_Planner/Travel_Planner/repository/FriendshipRepository.java
+- Khai báo: public interface FriendshipRepository
 
 ### Travel_Planner/Travel_Planner/repository/ItineraryDayRepository.java
-- Types: public interface ItineraryDayRepository extends JpaRepository<ItineraryDay, Integer> {
+- Khai báo: public interface ItineraryDayRepository
+
+### Travel_Planner/Travel_Planner/repository/ItineraryPlaceRepository.java
+- Khai báo: public interface ItineraryPlaceRepository
 
 ### Travel_Planner/Travel_Planner/repository/ItineraryRepository.java
-- Types: public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, JpaSpecificationExecutor<Itinerary> {
+- Khai báo: public interface ItineraryRepository
 
 ### Travel_Planner/Travel_Planner/repository/ItineraryShareRepository.java
-- Types: public interface ItineraryShareRepository extends JpaRepository<ItineraryShare, Integer> {
+- Khai báo: public interface ItineraryShareRepository
+
+### Travel_Planner/Travel_Planner/repository/MediaAssetRepository.java
+- Khai báo: public interface MediaAssetRepository
+
+### Travel_Planner/Travel_Planner/repository/MessageRepository.java
+- Khai báo: public interface MessageRepository
 
 ### Travel_Planner/Travel_Planner/repository/OfflineDownloadRepository.java
-- Types: public interface OfflineDownloadRepository extends JpaRepository<OfflineDownload, Integer> {
+- Khai báo: public interface OfflineDownloadRepository
+
+### Travel_Planner/Travel_Planner/repository/PlaceProviderMappingRepository.java
+- Khai báo: public interface PlaceProviderMappingRepository
+
+### Travel_Planner/Travel_Planner/repository/PlaceRepository.java
+- Khai báo: public interface PlaceRepository
+
+### Travel_Planner/Travel_Planner/repository/PostCommentRepository.java
+- Khai báo: public interface PostCommentRepository
+
+### Travel_Planner/Travel_Planner/repository/PostLikeRepository.java
+- Khai báo: public interface PostLikeRepository
+
+### Travel_Planner/Travel_Planner/repository/PostMediaRepository.java
+- Khai báo: public interface PostMediaRepository
+
+### Travel_Planner/Travel_Planner/repository/PostReportRepository.java
+- Khai báo: public interface PostReportRepository
+
+### Travel_Planner/Travel_Planner/repository/PostRepository.java
+- Khai báo: public interface PostRepository
 
 ### Travel_Planner/Travel_Planner/repository/RatingRepository.java
-- Types: public interface RatingRepository extends JpaRepository<Rating, Integer> {
+- Khai báo: public interface RatingRepository
 
 ### Travel_Planner/Travel_Planner/repository/SavedItineraryRepository.java
-- Types: public interface SavedItineraryRepository extends JpaRepository<SavedItinerary, Integer> {
+- Khai báo: public interface SavedItineraryRepository
 
 ### Travel_Planner/Travel_Planner/repository/specification/ItinerarySpecification.java
-- Types: public class ItinerarySpecification {
-- Method declarations (excerpt): private static String escapeLike(String input) {
+- Khai báo: public class ItinerarySpecification
+
+### Travel_Planner/Travel_Planner/repository/UserBlockRepository.java
+- Khai báo: public interface UserBlockRepository
+
+### Travel_Planner/Travel_Planner/repository/UserMessagingSettingsRepository.java
+- Khai báo: public interface UserMessagingSettingsRepository
 
 ### Travel_Planner/Travel_Planner/repository/UserRepository.java
-- Types: public interface UserRepository extends JpaRepository<User, Integer> {
+- Khai báo: public interface UserRepository
+
+### Travel_Planner/Travel_Planner/resolver/AdministrativeAreaResolver.java
+- Khai báo: public interface AdministrativeAreaResolver
+
+### Travel_Planner/Travel_Planner/resolver/impl/AdministrativeAreaResolverImpl.java
+- Khai báo: public class AdministrativeAreaResolverImpl
 
 ### Travel_Planner/Travel_Planner/security/ClientIpResolver.java
-- Types: public class ClientIpResolver {
-- Method declarations (excerpt): public String resolveClientIp(HttpServletRequest request) {; public boolean isTrustedProxy(String ip) {; public String cleanIp(String raw) {
+- Khai báo: public class ClientIpResolver
 
 ### Travel_Planner/Travel_Planner/security/JwtAuthenticationFilter.java
-- Types: public class JwtAuthenticationFilter extends OncePerRequestFilter {
-- Method declarations (excerpt): private String getJwtFromRequest(HttpServletRequest request) {
+- Khai báo: public class JwtAuthenticationFilter
 
 ### Travel_Planner/Travel_Planner/security/JwtTokenProvider.java
-- Types: public class JwtTokenProvider {
-- Method declarations (excerpt): private void validateJwtSecretForEnvironment(String secret, Environment environment) {; public String generateToken(User user) {; public String getUsernameFromToken(String token) {; public boolean validateToken(String token) {; public Claims getClaimsFromToken(String token) {
+- Khai báo: public class JwtTokenProvider
 
 ### Travel_Planner/Travel_Planner/security/SecurityConfig.java
-- Types: public class SecurityConfig {
-- Method declarations (excerpt): public ObjectMapper objectMapper() {; public PasswordEncoder passwordEncoder() {; public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws; public SecurityFilterChain securityFilterChain(HttpSecurity http) throws; public CorsConfigurationSource corsConfigurationSource() {; private List<String> parseCommaSeparatedList(String input) {; public AuthenticationEntryPoint authenticationEntryPoint() {; public AccessDeniedHandler accessDeniedHandler() {
+- Khai báo: public class SecurityConfig
 
 ### Travel_Planner/Travel_Planner/security/UserDetailsServiceImpl.java
-- Types: public class UserDetailsServiceImpl implements UserDetailsService {
-- Method declarations (excerpt): public UserDetails loadUserByUsername(String usernameOrEmail) throws
+- Khai báo: public class UserDetailsServiceImpl
 
 ### Travel_Planner/Travel_Planner/seeder/DataSeeder.java
-- Types: public class DataSeeder implements CommandLineRunner {
-- Method declarations (excerpt): public void run(String... args) {; public SeedResult seedData() {; private Map<String, User> seedUsers() {; private Map<String, Destination> seedDestinations() {; private Map<String, Itinerary> seedItineraries(Map<String, User> userMap) {; private Itinerary saveOrGetItinerary(Itinerary itin) {; private void seedDaysAndActivities(Map<String, Itinerary> itineraryMap, Map<String, Destination> destinationMap) {; private void seedActivitiesForDay(ItineraryDay day, String location, int dayNum, Map<String, Destination> destinationMap) {; private void seedSocialInteractions(Map<String, User> userMap, Map<String, Itinerary> itineraryMap) {; private void saveCommentIfNotExists(User user, Itinerary itinerary, String content, CommentStatus status) {; private void saveRatingIfNotExists(User user, Itinerary itinerary, int score) {; private void saveFavoriteIfNotExists(User user, Itinerary itinerary) {; private void saveSavedItineraryIfNotExists(User user, Itinerary itinerary) {; private void saveFollowIfNotExists(User follower, User following) {; private void saveShareIfNotExists(Itinerary itinerary, String shareToken, LocalDateTime expiresAt) {
+- Khai báo: public class DataSeeder
 
 ### Travel_Planner/Travel_Planner/seeder/SeedResult.java
-- Types: public class SeedResult {
+- Khai báo: public class SeedResult
+
+### Travel_Planner/Travel_Planner/service/AdministrativeAreaService.java
+- Khai báo: public interface AdministrativeAreaService
 
 ### Travel_Planner/Travel_Planner/service/AuthService.java
-- Types: public interface AuthService {
+- Khai báo: public interface AuthService
+
+### Travel_Planner/Travel_Planner/service/ChatEventListener.java
+- Khai báo: public class ChatEventListener
+
+### Travel_Planner/Travel_Planner/service/ChatRateLimiter.java
+- Khai báo: public class ChatRateLimiter
 
 ### Travel_Planner/Travel_Planner/service/CommentService.java
-- Types: public interface CommentService {
+- Khai báo: public interface CommentService
 
-### Travel_Planner/Travel_Planner/service/DestinationService.java
-- Types: public interface DestinationService {
+### Travel_Planner/Travel_Planner/service/CommittedChatEvent.java
+- Khai báo: public record CommittedChatEvent
 
 ### Travel_Planner/Travel_Planner/service/FavoriteService.java
-- Types: public interface FavoriteService {
+- Khai báo: public interface FavoriteService
+
+### Travel_Planner/Travel_Planner/service/FriendshipService.java
+- Khai báo: public interface FriendshipService
 
 ### Travel_Planner/Travel_Planner/service/GeocodingProvider.java
-- Types: public interface GeocodingProvider {
+- Khai báo: public interface GeocodingProvider
 
 ### Travel_Planner/Travel_Planner/service/GeographicFilterService.java
-- Types: public interface GeographicFilterService {
+- Khai báo: public interface GeographicFilterService
 
 ### Travel_Planner/Travel_Planner/service/ImageUploadService.java
-- Types: public interface ImageUploadService {
+- Khai báo: public interface ImageUploadService
+
+### Travel_Planner/Travel_Planner/service/impl/AdministrativeAreaServiceImpl.java
+- Khai báo: public class AdministrativeAreaServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/AuthServiceImpl.java
-- Types: public class AuthServiceImpl implements AuthService {
-- Method declarations (excerpt): public AuthResponse register(RegisterRequest request) {; public AuthResponse login(LoginRequest request) {; public UserResponse getCurrentUser(String username) {; private UserResponse mapToUserResponse(User user) {
+- Khai báo: public class AuthServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/CloudinaryImageUploadService.java
-- Types: public class CloudinaryImageUploadService implements ImageUploadService {
-- Method declarations (excerpt): public String uploadImage(MultipartFile file) {; private String uploadValidatedImage(byte[] bytes) {; public String getFilename() {; private byte[] validateAndRead(MultipartFile file) {; private String imageExtension(byte[] bytes) {; private void validateConfiguration() {; private String createSignature(long timestamp) {
+- Khai báo: public class CloudinaryImageUploadService; public record CloudinaryUploadResult
 
 ### Travel_Planner/Travel_Planner/service/impl/CommentServiceImpl.java
-- Types: public class CommentServiceImpl implements CommentService {
-- Method declarations (excerpt): public PageResponse<CommentResponse> getComments(Integer itineraryId, int page, int size) {; public CommentResponse createComment(Integer itineraryId, CreateCommentRequest request, String username) {; public PageResponse<CommentResponse> getActivityComments(Integer activityId, int page, int size) {; public CommentResponse createActivityComment(Integer activityId, CreateCommentRequest request, String username) {; public PageResponse<CommentResponse> getReplies(Integer commentId, int page, int size) {; public CommentResponse createReply(Integer commentId, CreateCommentRequest request, String username) {; public CommentResponse updateComment(Integer commentId, CreateCommentRequest request, String username) {; public void deleteComment(Integer commentId, String username) {; private Itinerary requirePublicItinerary(Integer id) {; private Activity requirePublicActivity(Integer id) {; private Itinerary requireTargetPublic(Comment comment) {; private Itinerary requireTargetExists(Comment comment) {; private User requireActiveUser(String username) {; private Comment findComment(Integer id) {; private Comment resolveRoot(Comment comment) {
-
-### Travel_Planner/Travel_Planner/service/impl/DestinationServiceImpl.java
-- Types: public class DestinationServiceImpl implements DestinationService {
-- Method declarations (excerpt): public List<DestinationResponse> getPublicDestinations(String keyword) {; public DestinationResponse getPublicDestinationById(Integer id) {; public List<DestinationResponse> getAdminDestinations(String keyword, DestinationStatus status) {; public DestinationResponse getAdminDestinationById(Integer id) {; public DestinationResponse createDestination(CreateDestinationRequest request) {; public DestinationResponse updateDestination(Integer id, UpdateDestinationRequest request) {; public void deleteDestination(Integer id) {; private void validateCoordinates(BigDecimal lat, BigDecimal lon) {; private BigDecimal normalizeCoordinate(BigDecimal coord) {; private DestinationResponse toResponse(Destination destination) {
+- Khai báo: public class CommentServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/FavoriteServiceImpl.java
-- Types: public class FavoriteServiceImpl implements FavoriteService {
-- Method declarations (excerpt): public FavoriteResponse addFavorite(Integer itineraryId, String currentUsername) {; public FavoriteResponse removeFavorite(Integer itineraryId, String currentUsername) {; public PageResponse<ItinerarySummaryResponse> getUserFavorites(String currentUsername, int page, int size) {; private Map<Integer, Double> fetchAverageRatings(List<Integer> itineraryIds) {; private ItinerarySummaryResponse mapToSummaryResponse(Itinerary item, Double averageRating) {; private User getAuthenticatedUser(String currentUsername) {; private Itinerary getPublicActiveItinerary(Integer itineraryId) {
+- Khai báo: public class FavoriteServiceImpl
+
+### Travel_Planner/Travel_Planner/service/impl/FriendshipServiceImpl.java
+- Khai báo: public class FriendshipServiceImpl; private record Pair
 
 ### Travel_Planner/Travel_Planner/service/impl/GeographicFilterServiceImpl.java
-- Types: public class GeographicFilterServiceImpl implements GeographicFilterService {
-- Method declarations (excerpt): public List<LocationSearchResultResponse> filter(List<LocationSearchResultResponse> candidates, GeographicTargetArea targetArea) {; private boolean isCrossProvinceMismatch(LocationSearchResultResponse candidate, String targetContextNorm, double distanceKm) {; private String buildTargetContextNormalized(GeographicTargetArea targetArea) {; public static double haversineDistanceKm(double lat1, double lon1, double lat2, double lon2) {
+- Khai báo: public class GeographicFilterServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/HereGeocodingProvider.java
-- Types: public class HereGeocodingProvider implements GeocodingProvider {
-- Method declarations (excerpt): public String getProviderName() {; public boolean isConfigured() {; public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {; public List<LocationSearchResultResponse> searchInArea(String query, int limit, Double latitude, Double longitude, List<Double> boundingBox, Integer radiusMeters) {; private List<LocationSearchResultResponse> executeHereQuery(URI uri, String query) {; public List<LocationSearchResultResponse> searchNearby(double latitude, double longitude, String category, int radiusMeters, int limit) {; public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {; private LocationSearchResultResponse parseHereItem(JsonNode node) {
+- Khai báo: public class HereGeocodingProvider
+
+### Travel_Planner/Travel_Planner/service/impl/ItineraryPlaceServiceImpl.java
+- Khai báo: public class ItineraryPlaceServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/ItineraryServiceImpl.java
-- Types: public class ItineraryServiceImpl implements ItineraryService {
-- Method declarations (excerpt): public PageResponse<ItinerarySummaryResponse> getRecommendations(String currentUsername, int page, int size) {; private void validateFilters(BigDecimal minBudget, BigDecimal maxBudget, Integer minDays, Integer maxDays, Double minRating) {; private Sort parseSort(String sort) {; private Map<Integer, Double> fetchAverageRatings(List<Integer> itineraryIds) {; private ItinerarySummaryResponse mapToSummaryResponse(Itinerary item, Double averageRating) {; public ItineraryDetailResponse getItineraryDetail(Integer id, String currentUsername) {; public ItineraryDetailResponse createItinerary(CreateItineraryRequest request, String currentUsername) {; public ItineraryDetailResponse updateItinerary(Integer id, UpdateItineraryRequest request, String currentUsername) {; public void deleteItinerary(Integer id, String currentUsername) {; public ItineraryDayResponse addDay(Integer itineraryId, CreateDayRequest request, String currentUsername) {; public ItineraryDayResponse updateDay(Integer itineraryId, Integer dayId, UpdateDayRequest request, String currentUsername) {; public void deleteDay(Integer itineraryId, Integer dayId, String currentUsername) {; public ActivityResponse addActivity(Integer itineraryId, Integer dayId, CreateActivityRequest request, String currentUsername) {; public ActivityResponse updateActivity(Integer itineraryId, Integer dayId, Integer activityId, UpdateActivityRequest request, String currentUsername) {; public void deleteActivity(Integer itineraryId, Integer dayId, Integer activityId, String currentUsername) {
+- Khai báo: public class ItineraryServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/LocationIqGeocodingProvider.java
-- Types: public class LocationIqGeocodingProvider implements GeocodingProvider {
-- Method declarations (excerpt): public String getProviderName() {; public boolean isConfigured() {; public List<LocationSearchResultResponse> search(String query, int limit, Double latitude, Double longitude) {; public List<LocationSearchResultResponse> searchInArea(String query, int limit, Double latitude, Double longitude, List<Double> boundingBox, Integer radiusMeters) {; private boolean isLocalityOrRegionalQuery(String query) {; public LocationSearchResultResponse reverseGeocode(double latitude, double longitude) {; private String getPreferredLanguage() {; private LocationSearchResultResponse parseLocationItem(JsonNode node) {; private double parseCoordinate(JsonNode value) {
+- Khai báo: public class LocationIqGeocodingProvider
 
 ### Travel_Planner/Travel_Planner/service/impl/LocationRankingServiceImpl.java
-- Types: public class LocationRankingServiceImpl implements LocationRankingService {; private record ScoredResult(LocationSearchResultResponse item, double score) {
-- Method declarations (excerpt): private boolean isAdministrativeOrCityQuery(String normQuery) {; private boolean isAdministrativePlace(String type, String category) {; private boolean isFoodOrCommercialPlace(String type, String category) {; private boolean matchesServiceIntent(String normQuery, String type, String category) {; private boolean isFoodIntent(String normQuery) {; private boolean isIncompatibleFoodType(String type, String category) {; private String extractSpecifiedRegion(String query) {; public static String normalizeText(String input) {; private boolean isGenericServiceWord(String norm) {; private String stripAdministrativePrefix(String norm) {; private double haversineDistance(double lat1, double lon1, double lat2, double lon2) {; private record ScoredResult(LocationSearchResultResponse item, double score) {
+- Khai báo: public class LocationRankingServiceImpl; private record ScoredResult
 
 ### Travel_Planner/Travel_Planner/service/impl/LocationServiceImpl.java
-- Types: public class LocationServiceImpl implements LocationService {
-- Method declarations (excerpt): public List<LocationSearchResultResponse> searchLocations(String query, Integer limit, Double latitude, Double longitude) {; public List<LocationSearchResultResponse> searchLocationsUnified(String query, Integer limit, String mode, String sessionId) {; public List<LocationSearchResultResponse> searchLocations(String query, Integer limit, Double latitude, Double longitude, String provider, String sessionId) {; private GeographicTargetArea resolveTargetArea(String locationQuery) {; private boolean isIncompatibleFoodCandidate(LocationSearchResultResponse candidate) {; private String extractProvince(String formattedAddress) {; public LocationSearchResultResponse resolveTomTomPlace(String type, String id, String sessionId) {; private void validateOptionalCoordinates(Double latitude, Double longitude) {; public LocationSearchResultResponse reverseGeocode(Double latitude, Double longitude) {; public void clearCaches() {; public long getSearchCacheSize() {; public long getReverseCacheSize() {; private String buildSearchCacheKey(String query, int limit, Double latitude, Double longitude) {
+- Khai báo: public class LocationServiceImpl
+
+### Travel_Planner/Travel_Planner/service/impl/MediaCleanupService.java
+- Khai báo: public class MediaCleanupService; public record ClaimResult
+
+### Travel_Planner/Travel_Planner/service/impl/MessagingServiceImpl.java
+- Khai báo: public class MessagingServiceImpl
+
+### Travel_Planner/Travel_Planner/service/impl/MessagingSettingsServiceImpl.java
+- Khai báo: public class MessagingSettingsServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/OpenRouteServiceRoutingProvider.java
-- Types: public class OpenRouteServiceRoutingProvider implements RoutingProvider {
-- Method declarations (excerpt): public String getProviderName() {; public boolean isConfigured() {; public static String mapModeToProfile(String mode) {; public CachedRouteResult calculateRoute(String mode, List<WaypointCoordinate> waypoints) {
+- Khai báo: public class OpenRouteServiceRoutingProvider
+
+### Travel_Planner/Travel_Planner/service/impl/PlaceAdministrativeAreaServiceImpl.java
+- Khai báo: public class PlaceAdministrativeAreaServiceImpl
+
+### Travel_Planner/Travel_Planner/service/impl/PlaceNormalizationServiceImpl.java
+- Khai báo: public class PlaceNormalizationServiceImpl
+
+### Travel_Planner/Travel_Planner/service/impl/PlaceServiceImpl.java
+- Khai báo: public class PlaceServiceImpl
+
+### Travel_Planner/Travel_Planner/service/impl/PostServiceImpl.java
+- Khai báo: public class PostServiceImpl; private record PostItineraryAttachmentResult
 
 ### Travel_Planner/Travel_Planner/service/impl/ProfileServiceImpl.java
-- Types: public class ProfileServiceImpl implements ProfileService {
-- Method declarations (excerpt): public UserResponse getCurrentProfile(String username) {; public UserResponse updateCurrentProfile(String username, UpdateProfileRequest request) {; private User findUser(String username) {; private String normalize(String value) {; private UserResponse toResponse(User user) {
+- Khai báo: public class ProfileServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/PublicUserServiceImpl.java
-- Types: public class PublicUserServiceImpl implements PublicUserService {
-- Method declarations (excerpt): public PublicProfileResponse getProfile(Integer userId, String viewerUsername) {; public PublicProfileResponse getProfileByHandle(String handle, String viewerUsername) {; public PageResponse<ItinerarySummaryResponse> getItineraries(Integer userId, int page, int size) {; public void follow(Integer targetId, String username) {; public void unfollow(Integer targetId, String username) {; public PageResponse<PublicUserSummaryResponse> getFollowers(Integer userId, int page, int size) {; public PageResponse<PublicUserSummaryResponse> getFollowing(Integer userId, int page, int size) {; private User activeTarget(Integer id) {; private User activeViewer(String username) {; private int safePage(int page) {; private int safeSize(int size) {; private Pageable itineraryPage(int page, int size) {; private Pageable followPage(int page, int size) {; private CreatorSummaryResponse creator(User user) {; private PublicUserSummaryResponse userSummary(User user) {
+- Khai báo: public class PublicUserServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/QueryUnderstandingServiceImpl.java
-- Types: public class QueryUnderstandingServiceImpl implements QueryUnderstandingService {; private record CategoryPrefix(String normalizedPrefix, String category) {}
-- Method declarations (excerpt): private record CategoryPrefix(String normalizedPrefix, String category) {; public ParsedLocationQuery parseQuery(String rawQuery) {; private boolean isAdministrativeLocality(String raw, String normalized) {; private String resolveCategoryFromText(String normalizedText) {; private boolean isGenericCategoryWord(String normalized) {; private boolean isLikelyLocalityOrLandmark(String normalized) {; private boolean isFoodModifier(String normalized) {; public static String normalize(String input) {
+- Khai báo: public class QueryUnderstandingServiceImpl; private record CategoryPrefix
 
 ### Travel_Planner/Travel_Planner/service/impl/RatingServiceImpl.java
-- Types: public class RatingServiceImpl implements RatingService {
-- Method declarations (excerpt): public RatingResponse rateItinerary(Integer itineraryId, RateItineraryRequest request, String currentUsername) {; public UserRatingStatusResponse getUserRating(Integer itineraryId, String currentUsername) {; public RatingSummaryResponse getRatingSummary(Integer itineraryId) {; public DeleteRatingResponse deleteRating(Integer itineraryId, String currentUsername) {; private User getAuthenticatedUser(String currentUsername) {; private Itinerary getPublicActiveItinerary(Integer itineraryId) {
+- Khai báo: public class RatingServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/RouteServiceImpl.java
-- Types: public class RouteServiceImpl implements RouteService {
-- Method declarations (excerpt): public Cache<String, CachedRouteResult> getRouteCache() {; public RouteResponse calculateDayRoute(Integer itineraryId, Integer dayId, String mode, String currentUsername) {; private String normalizeAndValidateMode(String mode) {; private boolean isValidCoordinate(BigDecimal lat, BigDecimal lon) {; public static String buildRouteCacheKey(String mode, List<WaypointCoordinate> coordinates) {; public static String sha256Hex(String input) {
+- Khai báo: public class RouteServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/SavedItineraryServiceImpl.java
-- Types: public class SavedItineraryServiceImpl implements SavedItineraryService {
-- Method declarations (excerpt): public SavedItineraryResponse saveItinerary(Integer itineraryId, String currentUsername) {; public SavedItineraryResponse removeSavedItinerary(Integer itineraryId, String currentUsername) {; public PageResponse<ItinerarySummaryResponse> getUserSavedItineraries(String currentUsername, int page, int size) {; private Itinerary validateAndGetItineraryForSave(Integer itineraryId, User user) {; private Map<Integer, Double> fetchAverageRatings(List<Integer> itineraryIds) {; private ItinerarySummaryResponse mapToSummaryResponse(Itinerary item, Double averageRating) {; private User getAuthenticatedUser(String currentUsername) {
+- Khai báo: public class SavedItineraryServiceImpl
 
 ### Travel_Planner/Travel_Planner/service/impl/TomTomPlacesProvider.java
-- Types: public class TomTomPlacesProvider {
-- Method declarations (excerpt): public boolean isEnabled() {; public List<LocationSearchResultResponse> suggest(String query, int limit, Double latitude, Double longitude, String sessionId) {; public LocationSearchResultResponse details(String type, String id, String sessionId) {; public List<LocationSearchResultResponse> discover(String query, String poiType, Double latitude, Double longitude, String sessionId) {; private Map<String, Object> point(double longitude, double latitude) {; private JsonNode post(String path, Map<String, Object> body, String sessionId, String attributes) {; private JsonNode request(String path, String sessionId, String attributes) {; private void headers(org.springframework.http.HttpHeaders headers, String sessionId, String attributes) {; private String baseUrl() {; private RuntimeException upstreamError(RestClientResponseException ex) {; private List<LocationSearchResultResponse> mapResults(JsonNode response, String sessionId) {; private LocationSearchResultResponse mapResult(JsonNode node, String sessionId, boolean suggestion) {; private void validateType(String type) {
+- Khai báo: public class TomTomPlacesProvider
 
 ### Travel_Planner/Travel_Planner/service/impl/UserHandleServiceImpl.java
-- Types: public class UserHandleServiceImpl implements UserHandleService {
-- Method declarations (excerpt): public String normalize(String handle) {; public boolean isValidFormat(String handle) {; public String generateUniqueHandle(String fullName, Integer userId) {; private String sanitizeFullNameToBase(String fullName) {
+- Khai báo: public class UserHandleServiceImpl
+
+### Travel_Planner/Travel_Planner/service/ItineraryPlaceService.java
+- Khai báo: public interface ItineraryPlaceService
 
 ### Travel_Planner/Travel_Planner/service/ItineraryService.java
-- Types: public interface ItineraryService {
+- Khai báo: public interface ItineraryService
 
 ### Travel_Planner/Travel_Planner/service/LocationRankingService.java
-- Types: public interface LocationRankingService {
+- Khai báo: public interface LocationRankingService
 
 ### Travel_Planner/Travel_Planner/service/LocationRateLimiter.java
-- Types: public class LocationRateLimiter {
-- Method declarations (excerpt): public boolean tryConsume(String key, boolean isAuthenticated) {; public long getAvailableTokens(String key, boolean isAuthenticated) {; public void reset(String key) {; public void clear() {; private Bucket createNewBucket(boolean isAuthenticated) {
+- Khai báo: public class LocationRateLimiter
 
 ### Travel_Planner/Travel_Planner/service/LocationService.java
-- Types: public interface LocationService {
+- Khai báo: public interface LocationService
+
+### Travel_Planner/Travel_Planner/service/MessagingService.java
+- Khai báo: public interface MessagingService
+
+### Travel_Planner/Travel_Planner/service/MessagingSettingsService.java
+- Khai báo: public interface MessagingSettingsService
+
+### Travel_Planner/Travel_Planner/service/PlaceAdministrativeAreaService.java
+- Khai báo: public interface PlaceAdministrativeAreaService
+
+### Travel_Planner/Travel_Planner/service/PlaceNormalizationService.java
+- Khai báo: public interface PlaceNormalizationService
+
+### Travel_Planner/Travel_Planner/service/PlaceService.java
+- Khai báo: public interface PlaceService
+
+### Travel_Planner/Travel_Planner/service/PostService.java
+- Khai báo: public interface PostService
 
 ### Travel_Planner/Travel_Planner/service/ProfileService.java
-- Types: public interface ProfileService {
+- Khai báo: public interface ProfileService
 
 ### Travel_Planner/Travel_Planner/service/PublicUserService.java
-- Types: public interface PublicUserService {
+- Khai báo: public interface PublicUserService
 
 ### Travel_Planner/Travel_Planner/service/QueryUnderstandingService.java
-- Types: public interface QueryUnderstandingService {
+- Khai báo: public interface QueryUnderstandingService
 
 ### Travel_Planner/Travel_Planner/service/RatingService.java
-- Types: public interface RatingService {
+- Khai báo: public interface RatingService
 
 ### Travel_Planner/Travel_Planner/service/RouteService.java
-- Types: public interface RouteService {
+- Khai báo: public interface RouteService
 
 ### Travel_Planner/Travel_Planner/service/RoutingProvider.java
-- Types: public interface RoutingProvider {
+- Khai báo: public interface RoutingProvider
 
 ### Travel_Planner/Travel_Planner/service/SavedItineraryService.java
-- Types: public interface SavedItineraryService {
+- Khai báo: public interface SavedItineraryService
 
 ### Travel_Planner/Travel_Planner/service/UserHandleService.java
-- Types: public interface UserHandleService {
+- Khai báo: public interface UserHandleService
 
 ### Travel_Planner/Travel_Planner/TravelPlannerApplication.java
-- Types: public class TravelPlannerApplication {
-- Method declarations (excerpt): public static void main(String[] args) {
+- Khai báo: public class TravelPlannerApplication
 
 ### Travel_Planner/Travel_Planner/util/HaversineUtil.java
-- Types: public final class HaversineUtil {
-- Method declarations (excerpt): public static double calculateDistanceMeters(double lat1, double lon1, double lat2, double lon2) {; public static double calculateTotalDirectDistanceMeters(List<WaypointCoordinate> waypoints) {
+- Khai báo: public final class HaversineUtil

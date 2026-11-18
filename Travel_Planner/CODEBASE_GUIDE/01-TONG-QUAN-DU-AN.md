@@ -1,40 +1,45 @@
 ﻿# 01. Tổng quan dự án Travel Planner
 
 ## Mục tiêu sản phẩm
-Travel Planner hỗ trợ người dùng tự lập lịch chuyến đi theo ngày và hoạt động, đặt vị trí lên bản đồ, khám phá lịch trình công khai do cộng đồng tạo, lưu/yêu thích, đánh giá/bình luận và theo dõi người tạo. Backend giữ quy tắc nghiệp vụ và dữ liệu; Flutter Mobile tập trung hành trình người dùng; Flutter Web hiện là portal nhỏ cho đăng nhập, hồ sơ và quản trị điểm đến.
+Travel Planner cho phép tạo lịch trình theo ngày/hoạt động, khám phá và lưu lịch trình, quản lý địa điểm, bản đồ, tương tác cộng đồng và nhắn tin. Backend Spring Boot là nguồn nghiệp vụ/API; Flutter Mobile là ứng dụng người dùng chính; Flutter Web hiện là portal quản trị còn nhỏ, chưa phải dashboard hoàn chỉnh.
 
 ## Thành phần và công nghệ
-| Phần | Xác minh trong source | Entry point |
+| Phần | Hiện trạng trong source | Entry point |
 |---|---|---|
-| Backend | Java 22, Spring Boot, Spring MVC, JPA, Spring Security, Validation, JWT, Maven | backend/src/main/java/Travel_Planner/Travel_Planner/TravelPlannerApplication.java |
-| Mobile | Flutter/Dart; http, flutter_map, latlong2, image_picker | frontend/mobile/lib/main.dart |
-| Web | Flutter Web/Dart (không thấy React/Vue/Angular) | frontend/web/lib/main.dart |
-| Database | MySQL qua JDBC/JPA; model classes là entity mapping | backend/src/main/resources/application.properties |
-| Cấu hình | .env.example + Spring properties + dart-define | root .env.example, application*.properties, Flutter constants |
+| Backend | Java 22, Spring Boot, Spring MVC, JPA, Security, Validation, JWT, Maven | `backend/src/main/java/Travel_Planner/Travel_Planner/TravelPlannerApplication.java` |
+| Mobile | Flutter/Dart, REST, flutter_map | `frontend/mobile/lib/main.dart` |
+| Web | Flutter Web/Dart, xác thực, hồ sơ và một số màn hình quản trị | `frontend/web/lib/main.dart` |
+| Database | MySQL qua JDBC/JPA; entity chỉ mô tả mapping trong code | `backend/src/main/resources/application*.properties` |
+| Cấu hình | `.env.example`, Spring properties, `--dart-define` | README và cấu hình từng app |
 
 ## Sơ đồ kiến trúc
 ~~~mermaid
 flowchart LR
-  M[Flutter Mobile] -->|REST JSON + Bearer JWT| API[Spring Boot REST API]
-  W[Flutter Web Portal] -->|REST JSON + Bearer JWT| API
-  API --> SEC[Spring Security + JWT filter]
-  API --> S[Services / business rules]
-  S --> R[Spring Data repositories]
-  R --> E[JPA entities]
-  E --> DB[(MySQL)]
-  S --> GEO[LocationIQ / HERE / TomTom]
-  S --> ROUTE[OpenRouteService]
-  S --> MEDIA[Cloudinary]
-  M -->|Raster tiles| CARTO[CARTO Basemaps]
+ M[Flutter Mobile] -->|REST JSON + JWT| API[Spring Boot API]
+ W[Flutter Web] -->|REST JSON + JWT| API
+ API --> SEC[Spring Security]
+ API --> S[Services]
+ S --> R[Spring Data repositories]
+ R --> DB[(MySQL)]
+ S --> GEO[Geocoding / POI providers]
+ S --> ROUTE[Routing provider]
+ S --> MEDIA[Cloudinary]
+ M -->|map tiles| CARTO[CARTO]
 ~~~
+CARTO chỉ cung cấp tile nền. Search POI, geocoding, routing và ảnh là luồng riêng. Provider nào được dùng phụ thuộc cấu hình backend; không suy ra provider đang hoạt động chỉ từ source.
 
-CARTO chỉ tải nền map. Search/reverse-geocode là dịch vụ khác gọi từ client qua backend; route directions cũng là provider riêng. Không gửi credential provider từ Flutter, ngoại trừ CARTO public client key qua dart-define.
+## Tính năng hiện diện trong code
+Auth/session; itinerary/day/activity; map search, reverse geocoding và routing; Place catalog và itinerary-scoped saved places; comment threads; explore, saved/favorite/rating; social feed/posts; profile/follow; chat REST + WebSocket/STOMP; friendships/blocks/messaging settings; upload/media và một phần admin moderation/Place. Mobile notifications hiện là màn hình rỗng, chưa thấy backend notification API. Web hiện có login/profile/admin places/moderation nhưng shell dashboard còn placeholder.
 
-## Tính năng nhìn thấy trong code
-Auth/session; hồ sơ; public handle @handle và tra profile theo handle; CRUD itinerary/day/activity; explore/filter/recommendation; location suggest/search/details/reverse/nearby; map pin/route; comments/replies; rating/favorite/save/follow; image upload; Web admin destination; data seeder. Đây là hiện diện trong source, không xác nhận provider key/runtime hoặc test pass.
+## Quy mô source tại 2026-11-16
+| Phạm vi | Source | Test |
+|---|---:|---:|
+| Backend Java | 267 | 51 |
+| Mobile Dart (`lib`) | 128 | 43 |
+| Web Dart (`lib`) | 27 | 6 |
+| Tổng | 422 | 100 |
 
-## Số lượng đã kiểm kê ở nhánh develop
-Backend 149 Java production + 27 tests. Mobile 100 Dart lib + 32 tests. Web 22 Dart lib + 5 tests. Tổng 271 source và 64 test files, chưa tính config/assets/generated. Thời điểm khảo sát: 2026-11-10.
+Đây là số file source/test theo thư mục lúc kiểm kê, không phải số tính năng hoàn chỉnh hoặc kết quả test. `CODEBASE_GUIDE` giữ nguyên bộ file và thứ tự đánh số đã có; xem các trang chuyên đề và file catalogue để lần theo code.
 
 ## Lộ trình
-02 cây thư mục → 03 backend → 04 Java index → 05 DB → 06 Mobile → 07 feature map và 07A–07F → 08 shared → 09 Web → 10–12 testing → 13 luồng → 14 config → 15 bảo trì → 16 mục lục.
+02 cây thư mục → 03 backend/API/security → 04 Java index → 05 dữ liệu/schema → 06 Mobile → 07 feature catalogue và 07A–07F → 08 core/shared → 09 Web → 10–12 tests → 13 luồng liên ứng dụng → 14 cấu hình → 15 bảo trì → 16 mục lục.
