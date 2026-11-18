@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -5,7 +7,9 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
-import '../../../messaging/presentation/screens/community_screen.dart' as messaging;
+import '../../../messaging/presentation/screens/messaging_inbox_screen.dart';
+import '../../../messaging/presentation/screens/friends_screen.dart';
+import '../../../messaging/data/messaging_realtime_client.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
@@ -34,11 +38,15 @@ class CommunityFeedScreen extends StatefulWidget {
 }
 
 class _CommunityFeedScreenState extends State<CommunityFeedScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabController;
   late final CommunityFeedNotifier _notifier;
   late final CommunityPostRepository _repo;
   late final ScrollController _scrollController;
+  late final MessagingRealtimeClient _realtime;
+  StreamSubscription? _messagingEvents;
+  String? _activeAccountKey;
+  bool _initialFeedLoaded = false;
 
   String? get _token => widget.authNotifier?.token;
   bool get _isAuthenticated => widget.authNotifier?.isAuthenticated == true;
@@ -48,6 +56,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     super.initState();
     _repo = widget.repository ?? CommunityPostRepository();
     _notifier = widget.notifier ?? CommunityFeedNotifier(repository: _repo);
+    _realtime = MessagingRealtimeClient.shared;
+    _messagingEvents = _realtime.events.listen((_) {
+      final token = _token;
+      if (token != null) _notifier.fetchBadges(token);
+    });
+    WidgetsBinding.instance.addObserver(this);
+    widget.authNotifier?.addListener(_authChanged);
     _tabController = TabController(length: 2, vsync: this);
     _scrollController = ScrollController();
 
@@ -64,28 +79,64 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       }
     });
 
-    _notifier.loadInitial(_token);
+    _authChanged();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _scrollController.dispose();
+    _messagingEvents?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    widget.authNotifier?.removeListener(_authChanged);
     super.dispose();
   }
 
-  void _openChatInbox() {
+  void _authChanged() {
+    final auth = widget.authNotifier;
+    if (auth?.isAuthenticated != true || auth?.token == null) {
+      final hadAccount = _activeAccountKey != null;
+      _activeAccountKey = null;
+      if (hadAccount) _notifier.resetForAccount();
+      if (!_initialFeedLoaded || hadAccount) {
+        _initialFeedLoaded = true;
+        _notifier.loadInitial(null);
+      }
+      return;
+    }
+    final accountKey = '${auth!.currentUser?['userId'] ?? ''}';
+    if (_activeAccountKey != accountKey) {
+      _activeAccountKey = accountKey;
+      _notifier.resetForAccount();
+      _initialFeedLoaded = true;
+      _notifier.loadInitial(auth.token);
+    } else {
+      _notifier.fetchBadges(auth.token!);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _token != null) {
+      _notifier.fetchBadges(_token!);
+    }
+  }
+
+  Future<void> _openChatInbox({int initialTab = 0}) async {
     if (!_isAuthenticated) {
       _showLoginRequiredPrompt('trò chuyện cùng bạn bè');
       return;
     }
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => messaging.CommunityScreen(
-          authNotifier: widget.authNotifier,
-        ),
+        builder: (_) => switch (initialTab) {
+          1 => FriendsScreen(authNotifier: widget.authNotifier!),
+          2 => FriendsScreen(authNotifier: widget.authNotifier!, initialTab: 1),
+          _ => MessagingInboxScreen(authNotifier: widget.authNotifier!),
+        },
       ),
     );
+    if (mounted && _token != null) _notifier.fetchBadges(_token!);
   }
 
   void _showLoginRequiredPrompt(String action) {
@@ -136,7 +187,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xác nhận xóa bài viết'),
-        content: const Text('Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.'),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -155,9 +208,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         await _repo.deletePost(post.postId, token: _token!);
         _notifier.removePost(post.postId);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa bài viết')),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Đã xóa bài viết')));
         }
       } catch (_) {
         if (mounted) {
@@ -209,12 +261,12 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     );
   }
 
-  void _openUserProfile(int userId) {
+  Future<void> _openUserProfile(int userId) async {
     if (userId <= 0) return;
     final currentUserId = int.tryParse(
       '${widget.authNotifier?.currentUser?['userId'] ?? ''}',
     );
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => currentUserId == userId && widget.authNotifier != null
             ? ProfileScreen(authNotifier: widget.authNotifier!)
@@ -224,6 +276,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               ),
       ),
     );
+    if (mounted && _token != null) _notifier.fetchBadges(_token!);
   }
 
   @override
@@ -242,10 +295,25 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
             actions: [
               // Chat Inbox Shortcut
               IconButton(
+                tooltip: 'Bạn bè và lời mời',
+                icon: Badge(
+                  isLabelVisible: _notifier.friendRequestsCount > 0,
+                  label: Text('${_notifier.friendRequestsCount}'),
+                  child: const Icon(Icons.person_add_alt_1_outlined, size: 22),
+                ),
+                onPressed: () => _openChatInbox(initialTab: 2),
+              ),
+              IconButton(
                 tooltip: 'Tin nhắn',
                 icon: Badge(
-                  isLabelVisible: _notifier.unreadMessagesCount > 0,
-                  label: Text('${_notifier.unreadMessagesCount}'),
+                  isLabelVisible: _notifier.unreadMessagesTotal > 0,
+                  label: _notifier.unreadMessagesTotal > 0
+                      ? Text(
+                          _notifier.unreadMessagesTotal > 99
+                              ? '99+'
+                              : '${_notifier.unreadMessagesTotal}',
+                        )
+                      : null,
                   child: const Icon(Icons.chat_bubble_outline, size: 22),
                 ),
                 onPressed: _openChatInbox,
@@ -269,7 +337,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               preferredSize: const Size.fromHeight(48),
               child: Container(
                 decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.hairlineSoft, width: 1)),
+                  border: Border(
+                    bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
+                  ),
                 ),
                 child: TabBar(
                   controller: _tabController,
@@ -277,7 +347,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                   unselectedLabelColor: AppColors.muted,
                   indicatorColor: AppColors.primary,
                   indicatorWeight: 2.5,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
                   tabs: const [
                     Tab(text: 'Dành cho bạn'),
                     Tab(text: 'Đang theo dõi'),
@@ -292,7 +365,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
             elevation: 3,
             onPressed: _openCreatePost,
             icon: const Icon(Icons.edit_note, size: 24),
-            label: const Text('Đăng bài', style: TextStyle(fontWeight: FontWeight.w700)),
+            label: const Text(
+              'Đăng bài',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
           body: TabBarView(
             controller: _tabController,
@@ -309,9 +385,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     );
   }
 
-  Widget _buildFeedStream(List<PostModel> posts, {required bool isFollowingTab}) {
+  Widget _buildFeedStream(
+    List<PostModel> posts, {
+    required bool isFollowingTab,
+  }) {
     if (_notifier.isLoading && posts.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
 
     if (_notifier.error != null && posts.isEmpty) {
@@ -319,7 +400,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_notifier.error!, style: const TextStyle(color: AppColors.muted)),
+            Text(
+              _notifier.error!,
+              style: const TextStyle(color: AppColors.muted),
+            ),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () => _notifier.refresh(_token),
@@ -334,7 +418,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       return const AppEmptyState(
         icon: Icons.people_outline,
         title: 'Theo dõi bạn bè và người sáng tạo',
-        message: 'Đăng nhập để xem bài viết từ những người bạn theo dõi và bạn bè.',
+        message:
+            'Đăng nhập để xem bài viết từ những người bạn theo dõi và bạn bè.',
       );
     }
 
