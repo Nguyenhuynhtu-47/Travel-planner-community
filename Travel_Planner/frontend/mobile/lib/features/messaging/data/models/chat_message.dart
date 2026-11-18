@@ -1,3 +1,5 @@
+import '../messaging_date_time.dart';
+
 class ChatMessage {
   final int? messageId;
   final int conversationId;
@@ -11,6 +13,8 @@ class ChatMessage {
   final DateTime createdAt;
   final bool sending;
   final bool failed;
+  final String? conversationStatus;
+  final bool recipientVisible;
 
   const ChatMessage({
     required this.messageId,
@@ -25,6 +29,8 @@ class ChatMessage {
     required this.createdAt,
     this.sending = false,
     this.failed = false,
+    this.conversationStatus,
+    this.recipientVisible = true,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -41,8 +47,10 @@ class ChatMessage {
     clientMessageId: json['clientMessageId']?.toString() ?? '',
     content: json['content']?.toString() ?? '',
     createdAt:
-        DateTime.tryParse(json['createdAt']?.toString() ?? '')?.toLocal() ??
-        DateTime.fromMillisecondsSinceEpoch(0),
+        MessagingDateTime.parseApi(json['createdAt']) ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    conversationStatus: json['conversationStatus']?.toString().toUpperCase(),
+    recipientVisible: json['recipientVisible'] != false,
   );
 
   ChatMessage copyWith({
@@ -50,6 +58,8 @@ class ChatMessage {
     int? sequenceNumber,
     bool? sending,
     bool? failed,
+    String? conversationStatus,
+    bool? recipientVisible,
   }) => ChatMessage(
     messageId: messageId ?? this.messageId,
     conversationId: conversationId,
@@ -63,5 +73,7 @@ class ChatMessage {
     createdAt: createdAt,
     sending: sending ?? this.sending,
     failed: failed ?? this.failed,
+    conversationStatus: conversationStatus ?? this.conversationStatus,
+    recipientVisible: recipientVisible ?? this.recipientVisible,
   );
 }

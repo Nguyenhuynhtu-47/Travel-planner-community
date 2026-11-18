@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../data/messaging_date_time.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -11,18 +12,22 @@ import '../../data/messaging_repository.dart';
 import '../../data/messaging_realtime_client.dart';
 import '../../data/models/conversation_summary.dart';
 import '../../data/models/friend_request.dart';
+import '../../../profile/presentation/screens/public_profile_screen.dart';
 import 'chat_screen.dart';
 import 'messaging_settings_screen.dart';
+import 'user_search_screen.dart';
 
 class CommunityScreen extends StatefulWidget {
   final AuthNotifier? authNotifier;
   final MessagingRealtimeClient? realtime;
   final MessagingRepository? repository;
+  final int initialTab;
   const CommunityScreen({
     super.key,
     this.authNotifier,
     this.realtime,
     this.repository,
+    this.initialTab = 0,
   });
   @override
   State<CommunityScreen> createState() => _CommunityScreenState();
@@ -30,15 +35,17 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  late final TabController _tabs;
   late final MessagingRepository _repo =
       widget.repository ?? MessagingRepository();
   late final MessagingRealtimeClient _realtime =
       widget.realtime ?? MessagingRealtimeClient.shared;
   StreamSubscription? _events;
   List<ConversationSummary> _conversations = [];
+  List<ConversationSummary> _messageRequests = [];
   List<dynamic> _friends = [];
   List<FriendRequest> _incoming = [], _outgoing = [];
+  int _incomingTotal = 0, _messageRequestTotal = 0;
   bool _loading = false;
   String? _activeAccountKey;
   String? _error;
@@ -46,6 +53,12 @@ class _CommunityScreenState extends State<CommunityScreen>
   @override
   void initState() {
     super.initState();
+    final initialTab = widget.initialTab < 0
+        ? 0
+        : widget.initialTab > 3
+        ? 3
+        : widget.initialTab;
+    _tabs = TabController(length: 4, initialIndex: initialTab, vsync: this);
     widget.authNotifier?.addListener(_authChanged);
     _events = _realtime.events.listen((event) {
       if (mounted) _load();
@@ -72,6 +85,9 @@ class _CommunityScreenState extends State<CommunityScreen>
           _friends = [];
           _incoming = [];
           _outgoing = [];
+          _messageRequests = [];
+          _incomingTotal = 0;
+          _messageRequestTotal = 0;
         });
       }
       _activeAccountKey = id;
@@ -80,13 +96,17 @@ class _CommunityScreenState extends State<CommunityScreen>
     } else {
       _activeAccountKey = null;
       _realtime.disconnect();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _conversations = [];
           _friends = [];
           _incoming = [];
           _outgoing = [];
+          _messageRequests = [];
+          _incomingTotal = 0;
+          _messageRequestTotal = 0;
         });
+      }
     }
   }
 
@@ -95,11 +115,13 @@ class _CommunityScreenState extends State<CommunityScreen>
     if (token == null) return;
     if (mounted) setState(() => _loading = true);
     try {
-      final values = await Future.wait([
+      final values = await Future.wait<dynamic>([
         _repo.conversations(token),
         _repo.friends(token),
         _repo.requests(token, 'received'),
         _repo.requests(token, 'sent'),
+        _repo.messageRequests(token),
+        _repo.pendingMessageRequestCount(token),
       ]);
       if (!mounted) return;
       setState(() {
@@ -107,11 +129,15 @@ class _CommunityScreenState extends State<CommunityScreen>
         _friends = values[1].content;
         _incoming = values[2].content as List<FriendRequest>;
         _outgoing = values[3].content as List<FriendRequest>;
+        _messageRequests = values[4].content as List<ConversationSummary>;
+        _incomingTotal = values[2].totalElements;
+        _messageRequestTotal = values[5] as int;
         _error = null;
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Không tải được tin nhắn và bạn bè.');
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -135,23 +161,48 @@ class _CommunityScreenState extends State<CommunityScreen>
     _load();
   }
 
+  Future<void> _openProfile(int userId) async {
+    final auth = widget.authNotifier;
+    if (auth == null || userId <= 0) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicProfileScreen(userId: userId, authNotifier: auth),
+      ),
+    );
+    if (mounted) _load();
+  }
+
   Widget _avatar(String? url) => CircleAvatar(
-    backgroundImage: url?.isNotEmpty == true ? NetworkImage(url!) : null,
-    child: url?.isNotEmpty == true ? null : const Icon(Icons.person_outline),
+    backgroundColor: AppColors.surfaceStrong,
+    child: url?.trim().isNotEmpty == true
+        ? ClipOval(
+            child: Image.network(
+              url!,
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.person_outline, color: AppColors.muted),
+            ),
+          )
+        : const Icon(Icons.person_outline, color: AppColors.muted),
   );
   Widget _inbox() {
-    if (_loading && _conversations.isEmpty)
+    if (_loading && _conversations.isEmpty) {
       return const Center(child: CircularProgressIndicator());
-    if (_error != null && _conversations.isEmpty)
+    }
+    if (_error != null && _conversations.isEmpty) {
       return Center(
         child: TextButton(onPressed: _load, child: Text(_error!)),
       );
-    if (_conversations.isEmpty)
+    }
+    if (_conversations.isEmpty) {
       return const AppEmptyState(
         icon: Icons.chat_bubble_outline,
         title: 'Chưa có tin nhắn',
         message: 'Mở hồ sơ một người bạn để bắt đầu trò chuyện.',
       );
+    }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
@@ -172,7 +223,9 @@ class _CommunityScreenState extends State<CommunityScreen>
               children: [
                 if (c.updatedAt != null)
                   Text(
-                    c.updatedAt!.toLocal().toString(),
+                    MessagingDateTime.format(
+                      c.lastMessage?.createdAt ?? c.updatedAt!,
+                    ),
                     style: const TextStyle(
                       fontSize: 10,
                       color: AppColors.muted,
@@ -189,14 +242,16 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Widget _friendsTab() {
-    if (_loading && _friends.isEmpty)
+    if (_loading && _friends.isEmpty) {
       return const Center(child: CircularProgressIndicator());
-    if (_friends.isEmpty)
+    }
+    if (_friends.isEmpty) {
       return const AppEmptyState(
         icon: Icons.people_outline,
         title: 'Chưa có bạn bè',
         message: 'Kết nối với người dùng qua hồ sơ công khai.',
       );
+    }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -205,6 +260,7 @@ class _CommunityScreenState extends State<CommunityScreen>
               (u) => ListTile(
                 leading: _avatar(u.avatar),
                 title: Text(_name(u)),
+                onTap: () => _openProfile(u.userId),
                 trailing: IconButton(
                   tooltip: 'Nhắn tin',
                   icon: const Icon(Icons.chat_outlined),
@@ -213,12 +269,13 @@ class _CommunityScreenState extends State<CommunityScreen>
                       final c = await _repo.openDirect(u.userId, _token!);
                       if (mounted) _open(c);
                     } catch (_) {
-                      if (mounted)
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Không thể mở cuộc trò chuyện.'),
                           ),
                         );
+                      }
                     }
                   },
                 ),
@@ -249,8 +306,12 @@ class _CommunityScreenState extends State<CommunityScreen>
             ),
           ..._incoming.map(
             (r) => ListTile(
-              leading: _avatar(r.otherUser.avatar),
+              leading: GestureDetector(
+                onTap: () => _openProfile(r.otherUser.userId),
+                child: _avatar(r.otherUser.avatar),
+              ),
               title: Text(_name(r.otherUser)),
+              onTap: () => _openProfile(r.otherUser.userId),
               trailing: Wrap(
                 children: [
                   IconButton(
@@ -282,8 +343,12 @@ class _CommunityScreenState extends State<CommunityScreen>
             ),
           ..._outgoing.map(
             (r) => ListTile(
-              leading: _avatar(r.otherUser.avatar),
+              leading: GestureDetector(
+                onTap: () => _openProfile(r.otherUser.userId),
+                child: _avatar(r.otherUser.avatar),
+              ),
               title: Text(_name(r.otherUser)),
+              onTap: () => _openProfile(r.otherUser.userId),
               subtitle: const Text('Đang chờ phản hồi'),
               trailing: TextButton(
                 onPressed: () async {
@@ -295,6 +360,62 @@ class _CommunityScreenState extends State<CommunityScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _strangerRequests() {
+    if (_loading && _messageRequests.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_messageRequests.isEmpty) {
+      return const AppEmptyState(
+        icon: Icons.markunread_mailbox_outlined,
+        title: 'Chưa có yêu cầu tin nhắn',
+        message: 'Tin nhắn từ người chưa kết bạn sẽ xuất hiện ở đây.',
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        children: _messageRequests.map((request) {
+          final peer = request.peer;
+          return ListTile(
+            leading: GestureDetector(
+              onTap: () => _openProfile(peer.userId),
+              child: _avatar(peer.avatar),
+            ),
+            title: Text(_name(peer)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  request.lastMessage?.content ?? 'Yêu cầu tin nhắn mới',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (request.lastMessage?.createdAt != null ||
+                    request.updatedAt != null)
+                  Text(
+                    MessagingDateTime.format(
+                      request.lastMessage?.createdAt ?? request.updatedAt!,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.muted,
+                    ),
+                  ),
+              ],
+            ),
+            onTap: () => _open(request),
+            trailing: IconButton(
+              tooltip: 'Xem yêu cầu',
+              icon: const Icon(Icons.chevron_right),
+              onPressed: () => _open(request),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -311,6 +432,17 @@ class _CommunityScreenState extends State<CommunityScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
+          if (auth?.isAuthenticated == true)
+            IconButton(
+              tooltip: 'Tìm người dùng',
+              icon: const Icon(Icons.person_search_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      UserSearchScreen(authNotifier: auth!, repository: _repo),
+                ),
+              ),
+            ),
           if (auth?.isAuthenticated == true)
             IconButton(
               tooltip: 'Quyền riêng tư tin nhắn',
@@ -347,19 +479,34 @@ class _CommunityScreenState extends State<CommunityScreen>
                 TabBar(
                   controller: _tabs,
                   labelColor: AppColors.primary,
+                  isScrollable: true,
                   tabs: [
                     Tab(
                       text:
                           'Tin nhắn${_conversations.isNotEmpty ? ' (${_conversations.length})' : ''}',
                     ),
                     const Tab(text: 'Bạn bè'),
-                    const Tab(text: 'Lời mời'),
+                    Tab(
+                      text: _incomingTotal > 0
+                          ? 'Lời mời ($_incomingTotal)'
+                          : 'Lời mời',
+                    ),
+                    Tab(
+                      text: _messageRequestTotal > 0
+                          ? 'Người lạ ($_messageRequestTotal)'
+                          : 'Người lạ',
+                    ),
                   ],
                 ),
                 Expanded(
                   child: TabBarView(
                     controller: _tabs,
-                    children: [_inbox(), _friendsTab(), _requests()],
+                    children: [
+                      _inbox(),
+                      _friendsTab(),
+                      _requests(),
+                      _strangerRequests(),
+                    ],
                   ),
                 ),
               ],

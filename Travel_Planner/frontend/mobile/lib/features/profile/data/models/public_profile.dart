@@ -13,6 +13,7 @@ class PublicProfile {
   final String? friendshipStatus;
   final String? friendRequestDirection;
   final bool canMessage;
+  final bool canContinueConversation;
   final bool canSendFriendRequest;
 
   const PublicProfile({
@@ -30,6 +31,7 @@ class PublicProfile {
     this.friendshipStatus,
     this.friendRequestDirection,
     this.canMessage = false,
+    this.canContinueConversation = false,
     this.canSendFriendRequest = false,
   });
 
@@ -50,6 +52,7 @@ class PublicProfile {
     friendshipStatus: json['friendshipStatus']?.toString(),
     friendRequestDirection: json['friendRequestDirection']?.toString(),
     canMessage: json['canMessage'] == true,
+    canContinueConversation: json['canContinueConversation'] == true,
     canSendFriendRequest: json['canSendFriendRequest'] == true,
   );
 
@@ -72,6 +75,7 @@ class PublicProfile {
     friendshipStatus: friendshipStatus,
     friendRequestDirection: friendRequestDirection,
     canMessage: canMessage,
+    canContinueConversation: canContinueConversation,
     canSendFriendRequest: canSendFriendRequest,
   );
 }

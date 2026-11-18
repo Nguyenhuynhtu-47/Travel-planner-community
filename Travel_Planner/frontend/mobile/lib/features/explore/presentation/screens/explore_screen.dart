@@ -1,4 +1,5 @@
 import '../../../social/data/models/social_state_update.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -12,6 +13,7 @@ import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../messaging/presentation/screens/user_search_screen.dart';
 import '../../data/models/itinerary_summary.dart';
 import '../explore_notifier.dart';
 import '../widgets/compact_itinerary_card.dart';
@@ -112,10 +114,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   void _navigateToCreator(int? userId) {
     if (userId == null || userId <= 0) return;
-    final currentId = int.tryParse('${widget.authNotifier.currentUser?['userId'] ?? ''}');
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => currentId == userId
-        ? ProfileScreen(authNotifier: widget.authNotifier)
-        : PublicProfileScreen(userId: userId, authNotifier: widget.authNotifier)));
+    final currentId = int.tryParse(
+      '${widget.authNotifier.currentUser?['userId'] ?? ''}',
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => currentId == userId
+            ? ProfileScreen(authNotifier: widget.authNotifier)
+            : PublicProfileScreen(
+                userId: userId,
+                authNotifier: widget.authNotifier,
+              ),
+      ),
+    );
   }
 
   void _navigateToDetail(ItinerarySummary itinerary) async {
@@ -163,14 +174,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return;
     }
 
-    final currentUsername = widget.authNotifier.currentUser?['username']?.toString().trim();
+    final currentUsername = widget.authNotifier.currentUser?['username']
+        ?.toString()
+        .trim();
     final currentUserId = widget.authNotifier.currentUser?['userId'] is num
         ? (widget.authNotifier.currentUser!['userId'] as num).toInt()
-        : int.tryParse(widget.authNotifier.currentUser?['userId']?.toString() ?? '');
-    final isOwner = (currentUserId != null && itinerary.creator?.userId == currentUserId) ||
+        : int.tryParse(
+            widget.authNotifier.currentUser?['userId']?.toString() ?? '',
+          );
+    final isOwner =
+        (currentUserId != null && itinerary.creator?.userId == currentUserId) ||
         (currentUsername != null &&
             itinerary.creator?.username != null &&
-            itinerary.creator!.username.toLowerCase() == currentUsername.toLowerCase());
+            itinerary.creator!.username.toLowerCase() ==
+                currentUsername.toLowerCase());
 
     if (isOwner) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -192,7 +209,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình'),
+            content: Text(
+              nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình',
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -200,10 +219,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
         );
       }
     }
@@ -253,6 +269,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ],
             ),
             actions: [
+              if (isAuthenticated)
+                IconButton(
+                  tooltip: 'Tìm người dùng',
+                  icon: const Icon(Icons.person_search_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          UserSearchScreen(authNotifier: widget.authNotifier),
+                    ),
+                  ),
+                ),
               IconButton(
                 tooltip: 'Thông báo',
                 icon: const Icon(Icons.notifications_outlined),
@@ -334,7 +361,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                            icon: const Icon(
+                              Icons.arrow_back_rounded,
+                              size: 20,
+                            ),
                             onPressed: () => _exploreNotifier.closeViewingAll(
                               token: widget.authNotifier.token,
                             ),
@@ -350,7 +380,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              _getViewingAllTitle(_exploreNotifier.viewingAllSection),
+                              _getViewingAllTitle(
+                                _exploreNotifier.viewingAllSection,
+                              ),
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -538,8 +570,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return AppEmptyState(
         key: const ValueKey('explore_empty'),
         title: 'Không tìm thấy lịch trình',
-        message:
-            'Thử thay đổi từ khóa hoặc đặt lại bộ lọc để khám phá các chuyến đi khác.',
+        message: 'Thử thay đổi từ khóa hoặc đặt lại bộ lọc để khám phá các chuyến đi khác.',
         actionText: 'Đặt lại bộ lọc',
         onActionPressed: () {
           _searchController.clear();
@@ -559,7 +590,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        itemCount: itineraries.length + (_exploreNotifier.isLoadingMore ? 1 : 0),
+        itemCount:
+            itineraries.length + (_exploreNotifier.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == itineraries.length) {
             return const Padding(
@@ -610,8 +642,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return AppEmptyState(
         key: const ValueKey('explore_empty'),
         title: 'Không tìm thấy lịch trình',
-        message:
-            'Thử thay đổi từ khóa hoặc đặt lại bộ lọc để khám phá các chuyến đi khác.',
+        message: 'Thử thay đổi từ khóa hoặc đặt lại bộ lọc để khám phá các chuyến đi khác.',
         actionText: 'Đặt lại bộ lọc',
         onActionPressed: () {
           _searchController.clear();
@@ -629,7 +660,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
       ..._exploreNotifier.recentSection.items,
       ..._exploreNotifier.itineraries,
     ];
-    final totalUniqueCount = allItemsPool.map((e) => e.itineraryId).toSet().length;
+    final totalUniqueCount = allItemsPool
+        .map((e) => e.itineraryId)
+        .toSet()
+        .length;
 
     // If there is only 1 itinerary in total (e.g. in test mock), let Section F render it via ItineraryCard
     final isSingleItemMode = totalUniqueCount <= 1;
@@ -668,9 +702,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return RefreshIndicator(
       key: const ValueKey('explore_homepage_refresh'),
       color: AppColors.primary,
-      onRefresh: () => _exploreNotifier.refreshAll(
-        token: widget.authNotifier.token,
-      ),
+      onRefresh: () =>
+          _exploreNotifier.refreshAll(token: widget.authNotifier.token),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 32),
@@ -685,7 +718,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
             _buildSectionEThemes(),
 
             // Section B: Gợi ý cho bạn (Recommended For You)
-            if (!isSingleItemMode || _exploreNotifier.recommendedSection.isLoading)
+            if (!isSingleItemMode ||
+                _exploreNotifier.recommendedSection.isLoading)
               _buildSectionBRecommended(recommendedItems, isAuthenticated),
 
             // Section C: Đánh giá cao nhất (Top Rated)
@@ -873,7 +907,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           const SectionSkeletonLoader(cardWidth: 195, cardHeight: 230)
         else if (state.isError && items.isEmpty)
           SectionErrorView(
-            message: state.errorMessage ?? 'Không thể tải chuyến đi đánh giá cao',
+            message:
+                state.errorMessage ?? 'Không thể tải chuyến đi đánh giá cao',
             onRetry: () => _exploreNotifier.retrySection(
               HomeSectionType.topRated,
               token: widget.authNotifier.token,

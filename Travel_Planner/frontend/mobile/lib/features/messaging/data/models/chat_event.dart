@@ -7,6 +7,8 @@ class ChatEvent {
   final int? sequenceNumber;
   final ChatMessage? message;
   final int? readerUserId;
+  final int? blockedByUserId;
+  final int? blockedUserId;
 
   const ChatEvent({
     required this.eventId,
@@ -15,6 +17,8 @@ class ChatEvent {
     this.sequenceNumber,
     this.message,
     this.readerUserId,
+    this.blockedByUserId,
+    this.blockedUserId,
   });
 
   factory ChatEvent.fromJson(Map<String, dynamic> json) => ChatEvent(
@@ -28,5 +32,7 @@ class ChatEvent {
           )
         : null,
     readerUserId: (json['readerUserId'] as num?)?.toInt(),
+    blockedByUserId: (json['blockedByUserId'] as num?)?.toInt(),
+    blockedUserId: (json['blockedUserId'] as num?)?.toInt(),
   );
 }

@@ -5,6 +5,7 @@ import 'models/chat_message.dart';
 import 'models/conversation_summary.dart';
 import 'models/friend_request.dart';
 import 'models/messaging_settings.dart';
+import 'models/user_search_result.dart';
 
 class MessagingRepository {
   final ApiClient _api;
@@ -20,6 +21,78 @@ class MessagingRepository {
       queryParameters: {'page': page, 'size': 30},
     ),
     ConversationSummary.fromJson,
+  );
+
+  Future<PageResult<UserSearchResult>> searchUsers(
+    String query,
+    String token, {
+    int page = 0,
+    int size = 20,
+  }) async => _page(
+    await _api.get(
+      '/api/users/search',
+      token: token,
+      queryParameters: {'q': query, 'page': page, 'size': size},
+    ),
+    UserSearchResult.fromJson,
+  );
+
+  Future<PageResult<ConversationSummary>> messageRequests(
+    String token, {
+    int page = 0,
+  }) async => _page(
+    await _api.get(
+      '/api/conversations/message-requests',
+      token: token,
+      queryParameters: {'page': page, 'size': 30},
+    ),
+    ConversationSummary.fromJson,
+  );
+
+  Future<int> pendingMessageRequestCount(String token) async {
+    final response = await _api.get(
+      '/api/conversations/message-requests/count',
+      token: token,
+    );
+    return (Map<String, dynamic>.from(response as Map)['count'] as num?)
+            ?.toInt() ??
+        0;
+  }
+
+  Future<int> unreadMessageRequestCount(String token) async {
+    final response = await _api.get(
+      '/api/conversations/message-requests/unread-count',
+      token: token,
+    );
+    return (Map<String, dynamic>.from(response as Map)['count'] as num?)
+            ?.toInt() ??
+        0;
+  }
+
+  Future<ConversationSummary> acceptMessageRequest(
+    int conversationId,
+    String token,
+  ) async => ConversationSummary.fromJson(
+    Map<String, dynamic>.from(
+      await _api.post(
+        '/api/conversations/$conversationId/accept',
+        token: token,
+        body: const {},
+      ) as Map,
+    ),
+  );
+
+  Future<ConversationSummary> declineMessageRequest(
+    int conversationId,
+    String token,
+  ) async => ConversationSummary.fromJson(
+    Map<String, dynamic>.from(
+      await _api.post(
+        '/api/conversations/$conversationId/decline',
+        token: token,
+        body: const {},
+      ) as Map,
+    ),
   );
 
   Future<ConversationSummary> openDirect(int recipientId, String token) async =>

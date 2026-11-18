@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
@@ -14,6 +15,7 @@ import '../../data/public_profile_repository.dart';
 import '../../../messaging/data/messaging_repository.dart';
 import '../../../messaging/data/messaging_realtime_client.dart';
 import '../../../messaging/presentation/screens/chat_screen.dart';
+import '../../../messaging/data/models/conversation_summary.dart';
 import 'profile_screen.dart';
 import 'public_user_list_screen.dart';
 
@@ -213,20 +215,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
-  Future<void> _openConversation() async {
+  Future<void> _openConversation(PublicProfile profile) async {
     final token = _token;
     if (token == null || widget.authNotifier == null) return;
     try {
       final conversation = await _messaging.openDirect(widget.userId, token);
-      final realtime = MessagingRealtimeClient()
+      final realtime = MessagingRealtimeClient.shared
         ..connect(
           token,
           '${widget.authNotifier!.currentUser?['userId'] ?? ''}',
         );
-      if (!mounted) {
-        realtime.dispose();
-        return;
-      }
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ChatScreen(
@@ -239,6 +238,39 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       );
 
       _load();
+    } on ApiException catch (error) {
+      if (error.statusCode == 403 && mounted) {
+        final preview = ConversationSummary(
+          conversationId: -1,
+          peer: PublicUserSummary(
+            userId: profile.userId,
+            handle: profile.handle,
+            username: profile.handle,
+            fullName: profile.fullName,
+            avatar: profile.avatar,
+          ),
+          lastMessageSequence: 0,
+          unreadCount: 0,
+          canSendMessage: false,
+          status: 'UNAVAILABLE',
+        );
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => ChatScreen(
+              authNotifier: widget.authNotifier!,
+              repository: _messaging,
+              realtime: MessagingRealtimeClient.shared,
+              conversation: preview,
+              initialSystemNotice: 'Người này hiện không nhận tin nhắn mới từ người chưa kết bạn hoặc đang giới hạn liên hệ. Hãy gửi lời mời kết bạn hoặc kiểm tra lại cài đặt quyền riêng tư.',
+            ),
+          ),
+        );
+        return;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } catch (_) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -256,14 +288,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final pending = profile.friendshipStatus == 'PENDING';
     final accepted = profile.friendshipStatus == 'ACCEPTED';
     final actions = <Widget>[];
-    if (profile.canMessage)
-      actions.add(
-        OutlinedButton.icon(
-          onPressed: _relationshipBusy ? null : _openConversation,
-          icon: const Icon(Icons.chat_bubble_outline),
-          label: const Text('Nhắn tin'),
-        ),
-      );
     if (accepted)
       actions.add(
         TextButton(
@@ -424,10 +448,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 0.5,
-            color: AppColors.hairlineSoft,
-          ),
+          child: Container(height: 0.5, color: AppColors.hairlineSoft),
         ),
       ),
       body: RefreshIndicator(
@@ -447,7 +468,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                       : null,
                   child: profile.avatar?.isNotEmpty == true
                       ? null
-                      : const Icon(Icons.person_outline, size: 38, color: AppColors.textSecondary),
+                      : const Icon(
+                          Icons.person_outline,
+                          size: 38,
+                          color: AppColors.textSecondary,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -529,7 +554,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Text(
                                     'Đang theo dõi',
@@ -567,11 +594,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                   ),
                           ),
                   ),
-                  if (profile.canMessage) ...[
+                  if (profile.canMessage ||
+                      profile.canContinueConversation ||
+                      profile.friendshipStatus != 'UNAVAILABLE') ...[
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _openConversation,
+                        onPressed: () => _openConversation(profile),
                         icon: const Icon(Icons.chat_bubble_outline, size: 16),
                         label: const Text(
                           'Nhắn tin',
@@ -589,7 +618,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   ],
                 ],
               ),
-              if (profile.canSendFriendRequest || profile.friendshipStatus != null) ...[
+              if (profile.canSendFriendRequest ||
+                  profile.friendshipStatus != null) ...[
                 const SizedBox(height: 8),
                 _relationshipActions(profile),
               ],
@@ -619,7 +649,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             // Itineraries Header
             Row(
               children: [
-                const Icon(Icons.map_outlined, size: 18, color: AppColors.primary),
+                const Icon(
+                  Icons.map_outlined,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(width: 6),
                 const Text(
                   'Lịch trình công khai',
@@ -631,7 +665,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceSoft,
                     borderRadius: BorderRadius.circular(12),

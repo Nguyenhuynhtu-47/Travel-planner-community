@@ -6,7 +6,13 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../../../core/constants/api_constants.dart';
 import 'models/chat_event.dart';
 
-enum RealtimeStatus { disconnected, connecting, connected }
+enum RealtimeStatus {
+  disconnected,
+  connecting,
+  connected,
+  reconnecting,
+  failed,
+}
 
 class MessagingRealtimeClient {
   static final MessagingRealtimeClient shared = MessagingRealtimeClient();
@@ -44,10 +50,10 @@ class MessagingRealtimeClient {
     if (expiry == null || !expiry.isAfter(DateTime.now())) {
       _token = null;
       _accountKey = null;
-      _setStatus(RealtimeStatus.disconnected);
+      _setStatus(RealtimeStatus.failed);
       return;
     }
-    _expiryTimer = Timer(expiry.difference(DateTime.now()), disconnect);
+    _expiryTimer = Timer(expiry.difference(DateTime.now()), _expireSession);
     _openSocket();
   }
 
@@ -106,7 +112,7 @@ class MessagingRealtimeClient {
         _reconnectTimer != null) {
       return;
     }
-    _setStatus(RealtimeStatus.disconnected);
+    _setStatus(RealtimeStatus.reconnecting);
     final seconds = 1 << _reconnectAttempt.clamp(0, 5);
     final delay = Duration(seconds: seconds.clamp(1, 30));
     _reconnectAttempt++;
@@ -136,6 +142,11 @@ class MessagingRealtimeClient {
     _token = null;
     _accountKey = null;
     _setStatus(RealtimeStatus.disconnected);
+  }
+
+  void _expireSession() {
+    disconnect();
+    _setStatus(RealtimeStatus.failed);
   }
 
   DateTime? _tokenExpiry(String value) {

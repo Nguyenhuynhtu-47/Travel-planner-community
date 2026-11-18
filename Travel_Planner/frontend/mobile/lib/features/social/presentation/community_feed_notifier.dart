@@ -1,12 +1,18 @@
 import 'package:flutter/foundation.dart';
+
 import '../data/community_post_repository.dart';
 import '../data/models/post_model.dart';
+import '../../messaging/data/messaging_repository.dart';
 
 class CommunityFeedNotifier extends ChangeNotifier {
   final CommunityPostRepository _repository;
+  final MessagingRepository _messagingRepository;
 
-  CommunityFeedNotifier({CommunityPostRepository? repository})
-      : _repository = repository ?? CommunityPostRepository();
+  CommunityFeedNotifier({
+    CommunityPostRepository? repository,
+    MessagingRepository? messagingRepository,
+  }) : _repository = repository ?? CommunityPostRepository(),
+       _messagingRepository = messagingRepository ?? MessagingRepository();
 
   List<PostModel> _publicPosts = [];
   List<PostModel> _followingPosts = [];
@@ -21,15 +27,19 @@ class CommunityFeedNotifier extends ChangeNotifier {
   bool _hasMorePublic = true;
   bool _hasMoreFollowing = true;
 
-  int _currentTab = 0; // 0 = Public ("Dành cho bạn"), 1 = Following ("Đang theo dõi")
+  int _currentTab =
+      0; // 0 = Public ("Dành cho bạn"), 1 = Following ("Đang theo dõi")
   String? _error;
 
   int _unreadMessagesCount = 0;
   int _friendRequestsCount = 0;
+  int _messageRequestsCount = 0;
+  int _unreadStrangerMessagesCount = 0;
 
   List<PostModel> get publicPosts => List.unmodifiable(_publicPosts);
   List<PostModel> get followingPosts => List.unmodifiable(_followingPosts);
-  List<PostModel> get currentPosts => _currentTab == 0 ? _publicPosts : _followingPosts;
+  List<PostModel> get currentPosts =>
+      _currentTab == 0 ? _publicPosts : _followingPosts;
 
   bool get isLoading => _currentTab == 0 ? _loadingPublic : _loadingFollowing;
   bool get isLoadingMore => _loadingMore;
@@ -37,7 +47,15 @@ class CommunityFeedNotifier extends ChangeNotifier {
   int get currentTab => _currentTab;
   String? get error => _error;
   int get unreadMessagesCount => _unreadMessagesCount;
+  int get unreadMessagesTotal =>
+      _unreadMessagesCount + _unreadStrangerMessagesCount;
   int get friendRequestsCount => _friendRequestsCount;
+  int get messageRequestsCount => _messageRequestsCount;
+  int get unreadStrangerMessagesCount => _unreadStrangerMessagesCount;
+  bool get hasCommunityActivity =>
+      _unreadMessagesCount > 0 ||
+      _friendRequestsCount > 0 ||
+      _unreadStrangerMessagesCount > 0;
 
   void setTab(int tab, String? token) {
     if (_currentTab == tab) return;
@@ -94,7 +112,9 @@ class CommunityFeedNotifier extends ChangeNotifier {
       } else {
         // Section 1.2 Offset pagination client deduplication
         final existingIds = _publicPosts.map((p) => p.postId).toSet();
-        _publicPosts.addAll(uniquePosts.where((p) => !existingIds.contains(p.postId)));
+        _publicPosts.addAll(
+          uniquePosts.where((p) => !existingIds.contains(p.postId)),
+        );
       }
       _hasMorePublic = posts.length >= 10;
       _publicPage++;
@@ -131,7 +151,9 @@ class CommunityFeedNotifier extends ChangeNotifier {
         _followingPosts = uniquePosts;
       } else {
         final existingIds = _followingPosts.map((p) => p.postId).toSet();
-        _followingPosts.addAll(uniquePosts.where((p) => !existingIds.contains(p.postId)));
+        _followingPosts.addAll(
+          uniquePosts.where((p) => !existingIds.contains(p.postId)),
+        );
       }
       _hasMoreFollowing = posts.length >= 10;
       _followingPage++;
@@ -157,7 +179,9 @@ class CommunityFeedNotifier extends ChangeNotifier {
           token: token,
         );
         final existingIds = _publicPosts.map((p) => p.postId).toSet();
-        final newItems = posts.where((p) => !existingIds.contains(p.postId)).toList();
+        final newItems = posts
+            .where((p) => !existingIds.contains(p.postId))
+            .toList();
         _publicPosts.addAll(newItems);
         _hasMorePublic = posts.length >= 10;
         _publicPage++;
@@ -168,7 +192,9 @@ class CommunityFeedNotifier extends ChangeNotifier {
           token: token,
         );
         final existingIds = _followingPosts.map((p) => p.postId).toSet();
-        final newItems = posts.where((p) => !existingIds.contains(p.postId)).toList();
+        final newItems = posts
+            .where((p) => !existingIds.contains(p.postId))
+            .toList();
         _followingPosts.addAll(newItems);
         _hasMoreFollowing = posts.length >= 10;
         _followingPage++;
@@ -193,7 +219,9 @@ class CommunityFeedNotifier extends ChangeNotifier {
 
     final wasLiked = target.isLikedByMe;
     final newLiked = !wasLiked;
-    final newCount = wasLiked ? (target.likeCount > 0 ? target.likeCount - 1 : 0) : target.likeCount + 1;
+    final newCount = wasLiked
+        ? (target.likeCount > 0 ? target.likeCount - 1 : 0)
+        : target.likeCount + 1;
 
     // Optimistic UI update
     final updated = target.copyWith(isLikedByMe: newLiked, likeCount: newCount);
@@ -243,14 +271,18 @@ class CommunityFeedNotifier extends ChangeNotifier {
     final pubIdx = _publicPosts.indexWhere((p) => p.postId == postId);
     if (pubIdx != -1) {
       final p = _publicPosts[pubIdx];
-      final newCount = (p.commentCount + delta) < 0 ? 0 : p.commentCount + delta;
+      final newCount = (p.commentCount + delta) < 0
+          ? 0
+          : p.commentCount + delta;
       _publicPosts[pubIdx] = p.copyWith(commentCount: newCount);
     }
 
     final folIdx = _followingPosts.indexWhere((p) => p.postId == postId);
     if (folIdx != -1) {
       final p = _followingPosts[folIdx];
-      final newCount = (p.commentCount + delta) < 0 ? 0 : p.commentCount + delta;
+      final newCount = (p.commentCount + delta) < 0
+          ? 0
+          : p.commentCount + delta;
       _followingPosts[folIdx] = p.copyWith(commentCount: newCount);
     }
 
@@ -258,15 +290,46 @@ class CommunityFeedNotifier extends ChangeNotifier {
   }
 
   Future<void> fetchBadges(String token) async {
-    try {
-      final unread = await _repository.getTotalUnread(token: token);
-      _unreadMessagesCount = unread;
-      notifyListeners();
-    } catch (_) {}
+    final results = await Future.wait<Object?>([
+      _repository
+          .getTotalUnread(token: token)
+          .then<Object?>((value) => value, onError: (_, _) => null),
+      _messagingRepository
+          .requests(token, 'received')
+          .then<Object?>(
+            (value) => value.totalElements,
+            onError: (_, _) => null,
+          ),
+      _messagingRepository
+          .pendingMessageRequestCount(token)
+          .then<Object?>((value) => value, onError: (_, _) => null),
+      _messagingRepository
+          .unreadMessageRequestCount(token)
+          .then<Object?>((value) => value, onError: (_, _) => null),
+    ]);
+    if (results[0] is int) _unreadMessagesCount = results[0] as int;
+    if (results[1] is int) _friendRequestsCount = results[1] as int;
+    if (results[2] is int) _messageRequestsCount = results[2] as int;
+    if (results[3] is int) _unreadStrangerMessagesCount = results[3] as int;
+    notifyListeners();
   }
 
-  void setFriendRequestsCount(int count) {
-    _friendRequestsCount = count;
+  void clearBadges() {
+    _unreadMessagesCount = 0;
+    _friendRequestsCount = 0;
+    _messageRequestsCount = 0;
+    _unreadStrangerMessagesCount = 0;
     notifyListeners();
+  }
+
+  void resetForAccount() {
+    _publicPosts = [];
+    _followingPosts = [];
+    _publicPage = 0;
+    _followingPage = 0;
+    _hasMorePublic = true;
+    _hasMoreFollowing = true;
+    _error = null;
+    clearBadges();
   }
 }

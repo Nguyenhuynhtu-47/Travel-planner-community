@@ -18,6 +18,8 @@ import '../../../explore/presentation/widgets/itinerary_card.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../messaging/data/messaging_repository.dart';
+import '../../../messaging/presentation/screens/messaging_settings_screen.dart';
 import '../../data/profile_repository.dart';
 import '../../data/public_profile_repository.dart';
 import 'personal_info_screen.dart';
@@ -324,6 +326,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _openMessagingPrivacy() async {
+    final token = widget.authNotifier.token;
+    if (token == null || token.isEmpty) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => MessagingSettingsScreen(
+          token: token,
+          repository: MessagingRepository(),
+        ),
+      ),
+    );
+  }
+
   void _openUsers(bool followers) {
     final userId = (_profile?['userId'] as num?)?.toInt();
     if (userId == null || userId <= 0) return;
@@ -396,10 +411,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1),
-            child: Container(
-              height: 0.5,
-              color: AppColors.hairlineSoft,
-            ),
+            child: Container(height: 0.5, color: AppColors.hairlineSoft),
           ),
         ),
         body: AppEmptyState(
@@ -429,6 +441,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         actions: [
           IconButton(
+            tooltip: 'Quyền riêng tư tin nhắn',
+            icon: const Icon(Icons.forum_outlined, size: 22),
+            onPressed: _openMessagingPrivacy,
+          ),
+          IconButton(
             tooltip: 'Thông báo',
             icon: const Icon(Icons.notifications_outlined, size: 24),
             onPressed: () {
@@ -448,10 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 0.5,
-            color: AppColors.hairlineSoft,
-          ),
+          child: Container(height: 0.5, color: AppColors.hairlineSoft),
         ),
       ),
       body: _loading
@@ -611,280 +625,280 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Instagram-inspired Profile Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top Row: Avatar on Left + Stats on Right
-                    Row(
-                      children: [
-                        ClipOval(
-                          child: avatar.startsWith('http')
-                              ? Image.network(
-                                  avatar,
-                                  width: 76,
-                                  height: 76,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => _defaultAvatar(),
-                                )
-                              : _defaultAvatar(),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Expanded(
-                                child: _statItem(
-                                  'Lịch trình',
-                                  _itineraries.isNotEmpty
-                                      ? _itineraries.length
-                                      : 0,
-                                ),
-                              ),
-                              Expanded(
-                                child: _statItem(
-                                  'Người theo dõi',
-                                  _followerCount,
-                                  onTap: () => _openUsers(true),
-                                ),
-                              ),
-                              Expanded(
-                                child: _statItem(
-                                  'Đang theo dõi',
-                                  _followingCount,
-                                  onTap: () => _openUsers(false),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Display Name & Handle
-                    Text(
-                      _value(p['fullName']),
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Row: Avatar on Left + Stats on Right
+                  Row(
+                    children: [
+                      ClipOval(
+                        child: avatar.startsWith('http')
+                            ? Image.network(
+                                avatar,
+                                width: 76,
+                                height: 76,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => _defaultAvatar(),
+                              )
+                            : _defaultAvatar(),
                       ),
-                    ),
-                    if (p['handle'] != null &&
-                        p['handle'].toString().trim().isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '@${p['handle']}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-
-                    // Bio
-                    if (p['bio'] != null &&
-                        p['bio'].toString().trim().isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        p['bio'].toString().trim(),
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          color: AppColors.textPrimary,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 8),
-
-                    // Role & Status Badges
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceSoft,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Text(
-                            role,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Expanded(
+                              child: _statItem(
+                                'Lịch trình',
+                                _itineraries.isNotEmpty
+                                    ? _itineraries.length
+                                    : 0,
+                              ),
                             ),
-                          ),
+                            Expanded(
+                              child: _statItem(
+                                'Người theo dõi',
+                                _followerCount,
+                                onTap: () => _openUsers(true),
+                              ),
+                            ),
+                            Expanded(
+                              child: _statItem(
+                                'Đang theo dõi',
+                                _followingCount,
+                                onTap: () => _openUsers(false),
+                              ),
+                            ),
+                          ],
                         ),
-                        _statusBadge(p['status'], status),
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Display Name & Handle
+                  Text(
+                    _value(p['fullName']),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -0.2,
                     ),
+                  ),
+                  if (p['handle'] != null &&
+                      p['handle'].toString().trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${p['handle']}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
 
-                    const SizedBox(height: 14),
+                  // Bio
+                  if (p['bio'] != null &&
+                      p['bio'].toString().trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      p['bio'].toString().trim(),
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: AppColors.textPrimary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
 
-                    // Action: Edit Profile
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          // Allow inline editing or open settings
-                          setState(() => _editing = true);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(38),
-                          side: const BorderSide(color: AppColors.border),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          backgroundColor: AppColors.surface,
+                  const SizedBox(height: 8),
+
+                  // Role & Status Badges
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
                         ),
-                        child: const Text(
-                          'Chỉnh sửa hồ sơ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceSoft,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Text(
+                          role,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
                             color: AppColors.textPrimary,
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Tabs: Lịch trình & Thông tin tài khoản
-              Container(
-                decoration: const BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
-                    bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
+                      _statusBadge(p['status'], status),
+                    ],
                   ),
+
+                  const SizedBox(height: 14),
+
+                  // Action: Edit Profile
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        // Allow inline editing or open settings
+                        setState(() => _editing = true);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(38),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        backgroundColor: AppColors.surface,
+                      ),
+                      child: const Text(
+                        'Chỉnh sửa hồ sơ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Tabs: Lịch trình & Thông tin tài khoản
+            Container(
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
+                  bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _selectedProfileTab = 0),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: _selectedProfileTab == 0
-                                    ? AppColors.primary
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedProfileTab = 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: _selectedProfileTab == 0
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                              width: 2,
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.map_outlined,
-                                size: 18,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.map_outlined,
+                              size: 18,
+                              color: _selectedProfileTab == 0
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Lịch trình',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
                                 color: _selectedProfileTab == 0
                                     ? AppColors.primary
                                     : AppColors.textSecondary,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Lịch trình',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: _selectedProfileTab == 0
-                                      ? AppColors.primary
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _selectedProfileTab = 1),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: _selectedProfileTab == 1
-                                    ? AppColors.primary
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
+                  ),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedProfileTab = 1),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: _selectedProfileTab == 1
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                              width: 2,
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                size: 18,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: _selectedProfileTab == 1
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Thông tin tài khoản',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
                                 color: _selectedProfileTab == 1
                                     ? AppColors.primary
                                     : AppColors.textSecondary,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Thông tin tài khoản',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: _selectedProfileTab == 1
-                                      ? AppColors.primary
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
 
-              // Content: Stack with Opacity preserves state and accessibility of both tabs
-              Expanded(
-                child: Stack(
-                  children: [
-                    // Tab 1: Itineraries
-                    Opacity(
-                      opacity: _selectedProfileTab == 0 ? 1.0 : 0.0,
-                      child: IgnorePointer(
-                        ignoring: _selectedProfileTab != 0,
-                        child: _buildItinerariesTab(),
-                      ),
+            // Content: Stack with Opacity preserves state and accessibility of both tabs
+            Expanded(
+              child: Stack(
+                children: [
+                  // Tab 1: Itineraries
+                  Opacity(
+                    opacity: _selectedProfileTab == 0 ? 1.0 : 0.0,
+                    child: IgnorePointer(
+                      ignoring: _selectedProfileTab != 0,
+                      child: _buildItinerariesTab(),
                     ),
+                  ),
 
-                    // Tab 2: Account Information
-                    Opacity(
-                      opacity: _selectedProfileTab == 1 ? 1.0 : 0.0,
-                      child: IgnorePointer(
-                        ignoring: _selectedProfileTab != 1,
-                        child: _buildAccountInfoTab(p),
-                      ),
+                  // Tab 2: Account Information
+                  Opacity(
+                    opacity: _selectedProfileTab == 1 ? 1.0 : 0.0,
+                    child: IgnorePointer(
+                      ignoring: _selectedProfileTab != 1,
+                      child: _buildAccountInfoTab(p),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildItinerariesTab() {
@@ -913,18 +927,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Text(
                 'Lịch trình công khai của bạn sẽ xuất hiện tại đây.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) =>
-                          MyItinerariesScreen(authNotifier: widget.authNotifier),
+                      builder: (_) => MyItinerariesScreen(
+                        authNotifier: widget.authNotifier,
+                      ),
                     ),
                   );
                 },
@@ -993,6 +1005,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onPressed: _openSettings,
           icon: const Icon(Icons.settings_outlined, size: 18),
           label: const Text('Quản lý thông tin & Cài đặt'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            side: const BorderSide(color: AppColors.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _openMessagingPrivacy,
+          icon: const Icon(Icons.forum_outlined, size: 18),
+          label: const Text('Quyền riêng tư tin nhắn'),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
             side: const BorderSide(color: AppColors.border),
