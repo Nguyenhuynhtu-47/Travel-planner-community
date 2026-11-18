@@ -8,8 +8,10 @@ import lombok.Setter;
 
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class RelationshipContextResponse {
+    private Long friendshipId;
     private String friendshipStatus;
     private String friendRequestDirection;
     private boolean canMessage;
+    private boolean canContinueConversation;
     private boolean canSendFriendRequest;
 }

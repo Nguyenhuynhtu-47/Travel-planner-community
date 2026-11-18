@@ -27,7 +27,7 @@ public class MessagingSettingsServiceImpl implements MessagingSettingsService {
     public MessagingSettingsResponse get(String actorUsername) {
         User actor = activeUser(actorUsername);
         return settings.findById(actor.getUserId()).map(this::response)
-                .orElseGet(() -> MessagingSettingsResponse.builder().inboundPolicy(InboundMessagePolicy.FRIENDS_ONLY).build());
+                .orElseGet(() -> MessagingSettingsResponse.builder().inboundPolicy(InboundMessagePolicy.EVERYONE).build());
     }
 
     @Override

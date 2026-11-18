@@ -20,7 +20,13 @@ public interface FriendshipService {
     void unblock(Integer targetUserId, String actorUsername);
     PageResponse<PublicUserSummaryResponse> blocks(int page, int size, String actorUsername);
     RelationshipContextResponse relationshipContext(Integer viewerId, Integer targetId);
+    Map<Integer, RelationshipContextResponse> relationshipContexts(Integer viewerId, List<Integer> targetIds);
     boolean canMessage(Integer senderId, Integer recipientId);
+    boolean canContinueConversation(Integer senderId, Integer recipientId);
+    Map<Integer, Boolean> canContinueConversationForPeers(Integer senderId, List<Integer> recipientIds);
+    boolean areAcceptedFriends(Integer firstUserId, Integer secondUserId);
+    boolean isBlockedBetween(Integer firstUserId, Integer secondUserId);
+    java.util.Set<Integer> blockedPeerIds(Integer userId);
     Map<Integer, Boolean> canMessageForPeers(Integer senderId, List<Integer> recipientIds);
 }
 

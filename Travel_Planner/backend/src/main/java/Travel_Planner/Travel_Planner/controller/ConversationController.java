@@ -9,6 +9,7 @@ import Travel_Planner.Travel_Planner.dto.response.MessageResponse;
 import Travel_Planner.Travel_Planner.dto.response.PageResponse;
 import Travel_Planner.Travel_Planner.service.MessagingService;
 import Travel_Planner.Travel_Planner.dto.response.TotalUnreadResponse;
+import Travel_Planner.Travel_Planner.dto.response.MessageRequestCountResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.HttpStatus;
@@ -34,6 +35,23 @@ public class ConversationController {
     @GetMapping("/unread-total")
     public ResponseEntity<TotalUnreadResponse> totalUnread(@AuthenticationPrincipal UserDetails actor) {
         return ResponseEntity.ok(new TotalUnreadResponse(messaging.totalUnread(actorName(actor))));
+    }
+
+    @GetMapping("/message-requests")
+    public ResponseEntity<PageResponse<ConversationSummaryResponse>> messageRequests(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(messaging.messageRequests(page, size, actorName(actor)));
+    }
+
+    @GetMapping("/message-requests/count")
+    public ResponseEntity<MessageRequestCountResponse> messageRequestCount(@AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(new MessageRequestCountResponse(messaging.pendingMessageRequestCount(actorName(actor))));
+    }
+
+    @GetMapping("/message-requests/unread-count")
+    public ResponseEntity<MessageRequestCountResponse> unreadMessageRequestCount(@AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(new MessageRequestCountResponse(messaging.unreadMessageRequestCount(actorName(actor))));
     }
 
     @GetMapping
@@ -62,6 +80,18 @@ public class ConversationController {
             @Valid @RequestBody MarkConversationReadRequest request, @AuthenticationPrincipal UserDetails actor) {
         messaging.markRead(conversationId, request.getLastReadSequence(), actorName(actor));
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{conversationId}/accept")
+    public ResponseEntity<ConversationSummaryResponse> acceptMessageRequest(@PathVariable Long conversationId,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(messaging.acceptMessageRequest(conversationId, actorName(actor)));
+    }
+
+    @PostMapping("/{conversationId}/decline")
+    public ResponseEntity<ConversationSummaryResponse> declineMessageRequest(@PathVariable Long conversationId,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(messaging.declineMessageRequest(conversationId, actorName(actor)));
     }
 
     private String actorName(UserDetails actor) { return actor == null ? null : actor.getUsername(); }

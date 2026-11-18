@@ -18,6 +18,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import Travel_Planner.Travel_Planner.dto.response.ChatEventResponse;
+import Travel_Planner.Travel_Planner.service.CommittedChatEvent;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 public class FriendshipServiceImpl implements FriendshipService {
@@ -25,13 +30,16 @@ public class FriendshipServiceImpl implements FriendshipService {
     private final FriendshipRepository friendships;
     private final UserBlockRepository blocks;
     private final UserMessagingSettingsRepository settings;
+    private final ApplicationEventPublisher events;
 
     public FriendshipServiceImpl(UserRepository users, FriendshipRepository friendships,
-            UserBlockRepository blocks, UserMessagingSettingsRepository settings) {
+            UserBlockRepository blocks, UserMessagingSettingsRepository settings,
+            ApplicationEventPublisher events) {
         this.users = users;
         this.friendships = friendships;
         this.blocks = blocks;
         this.settings = settings;
+        this.events = events;
     }
 
     @Override
@@ -61,6 +69,7 @@ public class FriendshipServiceImpl implements FriendshipService {
             relation.setRequestedByUser(actor);
             relation.setStatus(FriendshipStatus.PENDING);
         }
+        publishRelationshipEvent(actor, target, "FRIEND_REQUESTS_CHANGED");
         return requestResponse(relation, actor.getUserId(), "sent");
     }
 
@@ -79,6 +88,7 @@ public class FriendshipServiceImpl implements FriendshipService {
             throw new ForbiddenException("Bạn không thể chấp nhận lời mời này");
         }
         relation.setStatus(FriendshipStatus.ACCEPTED);
+        publishRelationshipEvent(actor, relation.otherUser(actor.getUserId()), "FRIEND_REQUESTS_CHANGED");
         return requestResponse(relation, actor.getUserId(), "friends");
     }
 
@@ -96,6 +106,7 @@ public class FriendshipServiceImpl implements FriendshipService {
             throw new ForbiddenException("Bạn không thể từ chối lời mời này");
         }
         relation.setStatus(FriendshipStatus.REJECTED);
+        publishRelationshipEvent(actor, relation.otherUser(actor.getUserId()), "FRIEND_REQUESTS_CHANGED");
         return requestResponse(relation, actor.getUserId(), "received");
     }
 
@@ -111,7 +122,9 @@ public class FriendshipServiceImpl implements FriendshipService {
         if (!relation.getRequestedByUser().getUserId().equals(actor.getUserId()) || relation.getStatus() != FriendshipStatus.PENDING) {
             throw new ForbiddenException("Bạn không thể hủy lời mời này");
         }
+        User peer = relation.otherUser(actor.getUserId());
         friendships.delete(relation);
+        publishRelationshipEvent(actor, peer, "FRIEND_REQUESTS_CHANGED");
     }
 
     @Override
@@ -159,6 +172,11 @@ public class FriendshipServiceImpl implements FriendshipService {
             block.setBlocker(actor);
             block.setBlockedUser(target);
             blocks.save(block);
+            ChatEventResponse event = ChatEventResponse.builder().eventId(UUID.randomUUID().toString())
+                    .type("CONVERSATION_ACCESS_REVOKED").occurredAt(LocalDateTime.now())
+                    .blockedByUserId(actor.getUserId()).blockedUserId(target.getUserId()).build();
+            events.publishEvent(new CommittedChatEvent(target.getUsername(), target.getUserId(),
+                    actor.getUsername(), actor.getUserId(), event, false));
         }
         Friendship relation = find(pair);
         if (relation != null) friendships.delete(relation);
@@ -201,10 +219,12 @@ public class FriendshipServiceImpl implements FriendshipService {
         if (relation != null && relation.getStatus() == FriendshipStatus.PENDING) {
             direction = relation.getRequestedByUser().getUserId().equals(viewerId) ? "sent" : "received";
         }
-        InboundMessagePolicy policy = settings.findById(targetId).map(UserMessagingSettings::getInboundPolicy).orElse(InboundMessagePolicy.FRIENDS_ONLY);
-        boolean canMessage = !blocked && (policy == InboundMessagePolicy.EVERYONE || (policy == InboundMessagePolicy.FRIENDS_ONLY && friends));
+        InboundMessagePolicy policy = settings.findById(targetId).map(UserMessagingSettings::getInboundPolicy).orElse(InboundMessagePolicy.EVERYONE);
+        boolean canMessage = !blocked && (policy == InboundMessagePolicy.EVERYONE
+                || (isFriendsOnlyPolicy(policy) && friends));
         boolean canRequest = !blocked && (relation == null || relation.getStatus() == FriendshipStatus.REJECTED);
         return RelationshipContextResponse.builder()
+                .friendshipId(relation == null ? null : relation.getFriendshipId())
                 .friendshipStatus(relation == null ? null : relation.getStatus().name())
                 .friendRequestDirection(direction)
                 .canMessage(canMessage)
@@ -214,15 +234,116 @@ public class FriendshipServiceImpl implements FriendshipService {
 
     @Override
     @Transactional(readOnly = true)
+    public Map<Integer, RelationshipContextResponse> relationshipContexts(Integer viewerId, List<Integer> targetIds) {
+        if (viewerId == null || targetIds == null || targetIds.isEmpty()) return Map.of();
+        List<Integer> peers = targetIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (peers.isEmpty()) return Map.of();
+
+        Map<Integer, Friendship> relationships = new HashMap<>();
+        friendships.findRelationshipsForUserAndPeers(viewerId, peers).forEach(relation ->
+                relationships.put(relation.otherUser(viewerId).getUserId(), relation));
+        Set<Integer> blockedPeers = new HashSet<>();
+        blocks.findPairsForUser(viewerId, peers).forEach(pair -> {
+            Integer low = ((Number) pair[0]).intValue();
+            Integer high = ((Number) pair[1]).intValue();
+            blockedPeers.add(low.equals(viewerId) ? high : low);
+        });
+        Map<Integer, InboundMessagePolicy> policies = new HashMap<>();
+        settings.findByUser_UserIdIn(peers).forEach(setting ->
+                policies.put(setting.getUser().getUserId(), setting.getInboundPolicy()));
+
+        Map<Integer, RelationshipContextResponse> result = new HashMap<>();
+        for (Integer peerId : peers) {
+            Friendship relation = relationships.get(peerId);
+            if (blockedPeers.contains(peerId)) {
+                result.put(peerId, RelationshipContextResponse.builder()
+                        .friendshipStatus("UNAVAILABLE").canMessage(false).canSendFriendRequest(false).build());
+                continue;
+            }
+            boolean friends = relation != null && relation.getStatus() == FriendshipStatus.ACCEPTED;
+            String direction = relation != null && relation.getStatus() == FriendshipStatus.PENDING
+                    ? (relation.getRequestedByUser().getUserId().equals(viewerId) ? "sent" : "received")
+                    : null;
+            InboundMessagePolicy policy = policies.getOrDefault(peerId, InboundMessagePolicy.EVERYONE);
+            boolean canMessage = policy == InboundMessagePolicy.EVERYONE
+                    || (isFriendsOnlyPolicy(policy) && friends);
+            boolean canRequest = relation == null || relation.getStatus() == FriendshipStatus.REJECTED;
+            result.put(peerId, RelationshipContextResponse.builder()
+                    .friendshipId(relation == null ? null : relation.getFriendshipId())
+                    .friendshipStatus(relation == null ? null : relation.getStatus().name())
+                    .friendRequestDirection(direction).canMessage(canMessage)
+                    .canSendFriendRequest(canRequest).build());
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean canMessage(Integer senderId, Integer recipientId) {
         if (senderId == null || recipientId == null || senderId.equals(recipientId) || blocks.existsBetween(senderId, recipientId)) return false;
         User recipient = users.findById(recipientId).orElse(null);
         if (recipient == null || recipient.getStatus() != UserStatus.ACTIVE) return false;
-        InboundMessagePolicy policy = settings.findById(recipientId).map(UserMessagingSettings::getInboundPolicy).orElse(InboundMessagePolicy.FRIENDS_ONLY);
+        InboundMessagePolicy policy = settings.findById(recipientId).map(UserMessagingSettings::getInboundPolicy).orElse(InboundMessagePolicy.EVERYONE);
         if (policy == InboundMessagePolicy.EVERYONE) return true;
-        if (policy == InboundMessagePolicy.NOBODY) return false;
         return friendships.findByUserLow_UserIdAndUserHigh_UserId(Math.min(senderId, recipientId), Math.max(senderId, recipientId))
                 .map(f -> f.getStatus() == FriendshipStatus.ACCEPTED).orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean canContinueConversation(Integer senderId, Integer recipientId) {
+        if (senderId == null || recipientId == null || senderId.equals(recipientId)
+                || blocks.existsBetween(senderId, recipientId)) return false;
+        User sender = users.findById(senderId).orElse(null);
+        User recipient = users.findById(recipientId).orElse(null);
+        return sender != null && recipient != null
+                && sender.getStatus() == UserStatus.ACTIVE
+                && recipient.getStatus() == UserStatus.ACTIVE;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean areAcceptedFriends(Integer firstUserId, Integer secondUserId) {
+        if (firstUserId == null || secondUserId == null || firstUserId.equals(secondUserId)) return false;
+        return friendships.findByUserLow_UserIdAndUserHigh_UserId(
+                Math.min(firstUserId, secondUserId), Math.max(firstUserId, secondUserId))
+                .map(relation -> relation.getStatus() == FriendshipStatus.ACCEPTED)
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isBlockedBetween(Integer firstUserId, Integer secondUserId) {
+        return firstUserId != null && secondUserId != null && !firstUserId.equals(secondUserId)
+                && blocks.existsBetween(firstUserId, secondUserId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Set<Integer> blockedPeerIds(Integer userId) {
+        return userId == null ? java.util.Set.of() : new java.util.HashSet<>(blocks.findRelatedUserIds(userId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Integer, Boolean> canContinueConversationForPeers(Integer senderId, List<Integer> recipientIds) {
+        Map<Integer, Boolean> result = new HashMap<>();
+        if (senderId == null || recipientIds == null || recipientIds.isEmpty()) return result;
+        User sender = users.findById(senderId).orElse(null);
+        if (sender == null || sender.getStatus() != UserStatus.ACTIVE) return result;
+        Set<Integer> blocked = new HashSet<>();
+        for (Object[] row : blocks.findPairsForUser(senderId, recipientIds)) {
+            Integer low = (Integer) row[0];
+            Integer high = (Integer) row[1];
+            blocked.add(low.equals(senderId) ? high : low);
+        }
+        Map<Integer, UserStatus> statuses = new HashMap<>();
+        users.findAllById(recipientIds).forEach(user -> statuses.put(user.getUserId(), user.getStatus()));
+        for (Integer recipientId : recipientIds) {
+            result.put(recipientId, !senderId.equals(recipientId) && !blocked.contains(recipientId)
+                    && statuses.get(recipientId) == UserStatus.ACTIVE);
+        }
+        return result;
     }
 
     @Override
@@ -249,14 +370,19 @@ public class FriendshipServiceImpl implements FriendshipService {
         java.util.Map<Integer, UserStatus> statuses = new java.util.HashMap<>();
         users.findAllById(recipientIds).forEach(user -> statuses.put(user.getUserId(), user.getStatus()));
         for (Integer recipientId : recipientIds) {
-            InboundMessagePolicy policy = policies.getOrDefault(recipientId, InboundMessagePolicy.FRIENDS_ONLY);
+            InboundMessagePolicy policy = policies.getOrDefault(recipientId, InboundMessagePolicy.EVERYONE);
             boolean allowed = !senderId.equals(recipientId) && !blocked.contains(recipientId)
                     && statuses.get(recipientId) == UserStatus.ACTIVE
                     && (policy == InboundMessagePolicy.EVERYONE
-                        || (policy == InboundMessagePolicy.FRIENDS_ONLY && friends.contains(recipientId)));
+                        || (isFriendsOnlyPolicy(policy) && friends.contains(recipientId)));
             result.put(recipientId, allowed);
         }
         return result;
+    }
+
+    private boolean isFriendsOnlyPolicy(InboundMessagePolicy policy) {
+        // NOBODY is retained only to deserialize old rows; the UI now maps it to FRIENDS_ONLY.
+        return policy == InboundMessagePolicy.FRIENDS_ONLY || policy == InboundMessagePolicy.NOBODY;
     }
     private void ensureNotBlocked(Integer first, Integer second) {
         if (blocks.existsBetween(first, second)) throw new ForbiddenException("Không thể thực hiện thao tác với người dùng này");
@@ -296,6 +422,16 @@ public class FriendshipServiceImpl implements FriendshipService {
     private PublicUserSummaryResponse userSummary(User user) {
         return PublicUserSummaryResponse.builder().userId(user.getUserId()).handle(user.getHandle())
                 .username(user.getUsername()).fullName(user.getFullName()).avatar(user.getAvatar()).build();
+    }
+
+    private void publishRelationshipEvent(User first, User second, String type) {
+        ChatEventResponse event = ChatEventResponse.builder()
+                .eventId(UUID.randomUUID().toString())
+                .type(type)
+                .occurredAt(LocalDateTime.now())
+                .build();
+        events.publishEvent(new CommittedChatEvent(first.getUsername(), first.getUserId(),
+                second.getUsername(), second.getUserId(), event));
     }
 
     private record Pair(User low, User high) {

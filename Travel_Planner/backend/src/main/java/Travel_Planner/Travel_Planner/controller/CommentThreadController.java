@@ -20,8 +20,11 @@ public class CommentThreadController {
 
     @GetMapping("/{commentId}/replies")
     public ResponseEntity<PageResponse<CommentResponse>> getReplies(@PathVariable Integer commentId,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(comments.getReplies(commentId, page, size));
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(user == null
+                ? comments.getReplies(commentId, page, size)
+                : comments.getReplies(commentId, page, size, user.getUsername()));
     }
 
     @PostMapping("/{commentId}/replies")

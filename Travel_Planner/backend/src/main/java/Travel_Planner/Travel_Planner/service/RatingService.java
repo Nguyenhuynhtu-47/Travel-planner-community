@@ -10,6 +10,7 @@ public interface RatingService {
     RatingResponse rateItinerary(Integer itineraryId, RateItineraryRequest request, String currentUsername);
     UserRatingStatusResponse getUserRating(Integer itineraryId, String currentUsername);
     RatingSummaryResponse getRatingSummary(Integer itineraryId);
+    RatingSummaryResponse getRatingSummary(Integer itineraryId, String viewerUsername);
     DeleteRatingResponse deleteRating(Integer itineraryId, String currentUsername);
 }
 

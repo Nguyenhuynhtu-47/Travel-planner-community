@@ -19,8 +19,11 @@ public class ActivityCommentController {
 
     @GetMapping
     public ResponseEntity<PageResponse<CommentResponse>> get(@PathVariable Integer activityId,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(comments.getActivityComments(activityId, page, size));
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(user == null
+                ? comments.getActivityComments(activityId, page, size)
+                : comments.getActivityComments(activityId, page, size, user.getUsername()));
     }
 
     @PostMapping

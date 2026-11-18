@@ -11,6 +11,7 @@ import Travel_Planner.Travel_Planner.model.*;
 import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.PostService;
+import Travel_Planner.Travel_Planner.service.FriendshipService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -38,7 +39,9 @@ public class PostServiceImpl implements PostService {
     private final UserRepository userRepository;
     private final ItineraryRepository itineraryRepository;
     private final FriendshipRepository friendshipRepository;
+    private final FriendshipService blockAccess;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public PostServiceImpl(
             PostRepository postRepository,
             MediaAssetRepository mediaAssetRepository,
@@ -48,7 +51,8 @@ public class PostServiceImpl implements PostService {
             PostReportRepository postReportRepository,
             UserRepository userRepository,
             ItineraryRepository itineraryRepository,
-            FriendshipRepository friendshipRepository) {
+            FriendshipRepository friendshipRepository,
+            FriendshipService blockAccess) {
         this.postRepository = postRepository;
         this.mediaAssetRepository = mediaAssetRepository;
         this.postMediaRepository = postMediaRepository;
@@ -58,6 +62,16 @@ public class PostServiceImpl implements PostService {
         this.userRepository = userRepository;
         this.itineraryRepository = itineraryRepository;
         this.friendshipRepository = friendshipRepository;
+        this.blockAccess = blockAccess;
+    }
+
+    public PostServiceImpl(PostRepository postRepository, MediaAssetRepository mediaAssetRepository,
+            PostMediaRepository postMediaRepository, PostLikeRepository postLikeRepository,
+            PostCommentRepository postCommentRepository, PostReportRepository postReportRepository,
+            UserRepository userRepository, ItineraryRepository itineraryRepository,
+            FriendshipRepository friendshipRepository) {
+        this(postRepository, mediaAssetRepository, postMediaRepository, postLikeRepository, postCommentRepository,
+                postReportRepository, userRepository, itineraryRepository, friendshipRepository, null);
     }
 
     @Override
@@ -73,7 +87,9 @@ public class PostServiceImpl implements PostService {
         Integer viewerId = viewer != null ? viewer.getUserId() : null;
 
         // Query 1: Paginated posts with author and itinerary
-        Page<Post> postsPage = postRepository.findPublicFeed(pageable);
+        Page<Post> postsPage = blockAccess == null
+                ? postRepository.findPublicFeed(pageable)
+                : postRepository.findPublicFeedVisibleTo(viewerId, pageable);
         List<Post> posts = postsPage.getContent();
         if (posts.isEmpty()) {
             return PageResponse.from(postsPage.map(p -> null));
@@ -125,7 +141,9 @@ public class PostServiceImpl implements PostService {
         int pageSize = Math.min(size, 50);
         Pageable pageable = PageRequest.of(page, pageSize);
 
-        Page<Post> postsPage = postRepository.findFollowingFeed(viewer.getUserId(), pageable);
+        Page<Post> postsPage = blockAccess == null
+                ? postRepository.findFollowingFeed(viewer.getUserId(), pageable)
+                : postRepository.findFollowingFeedVisibleTo(viewer.getUserId(), pageable);
         List<Post> posts = postsPage.getContent();
         if (posts.isEmpty()) {
             return PageResponse.from(postsPage.map(p -> null));
@@ -827,6 +845,10 @@ public class PostServiceImpl implements PostService {
             throw new ResourceNotFoundException("Bài viết không tồn tại");
         }
         if (post.getAuthor().getStatus() != UserStatus.ACTIVE) {
+            throw new ResourceNotFoundException("Bài viết không tồn tại");
+        }
+        if (viewer != null && blockAccess != null
+                && blockAccess.isBlockedBetween(viewer.getUserId(), post.getAuthor().getUserId())) {
             throw new ResourceNotFoundException("Bài viết không tồn tại");
         }
 

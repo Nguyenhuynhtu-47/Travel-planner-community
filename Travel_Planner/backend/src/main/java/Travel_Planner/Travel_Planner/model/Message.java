@@ -40,6 +40,10 @@ public class Message {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // Null rows are legacy and remain visible; false means only the sender may read this message.
+    @Column(name = "recipient_visible")
+    private Boolean recipientVisible = true;
+
     @PrePersist
     protected void onCreate() { if (createdAt == null) createdAt = LocalDateTime.now(); }
 }

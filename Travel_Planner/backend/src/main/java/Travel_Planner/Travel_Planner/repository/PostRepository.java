@@ -23,6 +23,18 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             "WHERE p.status = 'ACTIVE' AND p.visibility = 'PUBLIC' AND p.author.status = 'ACTIVE'")
     Page<Post> findPublicFeed(Pageable pageable);
 
+    @Query(value = "SELECT p FROM Post p JOIN FETCH p.author a LEFT JOIN FETCH p.itinerary i LEFT JOIN FETCH i.user iu "
+            + "WHERE p.status = 'ACTIVE' AND p.visibility = 'PUBLIC' AND a.status = 'ACTIVE' "
+            + "AND (:viewerId is null OR NOT EXISTS (select b from UserBlock b where "
+            + "(b.blocker.userId = :viewerId and b.blockedUser.userId = a.userId) "
+            + "or (b.blockedUser.userId = :viewerId and b.blocker.userId = a.userId))) "
+            + "ORDER BY p.createdAt DESC, p.postId DESC",
+            countQuery = "SELECT count(p) FROM Post p WHERE p.status = 'ACTIVE' AND p.visibility = 'PUBLIC' "
+            + "AND p.author.status = 'ACTIVE' AND (:viewerId is null OR NOT EXISTS (select b from UserBlock b where "
+            + "(b.blocker.userId = :viewerId and b.blockedUser.userId = p.author.userId) "
+            + "or (b.blockedUser.userId = :viewerId and b.blocker.userId = p.author.userId)))")
+    Page<Post> findPublicFeedVisibleTo(@Param("viewerId") Integer viewerId, Pageable pageable);
+
     @Query(value = "SELECT p FROM Post p " +
             "JOIN FETCH p.author a " +
             "LEFT JOIN FETCH p.itinerary i " +
@@ -42,6 +54,21 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             "       AND EXISTS (SELECT 1 FROM Friendship fs WHERE fs.status = 'ACCEPTED' AND ((fs.userLow.userId = :viewerId AND fs.userHigh.userId = p.author.userId) OR (fs.userHigh.userId = :viewerId AND fs.userLow.userId = p.author.userId))))" +
             ")")
     Page<Post> findFollowingFeed(@Param("viewerId") Integer viewerId, Pageable pageable);
+
+    @Query(value = "SELECT p FROM Post p JOIN FETCH p.author a LEFT JOIN FETCH p.itinerary i LEFT JOIN FETCH i.user iu "
+            + "WHERE p.status = 'ACTIVE' AND a.status = 'ACTIVE' AND (p.author.userId = :viewerId "
+            + "OR (p.visibility = 'PUBLIC' AND p.author.userId IN (SELECT f.following.userId FROM Follow f WHERE f.follower.userId = :viewerId)) "
+            + "OR (p.visibility = 'FRIENDS' AND p.author.userId IN (SELECT f.following.userId FROM Follow f WHERE f.follower.userId = :viewerId) "
+            + "AND EXISTS (SELECT 1 FROM Friendship fs WHERE fs.status = 'ACCEPTED' AND ((fs.userLow.userId = :viewerId AND fs.userHigh.userId = p.author.userId) OR (fs.userHigh.userId = :viewerId AND fs.userLow.userId = p.author.userId))))) "
+            + "AND NOT EXISTS (select b from UserBlock b where (b.blocker.userId = :viewerId and b.blockedUser.userId = a.userId) "
+            + "or (b.blockedUser.userId = :viewerId and b.blocker.userId = a.userId)) ORDER BY p.createdAt DESC, p.postId DESC",
+            countQuery = "SELECT count(p) FROM Post p WHERE p.status = 'ACTIVE' AND p.author.status = 'ACTIVE' "
+            + "AND (p.author.userId = :viewerId OR (p.visibility = 'PUBLIC' AND p.author.userId IN (SELECT f.following.userId FROM Follow f WHERE f.follower.userId = :viewerId)) "
+            + "OR (p.visibility = 'FRIENDS' AND p.author.userId IN (SELECT f.following.userId FROM Follow f WHERE f.follower.userId = :viewerId) "
+            + "AND EXISTS (SELECT 1 FROM Friendship fs WHERE fs.status = 'ACCEPTED' AND ((fs.userLow.userId = :viewerId AND fs.userHigh.userId = p.author.userId) OR (fs.userHigh.userId = :viewerId AND fs.userLow.userId = p.author.userId))))) "
+            + "AND NOT EXISTS (select b from UserBlock b where (b.blocker.userId = :viewerId and b.blockedUser.userId = p.author.userId) "
+            + "or (b.blockedUser.userId = :viewerId and b.blocker.userId = p.author.userId))")
+    Page<Post> findFollowingFeedVisibleTo(@Param("viewerId") Integer viewerId, Pageable pageable);
 
     @Query("SELECT p FROM Post p " +
             "JOIN FETCH p.author a " +

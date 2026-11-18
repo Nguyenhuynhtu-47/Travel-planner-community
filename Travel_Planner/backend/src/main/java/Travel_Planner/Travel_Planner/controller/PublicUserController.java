@@ -25,10 +25,19 @@ public class PublicUserController {
         return ResponseEntity.ok(users.getProfileByHandle(handle, viewer == null ? null : viewer.getUsername()));
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<PageResponse<UserSearchResultResponse>> search(
+            @RequestParam String q, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        return ResponseEntity.ok(users.searchUsers(q, page, size, viewer == null ? null : viewer.getUsername()));
+    }
+
     @GetMapping("/{userId:[0-9]+}/itineraries")
     public ResponseEntity<PageResponse<ItinerarySummaryResponse>> itineraries(@PathVariable Integer userId,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="10") int size) {
-        return ResponseEntity.ok(users.getItineraries(userId, page, size));
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="10") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        return ResponseEntity.ok(users.getItineraries(userId, page, size, viewer == null ? null : viewer.getUsername()));
     }
 
     @PostMapping("/{userId:[0-9]+}/follow")
@@ -43,13 +52,15 @@ public class PublicUserController {
 
     @GetMapping("/{userId:[0-9]+}/followers")
     public ResponseEntity<PageResponse<PublicUserSummaryResponse>> followers(@PathVariable Integer userId,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return ResponseEntity.ok(users.getFollowers(userId, page, size));
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        return ResponseEntity.ok(users.getFollowers(userId, page, size, viewer == null ? null : viewer.getUsername()));
     }
 
     @GetMapping("/{userId:[0-9]+}/following")
     public ResponseEntity<PageResponse<PublicUserSummaryResponse>> following(@PathVariable Integer userId,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return ResponseEntity.ok(users.getFollowing(userId, page, size));
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        return ResponseEntity.ok(users.getFollowing(userId, page, size, viewer == null ? null : viewer.getUsername()));
     }
 }

@@ -9,6 +9,11 @@ import Travel_Planner.Travel_Planner.dto.response.PageResponse;
 public interface MessagingService {
     ConversationSummaryResponse openDirect(Integer recipientUserId, String actorUsername);
     PageResponse<ConversationSummaryResponse> conversations(int page, int size, String actorUsername);
+    PageResponse<ConversationSummaryResponse> messageRequests(int page, int size, String actorUsername);
+    long pendingMessageRequestCount(String actorUsername);
+    long unreadMessageRequestCount(String actorUsername);
+    ConversationSummaryResponse acceptMessageRequest(Long conversationId, String actorUsername);
+    ConversationSummaryResponse declineMessageRequest(Long conversationId, String actorUsername);
     MessagePageResponse messages(Long conversationId, Long beforeSequence, Long afterSequence, int size, String actorUsername);
     MessageResponse send(Long conversationId, SendMessageRequest request, String actorUsername);
     void markRead(Long conversationId, Long lastReadSequence, String actorUsername);

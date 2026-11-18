@@ -36,10 +36,12 @@ public class ItineraryController {
             @RequestParam(required = false) Double minRating,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt,desc") String sort
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @AuthenticationPrincipal UserDetails userDetails
     ) {
         PageResponse<ItinerarySummaryResponse> response = itineraryService.getPublicItineraries(
-                keyword, location, theme, minBudget, maxBudget, minDays, maxDays, minRating, page, size, sort
+                keyword, location, theme, minBudget, maxBudget, minDays, maxDays, minRating, page, size, sort,
+                userDetails == null ? null : userDetails.getUsername()
         );
         return ResponseEntity.ok(response);
     }

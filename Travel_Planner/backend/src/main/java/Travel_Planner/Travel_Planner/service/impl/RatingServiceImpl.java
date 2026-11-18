@@ -19,6 +19,8 @@ import Travel_Planner.Travel_Planner.repository.ItineraryRepository;
 import Travel_Planner.Travel_Planner.repository.RatingRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.service.RatingService;
+import Travel_Planner.Travel_Planner.service.FriendshipService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -38,15 +40,26 @@ public class RatingServiceImpl implements RatingService {
     private final ItineraryRepository itineraryRepository;
     private final UserRepository userRepository;
     private final TransactionTemplate transactionTemplate;
+    private final FriendshipService friendshipService;
+
+    @Autowired
+    public RatingServiceImpl(RatingRepository ratingRepository,
+                             ItineraryRepository itineraryRepository,
+                             UserRepository userRepository,
+                             PlatformTransactionManager transactionManager,
+                             FriendshipService friendshipService) {
+        this.ratingRepository = ratingRepository;
+        this.itineraryRepository = itineraryRepository;
+        this.userRepository = userRepository;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.friendshipService = friendshipService;
+    }
 
     public RatingServiceImpl(RatingRepository ratingRepository,
                              ItineraryRepository itineraryRepository,
                              UserRepository userRepository,
                              PlatformTransactionManager transactionManager) {
-        this.ratingRepository = ratingRepository;
-        this.itineraryRepository = itineraryRepository;
-        this.userRepository = userRepository;
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this(ratingRepository, itineraryRepository, userRepository, transactionManager, null);
     }
 
     @Override
@@ -65,6 +78,7 @@ public class RatingServiceImpl implements RatingService {
             return transactionTemplate.execute(status -> {
                 User user = getAuthenticatedUser(currentUsername);
                 Itinerary itinerary = getPublicActiveItinerary(itineraryId);
+                ensureNotBlocked(user, itinerary);
 
                 if (itinerary.getUser().getUserId().equals(user.getUserId())) {
                     throw new BadRequestException("Bạn không thể tự đánh giá lịch trình của chính mình");
@@ -156,7 +170,7 @@ public class RatingServiceImpl implements RatingService {
     @Transactional(readOnly = true)
     public UserRatingStatusResponse getUserRating(Integer itineraryId, String currentUsername) {
         User user = getAuthenticatedUser(currentUsername);
-        getPublicActiveItinerary(itineraryId);
+        ensureNotBlocked(user, getPublicActiveItinerary(itineraryId));
 
         Optional<Rating> ratingOpt = ratingRepository.findByUser_UserIdAndItinerary_ItineraryId(
                 user.getUserId(), itineraryId);
@@ -184,7 +198,15 @@ public class RatingServiceImpl implements RatingService {
     @Override
     @Transactional(readOnly = true)
     public RatingSummaryResponse getRatingSummary(Integer itineraryId) {
-        getPublicActiveItinerary(itineraryId);
+        return getRatingSummary(itineraryId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RatingSummaryResponse getRatingSummary(Integer itineraryId, String viewerUsername) {
+        Itinerary itinerary = getPublicActiveItinerary(itineraryId);
+        if (viewerUsername != null && !viewerUsername.isBlank())
+            ensureNotBlocked(getAuthenticatedUser(viewerUsername), itinerary);
 
         Double avg = ratingRepository.findAverageRatingByItineraryId(itineraryId);
         double roundedAvg = avg != null ? Math.round(avg * 100.0) / 100.0 : 0.0;
@@ -218,7 +240,7 @@ public class RatingServiceImpl implements RatingService {
     @Transactional(rollbackFor = Exception.class)
     public DeleteRatingResponse deleteRating(Integer itineraryId, String currentUsername) {
         User user = getAuthenticatedUser(currentUsername);
-        getPublicActiveItinerary(itineraryId);
+        ensureNotBlocked(user, getPublicActiveItinerary(itineraryId));
 
         Rating rating = ratingRepository.findByUser_UserIdAndItinerary_ItineraryId(user.getUserId(), itineraryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Bạn chưa đánh giá lịch trình này"));
@@ -268,6 +290,12 @@ public class RatingServiceImpl implements RatingService {
             throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
         }
         return itinerary;
+    }
+
+    private void ensureNotBlocked(User viewer, Itinerary itinerary) {
+        if (friendshipService != null && itinerary.getUser() != null
+                && friendshipService.isBlockedBetween(viewer.getUserId(), itinerary.getUser().getUserId()))
+            throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
     }
 }
 

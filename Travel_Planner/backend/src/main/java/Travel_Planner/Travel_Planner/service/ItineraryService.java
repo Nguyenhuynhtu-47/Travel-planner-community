@@ -32,6 +32,13 @@ public interface ItineraryService {
             String sort
     );
 
+    default PageResponse<ItinerarySummaryResponse> getPublicItineraries(String keyword, String location, String theme,
+            BigDecimal minBudget, BigDecimal maxBudget, Integer minDays, Integer maxDays, Double minRating,
+            int page, int size, String sort, String currentUsername) {
+        return getPublicItineraries(keyword, location, theme, minBudget, maxBudget, minDays, maxDays,
+                minRating, page, size, sort);
+    }
+
     PageResponse<ItinerarySummaryResponse> getRecommendations(
             String currentUsername,
             int page,

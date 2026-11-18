@@ -24,8 +24,11 @@ public class CommentController {
     public ResponseEntity<PageResponse<CommentResponse>> getComments(
             @PathVariable Integer itineraryId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(commentService.getComments(itineraryId, page, size));
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(userDetails == null
+                ? commentService.getComments(itineraryId, page, size)
+                : commentService.getComments(itineraryId, page, size, userDetails.getUsername()));
     }
 
     @PostMapping
