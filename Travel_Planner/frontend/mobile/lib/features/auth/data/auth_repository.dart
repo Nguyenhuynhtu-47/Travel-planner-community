@@ -158,4 +158,92 @@ class AuthRepository {
     );
     return response as Map<String, dynamic>;
   }
+
+  Future<void> logout(String token) async {
+    await _apiClient.post(
+      ApiConstants.logoutEndpoint,
+      token: token,
+      body: {},
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getSessions(String token) async {
+    final response = await _apiClient.get(
+      ApiConstants.sessionsEndpoint,
+      token: token,
+    );
+    if (response is List) {
+      return response
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<void> revokeSession({
+    required String token,
+    required String sessionId,
+  }) async {
+    await _apiClient.post(
+      ApiConstants.revokeSessionEndpoint(sessionId),
+      token: token,
+      body: {},
+    );
+  }
+
+  Future<int> revokeOtherSessions(String token) async {
+    final response = await _apiClient.post(
+      ApiConstants.revokeOtherSessionsEndpoint,
+      token: token,
+      body: {},
+    );
+    if (response is Map && response['revokedCount'] is num) {
+      return (response['revokedCount'] as num).toInt();
+    }
+    return 0;
+  }
+
+  Future<int> revokeAllSessions(String token) async {
+    final response = await _apiClient.post(
+      ApiConstants.revokeAllSessionsEndpoint,
+      token: token,
+      body: {},
+    );
+    if (response is Map && response['revokedCount'] is num) {
+      return (response['revokedCount'] as num).toInt();
+    }
+    return 0;
+  }
+
+  Future<Map<String, dynamic>> requestEmailChange({
+    required String token,
+    required String newEmail,
+    String? password,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConstants.emailChangeRequestEndpoint,
+      token: token,
+      body: {
+        'newEmail': newEmail,
+        if (password != null && password.isNotEmpty) 'password': password,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> verifyEmailChange({
+    required String token,
+    required String newEmail,
+    required String otp,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConstants.emailChangeVerifyEndpoint,
+      token: token,
+      body: {
+        'newEmail': newEmail,
+        'otp': otp,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
 }

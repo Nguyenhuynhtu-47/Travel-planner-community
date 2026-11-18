@@ -62,19 +62,42 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(User user) {
+        return generateToken(user, null);
+    }
+
+    public String generateToken(User user, String sessionId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expirationMs);
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getUsername())
                 .claim("userId", user.getUserId())
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
-                .claim("tokenVersion", user.getTokenVersion() != null ? user.getTokenVersion() : 1)
+                .claim("tokenVersion", user.getTokenVersion() != null ? user.getTokenVersion() : 1);
+
+        if (sessionId != null && !sessionId.isBlank()) {
+            builder.claim("sessionId", sessionId);
+        }
+
+        return builder
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key)
                 .compact();
+    }
+
+    public String getSessionIdFromToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            return claims.get("sessionId", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public long getExpirationMs() {
+        return expirationMs;
     }
 
     public String getUsernameFromToken(String token) {

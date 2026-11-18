@@ -80,13 +80,14 @@ class _CommunityScreenState extends State<CommunityScreen>
     } else {
       _activeAccountKey = null;
       _realtime.disconnect();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _conversations = [];
           _friends = [];
           _incoming = [];
           _outgoing = [];
         });
+      }
     }
   }
 
@@ -110,8 +111,9 @@ class _CommunityScreenState extends State<CommunityScreen>
         _error = null;
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Không tải được tin nhắn và bạn bè.');
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -140,18 +142,21 @@ class _CommunityScreenState extends State<CommunityScreen>
     child: url?.isNotEmpty == true ? null : const Icon(Icons.person_outline),
   );
   Widget _inbox() {
-    if (_loading && _conversations.isEmpty)
+    if (_loading && _conversations.isEmpty) {
       return const Center(child: CircularProgressIndicator());
-    if (_error != null && _conversations.isEmpty)
+    }
+    if (_error != null && _conversations.isEmpty) {
       return Center(
         child: TextButton(onPressed: _load, child: Text(_error!)),
       );
-    if (_conversations.isEmpty)
+    }
+    if (_conversations.isEmpty) {
       return const AppEmptyState(
         icon: Icons.chat_bubble_outline,
         title: 'Chưa có tin nhắn',
         message: 'Mở hồ sơ một người bạn để bắt đầu trò chuyện.',
       );
+    }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
@@ -189,14 +194,16 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Widget _friendsTab() {
-    if (_loading && _friends.isEmpty)
+    if (_loading && _friends.isEmpty) {
       return const Center(child: CircularProgressIndicator());
-    if (_friends.isEmpty)
+    }
+    if (_friends.isEmpty) {
       return const AppEmptyState(
         icon: Icons.people_outline,
         title: 'Chưa có bạn bè',
         message: 'Kết nối với người dùng qua hồ sơ công khai.',
       );
+    }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -213,12 +220,13 @@ class _CommunityScreenState extends State<CommunityScreen>
                       final c = await _repo.openDirect(u.userId, _token!);
                       if (mounted) _open(c);
                     } catch (_) {
-                      if (mounted)
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Không thể mở cuộc trò chuyện.'),
                           ),
                         );
+                      }
                     }
                   },
                 ),

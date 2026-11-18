@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../auth_notifier.dart';
+import 'login_screen.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
@@ -76,8 +77,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
       );
 
-      // Return to root (unauthenticated state redirects to login or public view)
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // Navigate cleanly back to Login screen (never Home)
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: '/login'),
+          builder: (_) => LoginScreen(authNotifier: widget.authNotifier),
+        ),
+        (route) => route.isFirst,
+      );
     } on ApiException catch (e) {
       if (mounted) {
         setState(() {

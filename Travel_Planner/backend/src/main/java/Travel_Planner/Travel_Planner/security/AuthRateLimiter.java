@@ -98,6 +98,12 @@ public class AuthRateLimiter {
             .maximumSize(20_000)
             .build();
 
+    // Cache for Email change rate limiting (Phase 4)
+    private final Cache<String, Bucket> emailChangeBuckets = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofHours(1))
+            .maximumSize(20_000)
+            .build();
+
     // Cache for Account-based change password rate limiting (Phase 2)
     private final Cache<String, Bucket> changePasswordAccountBuckets = Caffeine.newBuilder()
             .expireAfterAccess(Duration.ofHours(1))
@@ -307,6 +313,30 @@ public class AuthRateLimiter {
         return true;
     }
 
+    public boolean tryConsumeEmailChange(String clientIp, String identifier) {
+        if (!enabled) {
+            return true;
+        }
+
+        if (clientIp != null) {
+            String safeIp = normalizeKey(clientIp);
+            Bucket ipBucket = emailChangeBuckets.get(safeIp, k -> createBucket(5, 15));
+            if (ipBucket != null && !ipBucket.tryConsume(1)) {
+                return false;
+            }
+        }
+
+        if (identifier != null && !identifier.isBlank()) {
+            String safeIdentifier = identifier.trim().toLowerCase(Locale.ROOT);
+            Bucket userBucket = emailChangeBuckets.get("user:" + safeIdentifier, k -> createBucket(5, 15));
+            if (userBucket != null && !userBucket.tryConsume(1)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public void reset(String clientIp) {
         if (clientIp != null) {
             String safeIp = normalizeKey(clientIp);
@@ -348,6 +378,7 @@ public class AuthRateLimiter {
         resetPasswordIpBuckets.invalidateAll();
         resetPasswordAccountBuckets.invalidateAll();
         changePasswordAccountBuckets.invalidateAll();
+        emailChangeBuckets.invalidateAll();
     }
 
     private Bucket createBucket(long capacity, long durationMinutes) {

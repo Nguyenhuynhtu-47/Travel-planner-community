@@ -456,6 +456,7 @@ void main() {
         expect(find.byType(BottomNavigationBar), findsNothing);
 
         // Tap register
+        await tester.ensureVisible(find.text('Đăng ký ngay'));
         await tester.tap(find.text('Đăng ký ngay'));
         await tester.pumpAndSettle();
 

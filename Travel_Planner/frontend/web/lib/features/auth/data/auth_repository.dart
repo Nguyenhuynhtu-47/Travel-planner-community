@@ -45,4 +45,12 @@ class AuthRepository {
     );
     return response as Map<String, dynamic>;
   }
+
+  Future<void> logout(String token) async {
+    await _apiClient.post(
+      ApiConstants.logoutEndpoint,
+      token: token,
+      body: {},
+    );
+  }
 }

@@ -631,7 +631,7 @@ class _AdminModerationScreenState extends State<AdminModerationScreen>
                                       width: 40,
                                       height: 40,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, _) => const Icon(Icons.broken_image, size: 30),
+                                      errorBuilder: (_, _, _) => const Icon(Icons.broken_image, size: 30),
                                     ),
                                   ),
                                   DataCell(Text(asset.cloudinaryPublicId)),

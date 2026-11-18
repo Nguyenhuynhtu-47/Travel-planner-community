@@ -42,10 +42,11 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
       );
       if (mounted) setState(() => _settings = result);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Không thể lưu quyền riêng tư.')),
         );
+      }
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -92,14 +93,16 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
               FutureBuilder(
                 future: widget.repository.blockedUsers(widget.token),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData)
+                  if (!snapshot.hasData) {
                     return const Padding(
                       padding: EdgeInsets.all(16),
                       child: Center(child: CircularProgressIndicator()),
                     );
+                  }
                   final users = snapshot.data!.content;
-                  if (users.isEmpty)
+                  if (users.isEmpty) {
                     return const ListTile(title: Text('Bạn chưa chặn ai.'));
+                  }
                   return Column(
                     children: users
                         .map(

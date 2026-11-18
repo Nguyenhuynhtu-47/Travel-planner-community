@@ -137,6 +137,96 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Override
+    public void sendEmailChangeOtp(String toNewEmail, String fullName, String otp, int expirationMinutes) {
+        if (!mailEnabled || mailSender == null) {
+            log.info("--- [EmailService] Mail disabled (app.mail.enabled=false). Simulating email change OTP to {} (valid for {} mins) ---",
+                    maskEmail(toNewEmail), expirationMinutes);
+            return;
+        }
+
+        try {
+            log.info("--- [EmailService] Preparing email change OTP dispatch to {} ---", maskEmail(toNewEmail));
+            String recipientName = (fullName != null && !fullName.trim().isEmpty()) ? fullName.trim() : "Quý khách";
+            String htmlContent = "<p>Xin chào " + recipientName + ",</p><p>Mã xác thực để đổi địa chỉ email tài khoản Travel Planner của bạn là: <strong>"
+                    + otp + "</strong> (hiệu lực " + expirationMinutes + " phút).</p>"
+                    + "<p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email hoặc liên hệ với đội ngũ hỗ trợ.</p>";
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            String effectiveFrom = getEffectiveFrom();
+            helper.setFrom(effectiveFrom, "Travel Planner Community");
+            helper.setTo(toNewEmail);
+            helper.setSubject("Mã xác thực đổi địa chỉ email - Travel Planner");
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("--- [EmailService] SMTP dispatch succeeded for email change OTP to {} ---", maskEmail(toNewEmail));
+        } catch (Exception e) {
+            log.error("--- [EmailService] SMTP dispatch failed for email change OTP to {}: {} ---", maskEmail(toNewEmail), e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void sendEmailChangeNotice(String toOldEmail, String fullName, String newEmail) {
+        if (!mailEnabled || mailSender == null) {
+            log.info("--- [EmailService] Mail disabled. Simulating email change security notice to old email {} (new: {}) ---",
+                    maskEmail(toOldEmail), maskEmail(newEmail));
+            return;
+        }
+
+        try {
+            String recipientName = (fullName != null && !fullName.trim().isEmpty()) ? fullName.trim() : "Quý khách";
+            String htmlContent = "<p>Xin chào " + recipientName + ",</p><p>Chúng tôi vừa nhận được yêu cầu đổi địa chỉ email tài khoản Travel Planner của bạn sang: <strong>"
+                    + maskEmail(newEmail) + "</strong>.</p>"
+                    + "<p>Nếu bạn không thực hiện yêu cầu này, tài khoản của bạn có thể đang bị truy cập trái phép. Vui lòng đăng nhập và đổi mật khẩu ngay lập tức.</p>";
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(getEffectiveFrom(), "Travel Planner Community");
+            helper.setTo(toOldEmail);
+            helper.setSubject("Cảnh báo bảo mật: Yêu cầu đổi địa chỉ email tài khoản Travel Planner");
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.error("--- [EmailService] SMTP notice failed to {}: {} ---", maskEmail(toOldEmail), e.getMessage());
+        }
+    }
+
+    @Override
+    public void sendEmailChangeSuccessNotice(String toOldEmail, String toNewEmail, String fullName) {
+        if (!mailEnabled || mailSender == null) {
+            log.info("--- [EmailService] Mail disabled. Simulating email change success notice to old: {}, new: {} ---",
+                    maskEmail(toOldEmail), maskEmail(toNewEmail));
+            return;
+        }
+
+        try {
+            String recipientName = (fullName != null && !fullName.trim().isEmpty()) ? fullName.trim() : "Quý khách";
+            String htmlContent = "<p>Xin chào " + recipientName + ",</p><p>Địa chỉ email tài khoản Travel Planner của bạn đã được thay đổi thành công thành: <strong>"
+                    + toNewEmail + "</strong>.</p>";
+
+            MimeMessage message1 = mailSender.createMimeMessage();
+            MimeMessageHelper helper1 = new MimeMessageHelper(message1, true, "UTF-8");
+            helper1.setFrom(getEffectiveFrom(), "Travel Planner Community");
+            helper1.setTo(toOldEmail);
+            helper1.setSubject("Thông báo: Địa chỉ email tài khoản Travel Planner đã thay đổi");
+            helper1.setText(htmlContent, true);
+            mailSender.send(message1);
+
+            MimeMessage message2 = mailSender.createMimeMessage();
+            MimeMessageHelper helper2 = new MimeMessageHelper(message2, true, "UTF-8");
+            helper2.setFrom(getEffectiveFrom(), "Travel Planner Community");
+            helper2.setTo(toNewEmail);
+            helper2.setSubject("Chào mừng: Địa chỉ email mới của tài khoản Travel Planner");
+            helper2.setText(htmlContent, true);
+            mailSender.send(message2);
+        } catch (Exception e) {
+            log.error("--- [EmailService] SMTP success notice failed: {} ---", e.getMessage());
+        }
+    }
+
     private String maskEmail(String email) {
         if (email == null || !email.contains("@")) return "***";
         int atIndex = email.indexOf('@');

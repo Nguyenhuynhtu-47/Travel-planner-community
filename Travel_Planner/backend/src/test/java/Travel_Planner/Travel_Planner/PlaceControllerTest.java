@@ -58,6 +58,9 @@ public class PlaceControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
     private User adminUser;
     private User regularUser;
@@ -79,6 +82,7 @@ public class PlaceControllerTest {
                 .fullName("Admin Place User")
                 .role(Role.ADMIN)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         regularUser = userRepository.save(User.builder()
@@ -88,6 +92,7 @@ public class PlaceControllerTest {
                 .fullName("Regular Place User")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         adminToken = "Bearer " + jwtTokenProvider.generateToken(adminUser);
@@ -100,10 +105,7 @@ public class PlaceControllerTest {
     }
 
     private void cleanUp() {
-        mappingRepository.deleteAll();
-        placeRepository.deleteAll();
-        if (adminUser != null) userRepository.delete(adminUser);
-        if (regularUser != null) userRepository.delete(regularUser);
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test

@@ -38,6 +38,13 @@ class ApiConstants {
   static const String verifyResetOtpEndpoint = '/api/auth/verify-reset-otp';
   static const String resetPasswordEndpoint = '/api/auth/reset-password';
   static const String changePasswordEndpoint = '/api/auth/change-password';
+  static const String logoutEndpoint = '/api/auth/logout';
+  static const String sessionsEndpoint = '/api/auth/sessions';
+  static String revokeSessionEndpoint(String sessionId) => '/api/auth/sessions/$sessionId/revoke';
+  static const String revokeOtherSessionsEndpoint = '/api/auth/sessions/revoke-others';
+  static const String revokeAllSessionsEndpoint = '/api/auth/sessions/revoke-all';
+  static const String emailChangeRequestEndpoint = '/api/auth/email-change/request';
+  static const String emailChangeVerifyEndpoint = '/api/auth/email-change/verify';
   static const String currentProfileEndpoint = '/api/user/profile';
   static const String itinerariesEndpoint = '/api/itineraries';
   static const String recommendationsEndpoint =

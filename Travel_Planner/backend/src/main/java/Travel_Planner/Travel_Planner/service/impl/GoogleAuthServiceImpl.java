@@ -20,6 +20,9 @@ import Travel_Planner.Travel_Planner.security.GoogleUserInfo;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
 import Travel_Planner.Travel_Planner.service.GoogleAuthService;
 import Travel_Planner.Travel_Planner.service.UserHandleService;
+import Travel_Planner.Travel_Planner.service.UserSessionService;
+import Travel_Planner.Travel_Planner.model.UserSession;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +41,7 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final UserHandleService userHandleService;
+    private final UserSessionService userSessionService;
 
     public GoogleAuthServiceImpl(
             GoogleTokenVerifier googleTokenVerifier,
@@ -46,17 +50,36 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
             JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder,
             UserHandleService userHandleService) {
+        this(googleTokenVerifier, userRepository, userIdentityRepository, jwtTokenProvider, passwordEncoder, userHandleService, null);
+    }
+
+    @Autowired
+    public GoogleAuthServiceImpl(
+            GoogleTokenVerifier googleTokenVerifier,
+            UserRepository userRepository,
+            UserIdentityRepository userIdentityRepository,
+            JwtTokenProvider jwtTokenProvider,
+            PasswordEncoder passwordEncoder,
+            UserHandleService userHandleService,
+            @Autowired(required = false) UserSessionService userSessionService) {
         this.googleTokenVerifier = googleTokenVerifier;
         this.userRepository = userRepository;
         this.userIdentityRepository = userIdentityRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
         this.userHandleService = userHandleService;
+        this.userSessionService = userSessionService;
     }
 
     @Override
     @Transactional
     public AuthResponse authenticateWithGoogle(GoogleAuthRequest request) {
+        return authenticateWithGoogle(request, null, null);
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse authenticateWithGoogle(GoogleAuthRequest request, String deviceInfo, String ipAddress) {
         // 1. Cryptographically verify Google ID Token & claims
         GoogleUserInfo userInfo = googleTokenVerifier.verify(request.getIdToken());
         String email = userInfo.getEmail().toLowerCase().trim();
@@ -112,8 +135,21 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
             userIdentityRepository.save(newIdentity);
         }
 
-        // 6. Issue Travel Planner JWT
-        String token = jwtTokenProvider.generateToken(user);
+        // 6. Create UserSession & Issue Travel Planner JWT
+        String sessionId = null;
+        if (userSessionService != null) {
+            UserSession session = userSessionService.createSession(
+                    user,
+                    deviceInfo,
+                    ipAddress,
+                    jwtTokenProvider.getExpirationMs()
+            );
+            if (session != null) {
+                sessionId = session.getSessionId();
+            }
+        }
+
+        String token = jwtTokenProvider.generateToken(user, sessionId);
 
         return AuthResponse.builder()
                 .token(token)

@@ -58,8 +58,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (status == RealtimeStatus.connected) _syncNewMessages();
     });
     if (widget.authNotifier.token != null &&
-        _realtime.currentStatus != RealtimeStatus.connected)
+        _realtime.currentStatus != RealtimeStatus.connected) {
       _realtime.connect(widget.authNotifier.token!, "$_me");
+    }
     _load();
     _scroll.addListener(_onScroll);
   }
@@ -93,11 +94,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (_messages.isNotEmpty) _markRead(_messages.last.sequenceNumber);
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollBottom());
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = 'Không thể tải tin nhắn. Hãy thử tải lại.';
         });
+      }
     }
   }
 
@@ -125,10 +127,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           _before = p.nextBeforeSequence;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scroll.hasClients)
+          if (_scroll.hasClients) {
             _scroll.jumpTo(
               oldPixels + _scroll.position.maxScrollExtent - oldExtent,
             );
+          }
         });
       }
     } catch (_) {}
@@ -151,8 +154,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _syncNewMessages() async {
-    if (!mounted || _messages.isEmpty || widget.authNotifier.token == null)
+    if (!mounted || _messages.isEmpty || widget.authNotifier.token == null) {
       return;
+    }
     try {
       final page = await widget.repository.messages(
         widget.conversation.conversationId,
@@ -176,8 +180,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onEvent(ChatEvent event) {
-    if (event.conversationId != widget.conversation.conversationId || !mounted)
+    if (event.conversationId != widget.conversation.conversationId || !mounted) {
       return;
+    }
     if (event.type == 'READ_CURSOR_UPDATED' &&
         event.readerUserId != _me &&
         event.sequenceNumber != null) {
@@ -188,8 +193,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     if (event.message != null) {
       setState(() => _merge([event.message!]));
-      if (event.message!.senderUserId != _me)
+      if (event.message!.senderUserId != _me) {
         _markRead(event.message!.sequenceNumber);
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollBottom());
     }
   }
@@ -221,12 +227,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _scrollBottom() {
-    if (_scroll.hasClients)
+    if (_scroll.hasClients) {
       _scroll.animateTo(
         _scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
       );
+    }
   }
 
   String _uuid() {
@@ -282,13 +289,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (_) {
       if (mounted) {
         final i = _messages.indexWhere((m) => m.clientMessageId == id);
-        if (i >= 0)
+        if (i >= 0) {
           setState(
             () => _messages[i] = _messages[i].copyWith(
               sending: false,
               failed: true,
             ),
           );
+        }
         _input.text = text;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -353,8 +361,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.all(12),
                     itemCount: _messages.length + (_loadingOlder ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (_loadingOlder && index == 0)
+                      if (_loadingOlder && index == 0) {
                         return const Center(child: CircularProgressIndicator());
+                      }
                       final message =
                           _messages[index - (_loadingOlder ? 1 : 0)];
                       final own = message.senderUserId == _me;

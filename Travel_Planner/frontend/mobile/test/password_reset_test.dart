@@ -14,8 +14,6 @@ import 'package:mobile/features/auth/presentation/screens/forgot_password_screen
 import 'package:mobile/features/auth/presentation/screens/login_screen.dart';
 import 'package:mobile/features/auth/presentation/screens/reset_password_screen.dart';
 import 'package:mobile/shared/widgets/app_otp_input.dart';
-import 'package:mobile/shared/widgets/app_primary_button.dart';
-import 'package:mobile/shared/widgets/app_text_field.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -574,6 +572,97 @@ void main() {
       expect(notifier.isAuthenticated, isTrue);
       expect(notifier.status, equals(AuthStatus.authenticated));
       expect(await storage.getToken(), equals('jwt-for-activated-account'));
+    });
+
+    testWidgets('ChangePasswordScreen navigates to LoginScreen on success, clears client state, and back button does not return to authenticated screens', (tester) async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path.endsWith('/api/auth/change-password')) {
+          return http.Response(
+            jsonEncode({
+              'message': 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại.',
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path.endsWith('/api/auth/logout')) {
+          return http.Response(
+            jsonEncode({'message': 'Logged out successfully'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final apiClient = ApiClient(client: mockClient);
+      final repository = AuthRepository(apiClient: apiClient);
+      final storage = AuthStorage();
+      final header = base64Url.encode(utf8.encode(jsonEncode({'alg': 'HS256', 'typ': 'JWT'})));
+      final payload = base64Url.encode(utf8.encode(jsonEncode({
+        'sub': 'user@example.com',
+        'exp': (DateTime.now().millisecondsSinceEpoch ~/ 1000) + 3600,
+      })));
+      final testJwt = '$header.$payload.signature';
+      await storage.saveToken(testJwt);
+      await storage.saveUser({'userId': 1, 'email': 'user@example.com', 'fullName': 'Old User'});
+      final notifier = AuthNotifier(repository: repository, storage: storage);
+      await notifier.checkAuthStatus();
+      expect(notifier.isAuthenticated, isTrue);
+
+      final navKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(MaterialApp(
+        navigatorKey: navKey,
+        home: const Scaffold(body: Text('Root Home Screen')),
+      ));
+
+      // Push Profile / Authenticated screen, then ChangePasswordScreen
+      navKey.currentState!.push(MaterialPageRoute(
+        settings: const RouteSettings(name: '/personal-info'),
+        builder: (_) => const Scaffold(body: Text('Personal Info Authenticated Screen')),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('Personal Info Authenticated Screen'), findsOneWidget);
+
+      navKey.currentState!.push(MaterialPageRoute(
+        settings: const RouteSettings(name: '/change-password'),
+        builder: (_) => ChangePasswordScreen(authNotifier: notifier),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('Đổi mật khẩu'), findsOneWidget);
+
+      // Enter current password and new password
+      final textFields = find.byType(TextField);
+      await tester.enterText(textFields.at(0), 'OldPassword123!');
+      await tester.enterText(textFields.at(1), 'NewPassword123!');
+      await tester.enterText(textFields.at(2), 'NewPassword123!');
+
+      final submitBtn = find.widgetWithText(ElevatedButton, 'Cập nhật mật khẩu');
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      // Verified: Navigates to LoginScreen, NOT Home!
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.text('Đăng nhập để tiếp tục kế hoạch du lịch của bạn'), findsOneWidget);
+      expect(find.text('Root Home Screen'), findsNothing);
+      expect(find.text('Personal Info Authenticated Screen'), findsNothing);
+
+      // Auth state and token are completely cleared locally
+      expect(notifier.isAuthenticated, isFalse);
+      expect(notifier.token, isNull);
+      expect(notifier.currentUser, isNull);
+      expect(notifier.status, equals(AuthStatus.unauthenticated));
+      expect(await storage.getToken(), isNull);
+
+      // Verify SnackBar message is displayed
+      expect(find.text('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.'), findsOneWidget);
+
+      // Press Back on LoginScreen - verify it NEVER returns to authenticated Personal Info screen
+      if (find.byType(IconButton).evaluate().isNotEmpty) {
+        await tester.tap(find.byType(IconButton).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Personal Info Authenticated Screen'), findsNothing);
+      }
     });
   });
 }

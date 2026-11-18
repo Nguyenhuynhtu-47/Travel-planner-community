@@ -1,5 +1,6 @@
 package Travel_Planner.Travel_Planner.security;
 
+import Travel_Planner.Travel_Planner.service.UserSessionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,10 +21,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsServiceImpl userDetailsService;
+    private final UserSessionService userSessionService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, UserDetailsServiceImpl userDetailsService) {
+    public JwtAuthenticationFilter(
+            JwtTokenProvider tokenProvider,
+            UserDetailsServiceImpl userDetailsService,
+            UserSessionService userSessionService) {
         this.tokenProvider = tokenProvider;
         this.userDetailsService = userDetailsService;
+        this.userSessionService = userSessionService;
     }
 
     @Override
@@ -38,6 +44,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 String username = tokenProvider.getUsernameFromToken(jwt);
                 Integer tokenVersionFromJwt = tokenProvider.getTokenVersionFromToken(jwt);
+                String sessionId = tokenProvider.getSessionIdFromToken(jwt);
+
+                // If token contains a session ID, verify that the session is still active on server
+                if (sessionId != null && !sessionId.isBlank()) {
+                    if (!userSessionService.isSessionActive(sessionId)) {
+                        SecurityContextHolder.clearContext();
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+                    userSessionService.touchSession(sessionId);
+                }
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 if (userDetails.isEnabled() && userDetails.isAccountNonLocked()) {

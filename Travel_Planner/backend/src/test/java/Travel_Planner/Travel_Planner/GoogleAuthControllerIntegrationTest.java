@@ -8,6 +8,7 @@ import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.repository.UserIdentityRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
+import Travel_Planner.Travel_Planner.repository.UserSessionRepository;
 import Travel_Planner.Travel_Planner.security.GoogleTokenVerifier;
 import Travel_Planner.Travel_Planner.security.GoogleUserInfo;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
@@ -47,6 +48,9 @@ class GoogleAuthControllerIntegrationTest {
     private UserIdentityRepository userIdentityRepository;
 
     @Autowired
+    private UserSessionRepository userSessionRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -70,7 +74,8 @@ class GoogleAuthControllerIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        // Clean up test identities and users
+        // Clean up test sessions, identities and users
+        userSessionRepository.deleteAll();
         userIdentityRepository.deleteAll();
         userRepository.findByEmail("google_it_new@example.com").ifPresent(userRepository::delete);
         userRepository.findByEmail("google_it_local@example.com").ifPresent(userRepository::delete);

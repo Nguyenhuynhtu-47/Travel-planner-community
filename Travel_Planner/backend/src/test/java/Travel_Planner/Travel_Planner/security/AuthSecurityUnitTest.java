@@ -251,7 +251,7 @@ class AuthSecurityUnitTest {
                 .build();
 
         when(userRepository.findByUsernameOrEmail(eq("verified_user"), eq("verified_user"))).thenReturn(Optional.of(verifiedUser));
-        when(jwtTokenProvider.generateToken(verifiedUser)).thenReturn("fake-jwt-token");
+        when(jwtTokenProvider.generateToken(eq(verifiedUser), any())).thenReturn("fake-jwt-token");
 
         LoginRequest request = LoginRequest.builder()
                 .usernameOrEmail("verified_user")

@@ -112,7 +112,7 @@ class GoogleAuthServiceTest {
         when(googleTokenVerifier.verify(tokenStr)).thenReturn(userInfo);
         when(userIdentityRepository.findByProviderAndProviderSubject("GOOGLE", "google-sub-123"))
                 .thenReturn(Optional.of(identity));
-        when(jwtTokenProvider.generateToken(user)).thenReturn("jwt.token.value");
+        when(jwtTokenProvider.generateToken(eq(user), any())).thenReturn("jwt.token.value");
 
         AuthResponse response = googleAuthService.authenticateWithGoogle(new GoogleAuthRequest(tokenStr));
 
@@ -206,7 +206,7 @@ class GoogleAuthServiceTest {
 
         User savedUser = buildSampleUser(5, "newbie", "newbie@example.com", UserStatus.ACTIVE);
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtTokenProvider.generateToken(savedUser)).thenReturn("jwt.token.newbie");
+        when(jwtTokenProvider.generateToken(eq(savedUser), any())).thenReturn("jwt.token.newbie");
 
         AuthResponse response = googleAuthService.authenticateWithGoogle(new GoogleAuthRequest(tokenStr));
 

@@ -61,6 +61,9 @@ class RatingControllerTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
 
     private User authorUser;
@@ -77,11 +80,7 @@ class RatingControllerTest {
                 .apply(springSecurity())
                 .build();
 
-        favoriteRepository.deleteAll();
-        savedItineraryRepository.deleteAll();
-        ratingRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
 
         authorUser = userRepository.save(User.builder()
                 .username("author1")
@@ -90,6 +89,7 @@ class RatingControllerTest {
                 .fullName("Author One")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         raterUser = userRepository.save(User.builder()
@@ -99,6 +99,7 @@ class RatingControllerTest {
                 .fullName("Rater One")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         bannedUser = userRepository.save(User.builder()
@@ -108,6 +109,7 @@ class RatingControllerTest {
                 .fullName("Banned User")
                 .role(Role.USER)
                 .status(UserStatus.BANNED)
+                .emailVerified(true)
                 .build());
 
         raterToken = jwtTokenProvider.generateToken(raterUser);
@@ -137,11 +139,7 @@ class RatingControllerTest {
 
     @AfterEach
     void tearDown() {
-        favoriteRepository.deleteAll();
-        savedItineraryRepository.deleteAll();
-        ratingRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test

@@ -9,5 +9,6 @@ import Travel_Planner.Travel_Planner.model.User;
 public interface EmailVerificationService {
     void createVerificationTokenAndDispatch(User user);
     AuthResponse verifyEmail(VerifyEmailRequest request);
+    AuthResponse verifyEmail(VerifyEmailRequest request, String deviceInfo, String ipAddress);
     ResendVerificationResponse resendVerification(ResendVerificationRequest request);
 }

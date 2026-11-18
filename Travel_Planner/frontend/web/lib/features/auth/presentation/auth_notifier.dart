@@ -200,6 +200,14 @@ class AuthNotifier extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken != null && activeToken.isNotEmpty) {
+      try {
+        await _repository.logout(activeToken);
+      } catch (_) {
+        // If server fails or offline, continue with local cleanup
+      }
+    }
     await _storage.clear();
     _token = null;
     _currentUser = null;

@@ -74,6 +74,9 @@ public class RouteServiceTest {
     @Autowired
     private MapProperties mapProperties;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
 
     private User ownerUser;
@@ -96,6 +99,8 @@ public class RouteServiceTest {
                 .apply(springSecurity())
                 .build();
 
+        TestDatabaseCleaner.clean(jdbcTemplate);
+
         ownerUser = userRepository.save(User.builder()
                 .username("route_owner")
                 .password(passwordEncoder.encode("Password123!"))
@@ -103,6 +108,7 @@ public class RouteServiceTest {
                 .fullName("Chủ Lịch Trình")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         otherUser = userRepository.save(User.builder()
@@ -112,6 +118,7 @@ public class RouteServiceTest {
                 .fullName("Người Dùng Khác")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         ownerToken = "Bearer " + jwtTokenProvider.generateToken(ownerUser);
@@ -191,11 +198,7 @@ public class RouteServiceTest {
 
     @AfterEach
     void tearDown() {
-        activityRepository.deleteAll();
-        itineraryDayRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        placeRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Nested

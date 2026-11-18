@@ -449,11 +449,97 @@ class AuthNotifier extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken != null && activeToken.isNotEmpty) {
+      try {
+        await _repository.logout(activeToken);
+      } catch (_) {
+        // If server fails or offline, continue with local cleanup
+      }
+    }
     await _storage.clear();
     _token = null;
     _currentUser = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();
+  }
+
+  Future<List<Map<String, dynamic>>> getSessions() async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken == null || activeToken.isEmpty) {
+      return [];
+    }
+    return await _repository.getSessions(activeToken);
+  }
+
+  Future<void> revokeSession(String sessionId) async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken == null || activeToken.isEmpty) {
+      throw ApiException(
+        statusCode: 401,
+        message: 'Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.',
+      );
+    }
+    await _repository.revokeSession(token: activeToken, sessionId: sessionId);
+  }
+
+  Future<int> revokeOtherSessions() async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken == null || activeToken.isEmpty) {
+      throw ApiException(
+        statusCode: 401,
+        message: 'Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.',
+      );
+    }
+    return await _repository.revokeOtherSessions(activeToken);
+  }
+
+  Future<Map<String, dynamic>> requestEmailChange({
+    required String newEmail,
+    String? password,
+  }) async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken == null || activeToken.isEmpty) {
+      throw ApiException(
+        statusCode: 401,
+        message: 'Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.',
+      );
+    }
+
+    return await _repository.requestEmailChange(
+      token: activeToken,
+      newEmail: newEmail,
+      password: password,
+    );
+  }
+
+  Future<Map<String, dynamic>> verifyEmailChange({
+    required String newEmail,
+    required String otp,
+  }) async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken == null || activeToken.isEmpty) {
+      throw ApiException(
+        statusCode: 401,
+        message: 'Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.',
+      );
+    }
+
+    final response = await _repository.verifyEmailChange(
+      token: activeToken,
+      newEmail: newEmail,
+      otp: otp,
+    );
+
+    var userToUpdate = _currentUser ?? await _storage.getUser();
+    if (userToUpdate != null) {
+      final updatedUser = Map<String, dynamic>.from(userToUpdate);
+      updatedUser['email'] = newEmail;
+      updatedUser['emailVerified'] = true;
+      await updateCurrentUser(updatedUser);
+    }
+
+    return response;
   }
 
   Future<void> updateCurrentUser(Map<String, dynamic> user) async {

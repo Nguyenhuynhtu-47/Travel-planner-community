@@ -62,6 +62,9 @@ class ItineraryCrudTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
 
     private User ownerUser;
@@ -88,6 +91,7 @@ class ItineraryCrudTest {
                 .fullName("Chủ Lịch Trình")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         otherUser = userRepository.save(User.builder()
@@ -97,6 +101,7 @@ class ItineraryCrudTest {
                 .fullName("Người Dùng Khác")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         ownerToken = "Bearer " + jwtTokenProvider.generateToken(ownerUser);
@@ -119,12 +124,7 @@ class ItineraryCrudTest {
     }
 
     private void cleanupDatabase() {
-        activityRepository.deleteAll();
-        itineraryDayRepository.deleteAll();
-        ratingRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        placeRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test

@@ -14,6 +14,8 @@ public interface AuthService {
 
     AuthResponse login(LoginRequest request);
 
+    AuthResponse login(LoginRequest request, String deviceInfo, String ipAddress);
+
     UserResponse getCurrentUser(String username);
 
     ChangePasswordResponse changePassword(String username, ChangePasswordRequest request);

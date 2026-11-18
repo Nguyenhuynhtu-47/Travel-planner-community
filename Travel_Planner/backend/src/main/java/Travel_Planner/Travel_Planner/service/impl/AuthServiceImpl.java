@@ -13,13 +13,17 @@ import Travel_Planner.Travel_Planner.exception.ForbiddenException;
 import Travel_Planner.Travel_Planner.exception.UnauthorizedException;
 import Travel_Planner.Travel_Planner.model.User;
 import Travel_Planner.Travel_Planner.model.enums.Role;
+import Travel_Planner.Travel_Planner.model.enums.UserSessionStatus;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
+import Travel_Planner.Travel_Planner.repository.UserSessionRepository;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
 import Travel_Planner.Travel_Planner.security.PasswordPolicyValidator;
 import Travel_Planner.Travel_Planner.service.AuthService;
 import Travel_Planner.Travel_Planner.service.EmailVerificationService;
 import Travel_Planner.Travel_Planner.service.UserHandleService;
+import Travel_Planner.Travel_Planner.service.UserSessionService;
+import Travel_Planner.Travel_Planner.model.UserSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,13 +43,25 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserHandleService userHandleService;
     private final EmailVerificationService emailVerificationService;
+    private final UserSessionService userSessionService;
+    private final UserSessionRepository userSessionRepository;
 
     public AuthServiceImpl(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             UserHandleService userHandleService) {
-        this(userRepository, passwordEncoder, jwtTokenProvider, userHandleService, null);
+        this(userRepository, passwordEncoder, jwtTokenProvider, userHandleService, null, null, null);
+    }
+
+    public AuthServiceImpl(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            JwtTokenProvider jwtTokenProvider,
+            UserHandleService userHandleService,
+            EmailVerificationService emailVerificationService,
+            UserSessionService userSessionService) {
+        this(userRepository, passwordEncoder, jwtTokenProvider, userHandleService, emailVerificationService, userSessionService, null);
     }
 
     @Autowired
@@ -54,12 +70,16 @@ public class AuthServiceImpl implements AuthService {
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             UserHandleService userHandleService,
-            @Autowired(required = false) EmailVerificationService emailVerificationService) {
+            @Autowired(required = false) EmailVerificationService emailVerificationService,
+            @Autowired(required = false) UserSessionService userSessionService,
+            @Autowired(required = false) UserSessionRepository userSessionRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.userHandleService = userHandleService;
         this.emailVerificationService = emailVerificationService;
+        this.userSessionService = userSessionService;
+        this.userSessionRepository = userSessionRepository;
     }
 
     @Override
@@ -113,8 +133,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest request) {
+        return login(request, null, null);
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse login(LoginRequest request, String deviceInfo, String ipAddress) {
         String identifier = request.getUsernameOrEmail().trim();
 
         User user = userRepository.findByUsernameOrEmail(identifier, identifier.toLowerCase())
@@ -151,7 +177,20 @@ public class AuthServiceImpl implements AuthService {
             throw new ForbiddenException("Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email xác thực.");
         }
 
-        String token = jwtTokenProvider.generateToken(user);
+        String sessionId = null;
+        if (userSessionService != null) {
+            UserSession session = userSessionService.createSession(
+                    user,
+                    deviceInfo,
+                    ipAddress,
+                    jwtTokenProvider.getExpirationMs()
+            );
+            if (session != null) {
+                sessionId = session.getSessionId();
+            }
+        }
+
+        String token = jwtTokenProvider.generateToken(user, sessionId);
 
         return AuthResponse.builder()
                 .token(token)
@@ -207,6 +246,11 @@ public class AuthServiceImpl implements AuthService {
         // Reject new password identical to current password
         if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
             throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+        }
+
+        // Revoke all existing active sessions in user_sessions so none remain stale/active
+        if (userSessionRepository != null) {
+            userSessionRepository.revokeAllSessionsForUser(user.getUserId(), UserSessionStatus.ACTIVE, UserSessionStatus.REVOKED);
         }
 
         // Update password and increment token_version for global session revocation

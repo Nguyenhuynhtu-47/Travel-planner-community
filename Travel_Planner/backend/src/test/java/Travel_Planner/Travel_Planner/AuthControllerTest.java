@@ -126,6 +126,10 @@ class AuthControllerTest {
         jdbcTemplate.execute("DELETE FROM friendships");
         jdbcTemplate.execute("DELETE FROM user_blocks");
         jdbcTemplate.execute("DELETE FROM email_verification_tokens");
+        jdbcTemplate.execute("DELETE FROM password_reset_tokens");
+        jdbcTemplate.execute("DELETE FROM user_identities");
+        jdbcTemplate.execute("DELETE FROM user_sessions");
+        jdbcTemplate.execute("DELETE FROM email_change_requests");
         jdbcTemplate.execute("DELETE FROM user_messaging_settings");
         jdbcTemplate.execute("DELETE FROM users");
     }

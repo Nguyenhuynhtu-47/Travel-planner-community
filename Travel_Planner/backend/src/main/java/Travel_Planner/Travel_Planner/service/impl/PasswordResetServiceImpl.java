@@ -11,9 +11,11 @@ import Travel_Planner.Travel_Planner.exception.BadRequestException;
 import Travel_Planner.Travel_Planner.exception.RateLimitExceededException;
 import Travel_Planner.Travel_Planner.model.PasswordResetToken;
 import Travel_Planner.Travel_Planner.model.User;
+import Travel_Planner.Travel_Planner.model.enums.UserSessionStatus;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.repository.PasswordResetTokenRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
+import Travel_Planner.Travel_Planner.repository.UserSessionRepository;
 import Travel_Planner.Travel_Planner.security.PasswordPolicyValidator;
 import Travel_Planner.Travel_Planner.service.EmailService;
 import Travel_Planner.Travel_Planner.service.PasswordResetService;
@@ -52,6 +54,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final ApplicationEventPublisher eventPublisher;
     private final EmailService emailService;
+    private final UserSessionRepository userSessionRepository;
     private final SecureRandom secureRandom = new SecureRandom();
     private java.time.Clock clock = java.time.Clock.systemDefaultZone();
 
@@ -74,17 +77,27 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     @Value("${auth.password-reset.resend-cooldown-seconds:60}")
     private int resendCooldownSeconds;
 
-    @Autowired
     public PasswordResetServiceImpl(PasswordResetTokenRepository tokenRepository,
                                     UserRepository userRepository,
                                     PasswordEncoder passwordEncoder,
                                     ApplicationEventPublisher eventPublisher,
                                     EmailService emailService) {
+        this(tokenRepository, userRepository, passwordEncoder, eventPublisher, emailService, null);
+    }
+
+    @Autowired
+    public PasswordResetServiceImpl(PasswordResetTokenRepository tokenRepository,
+                                    UserRepository userRepository,
+                                    PasswordEncoder passwordEncoder,
+                                    ApplicationEventPublisher eventPublisher,
+                                    EmailService emailService,
+                                    @Autowired(required = false) UserSessionRepository userSessionRepository) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.eventPublisher = eventPublisher;
         this.emailService = emailService;
+        this.userSessionRepository = userSessionRepository;
     }
 
     @PostConstruct
@@ -310,6 +323,11 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
         // Token consumed and deleted (guarantees single-use)
         tokenRepository.delete(token);
+
+        // Synchronously revoke all active sessions for this user so none remain stale/active
+        if (userSessionRepository != null) {
+            userSessionRepository.revokeAllSessionsForUser(user.getUserId(), UserSessionStatus.ACTIVE, UserSessionStatus.REVOKED);
+        }
 
         // Update password and increment token_version for global session revocation
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));

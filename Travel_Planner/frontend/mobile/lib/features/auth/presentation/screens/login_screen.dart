@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/navigation/main_navigation_shell.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../auth_notifier.dart';
@@ -42,6 +43,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success && mounted) {
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => MainNavigationShell(authNotifier: widget.authNotifier),
+          ),
+        );
       }
     } else if (!success && mounted) {
       final error = widget.authNotifier.errorMessage;
@@ -83,6 +90,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success && mounted) {
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => MainNavigationShell(authNotifier: widget.authNotifier),
+          ),
+        );
       }
     } else if (!success && mounted) {
       final error = widget.authNotifier.errorMessage;

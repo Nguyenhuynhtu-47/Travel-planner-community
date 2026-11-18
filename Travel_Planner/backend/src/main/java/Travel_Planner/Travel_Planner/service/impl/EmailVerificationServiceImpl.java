@@ -15,6 +15,8 @@ import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
 import Travel_Planner.Travel_Planner.service.EmailService;
 import Travel_Planner.Travel_Planner.service.EmailVerificationService;
+import Travel_Planner.Travel_Planner.service.UserSessionService;
+import Travel_Planner.Travel_Planner.model.UserSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +48,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     private final JwtTokenProvider jwtTokenProvider;
     private final ApplicationEventPublisher eventPublisher;
     private final EmailService emailService;
+    private final UserSessionService userSessionService;
     private final SecureRandom secureRandom = new SecureRandom();
     private java.time.Clock clock = java.time.Clock.systemDefaultZone();
 
@@ -65,17 +68,27 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     @Value("${auth.otp.resend-cooldown-seconds:60}")
     private int resendCooldownSeconds;
 
-    @Autowired
     public EmailVerificationServiceImpl(EmailVerificationTokenRepository tokenRepository,
                                         UserRepository userRepository,
                                         JwtTokenProvider jwtTokenProvider,
                                         ApplicationEventPublisher eventPublisher,
                                         EmailService emailService) {
+        this(tokenRepository, userRepository, jwtTokenProvider, eventPublisher, emailService, null);
+    }
+
+    @Autowired
+    public EmailVerificationServiceImpl(EmailVerificationTokenRepository tokenRepository,
+                                        UserRepository userRepository,
+                                        JwtTokenProvider jwtTokenProvider,
+                                        ApplicationEventPublisher eventPublisher,
+                                        EmailService emailService,
+                                        @Autowired(required = false) UserSessionService userSessionService) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.eventPublisher = eventPublisher;
         this.emailService = emailService;
+        this.userSessionService = userSessionService;
     }
 
     @Autowired(required = false)
@@ -146,6 +159,12 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     @Override
     @Transactional(noRollbackFor = {BadRequestException.class})
     public AuthResponse verifyEmail(VerifyEmailRequest request) {
+        return verifyEmail(request, null, null);
+    }
+
+    @Override
+    @Transactional(noRollbackFor = {BadRequestException.class})
+    public AuthResponse verifyEmail(VerifyEmailRequest request, String deviceInfo, String ipAddress) {
         String email = request.getEmail().trim().toLowerCase();
         User user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new BadRequestException("Email hoặc mã xác thực không hợp lệ."));
@@ -188,7 +207,20 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         user.setEmailVerified(true);
         userRepository.save(user);
 
-        String jwt = jwtTokenProvider.generateToken(user);
+        String sessionId = null;
+        if (userSessionService != null) {
+            UserSession session = userSessionService.createSession(
+                    user,
+                    deviceInfo,
+                    ipAddress,
+                    jwtTokenProvider.getExpirationMs()
+            );
+            if (session != null) {
+                sessionId = session.getSessionId();
+            }
+        }
+
+        String jwt = jwtTokenProvider.generateToken(user, sessionId);
         return AuthResponse.builder()
                 .token(jwt)
                 .tokenType("Bearer")
