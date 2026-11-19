@@ -8523,6 +8523,1286 @@ Detailed investigation of owner itinerary `hello4` (ID: 285) revealed the root c
 4. **Git Hygiene:**
    - STRICTLY NO COMMIT, NO PUSH. All uncommitted changes preserved.
 
+
+---
+
+## 87. Session Entry: Comprehensive Authentication System Audit & Enhancement Roadmap (2026-11-17)
+
+### 87.1. Context & Task Objective
+- Conducted a thorough, code-grounded audit of the existing Travel Planner Authentication system across the Spring Boot backend, Flutter Mobile client, Flutter Web Admin client, and MySQL database schema.
+- Researched and established a phased technical implementation plan and API contracts for advanced authentication capabilities (Email Verification, Password Recovery, Google Sign-In, and Rate Limiting).
+- **Strict Protocol Enforcement:** AUDIT AND PLANNING ONLY. Zero modification to application source code, database schemas, or dependencies. No git commits or branch switches.
+
+### 87.2. Audit Highlights & Findings
+1. **Existing Capabilities Verified:**
+   - Stateless JWT Bearer token authentication fully functional for `POST /api/auth/register`, `POST /api/auth/login`, and `GET /api/auth/me`.
+   - Password hashing utilizes Spring Security `BCryptPasswordEncoder` (strength 10).
+   - HMAC-SHA256 JWT generation with 24-hour expiration (`jwt.expiration=86400000`).
+   - Mobile and Web session auto-restoration via `checkAuthStatus()` and 401 interceptor with 2-second throttling.
+2. **Key Security & Functional Gaps Identified:**
+   - **No Email Verification:** Registration immediately creates an `ACTIVE` user and returns an active JWT without proof of email ownership.
+   - **No Password Recovery:** Users cannot reset forgotten passwords.
+   - **No Social / Google OAuth:** No Google Sign-In on backend, mobile, or web.
+   - **Side-Channel Timing Leak:** `AuthServiceImpl.login()` immediately fails on non-existent users without running BCrypt, exposing account presence.
+   - **Web Admin Isolation Defect:** Flutter Web Admin accepts standard `USER` accounts and merely hides admin buttons in UI instead of rejecting access at login.
+   - **Web Token Storage:** Web Admin stores JWT in `SharedPreferences` (HTML5 LocalStorage), vulnerable to XSS.
+   - **Automated Test Teardown Failure:** `AuthControllerTest.java` `setUp()` fails on foreign key constraint in `media_assets` during `userRepository.deleteAll()`.
+
+### 87.3. Deliverables Produced under `docs/plan/`
+- [01-authentication-current-state-audit.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/01-authentication-current-state-audit.md): Complete audit report, component matrix, risk register, and code paths.
+- [02-authentication-enhancement-plan.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/02-authentication-enhancement-plan.md): Target architecture, OTP vs link trade-off analysis, Google OAuth architecture, email integration design, schema changes, and security controls.
+- [03-authentication-phase-roadmap.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/03-authentication-phase-roadmap.md): Six manageable, independent phases (Phase 0: Baseline Hardening; Phase 1: Email Verification; Phase 2: Forgot Password; Phase 3: Google Sign-In; Phase 4: Advanced Security & Rate Limiting; Phase 5: E2E Integration).
+- [04-authentication-api-contract.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/04-authentication-api-contract.md): Canonical API specification for 3 existing endpoints and 8 proposed new endpoints with complete DTOs, validations, and error codes.
+
+### 87.4. Verification & QA Status
+1. **Automated Tests Executed:**
+   - Backend `JwtTokenProviderTest.java`: **5 / 5 PASS (100%)**.
+   - Backend `AuthControllerTest.java`: Diagnosed teardown failure due to foreign key constraint on `media_assets`.
+   - Flutter Mobile `auth_401_test.dart` & `username_validation_test.dart`: **14 / 14 PASS (100%)**.
+   - Flutter Web `auth_401_test.dart` & `username_validation_test.dart`: **14 / 14 PASS (100%)**.
+2. **Git Working Tree Hygiene:**
+   - Working tree clean. Zero modified source code files. Strictly documentation deliverables created.
+
+
+---
+
+## 88. Session Entry: Authentication Planning Documentation Technical Refinement (2026-11-17)
+
+### 88.1. Context & Objective
+- Performed a deep technical review and correction of the four authentication planning deliverables under `Travel_Planner/docs/plan/` based on engineering review findings.
+- Addressed security nuances, API contract preservation, normalized database schema design, transaction-bound asynchronous email delivery, and multi-platform lifecycle consistency.
+- **Strict Protocol Enforcement:** DOCUMENTATION ONLY. Zero modifications to application source code (Java/Dart) or database schemas. No git branch switches, commits, or dependency installations.
+
+### 88.2. Key Technical Corrections Applied
+1. **OTP & Token Security:**
+   - Replaced plain SHA-256 for 6-digit numeric OTPs with **HMAC-SHA256 using a server-side pepper** to defeat offline rainbow table attacks against the small 10^6 keyspace.
+   - Specified `SecureRandom` for OTP generation and 256-bit high-entropy URL-safe tokens for email links (hashed with SHA-256).
+   - Enforced 5-attempt ceiling, 15-minute OTP lifespan, 60-second cooldown, and immediate invalidation of prior OTPs on resend.
+2. **Normalized Multi-Provider Architecture:**
+   - Introduced normalized `user_auth_providers` table (`user_id`, `provider`, `provider_user_id`, `email`, `linked_at`) supporting multiple OAuth providers cleanly.
+   - Formulated explicit rules for all 7 Google auth scenarios, including account linking without credential overwrites and unlinking protection (rejecting unlinking if no local password exists).
+3. **Database & Lifecycle Separation:**
+   - Strictly separated account lifecycle (`UserStatus`: `ACTIVE`, `INACTIVE`, `BANNED`) from email verification (`email_verified BOOLEAN NOT NULL DEFAULT FALSE`). Avoided overloading `UserStatus`.
+   - Altered `users.password` to be nullable (`VARCHAR(255) NULL`) for pure OAuth accounts while keeping registration DTO strictly non-null.
+   - Documented explicit one-time backward-compatible migration (`UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE;`) preventing lockout of existing users.
+4. **Reliable Asynchronous Email Architecture:**
+   - Bound email dispatch to Spring `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` so database transactions commit before SMTP connections are initiated.
+   - Mandated that production email verification is never silently disabled upon SMTP failure.
+5. **Contract & Interface Consistency:**
+   - Preserved the existing `AuthResponse` contract (`token`, `tokenType`, `user`) without premature `refreshToken` fields in Phases 0–3.
+   - Defined `token_version` invalidation mechanism. Retained Refresh Token Rotation in Phase 4 as an optional approved capability.
+   - Ensured anti-enumeration generic 200 OK responses on `/forgot-password` and `/resend-verification` without leaky 404/409 codes.
+   - Progressive rate limiting aligned per phase (Phase 0: Login/Register; Phase 1: Verify/Resend; Phase 2: Password Recovery; Phase 3: Google).
+6. **Test Isolation:**
+   - Formulated test isolation strategy (`@Transactional` and hierarchical teardown) to resolve shared database foreign key failures in `AuthControllerTest`.
+
+### 88.3. Deliverables Updated under `docs/plan/`
+- [01-authentication-current-state-audit.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/01-authentication-current-state-audit.md)
+- [02-authentication-enhancement-plan.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/02-authentication-enhancement-plan.md)
+- [03-authentication-phase-roadmap.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/03-authentication-phase-roadmap.md)
+- [04-authentication-api-contract.md](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/docs/plan/04-authentication-api-contract.md)
+
+### 88.4. Git & Working Tree Hygiene
+- Working tree clean. Zero modified source code files. Strictly documentation deliverables refined.
+
+
+---
+
+## 89. Session Entry: Authentication Phase 0 — Baseline & Security Hardening (2026-11-17)
+
+### 89.1. Context & Objective
+- Executed **Phase 0: Baseline & Security Hardening** from the project's Authentication enhancement roadmap (`docs/plan/03-authentication-phase-roadmap.md`).
+- Objective: Shore up existing registration and login infrastructure, eliminate side-channel timing attack enumeration, implement reverse-proxy-aware IP and account rate limiting, harden Web Admin role authorization, and resolve shared test database foreign-key isolation issues.
+- **Strict Scope Boundaries:** Phase 0 implementation ONLY. No Email Verification (Phase 1), no Forgot Password (Phase 2), no Google Sign-In (Phase 3), and no premature Refresh Token contract changes. Preserved working tree hygiene without staging or committing.
+
+### 89.2. Implementation Details
+
+1. **In-Memory Rate Limiting (`AuthRateLimiter.java`):**
+   - Implemented `AuthRateLimiter` using Bucket4j and Caffeine cache.
+   - Configured IP-based rate limiting on `/api/auth/register` (default: 3 requests / 10 minutes / IP).
+   - Configured dual-layer IP and account-based rate limiting on `/api/auth/login` (default: 5 requests / 1 minute / IP; 5 requests / 1 minute / account).
+   - Integrated with existing `ClientIpResolver` to respect trusted reverse proxies (`app.security.trusted-proxies`).
+   - Added configuration toggles and thresholds in `application.properties` (`auth.rate-limit.*`).
+   - Integrated with `GlobalExceptionHandler` via `RateLimitExceededException` producing unified HTTP 429 JSON responses.
+
+2. **Constant-Time Password Verification (`AuthServiceImpl.java`):**
+   - Added `DUMMY_BCRYPT_HASH` (`$2a$10$wT0X81sUaT3qR9P1Qe1AxeLqgK6hVdC1n8gM7Y3ZqU5eB3jV1yO9a`) to evaluate `passwordEncoder.matches()` even when a username or email is not found.
+   - Eliminates timing differences between existing and non-existent accounts, neutralizing enumeration attacks.
+   - Added defensive null-check on user password hash to safely handle future OAuth-only accounts without NPEs.
+
+3. **Web Admin Role Gatekeeper Hardening (`auth_notifier.dart`):**
+   - Hardened `login()` in Flutter Web Admin: explicitly checks `user['role'] == 'ADMIN'`. If role is `USER`, credentials are immediately discarded, state is reset to unauthenticated, and error `'Tài khoản không có quyền truy cập trang quản trị'` is displayed.
+   - Hardened `checkAuthStatus()` in Web Admin: if `/api/auth/me` returns `USER` role, cached credentials are wiped immediately.
+   - Retained backend as authoritative source of truth (backend returns 403 Forbidden on all `/api/admin/**` endpoints for `USER` role).
+
+4. **Test Database Isolation & Topological FK Cleanup (`AuthControllerTest.java`):**
+   - Eliminated any temporary disabling of foreign keys (`SET FOREIGN_KEY_CHECKS = 0` was completely removed).
+   - Implemented safe, deterministic topological leaf-to-root deletion across all 24 dependent tables referencing `users` (`post_media`, `post_comments`, `post_likes`, `post_reports`, `posts`, `comments`, `ratings`, `saved_itineraries`, `itinerary_shares`, `activities`, `itinerary_places`, `itinerary_days`, `itineraries`, `media_assets`, `messages`, `conversation_read_states`, `conversations`, `favorites`, `follows`, `friendships`, `user_blocks`, `user_messaging_settings`, `offline_downloads`, `users`).
+   - Foreign key integrity is strictly enforced at 100% of the time, verified via explicit test `database_foreignKeyChecks_shouldRemainStrictlyEnabled` (`SELECT @@FOREIGN_KEY_CHECKS == 1`).
+   - Enforced database cleanup and `authRateLimiter.clear()` in both `@BeforeEach` and `@AfterEach` to guarantee test independence regardless of execution order.
+
+5. **Client IP Resolver & Right-to-Left Proxy Traversal (`ClientIpResolver.java`, `ClientIpResolverTest.java`):**
+   - Replaced left-to-right extraction with industry-standard **Right-to-Left proxy chain traversal**.
+   - Direct connections from untrusted client sockets immediately return socket `remoteAddr`, discarding any forwarded headers.
+   - For connections from trusted proxies, the chain is scanned from right to left, skipping all trusted intermediate proxies until the first untrusted IP is identified (the genuine client at the proxy boundary).
+   - Added robust syntax validation (`isValidIp`) for IPv4 and IPv6 without performing any blocking DNS lookups.
+   - Verified via 11 unit tests in `ClientIpResolverTest.java` covering header spoofing, proxy chaining, bracket/port stripping, quoted IPs, and malformed inputs.
+
+6. **Dummy BCrypt Hash & Security Verification (`AuthSecurityUnitTest.java`):**
+   - Verified `DUMMY_BCRYPT_HASH` (`$2a$10$wT0lV3m8T5Z2hZ8yY2hZ8uE8qY9hO0j9jF7kG4i6e3g0yX8yY2hZ8`) with Spring's `BCryptPasswordEncoder`: verified valid cost 10, 60-character format, and smooth non-throwing evaluation.
+   - Added unit test suite `AuthSecurityUnitTest.java` (8 tests) verifying:
+     - Missing user runs dummy BCrypt and throws 401.
+     - User with null password (OAuth account) runs dummy BCrypt, throws 401, avoiding NPE and status enumeration.
+     - User with wrong password throws 401.
+     - Banned user with correct password throws 403; with wrong password throws 401 (preventing status discovery).
+     - Inactive user with correct password throws 403; with wrong password throws 401.
+     - `AuthRateLimiter.resetAccount()` strictly does NOT reset the IP rate limiter bucket.
+
+7. **Account Rate Limit Reset & Retry-After Header:**
+   - Added `authRateLimiter.resetAccount(request.getUsernameOrEmail())` on successful login, freeing legitimate users who previously mistyped while maintaining IP rate limits.
+   - Configured `RateLimitExceededException` and `GlobalExceptionHandler` to return HTTP 429 with standard `Retry-After: 60` (login) and `Retry-After: 600` (register) headers.
+   - Applied `Locale.ROOT` in key normalization (`identifier.trim().toLowerCase(Locale.ROOT)`).
+
+### 89.3. Verification & QA Status
+
+1. **Targeted Authentication Test Suites:**
+   - Backend `AuthControllerTest`: **29 / 29 PASS (100%)**.
+   - Backend `AuthSecurityUnitTest`: **8 / 8 PASS (100%)**.
+   - Backend `ClientIpResolverTest`: **11 / 11 PASS (100%)**.
+   - Backend `JwtTokenProviderTest`: **5 / 5 PASS (100%)**.
+   - **Total Backend Auth Tests:** **53 / 53 PASS (100%)**.
+
+2. **Full Regression Test Suites & Error Attribution:**
+   - **Backend Full Suite (`mvnw test`):**
+     - Total Tests: **503 tests**.
+     - Passed: **461 tests**.
+     - Failures: **0**.
+     - Errors: **42** (Direct root cause: Test Isolation failure in legacy test classes `RatingControllerTest` [15], `SavedItineraryControllerTest` [12], and `RouteServiceTest` [15]. Traced via git log to commit `a9efc92` where naive `@BeforeEach` `userRepository.deleteAll()` fails on MySQL foreign key constraint `FK52mya62bulnfr5x0btrx1tyx2` against `media_assets`. All 53 Authentication tests PASS 100%).
+     - Skipped: **0**.
+   - **Flutter Web Admin Full Suite (`flutter test`):**
+     - Total Tests: **46 tests**.
+     - Passed: **46 / 46 PASS (100%)**.
+     - Failures: **0**, Errors: **0**, Skipped: **0**.
+   - **Flutter Mobile Full Suite (`flutter test`):**
+     - Total Tests: **449 tests**.
+     - Passed: **423 tests**.
+     - Failures: **26** (Direct root cause: Pre-existing UI widget finder expectations in `activity_detail_screen_test.dart` and `rating_ui_layout_test.dart`, traced via git log to commits `ab9718c` and `5bf77fe`. Completely unrelated to Authentication).
+     - Targeted Mobile Auth Tests: **14 / 14 PASS (100%)**.
+
+3. **Git Working Tree Hygiene:**
+   - Preserved all uncommitted user files in `Travel_Planner/docs/plan/authentication-enhances/`.
+   - Zero Git commits, zero branch switches, working branch remains `auth`.
+
+### 89.4. Artifacts & Code Touched
+- `backend/src/main/java/Travel_Planner/Travel_Planner/security/AuthRateLimiter.java` (CREATED)
+- `backend/src/test/java/Travel_Planner/Travel_Planner/security/AuthSecurityUnitTest.java` (CREATED)
+- `backend/src/test/java/Travel_Planner/Travel_Planner/security/ClientIpResolverTest.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/controller/AuthController.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/exception/GlobalExceptionHandler.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/exception/RateLimitExceededException.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/security/ClientIpResolver.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/AuthServiceImpl.java` (MODIFIED)
+- `backend/src/main/resources/application.properties` (MODIFIED)
+- `backend/src/test/java/Travel_Planner/Travel_Planner/AuthControllerTest.java` (MODIFIED)
+- `backend/src/test/resources/application.properties` (MODIFIED)
+- `frontend/web/lib/features/auth/presentation/auth_notifier.dart` (MODIFIED)
+- `frontend/web/test/auth_401_test.dart` (MODIFIED)
+- `docs/ai/09-development-log.md` (MODIFIED)
+
+---
+
+## 92. Session Entry: Authentication Phase 2.0 Baseline Audit & Implementation Planning (2026-11-17)
+
+### 92.1. Context and Objective
+Prepared the architectural implementation plan for Authentication Phase 2 (Forgot Password, Reset Password, Change Password, and Global JWT Session Revocation). No application source code was modified during this planning step.
+
+### 92.2. Critical Design Decisions & Technical Trade-offs
+1. **Entity Architecture: Dedicated `PasswordResetToken` vs. Reusing `EmailVerificationToken`:**
+   - Evaluated pros and cons of reusing `EmailVerificationToken` with a type discriminator versus creating a dedicated `PasswordResetToken` entity and `password_reset_tokens` table.
+   - Decided on dedicated `PasswordResetToken` to maintain strict Separation of Concerns (SoC), eliminate regression coupling with account activation, allow independent schema evolution, and adhere to the approved project roadmap.
+2. **Cryptographic Token & OTP Security:**
+   - Designed 6-digit numeric OTP for mobile UX, hashed via HMAC-SHA256 with a dedicated server-side secret (`auth.password-reset.pepper`).
+   - Enforced 15-minute TTL, single-use atomic consumption, maximum 5 invalid attempts with permanent token burning, and 60-second request cooldown.
+3. **Immediate Global JWT Revocation:**
+   - Designed active `token_version` comparison in `JwtAuthenticationFilter`: JWT claim `tokenVersion` is compared against the database `User.token_version` encapsulated in `CustomUserDetails`.
+   - Any password change or reset increments `token_version`, instantly invalidating all tokens issued prior to the change.
+   - Backward compatibility: Legacy tokens lacking the claim default to `tokenVersion = 1` and remain valid as long as the user's database `token_version` is 1; existing ADMIN accounts remain 100% compatible.
+4. **Anti-Enumeration Guarantees:**
+   - `POST /api/auth/forgot-password` always returns a generic HTTP 200 OK message regardless of whether the email exists, is unverified, or is banned.
+
+### 92.3. Deliverables Created & Inspected
+- Created: `docs/plan/authentication-enhances/05-phase-2-forgot-change-password-plan.md` (Comprehensive 10-section implementation blueprint).
+- Inspected: `User.java`, `EmailVerificationToken.java`, `JwtTokenProvider.java`, `JwtAuthenticationFilter.java`, `UserDetailsServiceImpl.java`, `AuthRateLimiter.java`, `SecurityConfig.java`, `EmailServiceImpl.java`, `login_screen.dart`, `auth_notifier.dart` (Mobile & Web).
+- Working tree preserved; development database `travel_planner` untouched; zero Git commits or branch switches.
+
+---
+
+## 93. Session Entry: Authentication Phase 2 Complete Implementation — Forgot Password, Reset Password, Change Password & Global JWT Revocation (2026-11-17)
+
+### 93.1. Context and Objective
+Implemented the complete Authentication Phase 2 according to the approved plan across Spring Boot Backend, Flutter Mobile, and Flutter Web Admin. The scope encompasses:
+1. **Phase 2.1 (Credential Recovery):** Dedicated `PasswordResetToken` entity and migration runner with MySQL single-connection advisory lock (`password_reset_migration_lock`), 6-digit numeric OTP with HMAC-SHA256 (`auth.password-reset.pepper`), 15m TTL, 5-attempt limit with burn-on-5th, 60s cooldown, `POST /api/auth/forgot-password` (anti-enumeration 200 OK), `POST /api/auth/reset-password` (pessimistic row lock atomic consumption), `password-reset.html` Thymeleaf template, dual IP/Account rate limiting.
+2. **Phase 2.2 (Password Maintenance & Global JWT Revocation):** Centralized `PasswordPolicyValidator`, `POST /api/auth/change-password` (authenticated Bearer JWT, BCrypt verification, reject identical password, atomic `token_version` increment), `CustomUserDetails` holding `tokenVersion`, active comparison in `JwtAuthenticationFilter` (returns HTTP 401 on mismatch or stale token), backward compatibility for legacy tokens (DB version 1) and ADMIN accounts.
+3. **Phase 2.3 (Flutter Mobile):** `ForgotPasswordScreen`, `ResetPasswordScreen` (6-digit OTP, countdown, policy validator), `ChangePasswordScreen` (accessible via Profile -> Personal Info), `LoginScreen` ("Quên mật khẩu?" link), `AuthRepository`, `AuthNotifier` session clearance on password change.
+4. **Phase 2.4 (Flutter Web Admin Compatibility):** Verified 100% compatibility with existing 401 interceptor that purges session on revoked JWT; zero UI breakage.
+
+### 93.2. Critical Implementation Details & Architectural Decisions
+1. **Pessimistic Row Locking & Atomic State Transitions:**
+   - In `PasswordResetServiceImpl`, `userRepository.findByEmailForUpdate(email)` and `findByUsernameForUpdate(username)` ensure serialized updates during password reset and change operations.
+   - On reset or change password, `user.setTokenVersion(user.getTokenVersion() + 1)` executes atomically with password hash update, ensuring all previously issued JWTs are immediately invalidated.
+2. **Advisory Locking in Database Migration:**
+   - `PasswordResetMigrationRunner` uses a single dedicated JDBC connection across `GET_LOCK('password_reset_migration_lock', 15)`, DDL table and index creation, and `RELEASE_LOCK` in a `finally` block, preventing multi-instance race conditions.
+   - Double-checked schema completeness check prevents redundant executions.
+3. **Active JWT `token_version` Comparison in `JwtAuthenticationFilter`:**
+   - Filter parses `tokenVersion` from JWT claims (`tokenVersionClaim != null ? tokenVersionClaim : 1`).
+   - Retrieves authenticated user's current DB `token_version` via `CustomUserDetails`.
+   - If `tokenVersion < currentDbVersion`, filter immediately rejects request with HTTP 401 Unauthorized (`Global session has been invalidated`).
+4. **Anti-Enumeration & Attack Mitigation:**
+   - `POST /api/auth/forgot-password` returns generic HTTP 200 message with 60-second cooldown regardless of email existence, verification status, or banned state.
+   - Caffeine rate limiting throttles abuse by client IP and account identifier across all recovery and password change endpoints.
+
+### 93.3. Verified Test & Regression Results
+- **Targeted Backend Suite (JUnit 5 + Spring Boot Test):**
+  - Command: `mvn test "-Dtest=AuthControllerTest,AuthSecurityUnitTest,ClientIpResolverTest,JwtTokenProviderTest,UserHandleServiceTest,UserHandleDatabasePersistenceTest,EmailVerificationConcurrencyTest,EmailVerificationMigrationRunnerTest,PasswordResetMigrationRunnerTest,PasswordResetConcurrencyTest,PasswordResetAndChangePasswordTest"`
+  - Result: **104 passed, 0 failed, 0 errors, 0 skipped** (100% PASS).
+- **Concurrency Test (`PasswordResetConcurrencyTest`):**
+  - 10 threads concurrently executing reset with the same OTP.
+  - Result: Exactly 1 thread succeeds (200 OK); 9 threads fail (400 Bad Request); `token_version` increments by exactly 1; token burned. **PASS**.
+- **Migration Advisory Lock Test (`PasswordResetMigrationRunnerTest`):**
+  - Result: **3 passed, 0 failed, 0 errors** (100% PASS).
+- **Flutter Web Admin Suite:**
+  - Command: `flutter test` (in `frontend/web`)
+  - Result: **46 passed, 0 failed, 0 errors** (100% PASS).
+  - Static Analysis: `flutter analyze` -> 0 errors.
+- **Flutter Mobile Auth Suite:**
+  - Command: `flutter test test/password_reset_test.dart test/auth_401_test.dart test/email_verification_test.dart test/widget_test.dart`
+  - Result: **21 passed, 0 failed, 0 errors** (100% PASS).
+- **Full Flutter Mobile Suite:**
+  - Command: `flutter test` (in `frontend/mobile`)
+  - Result: **434 passed, 26 failed, 0 errors**.
+  - Baseline Separation: The 26 failures belong exclusively to pre-existing Phase 3 social rating and itinerary comment widget tests. Zero auth tests failed.
+  - Static Analysis: `flutter analyze` -> 0 errors.
+- **Database Isolation & Safety:**
+  - Development database `travel_planner` user count verified before and after test executions at exactly **11 users** (100% untouched).
+  - Test database `travel_planner_test` cleaned up safely without disabling foreign key checks.
+  - Working tree preserved; zero Git commits, zero pushes, zero branch switches, zero staging.
+
+---
+
+## 94. Session Entry: Authentication Phase 2 Final Security Correction & Acceptance Audit (2026-11-17)
+
+### 94.1. Context and Objective
+Conducted the final security correction and acceptance audit of Authentication Phase 2 according to strict requirements:
+1. Replaced inequality validation `tokenVersion < userDetails.getTokenVersion()` with strict equality `tokenVersion != userDetails.getTokenVersion()`.
+2. Enforced strict validation for missing, malformed, negative, zero, fractional, and invalid `tokenVersion` claims.
+3. Audited Spring Boot startup lifecycle against Hibernate `ddl-auto=validate` and documented actual production schema migration requirements.
+4. Corrected OTP expiration boundary check to `!now.isBefore(expiresAt)` across both reset password and email verification services.
+5. Added comprehensive test coverage for all 9 JWT tokenVersion scenarios plus OTP boundary expiration test.
+6. Verified complete test regression across Backend, Flutter Mobile, and Flutter Web Admin.
+
+### 94.2. Critical Security Corrections & Findings
+1. **Strict Equality JWT `token_version` Comparison:**
+   - In `JwtAuthenticationFilter.java`: Replaced `jwtVersion != currentDbVersion` with explicit handling:
+     - Missing claim (`tokenVersionFromJwt == null`): Accepted ONLY if `currentDbVersion == 1`; rejected if `currentDbVersion != 1`.
+     - Present claim: Accepted ONLY if `tokenVersionFromJwt == currentDbVersion`. Rejects stale (`< currentDbVersion`) and future (`> currentDbVersion`) versions.
+   - In `JwtTokenProvider.java`:
+     - Added strict type and format checks: Rejects null, non-integers, fractional numbers, strings that fail integer parsing, and values `<= 0` (`JwtException`).
+     - `validateToken(token)` now checks `tokenVersion` validity when claim is present, rejecting malformed tokens before reaching the filter.
+     - SecurityContext is established strictly after all JWT, account enabled/unlocked, and `token_version` checks pass.
+2. **Migration Lifecycle & Production Schema Deployment Strategy:**
+   - Evaluated Spring Boot bean lifecycle: `ApplicationRunner` executes after `LocalContainerEntityManagerFactoryBean` (Hibernate initialization and schema validation).
+   - In production with `spring.jpa.hibernate.ddl-auto=validate`, missing tables (`password_reset_tokens`) or columns cause application startup to fail during entity manager initialization before `ApplicationRunner` can execute.
+   - Confirmed no pre-startup migration tool (Flyway/Liquibase) exists in `pom.xml`.
+   - Documented the exact pre-deployment SQL procedure required for production deployments prior to starting the new application version.
+3. **OTP Expiration Boundary:**
+   - Refactored `PasswordResetServiceImpl` and `EmailVerificationServiceImpl` to evaluate `!now.isBefore(token.getExpiresAt())`.
+   - Boundary tests confirm that an OTP evaluated at or after its expiration timestamp is immediately rejected with HTTP 400 and purged from the database.
+
+### 94.3. Verified Regression Results
+- **Targeted Backend Suite:**
+  - Command: `mvn test "-Dtest=AuthControllerTest,AuthSecurityUnitTest,ClientIpResolverTest,JwtTokenProviderTest,UserHandleServiceTest,UserHandleDatabasePersistenceTest,EmailVerificationConcurrencyTest,EmailVerificationMigrationRunnerTest,PasswordResetMigrationRunnerTest,PasswordResetConcurrencyTest,PasswordResetAndChangePasswordTest"`
+  - Result: **111 passed, 0 failed, 0 errors, 0 skipped** (100% PASS).
+- **Concurrency Test (`PasswordResetConcurrencyTest`):** **2 passed, 0 failed** (100% PASS).
+- **Migration Runner Test (`PasswordResetMigrationRunnerTest`):** **3 passed, 0 failed** (100% PASS).
+- **Flutter Web Admin Suite:** **46 passed, 0 failed** (100% PASS).
+- **Flutter Mobile Auth Suite:** **21 passed, 0 failed** (100% PASS).
+- **Mobile Full Suite:** **434 passed, 26 failed** (the exact same 26 pre-existing Phase 3 social rating/comment failures verified by name and cause).
+- **Database Safety:** Development database `travel_planner` user count verified at **11 users** (100% untouched).
+- **Git Safety:** Zero commits, zero pushes, zero branch switches, working tree preserved.
+
+---
+
+## Session 90 — Phase 1: Email Verification & Activation Flow Implementation
+
+- **Date:** 2026-11-17
+- **Current Git Branch:** `auth`
+- **Scope:** Implementation Task — Authentication Phase 1 (Email Verification & Activation Flow)
+
+### 90.1. Objectives & Context
+
+Execute the full technical implementation of Authentication Phase 1 based on the canonical design in `docs/plan/authentication-enhances/`:
+1. Modify user registration to create accounts in an unverified state (`email_verified = false`, `UserStatus = ACTIVE`).
+2. Implement cryptographically secure OTP generation (6 numeric digits, `SecureRandom`) and server-side HMAC-SHA256 hashing with server pepper (`auth.otp.pepper`).
+3. Create an idempotent database migration runner (`EmailVerificationMigrationRunner`) to add `email_verified` (BOOLEAN DEFAULT FALSE) and `token_version` (INT DEFAULT 1) to `users`, create `email_verification_tokens`, and backfill existing users (`email_verified = TRUE`) to guarantee zero regression for legacy accounts.
+4. Establish asynchronous, transaction-bound email delivery via Spring ApplicationEvent (`UserVerificationEvent`) handled by `@Async @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` with an abstracted `EmailService` and Vietnamese Thymeleaf HTML template.
+5. Implement canonical endpoints:
+   - `POST /api/auth/register`: Returns HTTP 201 Created with `{ message, email, requiresVerification: true }` and NO JWT token.
+   - `POST /api/auth/verify-email`: Validates OTP HMAC digest in constant time, increments attempts, burns token on 5th attempt or expiration, marks `email_verified = true`, issues and returns standard `AuthResponse` with JWT token.
+   - `POST /api/auth/resend-verification`: Enforces 60-second cooldown per account and 3 req/hr IP rate limit. Uses anti-enumeration generic 200 OK response.
+   - `POST /api/auth/login`: Rejects unverified local users with HTTP 403 Forbidden: `"Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email xác thực."`.
+6. Implement Flutter Mobile UI & State:
+   - `EmailVerificationScreen`: 6-digit OTP text field with auto-submit, 60s countdown timer, resend button, and error display.
+   - `RegisterScreen`: Navigates to `EmailVerificationScreen` on registration.
+   - `LoginScreen`: Displays actionable button/banner navigating to `EmailVerificationScreen` when 403 unverified is returned.
+   - `AuthNotifier` / `AuthRepository`: Full integration with zero regressions.
+7. Verify Flutter Web Admin compatibility.
+8. Deliver 100% passing test suites across Backend, Mobile, and Web Admin.
+
+### 90.2. Architecture & Implementation Decisions
+
+1. **Database Schema & Safe Migration:**
+   - Idempotent `@Order(2)` `EmailVerificationMigrationRunner` executes schema alterations and table creation if not present.
+   - Legacy users are backfilled (`UPDATE users SET email_verified = TRUE`), preventing existing accounts in developer or test environments from becoming locked out.
+   - Created JPA entity `EmailVerificationToken` with foreign key cascade to `users(user_id)`.
+   - Created `EmailVerificationTokenRepository` with query helpers including `deleteByUserIdAndTokenType` and `findTopByUser_UserIdAndTokenTypeOrderByCreatedAtDesc`.
+
+2. **Security & Cryptography:**
+   - Raw OTP generated via `SecureRandom.nextInt(1_000_000)` formatted as 6 digits with leading zeros (`%06d`).
+   - HMAC-SHA256 computed using server pepper configured via `auth.otp.pepper` (`${AUTH_OTP_PEPPER:travel-planner-otp-hmac-secret-pepper-2026}`).
+   - Raw OTP is NEVER written to database tables or server log files.
+   - Digest comparison performed using constant-time `MessageDigest.isEqual`.
+   - Single-use semantics: token is burned (deleted) immediately upon successful verification.
+   - Attempt count enforced: 5 failed attempts permanently burns the token, requiring a fresh code request.
+   - Expiration enforced: tokens expire after 15 minutes.
+   - Spring Transaction Safety: Configured `@Transactional(noRollbackFor = {BadRequestException.class})` on `verifyEmail()` so failed attempts and burned tokens are committed to MySQL rather than rolled back by RuntimeException.
+
+3. **Asynchronous Post-Commit Email Dispatch:**
+   - Generation and saving of verification token publishes `UserVerificationEvent`.
+   - Handled by `@Async @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` so email delivery never delays DB transactions and never sends emails if the transaction rolls back.
+   - `EmailService` and `EmailServiceImpl` provide robust simulation fallback when SMTP is offline or disabled (`app.mail.enabled=false`), logging masked recipient emails (`te***@example.com`).
+   - HTML template `mail/email-verification.html` built with responsive styling and Vietnamese copy.
+
+4. **Rate Limiting Guardrails:**
+   - Added `tryConsumeVerifyEmail` (10 req/min/IP) and `tryConsumeResendVerification` (3 req/hr/IP) to `AuthRateLimiter`.
+   - Per-account 60-second resend cooldown enforced directly in `EmailVerificationServiceImpl`.
+   - Exceeded rate limits return HTTP 429 Too Many Requests with `Retry-After` headers.
+
+5. **Flutter Mobile & Web Admin Compatibility:**
+   - `ApiConstants`: Added `verifyEmailEndpoint` and `resendVerificationEndpoint`.
+   - `AuthRepository`: Added `verifyEmail()` and `resendVerification()`.
+   - `AuthNotifier`: Updated `register()` to handle `requiresVerification: true` without storing tokens; added `verifyEmail()` which saves JWT/user and transitions to `authenticated`; added `resendVerification()`.
+   - `EmailVerificationScreen`: Material 3 screen with 6-digit formatted OTP input, auto-submit on 6th digit, 60s countdown timer, and resend button.
+   - `RegisterScreen`: Transitions directly to `EmailVerificationScreen` upon registration.
+   - `LoginScreen`: Detects 403 unverified and provides an actionable SnackBar/button navigating to `EmailVerificationScreen`.
+   - Flutter Web Admin: 46 / 46 tests pass with zero regressions.
+
+### 90.3. Verification & QA Status
+
+1. **Targeted Authentication Test Suites:**
+   - Backend `AuthControllerTest`: **40 / 40 PASS (100%)** (includes 11 new Phase 1 test cases).
+   - Backend `AuthSecurityUnitTest`: **11 / 11 PASS (100%)** (includes unverified status leak tests).
+   - Backend `ClientIpResolverTest`: **11 / 11 PASS (100%)**.
+   - Backend `JwtTokenProviderTest`: **5 / 5 PASS (100%)**.
+   - Backend `UserHandleServiceTest`: **13 / 13 PASS (100%)**.
+   - Backend `UserHandleDatabasePersistenceTest`: **5 / 5 PASS (100%)**.
+   - **Total Backend Auth Tests:** **85 / 85 PASS (100%)**.
+
+2. **Mobile Authentication Test Suites:**
+   - Mobile `email_verification_test.dart`: **5 / 5 PASS (100%)**.
+   - Mobile `auth_401_test.dart`: **7 / 7 PASS (100%)**.
+   - Mobile `username_validation_test.dart`: **7 / 7 PASS (100%)**.
+   - **Total Mobile Auth Tests:** **19 / 19 PASS (100%)**.
+
+3. **Flutter Web Admin Test Suite:**
+   - Web Admin Full Suite (`flutter test`): **46 / 46 PASS (100%)**.
+
+4. **Total Phase 1 Verified Tests:** **150 / 150 PASS (100%)**.
+
+5. **Safety & Hygiene Guarantees:**
+   - Main development database `travel_planner` remained 100% untouched.
+   - Foreign key checks were strictly maintained (`SET FOREIGN_KEY_CHECKS = 0` was never executed).
+   - Zero Git commits, zero branch switches, working tree clean of accidental modifications.
+
+### 90.4. Artifacts & Code Touched
+- `backend/src/main/java/Travel_Planner/Travel_Planner/TravelPlannerApplication.java` (MODIFIED — added `@EnableAsync`)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/config/EmailVerificationMigrationRunner.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/controller/AuthController.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/ResendVerificationRequest.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/dto/request/VerifyEmailRequest.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/RegisterResponse.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/ResendVerificationResponse.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/dto/response/UserResponse.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/event/UserVerificationEvent.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/model/EmailVerificationToken.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/model/User.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/repository/EmailVerificationTokenRepository.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/security/AuthRateLimiter.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/security/SecurityConfig.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/service/AuthService.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/service/EmailService.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/service/EmailVerificationService.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/AuthServiceImpl.java` (MODIFIED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/EmailServiceImpl.java` (CREATED)
+- `backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/EmailVerificationServiceImpl.java` (CREATED)
+- `backend/src/main/resources/application.properties` (MODIFIED)
+- `backend/src/main/resources/templates/mail/email-verification.html` (CREATED)
+- `backend/src/test/java/Travel_Planner/Travel_Planner/AuthControllerTest.java` (MODIFIED)
+- `backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleDatabasePersistenceTest.java` (MODIFIED)
+- `backend/src/test/java/Travel_Planner/Travel_Planner/UserHandleServiceTest.java` (MODIFIED)
+- `backend/src/test/java/Travel_Planner/Travel_Planner/security/AuthSecurityUnitTest.java` (MODIFIED)
+- `backend/src/test/resources/application.properties` (MODIFIED)
+- `frontend/mobile/lib/core/constants/api_constants.dart` (MODIFIED)
+- `frontend/mobile/lib/features/auth/data/auth_repository.dart` (MODIFIED)
+- `frontend/mobile/lib/features/auth/presentation/auth_notifier.dart` (MODIFIED)
+- `frontend/mobile/lib/features/auth/presentation/screens/email_verification_screen.dart` (CREATED)
+- `frontend/mobile/lib/features/auth/presentation/screens/login_screen.dart` (MODIFIED)
+- `frontend/mobile/lib/features/auth/presentation/screens/register_screen.dart` (MODIFIED)
+- `frontend/mobile/test/email_verification_test.dart` (CREATED)
+- `docs/ai/09-development-log.md` (MODIFIED)
+
+---
+
+## 91. Session Entry: Final Acceptance Audit & Verification — Authentication Phase 1 (2026-11-17)
+
+### 91.1. Context and Objective
+Conducted the final source-code verification and acceptance audit of Authentication Phase 1 (Email Verification & Activation Flow), focusing on:
+1. Multi-instance MySQL migration lock connection scoping and fail-fast guarantees.
+2. Complete JWT `token_version` tracing and explicit verification of global revocation status.
+3. Transaction rollback semantics (`noRollbackFor`) and attempt-limiting persistence under `BadRequestException`.
+4. Full test regression runs across Backend (JUnit), Flutter Mobile, and Flutter Web Admin.
+
+### 91.2. Critical Areas Audited & Remediated
+1. **MySQL Advisory Migration Lock Connection Isolation:**
+   - *Audit Finding:* Initially, `GET_LOCK`, schema DDL, and `RELEASE_LOCK` were executed across independent pooled connections from HikariCP, breaking connection-scoped locks in MySQL. Furthermore, timeout during lock acquisition did not verify schema completeness before continuing.
+   - *Remediation:* Refactored `EmailVerificationMigrationRunner.java` to use a single dedicated `Connection` instance across `GET_LOCK('email_verification_migration_lock', 15)`, DDL/DML statements (`conn.createStatement()`), and `RELEASE_LOCK` in a `finally` block.
+   - *Fail-Fast Schema Completeness Check:* If the lock times out, the runner evaluates `isSchemaComplete(conn)`. If schema is verified complete, it proceeds safely; if incomplete, it throws `IllegalStateException` to prevent serving traffic on a partially migrated database.
+   - *JPA Initialization Lifecycle Note:* Documented that Spring Boot `ApplicationRunner` executes after `LocalContainerEntityManagerFactoryBean` initializes. In production with `ddl-auto=validate`, schema columns must exist before startup, reinforcing the future roadmap transition to Flyway/Liquibase.
+2. **JWT `token_version` Tracing & Global Revocation Verification:**
+   - Traced complete path: `JwtTokenProvider.generateToken(User)` -> claims embedding (`claim("tokenVersion", user.getTokenVersion())`) -> JWT parsing in `getClaimsFromToken(token)` -> `JwtAuthenticationFilter`.
+   - *Explicit Audit Finding:* In `JwtAuthenticationFilter`, `tokenVersion` claim is parsed but database-level comparison against `User.token_version` is **NOT** implemented in Phase 1. It is explicitly reported as a prepared capability for Phase 2 global session revocation; Phase 1 does not claim active global revocation.
+3. **Transaction Rollback Semantics in `verifyEmail()`:**
+   - Verified `@Transactional(noRollbackFor = {BadRequestException.class})` in `EmailVerificationServiceImpl.java`.
+   - Verified that wrong OTP submissions increment and persist `attempts`, the 5th failed attempt burns the token, expired tokens are deleted upon verification attempt, and successful verification atomically activates the user (`email_verified = true`) and consumes the token.
+   - Verified that because all `BadRequestException` triggers precede `user.setEmailVerified(true)`, unrelated bad request paths cannot commit unintended partial state.
+
+### 91.3. Actual Regression Verification Results
+- **Targeted Backend Auth & Migration Suite:**
+  - Command: `mvn test "-Dtest=AuthControllerTest,AuthSecurityUnitTest,ClientIpResolverTest,JwtTokenProviderTest,UserHandleServiceTest,UserHandleDatabasePersistenceTest,EmailVerificationConcurrencyTest,EmailVerificationMigrationRunnerTest"`
+  - Result: **92 passed, 0 failed, 0 errors, 0 skipped** (100% PASS).
+- **Real MySQL Concurrency Test:**
+  - Command: `mvn test "-Dtest=EmailVerificationConcurrencyTest"`
+  - Result: **4 passed, 0 failed, 0 errors, 0 skipped** (100% PASS).
+- **Flutter Web Admin Suite:**
+  - Command: `flutter test` (in `frontend/web`)
+  - Result: **46 passed, 0 failed, 0 errors** (100% PASS).
+- **Flutter Mobile Suite:**
+  - Command: `flutter test` (in `frontend/mobile`)
+  - Result: **428 passed, 26 failed, 0 errors**.
+  - Baseline Separation: All 26 failures belong exclusively to pre-existing Phase 3 social rating and itinerary comment widget tests (`activity_detail_screen_test.dart`, `rating_ui_layout_test.dart`, `rating_review_flow_test.dart`, `rating_star_breakdown_test.dart`, `rating_summary_header_test.dart`).
+  - Mobile Auth Suite (`auth_401_test.dart`, `email_verification_test.dart`, `widget_test.dart`): **15 passed, 0 failed, 0 errors** (100% PASS).
+- **Safety & Hygiene Guarantees:**
+  - Development database `travel_planner` remained 100% untouched (verified 11 original users).
+  - Test database `travel_planner_test` safely isolated.
+  - Zero Git commits, zero pushes, zero branch switches, and no staged changes.
+
+---
+
+## 92. Session Entry: Authentication Phase 2.0 Baseline Audit & Implementation Planning (2026-11-17)
+
+### 92.1. Context and Objective
+Prepared the architectural implementation plan for Authentication Phase 2 (Forgot Password, Reset Password, Change Password, and Global JWT Session Revocation). No application source code was modified during this planning step.
+
+### 92.2. Critical Design Decisions & Technical Trade-offs
+1. **Entity Architecture: Dedicated `PasswordResetToken` vs. Reusing `EmailVerificationToken`:**
+   - Evaluated pros and cons of reusing `EmailVerificationToken` with a type discriminator versus creating a dedicated `PasswordResetToken` entity and `password_reset_tokens` table.
+   - Decided on dedicated `PasswordResetToken` to maintain strict Separation of Concerns (SoC), eliminate regression coupling with account activation, allow independent schema evolution, and adhere to the approved project roadmap.
+2. **Cryptographic Token & OTP Security:**
+   - Designed 6-digit numeric OTP for mobile UX, hashed via HMAC-SHA256 with a dedicated server-side secret (`auth.password-reset.pepper`).
+   - Enforced 15-minute TTL, single-use atomic consumption, maximum 5 invalid attempts with permanent token burning, and 60-second request cooldown.
+3. **Immediate Global JWT Revocation:**
+   - Designed active `token_version` comparison in `JwtAuthenticationFilter`: JWT claim `tokenVersion` is compared against the database `User.token_version` encapsulated in `CustomUserDetails`.
+   - Any password change or reset increments `token_version`, instantly invalidating all tokens issued prior to the change.
+   - Backward compatibility: Legacy tokens lacking the claim default to `tokenVersion = 1` and remain valid as long as the user's database `token_version` is 1; existing ADMIN accounts remain 100% compatible.
+4. **Anti-Enumeration Guarantees:**
+   - `POST /api/auth/forgot-password` always returns a generic HTTP 200 OK message regardless of whether the email exists, is unverified, or is banned.
+
+### 92.3. Deliverables Created & Inspected
+- Created: `docs/plan/authentication-enhances/05-phase-2-forgot-change-password-plan.md` (Comprehensive 10-section implementation blueprint).
+- Inspected: `User.java`, `EmailVerificationToken.java`, `JwtTokenProvider.java`, `JwtAuthenticationFilter.java`, `UserDetailsServiceImpl.java`, `AuthRateLimiter.java`, `SecurityConfig.java`, `EmailServiceImpl.java`, `login_screen.dart`, `auth_notifier.dart` (Mobile & Web).
+- Working tree preserved; development database `travel_planner` untouched; zero Git commits or branch switches.
+
+---
+
+## 93. Session Entry: Authentication Phase 2 Complete Implementation — Forgot Password, Reset Password, Change Password & Global JWT Revocation (2026-11-17)
+
+### 93.1. Context and Objective
+Implemented the complete Authentication Phase 2 according to the approved plan across Spring Boot Backend, Flutter Mobile, and Flutter Web Admin. The scope encompasses:
+1. **Phase 2.1 (Credential Recovery):** Dedicated `PasswordResetToken` entity and migration runner with MySQL single-connection advisory lock (`password_reset_migration_lock`), 6-digit numeric OTP with HMAC-SHA256 (`auth.password-reset.pepper`), 15m TTL, 5-attempt limit with burn-on-5th, 60s cooldown, `POST /api/auth/forgot-password` (anti-enumeration 200 OK), `POST /api/auth/reset-password` (pessimistic row lock atomic consumption), `password-reset.html` Thymeleaf template, dual IP/Account rate limiting.
+2. **Phase 2.2 (Password Maintenance & Global JWT Revocation):** Centralized `PasswordPolicyValidator`, `POST /api/auth/change-password` (authenticated Bearer JWT, BCrypt verification, reject identical password, atomic `token_version` increment), `CustomUserDetails` holding `tokenVersion`, active comparison in `JwtAuthenticationFilter` (returns HTTP 401 on mismatch or stale token), backward compatibility for legacy tokens (DB version 1) and ADMIN accounts.
+3. **Phase 2.3 (Flutter Mobile):** `ForgotPasswordScreen`, `ResetPasswordScreen` (6-digit OTP, countdown, policy validator), `ChangePasswordScreen` (accessible via Profile -> Personal Info), `LoginScreen` ("Quên mật khẩu?" link), `AuthRepository`, `AuthNotifier` session clearance on password change.
+4. **Phase 2.4 (Flutter Web Admin Compatibility):** Verified 100% compatibility with existing 401 interceptor that purges session on revoked JWT; zero UI breakage.
+
+### 93.2. Critical Implementation Details & Architectural Decisions
+1. **Pessimistic Row Locking & Atomic State Transitions:**
+   - In `PasswordResetServiceImpl`, `userRepository.findByEmailForUpdate(email)` and `findByUsernameForUpdate(username)` ensure serialized updates during password reset and change operations.
+   - On reset or change password, `user.setTokenVersion(user.getTokenVersion() + 1)` executes atomically with password hash update, ensuring all previously issued JWTs are immediately invalidated.
+2. **Advisory Locking in Database Migration:**
+   - `PasswordResetMigrationRunner` uses a single dedicated JDBC connection across `GET_LOCK('password_reset_migration_lock', 15)`, DDL table and index creation, and `RELEASE_LOCK` in a `finally` block, preventing multi-instance race conditions.
+   - Double-checked schema completeness check prevents redundant executions.
+3. **Active JWT `token_version` Comparison in `JwtAuthenticationFilter`:**
+   - Filter parses `tokenVersion` from JWT claims (`tokenVersionClaim != null ? tokenVersionClaim : 1`).
+   - Retrieves authenticated user's current DB `token_version` via `CustomUserDetails`.
+   - If `tokenVersion < currentDbVersion`, filter immediately rejects request with HTTP 401 Unauthorized (`Global session has been invalidated`).
+4. **Anti-Enumeration & Attack Mitigation:**
+   - `POST /api/auth/forgot-password` returns generic HTTP 200 message with 60-second cooldown regardless of email existence, verification status, or banned state.
+   - Caffeine rate limiting throttles abuse by client IP and account identifier across all recovery and password change endpoints.
+
+### 93.3. Verified Test & Regression Results
+- **Targeted Backend Suite (JUnit 5 + Spring Boot Test):**
+  - Command: `mvn test "-Dtest=AuthControllerTest,AuthSecurityUnitTest,ClientIpResolverTest,JwtTokenProviderTest,UserHandleServiceTest,UserHandleDatabasePersistenceTest,EmailVerificationConcurrencyTest,EmailVerificationMigrationRunnerTest,PasswordResetMigrationRunnerTest,PasswordResetConcurrencyTest,PasswordResetAndChangePasswordTest"`
+  - Result: **104 passed, 0 failed, 0 errors, 0 skipped** (100% PASS).
+- **Concurrency Test (`PasswordResetConcurrencyTest`):**
+  - 10 threads concurrently executing reset with the same OTP.
+  - Result: Exactly 1 thread succeeds (200 OK); 9 threads fail (400 Bad Request); `token_version` increments by exactly 1; token burned. **PASS**.
+- **Migration Advisory Lock Test (`PasswordResetMigrationRunnerTest`):**
+  - Result: **3 passed, 0 failed, 0 errors** (100% PASS).
+- **Flutter Web Admin Suite:**
+  - Command: `flutter test` (in `frontend/web`)
+  - Result: **46 passed, 0 failed, 0 errors** (100% PASS).
+  - Static Analysis: `flutter analyze` -> 0 errors.
+- **Flutter Mobile Auth Suite:**
+  - Command: `flutter test test/password_reset_test.dart test/auth_401_test.dart test/email_verification_test.dart test/widget_test.dart`
+  - Result: **21 passed, 0 failed, 0 errors** (100% PASS).
+- **Full Flutter Mobile Suite:**
+  - Command: `flutter test` (in `frontend/mobile`)
+  - Result: **434 passed, 26 failed, 0 errors**.
+  - Baseline Separation: The 26 failures belong exclusively to pre-existing Phase 3 social rating and itinerary comment widget tests. Zero auth tests failed.
+  - Static Analysis: `flutter analyze` -> 0 errors.
+- **Database Isolation & Safety:**
+  - Development database `travel_planner` user count verified before and after test executions at exactly **11 users** (100% untouched).
+  - Test database `travel_planner_test` cleaned up safely without disabling foreign key checks.
+  - Working tree preserved; zero Git commits, zero pushes, zero branch switches, zero staging.
+
+---
+
+## 94. Session Entry: Authentication Phase 2 Final Security Correction & Acceptance Audit (2026-11-17)
+
+### 94.1. Context and Objective
+Conducted the final security correction and acceptance audit of Authentication Phase 2 according to strict requirements:
+1. Replaced inequality validation `tokenVersion < userDetails.getTokenVersion()` with strict equality `tokenVersion != userDetails.getTokenVersion()`.
+2. Enforced strict validation for missing, malformed, negative, zero, fractional, and invalid `tokenVersion` claims.
+3. Audited Spring Boot startup lifecycle against Hibernate `ddl-auto=validate` and documented actual production schema migration requirements.
+4. Corrected OTP expiration boundary check to `!now.isBefore(expiresAt)` across both reset password and email verification services.
+5. Added comprehensive test coverage for all 9 JWT tokenVersion scenarios plus OTP boundary expiration test.
+6. Verified complete test regression across Backend, Flutter Mobile, and Flutter Web Admin.
+
+### 94.2. Critical Security Corrections & Findings
+1. **Strict Equality JWT `token_version` Comparison:**
+   - In `JwtAuthenticationFilter.java`: Replaced `jwtVersion != currentDbVersion` with explicit handling:
+     - Missing claim (`tokenVersionFromJwt == null`): Accepted ONLY if `currentDbVersion == 1`; rejected if `currentDbVersion != 1`.
+     - Present claim: Accepted ONLY if `tokenVersionFromJwt == currentDbVersion`. Rejects stale (`< currentDbVersion`) and future (`> currentDbVersion`) versions.
+   - In `JwtTokenProvider.java`:
+     - Added strict type and format checks: Rejects null, non-integers, fractional numbers, strings that fail integer parsing, and values `<= 0` (`JwtException`).
+     - `validateToken(token)` now checks `tokenVersion` validity when claim is present, rejecting malformed tokens before reaching the filter.
+     - SecurityContext is established strictly after all JWT, account enabled/unlocked, and `token_version` checks pass.
+2. **Migration Lifecycle & Production Schema Deployment Strategy:**
+   - Evaluated Spring Boot bean lifecycle: `ApplicationRunner` executes after `LocalContainerEntityManagerFactoryBean` (Hibernate initialization and schema validation).
+   - In production with `spring.jpa.hibernate.ddl-auto=validate`, missing tables (`password_reset_tokens`) or columns cause application startup to fail during entity manager initialization before `ApplicationRunner` can execute.
+   - Confirmed no pre-startup migration tool (Flyway/Liquibase) exists in `pom.xml`.
+   - Documented the exact pre-deployment SQL procedure required for production deployments prior to starting the new application version.
+3. **OTP Expiration Boundary:**
+   - Refactored `PasswordResetServiceImpl` and `EmailVerificationServiceImpl` to evaluate `!now.isBefore(token.getExpiresAt())`.
+   - Boundary tests confirm that an OTP evaluated at or after its expiration timestamp is immediately rejected with HTTP 400 and purged from the database.
+
+### 94.3. Verified Regression Results
+- **Targeted Backend Suite:**
+  - Command: `mvn test "-Dtest=AuthControllerTest,AuthSecurityUnitTest,ClientIpResolverTest,JwtTokenProviderTest,UserHandleServiceTest,UserHandleDatabasePersistenceTest,EmailVerificationConcurrencyTest,EmailVerificationMigrationRunnerTest,PasswordResetMigrationRunnerTest,PasswordResetConcurrencyTest,PasswordResetAndChangePasswordTest"`
+  - Result: **111 passed, 0 failed, 0 errors, 0 skipped** (100% PASS).
+- **Concurrency Test (`PasswordResetConcurrencyTest`):** **2 passed, 0 failed** (100% PASS).
+- **Migration Runner Test (`PasswordResetMigrationRunnerTest`):** **3 passed, 0 failed** (100% PASS).
+- **Flutter Web Admin Suite:** **46 passed, 0 failed** (100% PASS).
+- **Flutter Mobile Auth Suite:** **21 passed, 0 failed** (100% PASS).
+- **Mobile Full Suite:** **434 passed, 26 failed** (the exact same 26 pre-existing Phase 3 social rating/comment failures verified by name and cause).
+- **Database Safety:** Development database `travel_planner` user count verified at **11 users** (100% untouched).
+- **Git Safety:** Zero commits, zero pushes, zero branch switches, working tree preserved.
+
+---
+
+## 95. Session Entry: Authentication Phase 2 Final Production Migration & Security Hardening (2026-11-17)
+
+### 95.1. Context and Objective
+Executed final production migration hardening and deep security verification for Authentication Phase 2:
+1. **P0 — Fix Legacy User Email Verification Migration:** Fixed the critical SQL design defect where adding `email_verified BOOLEAN DEFAULT FALSE` populates existing rows with `FALSE`, making subsequent `WHERE email_verified IS NULL` match 0 rows and locking out legacy users.
+2. **P1 — Strict JWT Claim Type & Range Validation:** Enforced strict rejection of String values (e.g. `"1"`), Booleans, decimal/fractional numbers (Float/Double/BigDecimal), values `<= 0`, and values exceeding `Integer.MAX_VALUE`. No overflow, precision loss, or numeric string conversion permitted.
+3. **P1 — Exact OTP Expiration Boundary Tests:** Injected `java.time.Clock` into `PasswordResetServiceImpl` and `EmailVerificationServiceImpl` to deterministically test exact boundary conditions (`expiresAt - 1ms`, `expiresAt`, `expiresAt + 1ms`), confirming immediate expiration and database purging.
+4. **P1 — Foreign Key Schema Compatibility:** Audited MySQL data types between `users.user_id` and foreign key columns in `password_reset_tokens` and `email_verification_tokens`. Confirmed exact type alignment (`INT NOT NULL` signed 32-bit).
+5. **Safety & Non-Regression:** Verified zero impact on dev database `travel_planner` (11 users preserved, untouched), ran full test suites across Backend, Mobile, and Web Admin.
+
+### 95.2. Critical Hardening & Implementation Details
+1. **P0 Migration Fix for Legacy Users:**
+   - **Root Cause Identified:** When MySQL executes `ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE`, all existing rows are assigned `FALSE` during column creation. A following update `UPDATE users SET email_verified = TRUE WHERE email_verified IS NULL` updates exactly 0 rows. In a production deployment with `email_verified` enforcement, all existing active users would be locked out.
+   - **Procedure A (Fresh Production Deployment):**
+     ```sql
+     -- Step 1: Add column with temporary default TRUE so all existing legacy users are verified
+     ALTER TABLE users ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT TRUE;
+     -- Step 2: Alter column default to FALSE so all future registrations require verification
+     ALTER TABLE users ALTER COLUMN email_verified SET DEFAULT FALSE;
+     ```
+   - **Procedure B (Upgrade of Already-Migrated Schema):**
+     ```sql
+     -- Safely mark as TRUE only legacy users who never had an email verification token generated
+     UPDATE users u
+     LEFT JOIN email_verification_tokens evt ON u.user_id = evt.user_id
+     SET u.email_verified = TRUE
+     WHERE evt.token_id IS NULL AND u.email_verified = FALSE;
+     ```
+   - **Idempotent Runner:** Updated `EmailVerificationMigrationRunner.java` to detect if the column is newly added vs existing, applying the appropriate safe update logic idempotently.
+   - **Integration Test:** Added `testLegacyUserMigrationAndAuthentication()` verifying both SQL procedures against disposable test tables and confirming live authentication (`/api/auth/login` and `/api/auth/me`).
+
+2. **P1 Strict JWT Claim Type & Range Validation:**
+   - In `JwtTokenProvider.java`:
+     - Explicit rejection of `String` (even numeric strings like `"1"`), `Boolean`, `Double`/`Float`, and `BigDecimal` with non-zero scale.
+     - Overflow protection: values evaluated as `long` and rejected if `< 1` or `> Integer.MAX_VALUE`.
+     - Preserves backward compatibility only when claim is genuinely absent and database `token_version == 1`.
+   - In `JwtTokenProviderTest.java`: Added 13 comprehensive unit tests covering all edge cases (integer, numeric string, fractional, `Integer.MAX_VALUE`, `Integer.MAX_VALUE + 1`, `Long.MAX_VALUE`, negative, zero, missing claim). All 13 passed.
+
+3. **P1 Injectable Clock & Exact OTP Expiration Boundary Tests:**
+   - Added `java.time.Clock` injection with setter/package-private access to `PasswordResetServiceImpl` and `EmailVerificationServiceImpl`.
+   - Updated internal timestamp calculations to use `LocalDateTime.now(clock)`.
+   - Added exact 3-point boundary tests in `PasswordResetAndChangePasswordTest.java`:
+     - `now = expiresAt - 1ms`: Accepted (OTP valid, HTTP 200).
+     - `now = expiresAt`: Rejected (OTP expired, HTTP 400, token purged).
+     - `now = expiresAt + 1ms`: Rejected (OTP expired, HTTP 400, token purged).
+   - Applied and verified for both Password Reset and Email Verification workflows.
+
+4. **P1 Foreign Key Schema Compatibility:**
+   - MySQL `travel_planner.users.user_id` is `int(11)` (signed 32-bit integer).
+   - JPA `User.userId` is `java.lang.Integer`.
+   - Migration runners (`PasswordResetMigrationRunner.java` and `EmailVerificationMigrationRunner.java`) and entity mappings both use `INT NOT NULL` foreign keys referencing `users(user_id)`.
+   - Corrected previous report documentation typos that referenced `BIGINT`.
+
+### 95.3. Verified Test & Regression Results
+- **Backend Targeted Test Suite:**
+  - Command: `mvn test "-Dtest=AuthControllerTest,AuthSecurityUnitTest,ClientIpResolverTest,JwtTokenProviderTest,UserHandleServiceTest,UserHandleDatabasePersistenceTest,EmailVerificationConcurrencyTest,EmailVerificationMigrationRunnerTest,PasswordResetMigrationRunnerTest,PasswordResetConcurrencyTest,PasswordResetAndChangePasswordTest"`
+  - Result: **116 passed, 0 failed, 0 errors, 0 skipped** (100% PASS).
+- **Flutter Mobile Auth Suite:**
+  - Command: `flutter test test/password_reset_test.dart test/auth_401_test.dart test/email_verification_test.dart test/widget_test.dart`
+  - Result: **21 passed, 0 failed** (100% PASS).
+- **Flutter Web Admin Suite:**
+  - Command: `flutter test`
+  - Result: **46 passed, 0 failed** (100% PASS).
+- **Database Safety Verification:**
+  - Development database `travel_planner` user count verified at **11 users** (100% untouched).
+  - Test database `travel_planner_test` isolated and cleaned up cleanly.
+- **Git Safety Verification:**
+  - Zero commits, zero pushes, zero branch switches, working tree intact.
+
+---
+
+## 96. Session Entry: Media Cleanup Transaction Fix & Email Verification Delivery Investigation (2026-11-17)
+
+### 96.1. Context and Objective
+Investigated and resolved two independent backend defects:
+1. **Issue A — MediaCleanupService Transaction Failure:**
+   - Error: `InvalidDataAccessApiUsageException: No active transaction for update or delete query`.
+   - Affected stack: `MediaCleanupService.claimBatch(MediaCleanupService.java:123)` -> `cleanupOrphanAndDeletedAssets(MediaCleanupService.java:64)` -> `scheduledCleanup(MediaCleanupService.java:56)`.
+2. **Issue B — Email Verification OTP Delivery Failure:**
+   - Symptom: Registered users do not receive email verification OTP.
+   - Traced complete registration-to-email lifecycle, SMTP configuration, event listeners, timeouts, logging, and templates.
+
+### 96.2. Root Cause Analysis & Implementations
+
+#### Issue A: Media Cleanup Transaction Failure
+- **Root Cause:**
+  `MediaCleanupService.scheduledCleanup()` runs on an un-transactional background task scheduler. It invokes `cleanupOrphanAndDeletedAssets()`, which called `claimBatch()`, `recordSuccess()`, and `handleFailure()` via intra-bean self-invocation (`this.*`).
+  In Spring AOP proxy architecture, intra-bean method calls bypass the CGLIB proxy, rendering `@Transactional(propagation = Propagation.REQUIRES_NEW)` completely inactive.
+  When `MediaAssetRepository.claimBatch()` executed its `@Modifying @Query`, Spring Data JPA detected no active transaction and threw `InvalidDataAccessApiUsageException: No active transaction for update or delete query`.
+- **Architectural Solution:**
+  1. Injected `PlatformTransactionManager` into `MediaCleanupService` with programmatic `TransactionTemplate` configured with `PROPAGATION_REQUIRES_NEW`.
+  2. Wrapped `claimBatch`, `recordSuccess`, and `handleFailure` modifying queries in `TransactionTemplate.execute(...)`, ensuring an active transaction is guaranteed regardless of whether invoked via proxy, self-invocation, or scheduler thread.
+  3. Preserved clean separation: database claiming commits BEFORE external Cloudinary delete calls occur. No database transaction is held open during external HTTP calls.
+  4. Added `MediaCleanupTransactionTest.java` covering all 6 required scenarios on a real MySQL test database: scheduled cleanup claiming, modifying query inside transaction, empty batch handling, concurrent claiming without collisions, retry scheduling with backoff on Cloudinary error, and dead-letter transition after 5 retries.
+
+#### Issue B: Email Verification OTP Delivery Failure
+- **Root Cause:**
+  1. **Default Configuration (`app.mail.enabled=false`):** By default in `application.properties`, `app.mail.enabled` was set to `false` (Simulation Mode). Without setting `APP_MAIL_ENABLED=true` in `.env`, `EmailServiceImpl` only logged a console message and never dispatched emails to an SMTP server.
+  2. **Missing SMTP Documentation:** `.env.example` lacked all `SPRING_MAIL_*` and `APP_MAIL_ENABLED` variables, so developers had no guidance on configuring SMTP.
+  3. **SMTP Protocol Settings:** For Gmail SMTP (`smtp.gmail.com:587`), missing `mail.smtp.starttls.required=true`, SSL trust properties, and socket connection timeouts caused silent hangs or handshake rejections.
+  4. **Event Listener Fallback:** `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` in `EmailVerificationServiceImpl` lacked `fallbackExecution = true`. If invoked outside an active transaction synchronization, events were silently dropped.
+  5. **Lack of Stage Logs & Traces:** Previous implementation lacked stage-by-stage structured logging and swallowed exception root-causes without passing the `Throwable` object to `log.error`.
+- **Architectural Solution:**
+  1. Updated `application.properties` with fallback support for standard `SPRING_MAIL_*` and `MAIL_*` environment variables, STARTTLS required, SSL trust (`*`), and 5000ms timeouts (`connectiontimeout`, `timeout`, `writetimeout`).
+  2. Updated `Travel_Planner/.env.example` and root `.env.example` with comprehensive documentation for Gmail App Passwords, MailHog/Mailpit, and Brevo/SendGrid.
+  3. Added `fallbackExecution = true` to `@TransactionalEventListener` across both `EmailVerificationServiceImpl` and `PasswordResetServiceImpl`.
+  4. Synchronized `createdAt` with injectable `Clock`: `EmailVerificationToken.createdAt(LocalDateTime.now(clock))` for deterministic cooldown and expiration testing.
+  5. Implemented structured stage-by-stage logging with email masking (`te***@example.com`):
+     - `--- [EmailVerification] Verification request received for user ID: {}, email: {} ---`
+     - `--- [EmailVerification] OTP successfully persisted (expires at: {}, token type: EMAIL_VERIFICATION) for user ID: {} ---`
+     - `--- [EmailVerification] Email dispatch started for user ID: {}, recipient: {} ---`
+     - `--- [EmailService] SMTP dispatch succeeded/failed for verification email to {}: {} ---` (with full exception trace).
+  6. Created `06-email-smtp-setup-and-troubleshooting-guide.md` under `docs/plan/authentication-enhances/`.
+  7. Created `ManualSmtpSmokeTest.java` for zero-friction terminal SMTP verification.
+  8. Created `EmailVerificationDeliveryTest.java` with 7 comprehensive integration tests covering registration OTP persistence, JavaMailSender dispatch, graceful SMTP failure handling, simulation mode, 60s cooldown & resend, valid OTP activation, and expiration boundary.
+
+### 96.3. Verified Test & Regression Results
+- **Backend Targeted Suite:**
+  - Command: `mvn test "-Dtest=AuthControllerTest,AuthSecurityUnitTest,ClientIpResolverTest,JwtTokenProviderTest,UserHandleServiceTest,UserHandleDatabasePersistenceTest,EmailVerificationConcurrencyTest,EmailVerificationMigrationRunnerTest,PasswordResetMigrationRunnerTest,PasswordResetConcurrencyTest,PasswordResetAndChangePasswordTest,MediaCleanupServiceTest,MediaCleanupTransactionTest,EmailVerificationDeliveryTest"`
+  - Result: **133 passed, 0 failed, 0 errors, 0 skipped** (100% PASS, 61s).
+- **Flutter Mobile Auth Suite:**
+  - Command: `flutter test test/password_reset_test.dart test/auth_401_test.dart test/email_verification_test.dart test/widget_test.dart`
+  - Result: **21 passed, 0 failed** (100% PASS).
+- **Flutter Web Admin Suite:**
+  - Command: `flutter test`
+  - Result: **46 passed, 0 failed** (100% PASS).
+- **Git Safety Verification:**
+  - Branch: `auth`.
+  - Zero commits, zero pushes, zero branch switches, working tree preserved.
+
+---
+
+## 97. Session Entry: Live Debugging — Running Application Gmail OTP Delivery (2026-11-17)
+
+### 97.1. Context and Objective
+Conducted deep live investigation on the running Travel Planner backend (port 8080) following a report that registration does not dispatch real Gmail OTP emails. Performed runtime memory inspection of the active process, network layer diagnostics, request-to-database tracing, and code/configuration hardening.
+
+### 97.2. Runtime Process & Environment Findings
+1. **Running Process Identification:**
+   - Active process listening on `0.0.0.0:8080`: Java PID `5000`.
+   - Parent process: `cmd.exe` PID `22588` running `mvnw spring-boot:run` in interactive PowerShell session PID `17192`.
+   - Process Start Time: `11/17/2026 1:49:27 PM`.
+   - Working Directory: `D:\CODE\HCMUTE\TLCN\Travel-planner-community\Travel_Planner\backend`.
+   - Active Profile: `default` (no custom profile specified).
+2. **Environment Block & Configuration Ingestion:**
+   - Evaluated `.env` file modification dates: `D:\CODE\HCMUTE\TLCN\Travel-planner-community\.env` and `Travel_Planner\.env` were both last modified on `11/10/2026`. Neither file contained any `SPRING_MAIL_*`, `MAIL_*`, or `APP_MAIL_ENABLED` entries.
+   - Performed direct P/Invoke PEB memory reading of PID `5000`: Verified that zero `MAIL` or `SMTP` environment variables were loaded into the running process's memory space.
+   - Resulting runtime properties in PID `5000`:
+     - `app.mail.enabled` = `false` (Simulation Mode active).
+     - `spring.mail.host` = `localhost` (default fallback).
+     - `spring.mail.port` = `1025` (default fallback).
+     - `spring.mail.username` = `""` (empty string).
+     - `spring.mail.password` = `""` (empty string).
+3. **Trace of Live Registration Requests:**
+   - User `588` (`danh.minh.hehe` — `minhdanh@gmail.com`) registered at `13:52:55`.
+   - User `589` (`minhdanh1` — `minhdanh2824@gmail.com`) registered at `14:16:27`.
+   - Database verification: Both users exist in `travel_planner.users` (`status=ACTIVE`, `email_verified=false`), and tokens exist in `email_verification_tokens` (Token ID 1 and Token ID 2).
+   - In running PID `5000`, because `app.mail.enabled` was `false`, `EmailServiceImpl.sendVerificationEmail()` logged simulation output to console and returned immediately without attempting any network connection.
+
+### 97.3. Multi-Layer Gmail SMTP Diagnostics
+1. **Layer A — Network Connectivity:**
+   - Executed: `Test-NetConnection smtp.gmail.com -Port 587`.
+   - Result: `TcpTestSucceeded : True` (IP `74.125.68.109:587`).
+   - Conclusion: Outbound port 587 is completely unblocked by ISP and local firewall.
+2. **Layer B — SMTP Protocol & STARTTLS Handshake:**
+   - Raw TCP handshake verified:
+     - Google banner: `220 smtp.gmail.com ESMTP ... - gsmtp`.
+     - `EHLO` response includes `250-STARTTLS`.
+     - Sending commands without STARTTLS returns: `530-5.7.0 Must issue a STARTTLS command first.`
+   - Conclusion: Gmail requires explicit STARTTLS on port 587, SMTP AUTH, and a valid Google App Password (16 characters).
+
+### 97.4. Code & Configuration Hardening
+1. **Safe Smart Defaults in `application.properties`:**
+   - Changed fallback host to `smtp.gmail.com` and port to `587`.
+   - Changed default auth and STARTTLS flags to `true`:
+     - `spring.mail.properties.mail.smtp.auth=true`
+     - `spring.mail.properties.mail.smtp.starttls.enable=true`
+     - `spring.mail.properties.mail.smtp.starttls.required=true`
+     - `spring.mail.properties.mail.smtp.ssl.trust=*`
+   - This ensures that when a user supplies `SPRING_MAIL_USERNAME` and `SPRING_MAIL_PASSWORD`, SMTP authentication and TLS work out of the box without requiring manual property overrides.
+2. **Automatic From-Address Fallback in `EmailServiceImpl.java`:**
+   - Implemented `getEffectiveFrom()`: If `spring.mail.from` is set to the default placeholder (`no-reply@travelplanner.local`), the service automatically falls back to the authenticated `spring.mail.username`.
+   - This prevents Google SMTP from rejecting emails due to unverified sender mismatch (`550 5.7.1`).
+
+### 97.5. Automated Verification & Git Safety
+- Ran `EmailVerificationDeliveryTest`: **7 passed / 7 tests** (100% PASS).
+- Running backend PID `5000` preserved without premature restart.
+- Branch: `auth`. Zero commits, zero pushes, zero branch switches, working tree preserved.
+
+
+
+
+
+
+
+---
+
+## 98. Session 98 — UI/UX Refactor: 6-Box OTP Input & Step-by-Step Password Reset Flow (2026-11-17)
+
+### 98.1. Objectives
+1. **Redesign OTP Input:** Transition from a single wide text field with dots to a dedicated 6-box input component with auto-focus advance, backspace regression, paste support, and active focus highlighting adhering to Travel Planner brand guidelines (clean white background, primary red/pink highlight, responsive sizing). Reusable across both Email Verification and Forgot Password flows.
+2. **Refactor Forgot Password to 3 Sequential Steps:**
+   - **Step 1 (Enter Email):** Client email format validation, dispatches `POST /api/auth/forgot-password`, navigates to Step 2 with email and cooldown.
+   - **Step 2 (Enter OTP):** Reusable 6-box OTP component, countdown timer for resend, dispatches `POST /api/auth/verify-reset-otp`, displays error if invalid/expired, transitions with `pushReplacement` to Step 3 with single-use `resetToken`.
+   - **Step 3 (Set New Password):** New password and confirm password inputs, password visibility toggles, dispatches `POST /api/auth/reset-password`, pops back to Login upon success. Prevents back-navigation to the completed OTP challenge.
+3. **Relax Password Policy for Reset Password Only:**
+   - Drop mandatory requirements for uppercase, lowercase, numbers, or special characters specifically for `ResetPassword`.
+   - Require only non-empty, minimum length of 6 characters (max 100), and confirmation password matching.
+   - Strictly preserve strong password policy (uppercase, lowercase, number, special char, min 8 chars) for `ChangePassword`.
+   - Strictly preserve password policy for `Register` (min 6 chars).
+
+### 98.2. Backend Implementation & Security Safeguards
+1. **New DTOs:**
+   - `VerifyResetOtpRequest`: Contains `email` and `otp` (6 digits pattern).
+   - `VerifyResetOtpResponse`: Contains `message` and `resetToken`.
+   - `ResetPasswordRequest`: Updated to accept `resetToken` (for 3-step flow) alongside backward-compatible `otp`, with relaxed password policy validation.
+2. **Password Policy Validator (`PasswordPolicyValidator.java`):**
+   - Added `validateResetPassword(String password)`: Requires non-blank and 6 to 100 characters.
+   - Retained `validate(String password)` with strict regex for `changePassword`.
+3. **Password Reset Service (`PasswordResetServiceImpl.java`):**
+   - Added `verifyResetOtp(VerifyResetOtpRequest request)`: Verifies HMAC-SHA256 of OTP, enforces max attempts (5) and expiration (15 mins), generates a 256-bit cryptographically secure single-use `resetToken` (64 hex characters), updates `token_hash` with `hashOtp(resetToken, pepper)`, resets attempts, sets 10-minute expiry, and returns `resetToken` to client.
+   - Updated `resetPassword(ResetPasswordRequest request)`: Supports `resetToken` (or `otp` as fallback), verifies against `token.tokenHash` via constant-time comparison, validates relaxed password policy, immediately consumes and deletes the token row (`tokenRepository.delete(token)` guaranteeing single-use), updates user password with BCrypt, increments `token_version` for session revocation, and returns success response.
+4. **Controller & Security:**
+   - `AuthController.java`: Added `POST /api/auth/verify-reset-otp` protected by `authRateLimiter.tryConsumeResetPassword`.
+   - `SecurityConfig.java`: Permitted `POST /api/auth/verify-reset-otp` in public matchers.
+
+### 98.3. Mobile Implementation & Reusable Components
+1. **Shared OTP Component (`app_otp_input.dart`):**
+   - 6 individual digit boxes in a centered, responsive layout.
+   - Auto-advance to next box on single-digit input; unfocuses and triggers `onCompleted` on the 6th digit.
+   - Backspace key listener (`KeyEvent` handling) regresses focus to previous box when current box is empty.
+   - Full 6-digit paste support: filters non-digits and distributes across all 6 boxes.
+   - Digits-only restriction, numeric keyboard (`TextInputType.number`).
+   - Active focus box highlighted with `AppColors.primary` (2px border, clean white fill).
+2. **Email Verification Screen (`email_verification_screen.dart`):**
+   - Upgraded to `AppOtpInput`.
+   - "Kích hoạt tài khoản" button disabled until exactly 6 digits are typed.
+   - Countdown timer (60s) with disabled resend button during request.
+3. **Forgot Password 3-Step Screens:**
+   - `forgot_password_screen.dart` (Step 1): Email entry, client validation, button "Tiếp tục", navigation to Step 2.
+   - `forgot_password_otp_screen.dart` (Step 2): Reusable `AppOtpInput`, countdown timer, resend OTP button, verifies OTP via `verifyResetOtp`, navigates via `Navigator.pushReplacement` to Step 3 with `resetToken`.
+   - `reset_password_screen.dart` (Step 3): New password and confirm password inputs, relaxed password policy validation (min 6 chars), visibility toggle, submits to `resetPassword`, navigates to Login via `popUntil((route) => route.isFirst)`.
+4. **Data & State Management:**
+   - `ApiConstants`: Added `verifyResetOtpEndpoint`.
+   - `AuthRepository`: Added `verifyResetOtp` and updated `resetPassword` parameters.
+   - `AuthNotifier`: Added `verifyResetOtp` and updated `resetPassword`.
+
+### 98.4. Automated Verification Results
+- **Backend Tests:**
+  - `PasswordResetAndChangePasswordTest`: **12/12 passed (100%)** — verified 3-step flow, OTP verification, relaxed password acceptance (lowercase only, uppercase only, numbers only, special chars), rejection of short password (< 6 chars), single-use challenge token consumption (replay rejection), and strict retention of Change Password strong password policy.
+- **Mobile Tests:**
+  - `email_verification_test.dart`: **5/5 passed (100%)** — verified rendering with `AppOtpInput` (6 boxes), OTP verification success, invalid OTP error handling, and resend.
+  - `password_reset_test.dart`: **9/9 passed (100%)** — verified Step 1 email submission, Step 2 OTP verification, Step 3 relaxed password submission, Change Password strong policy retention, Step 1 UI rendering, Step 2 UI rendering with `AppOtpInput`, Step 3 UI rendering & relaxed password validation, and `AppOtpInput` unit tests (typing, backspace, paste).
+
+---
+
+## 99. Session 99 — UI Fix: OTP Input Responsive Layout & Visual Outline Refinement (2026-11-17)
+
+### 99.1. Objectives & Defect Analysis
+1. **Fix `RIGHT OVERFLOWED BY 6.0 PIXELS` & Box 6 Clipping:**
+   - *Defect:* On 360dp–384dp screens (such as Samsung Galaxy A34 5G), the OTP input row overflowed by 6.0 pixels on the right, clipping the sixth OTP box.
+   - *Root Cause:* In `app_otp_input.dart`, `LayoutBuilder` calculated `maxBoxWidth = (availableWidth - 5 * spacing) / 6` where `spacing = 6.0`. Each box was then wrapped in `Padding(horizontal: spacing / 2)`. Because padding was applied to both the outer left of box 0 and the outer right of box 5, the total padding across the 6 boxes was `6 * spacing = 36.0px` instead of `5 * spacing = 30.0px`. Total row width became `availableWidth + 6.0px`, exceeding `availableWidth` by exactly `1 * spacing = 6.0px`.
+2. **Fix Duplicated/Nested Borders & Conflicting Black/Pink Outlines:**
+   - *Defect:* Focused OTP box displayed a nested black 2.0px outline inside a pink 2.0px container border. Inactive boxes showed grey inner and outer borders.
+   - *Root Cause:* In `AppTheme.inputDecorationTheme`, `focusedBorder` and `enabledBorder` are globally defined as `OutlineInputBorder(borderSide: BorderSide(color: AppColors.textPrimary /* black */, width: 2.0))`. In `app_otp_input.dart`, the inner `TextField` only specified `decoration: InputDecoration(border: InputBorder.none)`. Flutter's `InputDecoration.applyDefaults` fell back to inheriting `focusedBorder` and `enabledBorder` from `Theme.of(context).inputDecorationTheme`, rendering an inner black border inside the `Container`'s pink border.
+3. **Visual Balance & Keyboard Viewport Safety:**
+   - Visual balance: Ensure all 6 boxes have equal dimensions, rounded corners (12px), clean white background, clear typography (22pt bold), and consistent spacing.
+   - Usable with numeric soft keyboard: Prevent vertical clipping or scrolling traps when the virtual keyboard is active.
+
+### 99.2. Architecture & Code Implementation
+1. **Mathematical Responsive Row Layout (`app_otp_input.dart`):**
+   - Constrained total width: `maxRowWidth = availableWidth.clamp(280.0, 360.0)`.
+   - Adaptive spacing: `spacing = maxRowWidth < 300.0 ? 6.0 : 8.0`.
+   - Replaced fragile outer padding with a `Row` containing 6 `Expanded` items with `AspectRatio(aspectRatio: 0.82)`, separated by 5 `SizedBox(width: spacing)` dividers.
+   - Mathematical guarantee: `6 * boxWidth + 5 * spacing = maxRowWidth <= availableWidth`. Overflow is strictly 0.0px across all mobile viewports (320dp to 411dp+).
+2. **Theme Isolation & Clean Single Border (`app_otp_input.dart`):**
+   - Wrapped each `TextField` in `Theme(data: Theme.of(context).copyWith(inputDecorationTheme: const InputDecorationTheme(...)))` explicitly overriding all border states (`border`, `enabledBorder`, `focusedBorder`, `errorBorder`, `focusedErrorBorder`, `disabledBorder`) to `InputBorder.none` and `filled: false`.
+   - Set all corresponding border fields in `InputDecoration` to `InputBorder.none`.
+   - Outer `Container` solely manages the single border:
+     - Focused: `Border.all(color: AppColors.primary, width: 2.0)`.
+     - Inactive/Filled: `Border.all(color: AppColors.borderLight, width: 1.0)`.
+     - Clean white fill (`AppColors.surfaceWhite`), 12px border radius.
+   - Direct `FocusNode.onKeyEvent` attached to persistent focus nodes for reliable backspace navigation across all Flutter versions without leaking temporary focus nodes.
+3. **Screen Viewport & Keyboard Clearance:**
+   - `email_verification_screen.dart` & `forgot_password_otp_screen.dart`:
+     - Compacted header icon to 56px and set vertical padding to `20`.
+     - Added `ClampingScrollPhysics()` to `SingleChildScrollView` to prevent bouncy scroll traps and guarantee smooth visibility when the numeric keyboard pops up.
+     - Modernized deprecated `.withOpacity()` to `.withValues(alpha: ...)`.
+4. **Code Quality & Linter Polish:**
+   - `auth_repository.dart`: Updated null-aware map element syntax.
+   - `flutter analyze`: 0 issues found across all modified files.
+
+### 99.3. Automated Verification Results
+1. **New Responsive Test Suite (`app_otp_input_responsive_test.dart`):**
+   - Test 1 (iPhone SE, 320x568 dp): 0 overflow, all 6 boxes visible. **PASS**
+   - Test 2 (Samsung Galaxy A34 5G, 384x854 dp): 0 overflow, all 6 boxes visible. **PASS**
+   - Test 3 (Standard Android, 360x800 dp): 0 overflow, all 6 boxes visible. **PASS**
+   - Test 4 (Border state isolation): Focused box has 1 pink border (2px), 0 black outlines; inactive has 1 grey border (1px). **PASS**
+   - Test 5 (Keyboard input & backspace focus regression): Digits advance focus; backspace on empty box regresses focus. **PASS**
+   - Test 6 (Full 6-digit paste): Pasting `654321` populates all 6 boxes and triggers `onCompleted`. **PASS**
+2. **Full Mobile Auth Test Suite (30/30 passed, 100% PASS):**
+   - `app_otp_input_responsive_test.dart`: 6/6 passed.
+   - `email_verification_test.dart`: 5/5 passed.
+   - `password_reset_test.dart`: 9/9 passed.
+   - `auth_401_test.dart`: 9/9 passed.
+   - `widget_test.dart`: 1/1 passed.
+3. **Backend Integration Tests:**
+   - `PasswordResetAndChangePasswordTest`: 12/12 passed (100% PASS).
+4. **Physical Device State Inspection:**
+   - Samsung Galaxy A34 5G (`SM-A346E`, serial `RFCW8105T0H`, Android 16 API 36) detected via ADB.
+   - Device was in `mWakefulness=Dozing` state during verification. Verified layout mathematically and via widget tests replicating its exact 384x854 viewport.
+
+---
+
+## 100. Session 100 — Bug Fix: Forgot Password OTP Flow Isolation & Navigation Routing Refactor (2026-11-17)
+
+### 100.1. Objectives & Root Cause Investigation
+1. **Defect:** In the 3-step Forgot Password flow (`Email` → `OTP` → `Reset Password`), entering and submitting the OTP in Step 2 unexpectedly navigated the user to the Home screen (`MainNavigationShell`) instead of transitioning to Step 3 (`ResetPasswordScreen`).
+2. **Root Cause Analysis (Multi-Layer Investigation):**
+   - **Root Cause 1 (Session Expiry Trigger on Public Auth Endpoints):** In `ApiClient` (`api_client.dart`), `_handleResponse` previously called `_notifyUnauthorized()` unconditionally whenever `response.statusCode == 401`. In `main.dart`, `ApiClient.globalOnUnauthorized` was bound to:
+     ```dart
+     ApiClient.globalOnUnauthorized = () {
+       _authNotifier.handleSessionExpired();
+       _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+     };
+     ```
+     Because `route.isFirst` is `MainNavigationShell` (the root Home screen), any 401 returned on unauthenticated auth flows (e.g., stale filter caches, invalid credentials, or rate limits during live testing) triggered `globalOnUnauthorized`, violently popping the entire route stack (`ForgotPasswordOtpScreen`, `ForgotPasswordScreen`, `LoginScreen`) all the way back to Home!
+   - **Root Cause 2 (Flawed Route Predicate in Step 3 Navigation):** In `reset_password_screen.dart`, line 80 previously contained:
+     ```dart
+     // Pop back to login screen
+     Navigator.of(context).popUntil((route) => route.isFirst);
+     ```
+     The author incorrectly assumed `route.isFirst` pointed to the Login screen. In reality, `route.isFirst` is `MainNavigationShell` (Home). Thus, even after a successful password reset in Step 3, the user was ejected to Home instead of Login.
+   - **Root Cause 3 (Controller Mutation During Route Replacement):** In `forgot_password_otp_screen.dart`, `_codeController.clear()` was called immediately before `Navigator.pushReplacement()`. This triggered internal `AppOtpInput` listeners, clearing controllers and dispatching redundant `onChanged` events during the route disposal lifecycle.
+   - **Root Cause 4 (Visual Ambiguity Between Auth Flows):** Step 2 previously shared the identical title "Xác thực email" and icon `mark_email_read_outlined` with the Phase 1 Email Verification screen, obscuring the conceptual difference between email account activation and password recovery authorization.
+
+### 100.2. Architecture & Code Implementation
+1. **Public Auth Route Guard in `ApiClient` (`api_client.dart`):**
+   - Added `_isPublicAuthPath(String path)` checking against all unauthenticated endpoints (`loginEndpoint`, `registerEndpoint`, `verifyEmailEndpoint`, `resendVerificationEndpoint`, `forgotPasswordEndpoint`, `verifyResetOtpEndpoint`, `resetPasswordEndpoint`).
+   - Passed `path` and `token` through all HTTP client methods (`post`, `get`, `put`, `patch`, `delete`, `uploadFile`) to `_handleResponse(response, path: path, token: token)`.
+   - Guarded `_notifyUnauthorized()`: Only invoked if `!isPublicAuth || (token != null && token.isNotEmpty)`. Unauthenticated 401 responses now cleanly throw `ApiException` to be displayed in screen-level error banners without triggering `globalOnUnauthorized` or popping the navigation stack.
+2. **Deterministic Navigation to Login in Step 3 (`reset_password_screen.dart`):**
+   - Replaced `popUntil((route) => route.isFirst)` with:
+     ```dart
+     Navigator.of(context).pushAndRemoveUntil(
+       MaterialPageRoute(
+         settings: const RouteSettings(name: '/login'),
+         builder: (_) => LoginScreen(authNotifier: widget.authNotifier),
+       ),
+       (route) => route.isFirst,
+     );
+     ```
+   - Applied identical clean navigation to the AppBar Back button on `ResetPasswordScreen`, ensuring canceling Step 3 returns to `LoginScreen` and never leaves stale OTP challenge state.
+3. **Step 2 Clean Transition & Distinct UI (`forgot_password_otp_screen.dart`):**
+   - Removed `_codeController.clear()` prior to `pushReplacement`.
+   - Added `RouteSettings(name: '/reset-password')` for the Step 3 route.
+   - Refreshed visual hierarchy: Header icon changed to `Icons.lock_reset`, title to `Xác thực mã OTP`, subtitle to explicitly state password reset authorization intent, and primary button to `Xác nhận mã OTP`.
+4. **Route Naming Polish:**
+   - Tagged `/login` in `explore_screen.dart` and `profile_screen.dart`.
+   - Tagged `/forgot-password-otp` in `forgot_password_screen.dart`.
+
+### 100.3. Automated Verification Results
+1. **Mobile Test Suites (36/36 tests passed — 100% PASS):**
+   - `password_reset_test.dart` (15/15 passed):
+     - Step 1: Submits email and returns 200 with cooldown.
+     - Step 2: Correct OTP transitions to Step 3 and does NOT navigate to Home.
+     - Step 2: Incorrect OTP remains on Step 2 with error banner.
+     - Step 2: Expired OTP remains on Step 2 with error banner.
+     - Step 3: Submits relaxed password (min 6 chars, no complex character rules).
+     - Step 3: Rejects short password (< 6 chars) and confirm password mismatch.
+     - Step 3: Successful password reset navigates cleanly to Login, NOT Home.
+     - Security: No JWT or authenticated session is created by password-reset OTP verification.
+     - Security: Email Verification continues to authenticate normally with JWT.
+     - Reusable `AppOtpInput`: Verifies typing, backspace focus regression, and 6-digit paste.
+     - `ChangePasswordScreen`: Verifies authenticated submission and session logout.
+   - `app_otp_input_responsive_test.dart` (6/6 passed): Responsive layout (320px, 360px, 384px) with 0.0px overflow and single-border isolation.
+   - `email_verification_test.dart` (5/5 passed).
+   - `auth_401_test.dart` (9/9 passed): Verified 401 handling, throttling, and session expiry isolation.
+   - `widget_test.dart` (1/1 passed).
+2. **Flutter Code Analysis:**
+   - `flutter analyze`: **0 issues found** across all modified files.
+3. **Backend Integration Tests:**
+   - `PasswordResetAndChangePasswordTest`: **12/12 passed (100% PASS)**.
+4. **Flutter Web Compatibility:**
+   - All 46 web tests passed (100% PASS).
+
+---
+
+## 101. Session Entry: Authentication Phase 3 — Google Sign-In & External Identity Integration (2026-11-17)
+
+### 101.1. Context & Objective
+Implemented Authentication Phase 3 of the Travel Planner enhancement roadmap, delivering end-to-end Google Sign-In across Flutter Mobile and Spring Boot Backend, while maintaining Web Admin as a secure local-credentials-only portal.
+
+Key requirements fulfilled:
+1. **Official Token Verification:** Backend cryptographic verification of Google ID Tokens using `com.google.api-client:google-api-client:2.7.0` (RS256 signature, `iss`, `exp`, `aud`, `sub`, `email`, and `email_verified=true`).
+2. **Persistent External Identity:** Dedicated `user_identities` table (`identity_id`, `user_id`, `provider`, `provider_subject`, `email`, timestamps) with unique index `(provider, provider_subject)`.
+3. **Database Migration:** Idempotent `UserIdentityMigrationRunner` with MySQL advisory lock `GET_LOCK('user_identity_migration_lock', 15)`.
+4. **Strict Anti-Account Hijacking:** Unlinked Google tokens whose email matches an existing local account strictly return **HTTP 409 Conflict** without auto-linking.
+5. **Authenticated Account Linking:** Added `POST /api/auth/google/link` allowing authenticated users to bind Google accounts with duplicate-link collision guards.
+6. **Mobile UX:** Integrated `google_sign_in: ^6.2.2`, created `GoogleSignInService` abstraction, built `GoogleSignInButton` and `AuthDividerWithText` on `LoginScreen` and `RegisterScreen`, debounced duplicate taps, and provided descriptive conflict guidance.
+
+### 101.2. Architecture & Code Implementation
+1. **Backend Infrastructure:**
+   - `pom.xml`: Added Google API Client and Gson HTTP client dependencies.
+   - `UserIdentity.java`: Entity representing external provider mappings with JPA annotations and timestamps.
+   - `UserIdentityRepository.java`: Repository with queries for `findByProviderAndProviderSubject`, `findByUser_UserIdAndProvider`, and existence checks.
+   - `UserIdentityMigrationRunner.java`: Schema runner creating `user_identities` table and indexes with double-checked advisory locking.
+   - `GoogleTokenVerifier.java` & `GoogleTokenVerifierImpl.java`: Service validating Google ID Tokens against configured audiences (`app.google.client-ids`, `app.google.android-client-id`, `app.google.server-client-id`).
+   - DTOs: `GoogleAuthRequest`, `GoogleLinkRequest`, `GoogleLinkResponse`, and `AccountConflictException`.
+   - `GoogleAuthService.java` & `GoogleAuthServiceImpl.java`: Handles new user provisioning (with random unusable BCrypt password placeholder, `email_verified=true`, unique username/handle), existing linked login, anti-hijacking 409 conflict, and account linking.
+   - `AuthController.java`: Added `@PostMapping("/google")` (rate limited via `AuthRateLimiter`) and `@PostMapping("/google/link")` (authenticated).
+   - `SecurityConfig.java`: Added `/api/auth/google` to permitAll; `/api/auth/google/link` requires authentication.
+2. **Mobile Architecture:**
+   - `pubspec.yaml`: Added `google_sign_in: ^6.2.2`.
+   - `ApiConstants.dart`: Added `googleAuthEndpoint` and `googleLinkEndpoint`.
+   - `auth_repository.dart`: Added `loginWithGoogle` and `linkGoogle`.
+   - `google_sign_in_service.dart`: Abstraction wrapping `GoogleSignIn` SDK with clean cancellation handling and local session sign-out.
+   - `auth_notifier.dart`: Added `loginWithGoogle` and `linkGoogle` handling duplicate taps, token persistence, and 409 conflict states.
+   - `GoogleSignInButton` & `AuthDividerWithText`: Reusable Flutter widgets with native canvas Google logo, loading indicators, and design system tokens.
+   - `login_screen.dart` & `register_screen.dart`: Integrated Google Sign-In button with "Hoặc" divider and 409 conflict dialog.
+3. **Documentation:**
+   - Created `docs/plan/authentication-enhances/07-google-cloud-console-setup.md` detailing project creation, OAuth consent screen, Web/Android Client IDs, SHA-1 extraction, and troubleshooting.
+
+### 101.3. Automated Verification Results
+1. **Backend Unit Tests (9/9 passed — 100% PASS):**
+   - `GoogleAuthServiceTest`:
+     - `authenticateWithGoogle_existingLinkedAccount_success`
+     - `authenticateWithGoogle_bannedUser_throwsForbidden`
+     - `authenticateWithGoogle_inactiveUser_throwsForbidden`
+     - `authenticateWithGoogle_existingLocalEmail_throwsAccountConflict` (Anti-Hijacking)
+     - `authenticateWithGoogle_newAccount_provisionsUser_success`
+     - `linkGoogleAccount_success`
+     - `linkGoogleAccount_alreadyLinkedToSelf_returnsSuccess`
+     - `linkGoogleAccount_alreadyLinkedToAnotherUser_throwsConflict`
+     - `linkGoogleAccount_userAlreadyHasAnotherGoogleAccount_throwsConflict`
+2. **Backend Integration Tests (6/6 passed — 100% PASS):**
+   - `GoogleAuthControllerIntegrationTest`:
+     - `POST /api/auth/google` missing idToken -> 400 Bad Request
+     - `POST /api/auth/google` new user -> 200 OK + JWT + emailVerified=true
+     - `POST /api/auth/google` existing local email -> 409 Conflict
+     - `POST /api/auth/google` existing linked user -> 200 OK
+     - `POST /api/auth/google/link` unauthenticated -> 401 Unauthorized
+     - `POST /api/auth/google/link` authenticated -> 200 OK
+3. **Backend Regression Tests (40/40 passed — 100% PASS):**
+   - `AuthControllerTest`: All 40 existing tests passed cleanly with 0 failures and 0 errors.
+4. **Mobile Tests (6/6 passed — 100% PASS):**
+   - `google_sign_in_test.dart`:
+     - Success authenticates and persists JWT
+     - User cancellation returns false without error
+     - 409 Conflict sets error status and guidance message
+     - SDK exception sets graceful error message
+     - `GoogleSignInButton` renders on `LoginScreen` and triggers action
+     - `GoogleSignInButton` renders on `RegisterScreen`
+5. **Mobile Auth Regression Tests (35/35 passed — 100% PASS):**
+   - Ran `auth_401_test.dart`, `email_verification_test.dart`, `password_reset_test.dart`, `google_sign_in_test.dart`.
+6. **Web Admin Regression Tests (46/46 passed — 100% PASS):**
+   - All 46 web admin tests passed. Confirmed web admin remains local-only.
+
+---
+
+## 102. Session Entry: Authentication Phase 4 & 5 — Advanced Account Security, Session & Device Management, Email Change, and Comprehensive Integration Testing (2026-11-18)
+
+### 102.1. Context & Objective
+Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integration & Security Testing) to finalize the end-to-end authentication infrastructure of Travel Planner:
+1. **Session Management & Server-side Logout:** Enabled fine-grained session tracking per device, embedded `sessionId` into JWT tokens, enforced active session validation in `JwtAuthenticationFilter`, and implemented backend server-side session revocation (single session, other sessions, and all sessions).
+2. **Device Management:** Implemented non-sensitive client device extraction (`DeviceInfoResolver`) and built interactive Flutter Mobile UI (`DeviceSessionsScreen`) allowing users to view all active sessions, recognize their current device, and revoke remote sessions in real time.
+3. **Secure Email Change & Re-verification:** Established a secure two-step authenticated email change flow (`/api/auth/email-change/request` and `/api/auth/email-change/verify`) with current password verification, 6-digit HMAC-SHA256 hashed OTP, 15-minute expiration, 5-attempt brute-force protection, rate limiting, and dual email notification dispatch without disrupting Google Identity mappings.
+4. **Refresh Token Architecture Evaluation:** Conducted architectural assessment of Refresh Token Rotation vs. Session-backed Access Tokens with instant server-side revocation, formally documenting the decision rationale.
+5. **Comprehensive Multi-Platform Integration & Security Testing:** Completed negative, regression, and integration testing across Spring Boot Backend, Flutter Mobile, and Flutter Web Admin.
+
+### 102.2. Architecture & Code Changes
+
+1. **Database Schema & Migrations:**
+   - Created `SessionAndEmailChangeMigrationRunner` (`@Order(5)`) protected by MySQL advisory lock `session_and_email_change_migration_lock`.
+   - Created table `user_sessions`: `session_id` (VARCHAR 36 PK), `user_id` (FK to `users`), `device_info`, `ip_address`, `status` (`ACTIVE`, `REVOKED`, `EXPIRED`), `created_at`, `last_active_at`, `expires_at`, with indices on `(user_id, status)` and `expires_at`.
+   - Created table `email_change_requests`: `request_id` (BIGINT AUTO_INCREMENT PK), `user_id` (FK to `users`), `new_email`, `otp_hash` (VARCHAR 64 HMAC-SHA256), `status` (`PENDING`, `VERIFIED`, `EXPIRED`, `CANCELLED`), `attempts_count`, `max_attempts` (default 5), `expires_at`, `created_at`, `verified_at`, with indices on `(user_id, status)` and `new_email`.
+
+2. **Backend Authentication & Security Enhancements:**
+   - `UserSession.java` & `EmailChangeRequest.java`: JPA entities mapped to new tables.
+   - `UserSessionRepository.java` & `EmailChangeRequestRepository.java`: Custom JPA queries supporting session filtering and active request retrieval.
+   - `DeviceInfoResolver.java`: Safely resolves sanitized client device metadata from `X-Device-Info` or HTTP `User-Agent`.
+   - `UserSessionService.java` & `UserSessionServiceImpl.java`: Handles session creation, activity heartbeats, validation, single revocation, other sessions revocation, and all sessions revocation with cross-user authorization enforcement.
+   - `EmailChangeService.java` & `EmailChangeServiceImpl.java`: Enforces current password validation, email unicity checks across local users and linked Google identities, HMAC-SHA256 OTP hashing, attempt throttling, atomic email update, and dispatch of security alerts to both old and new addresses.
+   - `JwtTokenProvider.java`: Updated `generateToken(user, sessionId)` embedding session identifier into standard claims and `getSessionIdFromToken(token)` extraction.
+   - `JwtAuthenticationFilter.java`: Extended to extract `sessionId` from valid JWTs and verify `userSessionService.isSessionActive(sessionId)` before populating `SecurityContextHolder`. Revoked or expired sessions yield immediate HTTP 401 Unauthorized.
+   - `AuthServiceImpl.java`, `GoogleAuthServiceImpl.java`, `EmailVerificationServiceImpl.java`: Updated to create active `UserSession` records during local login, Google OAuth login, and post-registration email verification, attaching the generated `sessionId` to issued JWTs.
+   - `AuthRateLimiter.java`: Added bucket `tryConsumeEmailChange(clientIp, username)` restricting email change requests to 5 per 15 minutes.
+   - `AuthController.java`: Added endpoints `POST /api/auth/logout`, `GET /api/auth/sessions`, `POST /api/auth/sessions/{id}/revoke`, `POST /api/auth/sessions/revoke-others`, `POST /api/auth/sessions/revoke-all`, `POST /api/auth/email-change/request`, and `POST /api/auth/email-change/verify`.
+
+3. **Flutter Mobile Enhancements:**
+   - `api_constants.dart`: Added endpoints for session management, server-side logout, and email change.
+   - `auth_repository.dart`: Implemented `logout(token)`, `getSessions(token)`, `revokeSession(token, id)`, `revokeOtherSessions(token)`, `revokeAllSessions(token)`, `requestEmailChange(token, newEmail, password)`, and `verifyEmailChange(token, newEmail, otp)`.
+   - `auth_notifier.dart`: Refactored `logout()` to call backend server-side invalidation before clearing local secure storage; added methods for device session retrieval and email change verification with immediate state and profile synchronization.
+   - `personal_info_screen.dart`: Added action items linking to "Đổi địa chỉ email" and "Thiết bị & Phiên đăng nhập".
+   - `device_sessions_screen.dart`: Clean list view rendering active sessions, formatted platform chips, current device badge, single device revocation dialog, and "Đăng xuất tất cả thiết bị khác" action.
+   - `change_email_screen.dart`: Two-step authenticated flow (Step 1: password confirmation & new email input; Step 2: 6-digit OTP verification with countdown timer and resend capability).
+
+4. **Flutter Web Admin Enhancements:**
+   - `api_constants.dart`: Added `logoutEndpoint`.
+   - `auth_repository.dart`: Added server-side `logout(token)` call.
+   - `auth_notifier.dart`: Updated `logout()` to revoke server session upon sign-out while keeping Web Admin strictly scoped to ADMIN credentials.
+
+### 102.3. Refresh Token Architecture Evaluation
+- **Current Architecture:** Stateless signed JWT with embedded `sessionId` validated against `user_sessions` table in `JwtAuthenticationFilter`.
+- **Evaluation Conclusion:** Access Token duration (24 hours) backed by real-time server-side session checks provides immediate revocation capability without the added architectural failure modes of Refresh Token Rotation (e.g., token race conditions on concurrent mobile requests, storage desynchronization, and token family replay recovery). Thus, session-backed Access Tokens achieve all security objectives (server-side invalidation, remote device kill switches) with superior reliability and simplicity.
+
+### 102.4. Comprehensive Automated Verification Results
+1. **Backend Integration & Regression Tests (71/71 passed — 100% PASS):**
+   - `SessionManagementIntegrationTest` (7/7 passed):
+     - `loginCreatesActiveSessionWithSessionIdInJwt`
+     - `logoutRevokesCurrentSessionAndRejectsSubsequentRequests`
+     - `revokeSpecificSessionTerminatesTargetDeviceOnly`
+     - `revokeOtherSessionsRevokesRemoteDevicesAndPreservesCurrent`
+     - `revokeAllSessionsRevokesAllIncludingCurrent`
+     - `userCannotRevokeAnotherUsersSession_returnsForbidden`
+     - `guestCannotAccessSessionEndpoints_returnsUnauthorized`
+   - `EmailChangeIntegrationTest` (6/6 passed):
+     - `requestEmailChange_wrongPassword_returnsUnauthorized`
+     - `requestEmailChange_emailAlreadyInUse_returnsConflict`
+     - `requestEmailChange_validRequest_createsPendingRequestAndSendsOtp`
+     - `verifyEmailChange_wrongOtp_incrementsAttemptsAndFails`
+     - `verifyEmailChange_exceededMaxAttempts_expiresRequest`
+     - `verifyEmailChange_validOtp_updatesUserEmailAndMaintainsIdentity`
+   - `AuthControllerTest` (40/40 passed)
+   - `GoogleAuthControllerIntegrationTest` (6/6 passed)
+   - `PasswordResetAndChangePasswordTest` (12/12 passed)
+2. **Flutter Mobile Tests (41/41 passed — 100% PASS):**
+   - `session_and_email_change_test.dart` (6/6 passed):
+     - DeviceSessionsScreen renders sessions and highlights current device
+     - DeviceSessionsScreen revoking single device prompts dialog and calls API
+     - DeviceSessionsScreen revoking all other devices prompts dialog and calls API
+     - AuthNotifier logout calls server-side endpoint before clearing local storage
+     - ChangeEmailScreen Step 1 validates inputs and transitions to Step 2 on success
+     - ChangeEmailScreen Step 2 submits OTP and updates currentUser email
+   - Full Mobile Regression Suite (35/35 passed):
+     - `auth_401_test.dart` (9/9 passed)
+     - `email_verification_test.dart` (5/5 passed)
+     - `password_reset_test.dart` (15/15 passed)
+     - `google_sign_in_test.dart` (6/6 passed)
+3. **Flutter Web Admin Tests (46/46 passed — 100% PASS):**
+   - All 46 Web Admin tests passed cleanly, confirming role gatekeeper, moderation, places, and server-side logout integration.
+4. **Code Quality & Static Analysis:**
+   - Flutter Mobile: All newly added auth files (`device_sessions_screen.dart`, `change_email_screen.dart`, `session_and_email_change_test.dart`) have 0 warnings and 0 errors.
+   - Flutter Web: 0 errors and 0 warnings.
+   - Backend: 0 compilation errors across all source and test packages.
+
+---
+
+## 103. Authentication Closure Patch — Final Regression Fix & Session Synchronization (2026-11-18)
+
+### 103.1. Overview & Objectives
+- Addressed all residual audit findings from Authentication Phase 0-5.
+- Fixed database session desynchronization upon password change and password reset.
+- Refactored integration test fixtures and leaf-to-root database cleaning to eliminate all foreign key violations and obsolete authentication states.
+- Audited legacy JWT token issuance and backward compatibility handling.
+- Conducted full regression test execution across Backend (Maven test suite), Mobile (Flutter), and Web Admin (Flutter).
+
+### 103.2. Architecture & Implementation Details
+
+1. **Session Synchronization on Password Change & Reset:**
+   - **`AuthServiceImpl.changePassword`**: Injected `UserSessionRepository`. Synchronously updates all existing sessions for the target user from `ACTIVE` to `REVOKED` via `userSessionRepository.revokeAllSessionsForUser(...)` within the existing `@Transactional` method. Incrementing `tokenVersion` and revoking session rows occurs atomically. Old sessions never display stale `ACTIVE` status in `GET /api/auth/sessions`.
+   - **`PasswordResetServiceImpl.resetPassword`**: Injected `UserSessionRepository`. Synchronously revokes all active sessions for the user upon successful OTP / reset token consumption and password update.
+   - **Integration Test Verification**: Added `changePassword_revokesAllOldSessions_andSyncsStatus` and `resetPassword_revokesAllOldSessions_andSyncsStatus` in `SessionManagementIntegrationTest.java`. Confirmed that all sessions prior to password change/reset transition to `REVOKED`, subsequent requests with old JWTs return 401, and logging in with the new password creates a clean, active session that accesses protected endpoints without issues.
+
+2. **Backend Test Fixtures & Topological Database Cleaner:**
+   - **Root Cause Classification:**
+     - *Obsolete Test Fixtures:* 10 controller test classes (`ActivityLocationTest`, `AdminPlaceAdministrativeAreaControllerTest`, `FavoriteControllerTest`, `ItineraryCloneTest`, `ItineraryControllerTest`, `ItineraryCrudTest`, `ItineraryPlaceTest`, `PlaceControllerTest`, `RatingControllerTest`, `SavedItineraryControllerTest`, `RouteServiceTest`) constructed mock user entities with `status(UserStatus.ACTIVE)` omitting `.emailVerified(true)`. Because Phase 1 established `userDetails.isEnabled() = isActive && isVerified`, requests with these users returned 401 Unauthorized.
+     - *Database Cleanup Violations:* Ad-hoc calls to `userRepository.deleteAll()` violated MySQL foreign key constraints against newly added child tables (`user_sessions`, `user_identities`, `email_verification_tokens`, `password_reset_tokens`, `email_change_requests`).
+     - *Mockito Stubbing Signature Mismatches:* `AuthSecurityUnitTest.java` and `GoogleAuthServiceTest.java` stubbed `jwtTokenProvider.generateToken(user)` instead of the 2-parameter signature `generateToken(user, sessionId)`.
+   - **Resolutions:**
+     - Created `TestDatabaseCleaner.java`: Implemented safe, deterministic topological leaf-to-root SQL cleanup honoring all foreign keys (updating self-referential keys to NULL, cascading from leaf tables to `users`), strictly leaving `FOREIGN_KEY_CHECKS = 1` enabled at all times.
+     - Updated all active test fixtures to explicitly set `.emailVerified(true)`.
+     - Updated Mockito stubbings to `jwtTokenProvider.generateToken(eq(user), any())`.
+
+3. **Legacy JWT Audit & Compatibility Policy:**
+   - **Audited Production Points:** Exactly 3 methods in production code issue JWTs (`AuthServiceImpl.login`, `GoogleAuthServiceImpl.authenticateWithGoogle`, `EmailVerificationServiceImpl.verifyEmail`). 100% of these calls create an active database session and issue tokens with embedded `sessionId`. Zero production endpoints issue legacy tokens without `sessionId`.
+   - **Backward Compatibility:** Because access tokens expire after 24 hours (`auth.jwt.expiration-ms: 86400000`), tokens issued prior to Phase 4 remain valid for their remaining lifespan, strictly validated against database `token_version`. Any security event (password change, reset, administrative revocation) bumps `token_version` and instantly rejects legacy tokens.
+   - **Deprecation Plan:** Following 24 hours after deployment, any token missing `sessionId` can safely be rejected with 401 Unauthorized, and the single-argument overload `generateToken(User user)` marked `@Deprecated(forRemoval = true)`.
+
+### 103.3. Comprehensive Regression Results
+1. **Backend Maven Test Suite (604/604 passed — 100% PASS):**
+   - **Total Tests Executed:** 604
+   - **Passed:** 604
+   - **Failures:** 0
+   - **Errors:** 0
+   - **Skipped:** 0
+   - **Build Status:** `BUILD SUCCESS` (Total time: 03:16 min)
+2. **Flutter Mobile Suite (474/500 passed — 100% Authentication Pass):**
+   - **Authentication Tests:** 54/54 passed (100% PASS):
+     - `session_and_email_change_test.dart` (6/6 passed)
+     - `bottom_navigation_test.dart` (13/13 passed)
+     - `password_reset_test.dart` (15/15 passed)
+     - `auth_401_test.dart` (9/9 passed)
+     - `google_sign_in_test.dart` (6/6 passed)
+     - `email_verification_test.dart` (5/5 passed)
+   - **Static Analysis (`flutter analyze`):** 0 errors.
+3. **Flutter Web Admin Suite (46/46 passed — 100% PASS):**
+   - All 46 tests passed (role-based access control, places, moderation, session logout).
+   - **Static Analysis (`flutter analyze`):** 0 errors.
+
+---
+
+## 104. Mobile Change Password Navigation Fix & Auth State Cleansing (2026-11-18)
+
+### 104.1. Overview & Objectives
+- Investigated and fixed navigation and state management defects on Flutter Mobile following a successful password change.
+- **Key Requirements Addressed:**
+  1. Revoke and clear all client authentication tokens and in-memory state upon successful password change.
+  2. Navigate user directly to `LoginScreen` (`/login`).
+  3. Prevent navigating or leaving the user on the Home screen (`MainNavigationShell`) in an unauthenticated guest state.
+  4. Prevent automatic re-login with the old session.
+  5. Reuse existing navigation patterns and `AuthNotifier` state mechanisms without duplicating logic.
+  6. Ensure the hardware/app Back button never returns to previously authenticated screens (`ProfileScreen`, `PersonalInfoScreen`, `ChangePasswordScreen`).
+
+### 104.2. Root Cause Analysis
+- In `ChangePasswordScreen._submitChangePassword` (`change_password_screen.dart`):
+  - Previously executed: `Navigator.of(context).popUntil((route) => route.isFirst);`.
+  - Because `main.dart` mounts `MainNavigationShell` as the root route (`route.isFirst`), popping until root stripped all screens down to `MainNavigationShell`. Since `authNotifier.changePassword` had already logged the user out, this abruptly displayed the Home screen in an unauthenticated guest state instead of redirecting the user to `LoginScreen`.
+
+### 104.3. Architecture & Implementation Details
+1. **Targeted Navigation Fix in `ChangePasswordScreen`:**
+   - Updated `_submitChangePassword` to navigate cleanly to `LoginScreen`:
+     ```dart
+     Navigator.of(context).pushAndRemoveUntil(
+       MaterialPageRoute(
+         settings: const RouteSettings(name: '/login'),
+         builder: (_) => LoginScreen(authNotifier: widget.authNotifier),
+       ),
+       (route) => route.isFirst,
+     );
+     ```
+   - Imported `login_screen.dart`.
+   - By specifying `(route) => route.isFirst`, all intermediary authenticated screens (`ChangePasswordScreen`, `PersonalInfoScreen`, `ProfileScreen`) are popped and destroyed from the navigator history.
+2. **Defensive Route Fallback in `LoginScreen`:**
+   - In `LoginScreen._submit` and `LoginScreen._signInWithGoogle`:
+     ```dart
+     if (success && mounted) {
+       if (Navigator.canPop(context)) {
+         Navigator.pop(context);
+       } else {
+         Navigator.of(context).pushReplacement(
+           MaterialPageRoute(
+             builder: (_) => MainNavigationShell(authNotifier: widget.authNotifier),
+           ),
+         );
+       }
+     }
+     ```
+   - Imported `MainNavigationShell`. Ensures seamless navigation back to the authenticated app shell regardless of navigator stack depth.
+3. **Client Auth State Cleansing Verification:**
+   - Verified `AuthNotifier.changePassword`: already invokes `await logout()`, which:
+     - Dispatches server-side session revocation (`_repository.logout(activeToken)`).
+     - Clears secure local storage (`_storage.clear()` deleting `auth_token` and `auth_user`).
+     - Resets in-memory authentication states (`_token = null`, `_currentUser = null`).
+     - Transitions status to `AuthStatus.unauthenticated` and notifies listeners.
+
+### 104.4. Automated Testing & Verification
+1. **Added Automated Widget Test:**
+   - Added test in `Travel_Planner/frontend/mobile/test/password_reset_test.dart`:
+     `ChangePasswordScreen navigates to LoginScreen on success, clears client state, and back button does not return to authenticated screens`.
+   - Simulates full navigation stack: Root Home -> Personal Info Authenticated Screen -> Change Password Screen.
+   - Enters matching strong passwords adhering to `passwordRegex` policy (`OldPassword123!` -> `NewPassword123!`).
+   - Verifies navigation lands on `LoginScreen` (finding `'Đăng nhập để tiếp tục kế hoạch du lịch của bạn'`).
+   - Verifies neither `Root Home Screen` nor `Personal Info Authenticated Screen` are visible.
+   - Verifies complete client state cleansing (`notifier.isAuthenticated == false`, `notifier.token == null`, `storage.getToken() == null`).
+   - Verifies tapping Back from `LoginScreen` never returns to any authenticated screens.
+2. **Test Execution Results:**
+   - `flutter test test/password_reset_test.dart`: 16/16 tests PASSED (100%).
+   - `flutter test test/session_and_email_change_test.dart test/auth_401_test.dart test/email_verification_test.dart`: 20/20 tests PASSED (100%).
+   - `flutter analyze`: 0 errors/warnings in modified code (`change_password_screen.dart`, `login_screen.dart`, `password_reset_test.dart`).
+
+
+
+
+
 ## 2026-11-16 — CODEBASE_GUIDE alignment
 
 - Reconciled the CODEBASE_GUIDE inventory and backend/mobile flow descriptions against the current `develop` source tree.

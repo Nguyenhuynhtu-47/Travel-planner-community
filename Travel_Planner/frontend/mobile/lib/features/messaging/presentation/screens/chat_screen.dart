@@ -84,6 +84,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (mounted) setState(() => _realtimeStatus = status);
       if (status == RealtimeStatus.connected) _syncNewMessages();
     });
+    if (widget.authNotifier.token != null &&
+        _realtime.currentStatus != RealtimeStatus.connected) {
+      _realtime.connect(widget.authNotifier.token!, "$_me");
+    }
+    _load();
     if (widget.conversation.conversationId > 0 &&
         widget.authNotifier.token != null &&
         _realtime.currentStatus != RealtimeStatus.connected) {
@@ -228,6 +233,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _syncNewMessages() async {
+    if (!mounted || _messages.isEmpty || widget.authNotifier.token == null) {
     if (!mounted ||
         widget.conversation.conversationId <= 0 ||
         widget.authNotifier.token == null) {
@@ -256,6 +262,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onEvent(ChatEvent event) {
+    if (event.conversationId != widget.conversation.conversationId || !mounted) {
+      return;
+    }
     if (event.type == 'CONVERSATION_ACCESS_REVOKED' &&
         event.blockedUserId == _me &&
         event.blockedByUserId == widget.conversation.peer.userId) {
@@ -289,6 +298,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
     if (event.message != null) {
+      setState(() => _merge([event.message!]));
+      if (event.message!.senderUserId != _me) {
       if (_blockedPeer && event.message!.senderUserId != _me) return;
       setState(() {
         _merge([event.message!]);
@@ -907,6 +918,58 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       if (_loadingOlder && index == 0) {
                         return const Center(child: CircularProgressIndicator());
                       }
+                      final message =
+                          _messages[index - (_loadingOlder ? 1 : 0)];
+                      final own = message.senderUserId == _me;
+                      return Align(
+                        alignment: own
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 9,
+                          ),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.sizeOf(context).width * .78,
+                          ),
+                          decoration: BoxDecoration(
+                            color: own
+                                ? AppColors.primaryLight
+                                : AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(message.content),
+                              if (message.failed)
+                                TextButton(
+                                  onPressed: () =>
+                                      _send(retryId: message.clientMessageId),
+                                  child: const Text('Thử gửi lại'),
+                                )
+                              else if (message.sending)
+                                const Text(
+                                  'Đang gửi…',
+                                  style: TextStyle(fontSize: 10),
+                                )
+                              else if (own &&
+                                  message.sequenceNumber <= _peerReadSequence)
+                                const Text(
+                                  'Đã đọc',
+                                  style: TextStyle(fontSize: 10),
+                                )
+                              else if (own && message.messageId != null)
+                                const Text(
+                                  'Đã gửi',
+                                  style: TextStyle(fontSize: 10),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
                       final messageIndex = index - (_loadingOlder ? 1 : 0);
                       return _buildMessageRow(context, messageIndex);
                     },

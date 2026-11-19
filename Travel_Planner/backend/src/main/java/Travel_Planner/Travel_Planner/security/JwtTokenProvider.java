@@ -62,18 +62,42 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(User user) {
+        return generateToken(user, null);
+    }
+
+    public String generateToken(User user, String sessionId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expirationMs);
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getUsername())
                 .claim("userId", user.getUserId())
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
+                .claim("tokenVersion", user.getTokenVersion() != null ? user.getTokenVersion() : 1);
+
+        if (sessionId != null && !sessionId.isBlank()) {
+            builder.claim("sessionId", sessionId);
+        }
+
+        return builder
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key)
                 .compact();
+    }
+
+    public String getSessionIdFromToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            return claims.get("sessionId", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public long getExpirationMs() {
+        return expirationMs;
     }
 
     public String getUsernameFromToken(String token) {
@@ -81,10 +105,81 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
+    public Integer getTokenVersionFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        if (!claims.containsKey("tokenVersion")) {
+            return null; // Genuinely absent claim (legacy token compatibility)
+        }
+        Object versionObj = claims.get("tokenVersion");
+        if (versionObj == null) {
+            throw new JwtException("tokenVersion claim cannot be null");
+        }
+
+        // Reject String values, even numeric strings
+        if (versionObj instanceof String) {
+            throw new JwtException("tokenVersion claim must not be a String. Integral numeric type required.");
+        }
+
+        // Reject Boolean, collections, and non-Number types
+        if (!(versionObj instanceof Number)) {
+            throw new JwtException("Unsupported tokenVersion claim type: " + versionObj.getClass().getName());
+        }
+
+        // Reject decimal / floating-point representations (Float, Double)
+        if (versionObj instanceof Double || versionObj instanceof Float) {
+            throw new JwtException("tokenVersion claim must be an integral number, not decimal or floating point.");
+        }
+
+        if (versionObj instanceof java.math.BigDecimal bd) {
+            if (bd.scale() > 0 && bd.stripTrailingZeros().scale() > 0) {
+                throw new JwtException("tokenVersion claim must be an integer, not decimal: " + bd);
+            }
+            try {
+                long longVal = bd.longValueExact();
+                if (longVal <= 0) {
+                    throw new JwtException("Invalid tokenVersion claim value: " + longVal + ". Must be positive.");
+                }
+                if (longVal > Integer.MAX_VALUE) {
+                    throw new JwtException("tokenVersion claim value " + longVal + " exceeds Integer.MAX_VALUE.");
+                }
+                return (int) longVal;
+            } catch (ArithmeticException e) {
+                throw new JwtException("tokenVersion claim overflows integral type: " + bd);
+            }
+        }
+
+        if (versionObj instanceof java.math.BigInteger bi) {
+            if (bi.compareTo(java.math.BigInteger.ONE) < 0) {
+                throw new JwtException("Invalid tokenVersion claim value: " + bi + ". Must be positive.");
+            }
+            if (bi.compareTo(java.math.BigInteger.valueOf(Integer.MAX_VALUE)) > 0) {
+                throw new JwtException("tokenVersion claim value " + bi + " exceeds Integer.MAX_VALUE.");
+            }
+            return bi.intValueExact();
+        }
+
+        // Integral numbers (Integer, Long, Short, Byte)
+        long longVal = ((Number) versionObj).longValue();
+        if (longVal <= 0) {
+            throw new JwtException("Invalid tokenVersion claim value: " + longVal + ". Must be a positive integer.");
+        }
+        if (longVal > Integer.MAX_VALUE) {
+            throw new JwtException("tokenVersion claim value " + longVal + " exceeds Integer.MAX_VALUE (" + Integer.MAX_VALUE + ").");
+        }
+
+        return (int) longVal;
+    }
+
     public boolean validateToken(String token) {
         try {
             Claims claims = getClaimsFromToken(token);
-            return !claims.getExpiration().before(new Date());
+            if (claims.getExpiration().before(new Date())) {
+                return false;
+            }
+            if (claims.containsKey("tokenVersion")) {
+                getTokenVersionFromToken(token);
+            }
+            return true;
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }

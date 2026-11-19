@@ -67,7 +67,7 @@ class PostCardWidget extends StatelessWidget {
         border: Border.all(color: AppColors.hairlineSoft, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -332,7 +332,7 @@ class PostCardWidget extends StatelessWidget {
           child: Image.network(
             urls[0],
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _imageErrorPlaceholder(),
+            errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
           ),
         ),
       );
@@ -435,7 +435,7 @@ class PostCardWidget extends StatelessWidget {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
-      errorBuilder: (_, __, ___) => _imageErrorPlaceholder(),
+      errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
     );
   }
 
@@ -469,7 +469,7 @@ class PostCardWidget extends StatelessWidget {
                       width: 68,
                       height: 68,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         width: 68,
                         height: 68,
                         color: AppColors.surfaceStrong,

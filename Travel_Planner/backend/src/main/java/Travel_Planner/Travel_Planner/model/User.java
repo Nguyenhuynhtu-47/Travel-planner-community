@@ -28,13 +28,21 @@ public class User {
     public User(Integer userId, String username, String handle, String password, String email, Role role,
                 UserStatus status, String avatar, String fullName, String phone, String address,
                 String bio, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(userId, username, handle, password, email, false, role, status, 1, avatar, fullName, phone, address, bio, createdAt, updatedAt);
+    }
+
+    public User(Integer userId, String username, String handle, String password, String email, Boolean emailVerified,
+                Role role, UserStatus status, Integer tokenVersion, String avatar, String fullName, String phone,
+                String address, String bio, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.userId = userId;
         this.username = username;
         this.handle = handle;
         this.password = password;
         this.email = email;
+        this.emailVerified = emailVerified != null ? emailVerified : false;
         this.role = role;
         this.status = status;
+        this.tokenVersion = tokenVersion != null ? tokenVersion : 1;
         this.avatar = avatar;
         this.fullName = fullName;
         this.phone = phone;
@@ -61,6 +69,10 @@ public class User {
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     @Builder.Default
@@ -70,6 +82,10 @@ public class User {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
+
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Integer tokenVersion = 1;
 
     @Column(name = "avatar", length = 500)
     private String avatar;
@@ -101,6 +117,12 @@ public class User {
         }
         if (this.status == null) {
             this.status = UserStatus.ACTIVE;
+        }
+        if (this.emailVerified == null) {
+            this.emailVerified = false;
+        }
+        if (this.tokenVersion == null) {
+            this.tokenVersion = 1;
         }
         if (this.handle == null || this.handle.trim().isEmpty()) {
             String base = "traveler";

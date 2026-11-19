@@ -224,7 +224,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                             controller: _scrollController,
                             padding: const EdgeInsets.all(16),
                             itemCount: _comments.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 16),
+                            separatorBuilder: (_, _) => const SizedBox(height: 16),
                             itemBuilder: (context, index) {
                               final comment = _comments[index];
                               return Row(

@@ -61,6 +61,9 @@ class ItineraryControllerTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
 
     private User activeUser;
@@ -72,11 +75,7 @@ class ItineraryControllerTest {
                 .apply(springSecurity())
                 .build();
 
-        favoriteRepository.deleteAll();
-        savedItineraryRepository.deleteAll();
-        ratingRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
 
         activeUser = userRepository.save(User.builder()
                 .username("traveler1")
@@ -86,6 +85,7 @@ class ItineraryControllerTest {
                 .avatar("https://example.com/avatar1.jpg")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         bannedUser = userRepository.save(User.builder()
@@ -95,16 +95,13 @@ class ItineraryControllerTest {
                 .fullName("Banned User")
                 .role(Role.USER)
                 .status(UserStatus.BANNED)
+                .emailVerified(true)
                 .build());
     }
 
     @AfterEach
     void tearDown() {
-        favoriteRepository.deleteAll();
-        savedItineraryRepository.deleteAll();
-        ratingRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     private Itinerary createItinerary(String title, String location, String theme, String description,

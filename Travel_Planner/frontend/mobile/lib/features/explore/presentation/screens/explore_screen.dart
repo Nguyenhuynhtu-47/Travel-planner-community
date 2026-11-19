@@ -94,6 +94,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void _navigateToLogin() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/login'),
         builder: (_) => LoginScreen(authNotifier: widget.authNotifier),
       ),
     );

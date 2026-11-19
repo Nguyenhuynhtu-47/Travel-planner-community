@@ -42,6 +42,8 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
         widget.token,
       );
       if (mounted) setState(() => _settings = result);
+    } catch (_) {
+      if (mounted) {
     } catch (error) {
       if (mounted) {
         final message = error is ApiException

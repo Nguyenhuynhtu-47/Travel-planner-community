@@ -423,6 +423,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onActionPressed: () {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
+                settings: const RouteSettings(name: '/login'),
                 builder: (_) => LoginScreen(authNotifier: widget.authNotifier),
               ),
             );

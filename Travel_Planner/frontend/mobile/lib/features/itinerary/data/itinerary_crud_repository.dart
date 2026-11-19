@@ -424,15 +424,15 @@ class ItineraryCrudRepository {
     required String token,
   }) async {
     final body = <String, dynamic>{
-      if (provider != null) 'provider': provider,
-      if (providerPlaceId != null) 'providerPlaceId': providerPlaceId,
+      'provider': ?provider,
+      'providerPlaceId': ?providerPlaceId,
       'name': name,
-      if (address != null) 'address': address,
+      'address': ?address,
       'latitude': latitude,
       'longitude': longitude,
-      if (category != null) 'category': category,
-      if (type != null) 'type': type,
-      if (metadataJson != null) 'metadataJson': metadataJson,
+      'category': ?category,
+      'type': ?type,
+      'metadataJson': ?metadataJson,
     };
     final response = await _apiClient.post(
       ApiConstants.placesResolveEndpoint,

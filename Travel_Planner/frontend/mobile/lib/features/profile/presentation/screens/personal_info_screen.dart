@@ -11,6 +11,9 @@ import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
+import '../../../auth/presentation/screens/change_email_screen.dart';
+import '../../../auth/presentation/screens/change_password_screen.dart';
+import '../../../auth/presentation/screens/device_sessions_screen.dart';
 import '../../data/profile_repository.dart';
 
 class PersonalInfoScreen extends StatefulWidget {
@@ -409,6 +412,78 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   const Divider(height: 1, color: AppColors.hairlineSoft),
                   _readonlyRow('Ngày tham gia', _formatDate(p['createdAt']) ?? 'Chưa rõ'),
                 ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            _sectionHeader('Bảo mật tài khoản'),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ChangePasswordScreen(
+                      authNotifier: widget.authNotifier,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.lock_reset, size: 20),
+              label: const Text('Đổi mật khẩu'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final updated = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute<bool>(
+                    builder: (_) => ChangeEmailScreen(
+                      authNotifier: widget.authNotifier,
+                    ),
+                  ),
+                );
+                if (updated == true && mounted) {
+                  _loadProfile();
+                }
+              },
+              icon: const Icon(Icons.email_outlined, size: 20),
+              label: const Text('Đổi địa chỉ email'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => DeviceSessionsScreen(
+                      authNotifier: widget.authNotifier,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.devices, size: 20),
+              label: const Text('Thiết bị & Phiên đăng nhập'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
             const SizedBox(height: 32),

@@ -39,6 +39,13 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Query("select u from User u where u.userId = :userId")
     Optional<User> findByUserIdForUpdate(@Param("userId") Integer userId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.email = :email")
+    Optional<User> findByEmailForUpdate(@Param("email") String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.username = :username")
+    Optional<User> findByUsernameForUpdate(@Param("username") String username);
     @Query("select u from User u where u.status = Travel_Planner.Travel_Planner.model.enums.UserStatus.ACTIVE " +
             "and (u.handle like :pattern escape '!' " +
             "or lower(coalesce(u.fullName, '')) like lower(:pattern) escape '!') " +

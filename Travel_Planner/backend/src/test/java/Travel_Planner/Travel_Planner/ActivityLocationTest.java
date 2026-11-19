@@ -72,6 +72,9 @@ class ActivityLocationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
 
     private User ownerUser;
@@ -91,11 +94,7 @@ class ActivityLocationTest {
         objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-        activityRepository.deleteAll();
-        itineraryDayRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        placeRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
 
         ownerUser = userRepository.save(User.builder()
                 .username("location_owner")
@@ -104,6 +103,7 @@ class ActivityLocationTest {
                 .fullName("Chủ Lịch Trình Map")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         otherUser = userRepository.save(User.builder()
@@ -113,6 +113,7 @@ class ActivityLocationTest {
                 .fullName("Người Dùng Khác Map")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         ownerToken = "Bearer " + jwtTokenProvider.generateToken(ownerUser);
@@ -147,11 +148,7 @@ class ActivityLocationTest {
 
     @AfterEach
     void tearDown() {
-        activityRepository.deleteAll();
-        itineraryDayRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        placeRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     // ==========================================

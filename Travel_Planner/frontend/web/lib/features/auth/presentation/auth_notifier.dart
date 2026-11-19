@@ -38,6 +38,15 @@ class AuthNotifier extends ChangeNotifier {
 
         try {
           final verifiedUser = await _repository.getCurrentUser(savedToken);
+          final role = verifiedUser['role']?.toString().toUpperCase();
+          if (role != null && role != 'ADMIN') {
+            await _storage.clear();
+            _token = null;
+            _currentUser = null;
+            _status = AuthStatus.unauthenticated;
+            notifyListeners();
+            return;
+          }
           _token = savedToken;
           _currentUser = verifiedUser;
           await _storage.saveUser(verifiedUser);
@@ -93,6 +102,14 @@ class AuthNotifier extends ChangeNotifier {
 
       final token = response['token'] as String;
       final user = response['user'] as Map<String, dynamic>;
+      final role = user['role']?.toString().toUpperCase();
+
+      if (role != 'ADMIN') {
+        _status = AuthStatus.error;
+        _errorMessage = 'Tài khoản không có quyền truy cập trang quản trị';
+        notifyListeners();
+        return false;
+      }
 
       await _storage.saveToken(token);
       await _storage.saveUser(user);
@@ -137,6 +154,14 @@ class AuthNotifier extends ChangeNotifier {
 
       final token = response['token'] as String;
       final user = response['user'] as Map<String, dynamic>;
+      final role = user['role']?.toString().toUpperCase();
+
+      if (role != 'ADMIN') {
+        _status = AuthStatus.error;
+        _errorMessage = 'Tài khoản không có quyền truy cập trang quản trị';
+        notifyListeners();
+        return false;
+      }
 
       await _storage.saveToken(token);
       await _storage.saveUser(user);
@@ -175,6 +200,14 @@ class AuthNotifier extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final activeToken = _token ?? await _storage.getToken();
+    if (activeToken != null && activeToken.isNotEmpty) {
+      try {
+        await _repository.logout(activeToken);
+      } catch (_) {
+        // If server fails or offline, continue with local cleanup
+      }
+    }
     await _storage.clear();
     _token = null;
     _currentUser = null;

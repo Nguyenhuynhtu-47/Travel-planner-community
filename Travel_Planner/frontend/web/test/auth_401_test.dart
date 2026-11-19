@@ -297,5 +297,72 @@ void main() {
       expect(notifier.token, isNull);
       expect(await storage.getToken(), isNull);
     });
+
+    test('login with USER role account is rejected by Web Admin gatekeeper', () async {
+      SharedPreferences.setMockInitialValues({});
+
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'token': 'valid_user_jwt',
+            'tokenType': 'Bearer',
+            'user': {
+              'userId': 99,
+              'username': 'normaluser',
+              'role': 'USER',
+              'status': 'ACTIVE',
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final storage = AuthStorage();
+      final repository = AuthRepository(apiClient: ApiClient(client: mockClient));
+      final notifier = AuthNotifier(repository: repository, storage: storage);
+
+      final result = await notifier.login('normaluser', 'Password123');
+
+      expect(result, isFalse);
+      expect(notifier.isAuthenticated, isFalse);
+      expect(notifier.status, equals(AuthStatus.error));
+      expect(notifier.errorMessage, equals('Tài khoản không có quyền truy cập trang quản trị'));
+      expect(await storage.getToken(), isNull);
+    });
+
+    test('login with ADMIN role account is accepted by Web Admin gatekeeper', () async {
+      SharedPreferences.setMockInitialValues({});
+
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'token': 'valid_admin_jwt',
+            'tokenType': 'Bearer',
+            'user': {
+              'userId': 1,
+              'username': 'adminuser',
+              'role': 'ADMIN',
+              'status': 'ACTIVE',
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final storage = AuthStorage();
+      final repository = AuthRepository(apiClient: ApiClient(client: mockClient));
+      final notifier = AuthNotifier(repository: repository, storage: storage);
+
+      final result = await notifier.login('adminuser', 'AdminPass123');
+
+      expect(result, isTrue);
+      expect(notifier.isAuthenticated, isTrue);
+      expect(notifier.status, equals(AuthStatus.authenticated));
+      expect(notifier.errorMessage, isNull);
+      expect(notifier.currentUser?['role'], equals('ADMIN'));
+      expect(await storage.getToken(), equals('valid_admin_jwt'));
+    });
   });
 }

@@ -70,6 +70,9 @@ class ItineraryCloneTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
 
     private User sourceOwner;
@@ -106,6 +109,7 @@ class ItineraryCloneTest {
                 .fullName("Chủ Lịch Trình Nguồn")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         clonerUser = userRepository.save(User.builder()
@@ -115,6 +119,7 @@ class ItineraryCloneTest {
                 .fullName("Người Dùng Nhân Bản")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         bannedUser = userRepository.save(User.builder()
@@ -124,6 +129,7 @@ class ItineraryCloneTest {
                 .fullName("Người Dùng Bị Khóa")
                 .role(Role.USER)
                 .status(UserStatus.BANNED)
+                .emailVerified(true)
                 .build());
 
         sourceOwnerToken = "Bearer " + jwtTokenProvider.generateToken(sourceOwner);
@@ -264,15 +270,7 @@ class ItineraryCloneTest {
     }
 
     private void cleanupDatabase() {
-        itineraryPlaceRepository.deleteAll();
-        activityRepository.deleteAll();
-        itineraryDayRepository.deleteAll();
-        ratingRepository.deleteAll();
-        favoriteRepository.deleteAll();
-        savedItineraryRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        placeRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test

@@ -27,13 +27,18 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         boolean isActive = user.getStatus() == UserStatus.ACTIVE;
         boolean isNotBanned = user.getStatus() != UserStatus.BANNED;
+        boolean isVerified = Boolean.TRUE.equals(user.getEmailVerified());
+        boolean isEnabled = isActive && isVerified;
 
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
-                .password(user.getPassword())
-                .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())))
-                .accountLocked(!isNotBanned)
-                .disabled(!isActive)
-                .build();
+        return new CustomUserDetails(
+                user.getUserId(),
+                user.getUsername(),
+                user.getPassword(),
+                user.getEmail(),
+                user.getTokenVersion() != null ? user.getTokenVersion() : 1,
+                isEnabled,
+                isNotBanned,
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+        );
     }
 }

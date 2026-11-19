@@ -60,6 +60,9 @@ class FavoriteControllerTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
 
     private User authorUser;
@@ -74,11 +77,7 @@ class FavoriteControllerTest {
                 .apply(springSecurity())
                 .build();
 
-        favoriteRepository.deleteAll();
-        savedItineraryRepository.deleteAll();
-        ratingRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
 
         authorUser = userRepository.save(User.builder()
                 .username("author_fav")
@@ -87,6 +86,7 @@ class FavoriteControllerTest {
                 .fullName("Author Fav")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         regularUser = userRepository.save(User.builder()
@@ -96,6 +96,7 @@ class FavoriteControllerTest {
                 .fullName("Regular User")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         userToken = jwtTokenProvider.generateToken(regularUser);
@@ -124,11 +125,7 @@ class FavoriteControllerTest {
 
     @AfterEach
     void tearDown() {
-        favoriteRepository.deleteAll();
-        savedItineraryRepository.deleteAll();
-        ratingRepository.deleteAll();
-        itineraryRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test

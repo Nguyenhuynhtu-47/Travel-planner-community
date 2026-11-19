@@ -1,5 +1,6 @@
 package Travel_Planner.Travel_Planner.security;
 
+import Travel_Planner.Travel_Planner.service.UserSessionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,10 +21,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsServiceImpl userDetailsService;
+    private final UserSessionService userSessionService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, UserDetailsServiceImpl userDetailsService) {
+    public JwtAuthenticationFilter(
+            JwtTokenProvider tokenProvider,
+            UserDetailsServiceImpl userDetailsService,
+            UserSessionService userSessionService) {
         this.tokenProvider = tokenProvider;
         this.userDetailsService = userDetailsService;
+        this.userSessionService = userSessionService;
     }
 
     @Override
@@ -35,15 +41,52 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String jwt = getJwtFromRequest(request);
 
         if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
-            String username = tokenProvider.getUsernameFromToken(jwt);
+            try {
+                String username = tokenProvider.getUsernameFromToken(jwt);
+                Integer tokenVersionFromJwt = tokenProvider.getTokenVersionFromToken(jwt);
+                String sessionId = tokenProvider.getSessionIdFromToken(jwt);
 
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-            if (userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // If token contains a session ID, verify that the session is still active on server
+                if (sessionId != null && !sessionId.isBlank()) {
+                    if (!userSessionService.isSessionActive(sessionId)) {
+                        SecurityContextHolder.clearContext();
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+                    userSessionService.touchSession(sessionId);
+                }
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                if (userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
+                    // Global JWT Revocation Check via strict token_version comparison
+                    if (userDetails instanceof CustomUserDetails customUser) {
+                        int currentDbVersion = customUser.getTokenVersion() != null ? customUser.getTokenVersion() : 1;
+
+                        // 1. Missing tokenVersion claim: compatible ONLY when current database version is exactly 1
+                        if (tokenVersionFromJwt == null) {
+                            if (currentDbVersion != 1) {
+                                SecurityContextHolder.clearContext();
+                                filterChain.doFilter(request, response);
+                                return;
+                            }
+                        } else {
+                            // 2. Present claim: must strictly equal current database version (rejects stale and future versions)
+                            if (tokenVersionFromJwt != currentDbVersion) {
+                                SecurityContextHolder.clearContext();
+                                filterChain.doFilter(request, response);
+                                return;
+                            }
+                        }
+                    }
+
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            } catch (Exception e) {
+                SecurityContextHolder.clearContext();
             }
         }
 

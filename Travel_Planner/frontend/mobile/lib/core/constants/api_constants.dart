@@ -6,6 +6,11 @@ class ApiConstants {
     'API_BASE_URL',
   );
 
+  // Override at build/run time with --dart-define=GOOGLE_SERVER_CLIENT_ID=<WEB_CLIENT_ID>.
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
+
   static String get baseUrl {
     if (_configuredBaseUrl.isNotEmpty) {
       return _configuredBaseUrl;
@@ -23,7 +28,23 @@ class ApiConstants {
 
   static const String registerEndpoint = '/api/auth/register';
   static const String loginEndpoint = '/api/auth/login';
+  static const String googleAuthEndpoint = '/api/auth/google';
+  static const String googleLinkEndpoint = '/api/auth/google/link';
   static const String meEndpoint = '/api/auth/me';
+  static const String verifyEmailEndpoint = '/api/auth/verify-email';
+  static const String resendVerificationEndpoint =
+      '/api/auth/resend-verification';
+  static const String forgotPasswordEndpoint = '/api/auth/forgot-password';
+  static const String verifyResetOtpEndpoint = '/api/auth/verify-reset-otp';
+  static const String resetPasswordEndpoint = '/api/auth/reset-password';
+  static const String changePasswordEndpoint = '/api/auth/change-password';
+  static const String logoutEndpoint = '/api/auth/logout';
+  static const String sessionsEndpoint = '/api/auth/sessions';
+  static String revokeSessionEndpoint(String sessionId) => '/api/auth/sessions/$sessionId/revoke';
+  static const String revokeOtherSessionsEndpoint = '/api/auth/sessions/revoke-others';
+  static const String revokeAllSessionsEndpoint = '/api/auth/sessions/revoke-all';
+  static const String emailChangeRequestEndpoint = '/api/auth/email-change/request';
+  static const String emailChangeVerifyEndpoint = '/api/auth/email-change/verify';
   static const String currentProfileEndpoint = '/api/user/profile';
   static const String itinerariesEndpoint = '/api/itineraries';
   static const String recommendationsEndpoint =

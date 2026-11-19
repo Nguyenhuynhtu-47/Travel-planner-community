@@ -5,6 +5,7 @@ import Travel_Planner.Travel_Planner.dto.request.RegisterRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdateProfileRequest;
 import Travel_Planner.Travel_Planner.dto.response.AuthResponse;
 import Travel_Planner.Travel_Planner.dto.response.PublicProfileResponse;
+import Travel_Planner.Travel_Planner.dto.response.RegisterResponse;
 import Travel_Planner.Travel_Planner.dto.response.UserResponse;
 import Travel_Planner.Travel_Planner.exception.BadRequestException;
 import Travel_Planner.Travel_Planner.exception.ConflictException;
@@ -151,7 +152,7 @@ class UserHandleServiceTest {
                 .fullName("Travel Wanderer")
                 .build();
 
-        AuthResponse resCustom = authService.register(reqCustom);
+        RegisterResponse resCustom = authService.register(reqCustom);
         assertEquals("travel.wanderer", resCustom.getUser().getHandle());
         assertEquals("login_user_private", resCustom.getUser().getUsername());
 
@@ -164,7 +165,7 @@ class UserHandleServiceTest {
                 .fullName("Lê Hoài An")
                 .build();
 
-        AuthResponse resDefault = authService.register(reqDefault);
+        RegisterResponse resDefault = authService.register(reqDefault);
         assertEquals("lehoaian", resDefault.getUser().getHandle());
         assertNotEquals("private_login_999", resDefault.getUser().getHandle());
     }

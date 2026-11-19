@@ -66,6 +66,9 @@ public class AdminPlaceAdministrativeAreaControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private MockMvc mockMvc;
     private User adminUser;
     private User regularUser;
@@ -89,6 +92,7 @@ public class AdminPlaceAdministrativeAreaControllerTest {
                 .fullName("Admin Link User")
                 .role(Role.ADMIN)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         regularUser = userRepository.save(User.builder()
@@ -98,6 +102,7 @@ public class AdminPlaceAdministrativeAreaControllerTest {
                 .fullName("Regular Link User")
                 .role(Role.USER)
                 .status(UserStatus.ACTIVE)
+                .emailVerified(true)
                 .build());
 
         adminToken = "Bearer " + jwtTokenProvider.generateToken(adminUser);
@@ -115,15 +120,7 @@ public class AdminPlaceAdministrativeAreaControllerTest {
 
     @AfterEach
     void tearDown() {
-        if (testPlace != null && testPlace.getPlaceId() != null) {
-            placeRepository.deleteById(testPlace.getPlaceId());
-        }
-        if (adminUser != null && adminUser.getUserId() != null) {
-            userRepository.deleteById(adminUser.getUserId());
-        }
-        if (regularUser != null && regularUser.getUserId() != null) {
-            userRepository.deleteById(regularUser.getUserId());
-        }
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test
