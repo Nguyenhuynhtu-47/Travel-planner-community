@@ -70,16 +70,21 @@ public class UserHandleDatabasePersistenceTest {
 
     @AfterEach
     void tearDown() {
-        try {
-            jdbcTemplate.update("DELETE FROM email_verification_tokens WHERE user_id IN (SELECT user_id FROM (SELECT user_id FROM users WHERE username IN (?, ?)) AS temp)", testUsername1, testUsername2);
-            userRepository.findByUsername(testUsername1).ifPresent(userRepository::delete);
-            userRepository.findByUsername(testUsername1).ifPresent(user -> {
-                messagingSettingsRepository.deleteById(user.getUserId());
-                userRepository.delete(user);
-            });
-            userRepository.findByUsername(testUsername2).ifPresent(userRepository::delete);
-        } catch (Exception ignored) {
-        }
+        deleteTestUser(testUsername1);
+        deleteTestUser(testUsername2);
+    }
+
+    private void deleteTestUser(String username) {
+        userRepository.findByUsername(username).ifPresent(user -> {
+            Integer userId = user.getUserId();
+            jdbcTemplate.update(
+                    "DELETE FROM email_verification_tokens WHERE user_id = ?",
+                    userId);
+            jdbcTemplate.update("DELETE FROM user_sessions WHERE user_id = ?", userId);
+            messagingSettingsRepository.deleteById(userId);
+            userRepository.delete(user);
+            userRepository.flush();
+        });
     }
 
     @Test

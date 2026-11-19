@@ -295,17 +295,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final pending = profile.friendshipStatus == 'PENDING';
     final accepted = profile.friendshipStatus == 'ACCEPTED';
     final actions = <Widget>[];
-    if (profile.canMessage) {
-      actions.add(
-        OutlinedButton.icon(
-          onPressed: _relationshipBusy ? null : _openConversation,
-          icon: const Icon(Icons.chat_bubble_outline),
-          label: const Text('Nhắn tin'),
-        ),
-      );
-    }
     if (accepted) {
-    if (accepted)
       actions.add(
         TextButton(
           onPressed: _relationshipBusy
@@ -329,7 +319,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           child: const Text('Từ chối'),
         ),
       ]);
-    } else if (pending && direction == 'sent')
+    } else if (pending && direction == 'sent') {
       actions.add(
         OutlinedButton(
           onPressed: _relationshipBusy
@@ -338,7 +328,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           child: const Text('Hủy lời mời'),
         ),
       );
-    else if (profile.canSendFriendRequest)
+    } else if (profile.canSendFriendRequest) {
       actions.add(
         FilledButton(
           onPressed: _relationshipBusy
@@ -347,6 +337,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           child: const Text('Thêm bạn bè'),
         ),
       );
+    }
     if (_relationshipBusy) {
       actions.add(
         const SizedBox(
@@ -613,8 +604,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           ),
                   ),
                   if (profile.canMessage ||
-                      profile.canContinueConversation ||
-                      profile.friendshipStatus != 'UNAVAILABLE') ...[
+                      profile.canContinueConversation) ...[
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
