@@ -79,6 +79,7 @@ class MockCommunityPostRepository extends CommunityPostRepository {
   Future<PostCommentModel> addComment(
     int postId, {
     required String content,
+    int? parentCommentId,
     required String token,
   }) async {
     addCommentCallCount++;

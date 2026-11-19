@@ -93,6 +93,36 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query("UPDATE Post p SET p.commentCount = CASE WHEN p.commentCount > 0 THEN p.commentCount - 1 ELSE 0 END WHERE p.postId = :postId")
     int decrementCommentCount(@Param("postId") Long postId);
 
+    @Query(value = "SELECT p FROM Post p " +
+            "JOIN FETCH p.author a " +
+            "LEFT JOIN FETCH p.itinerary i " +
+            "LEFT JOIN FETCH i.user iu " +
+            "WHERE p.author.userId = :userId AND p.status = 'ACTIVE' " +
+            "ORDER BY p.createdAt DESC, p.postId DESC",
+            countQuery = "SELECT count(p) FROM Post p " +
+            "WHERE p.author.userId = :userId AND p.status = 'ACTIVE'")
+    Page<Post> findUserPostsAll(@Param("userId") Integer userId, Pageable pageable);
+
+    @Query(value = "SELECT p FROM Post p " +
+            "JOIN FETCH p.author a " +
+            "LEFT JOIN FETCH p.itinerary i " +
+            "LEFT JOIN FETCH i.user iu " +
+            "WHERE p.author.userId = :userId AND p.status = 'ACTIVE' AND p.visibility IN ('PUBLIC', 'FRIENDS') " +
+            "ORDER BY p.createdAt DESC, p.postId DESC",
+            countQuery = "SELECT count(p) FROM Post p " +
+            "WHERE p.author.userId = :userId AND p.status = 'ACTIVE' AND p.visibility IN ('PUBLIC', 'FRIENDS')")
+    Page<Post> findUserPostsForFriend(@Param("userId") Integer userId, Pageable pageable);
+
+    @Query(value = "SELECT p FROM Post p " +
+            "JOIN FETCH p.author a " +
+            "LEFT JOIN FETCH p.itinerary i " +
+            "LEFT JOIN FETCH i.user iu " +
+            "WHERE p.author.userId = :userId AND p.status = 'ACTIVE' AND p.visibility = 'PUBLIC' " +
+            "ORDER BY p.createdAt DESC, p.postId DESC",
+            countQuery = "SELECT count(p) FROM Post p " +
+            "WHERE p.author.userId = :userId AND p.status = 'ACTIVE' AND p.visibility = 'PUBLIC'")
+    Page<Post> findUserPostsPublicOnly(@Param("userId") Integer userId, Pageable pageable);
+
     Page<Post> findByStatus(PostStatus status, Pageable pageable);
 }
 

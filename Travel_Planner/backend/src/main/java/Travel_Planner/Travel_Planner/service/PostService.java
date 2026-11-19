@@ -12,6 +12,8 @@ public interface PostService {
 
     PageResponse<PostResponse> getFollowingFeed(int page, int size, String viewerUsername);
 
+    PageResponse<PostResponse> getUserPosts(Integer targetUserId, int page, int size, String viewerUsername);
+
     PostResponse getPostById(Long postId, String viewerUsername);
 
     PostResponse createPost(CreatePostRequest request, String authorUsername);

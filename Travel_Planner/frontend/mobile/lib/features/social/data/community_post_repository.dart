@@ -89,11 +89,20 @@ class CommunityPostRepository {
     int postId, {
     String? content,
     String? visibility,
+    List<int>? mediaAssetIds,
+    int? itineraryId,
+    bool? detachItinerary,
     required String token,
   }) async {
     final body = <String, dynamic>{};
     if (content != null) body['content'] = content;
     if (visibility != null) body['visibility'] = visibility;
+    if (mediaAssetIds != null) body['mediaAssetIds'] = mediaAssetIds;
+    if (detachItinerary == true) {
+      body['detachItinerary'] = true;
+    } else if (itineraryId != null) {
+      body['itineraryId'] = itineraryId;
+    }
 
     final response = await _apiClient.patch(
       ApiConstants.communityPostDetailEndpoint(postId),
@@ -151,17 +160,61 @@ class CommunityPostRepository {
   Future<PostCommentModel> addComment(
     int postId, {
     required String content,
+    int? parentCommentId,
     required String token,
   }) async {
+    final body = <String, dynamic>{'content': content};
+    if (parentCommentId != null) {
+      body['parentCommentId'] = parentCommentId;
+    }
     final response = await _apiClient.post(
       ApiConstants.communityPostCommentsEndpoint(postId),
-      body: {'content': content},
+      body: body,
       token: token,
     );
     if (response is Map<String, dynamic>) {
       return PostCommentModel.fromJson(response);
     }
     throw Exception('Không thể đăng bình luận');
+  }
+
+  Future<List<PostModel>> getMyPosts({
+    int page = 0,
+    int size = 10,
+    required String token,
+  }) async {
+    final response = await _apiClient.get(
+      '${ApiConstants.communityMyPostsEndpoint}?page=$page&size=$size',
+      token: token,
+    );
+    if (response is Map<String, dynamic> && response['content'] is List) {
+      final list = response['content'] as List;
+      return list
+          .map((item) =>
+              PostModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<List<PostModel>> getUserPosts(
+    int userId, {
+    int page = 0,
+    int size = 10,
+    String? token,
+  }) async {
+    final response = await _apiClient.get(
+      '${ApiConstants.communityUserPostsEndpoint(userId)}?page=$page&size=$size',
+      token: token,
+    );
+    if (response is Map<String, dynamic> && response['content'] is List) {
+      final list = response['content'] as List;
+      return list
+          .map((item) =>
+              PostModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
+    return [];
   }
 
   Future<void> deleteComment(

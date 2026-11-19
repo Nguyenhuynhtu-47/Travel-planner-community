@@ -143,8 +143,8 @@ void main() {
       expect(find.text('@private_login_username'), findsNothing);
       expect(find.text('Tên đăng nhập'), findsNothing);
 
-      // Verify "Định danh (@handle)" label is present in account info
-      expect(find.text('Định danh (@handle)'), findsOneWidget);
+      // Verify @handle is present
+      expect(find.text('@minhdanh.travel'), findsWidgets);
     });
 
     testWidgets('ProfileScreen editing validates handle format', (tester) async {

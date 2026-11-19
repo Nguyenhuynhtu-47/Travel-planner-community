@@ -87,5 +87,7 @@ class ApiConstants {
   static String communityPostCommentsEndpoint(int postId) => '/api/community/posts/$postId/comments';
   static String communityPostCommentDetailEndpoint(int postId, int commentId) => '/api/community/posts/$postId/comments/$commentId';
   static String communityPostReportEndpoint(int postId) => '/api/community/posts/$postId/report';
+  static const String communityMyPostsEndpoint = '/api/community/me/posts';
+  static String communityUserPostsEndpoint(int userId) => '/api/community/users/$userId/posts';
   static const String conversationsUnreadTotalEndpoint = '/api/conversations/unread-total';
 }

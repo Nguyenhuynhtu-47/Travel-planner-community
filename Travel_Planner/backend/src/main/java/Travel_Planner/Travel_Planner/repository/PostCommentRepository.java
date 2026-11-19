@@ -1,6 +1,7 @@
 package Travel_Planner.Travel_Planner.repository;
 
 import Travel_Planner.Travel_Planner.model.PostComment;
+import Travel_Planner.Travel_Planner.model.enums.CommentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,12 +10,18 @@ import org.springframework.data.repository.query.Param;
 
 public interface PostCommentRepository extends JpaRepository<PostComment, Long> {
 
-    @Query(value = "SELECT c FROM PostComment c JOIN FETCH c.user u " +
+    @Query(value = "SELECT c FROM PostComment c " +
+            "JOIN FETCH c.user u " +
+            "LEFT JOIN FETCH c.parentComment pc " +
+            "LEFT JOIN FETCH pc.user pcu " +
+            "LEFT JOIN FETCH c.rootComment rc " +
             "WHERE c.post.postId = :postId AND c.status = 'ACTIVE' " +
             "ORDER BY c.createdAt ASC, c.postCommentId ASC",
             countQuery = "SELECT count(c) FROM PostComment c " +
             "WHERE c.post.postId = :postId AND c.status = 'ACTIVE'")
     Page<PostComment> findByPostIdActive(@Param("postId") Long postId, Pageable pageable);
+
+    long countByRootComment_PostCommentIdAndStatus(Long rootCommentId, CommentStatus status);
 
     void deleteByPost_PostId(Long postId);
 }

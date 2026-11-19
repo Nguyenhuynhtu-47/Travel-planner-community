@@ -17,6 +17,10 @@ public class PostCommentResponse {
     private String content;
     private PostAuthorResponse author;
     private boolean isOwner;
+    private Long parentCommentId;
+    private Long rootCommentId;
+    private PostAuthorResponse replyToUser;
+    private int replyCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

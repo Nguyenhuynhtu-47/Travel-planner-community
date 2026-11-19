@@ -40,6 +40,25 @@ public class CommunityPostController {
         return ResponseEntity.ok(postService.getFollowingFeed(page, size, username));
     }
 
+    @GetMapping("/me/posts")
+    public ResponseEntity<PageResponse<PostResponse>> getMyPosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails currentUser) {
+        String username = currentUser != null ? currentUser.getUsername() : null;
+        return ResponseEntity.ok(postService.getUserPosts(null, page, size, username));
+    }
+
+    @GetMapping("/users/{userId}/posts")
+    public ResponseEntity<PageResponse<PostResponse>> getUserPosts(
+            @PathVariable("userId") Integer targetUserId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        String username = viewer != null ? viewer.getUsername() : null;
+        return ResponseEntity.ok(postService.getUserPosts(targetUserId, page, size, username));
+    }
+
     @PostMapping("/posts")
     public ResponseEntity<PostResponse> createPost(
             @Valid @RequestBody CreatePostRequest request,

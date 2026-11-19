@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,5 +18,11 @@ public class UpdatePostRequest {
     private String content;
 
     private PostVisibility visibility;
+
+    private Integer itineraryId;
+
+    private Boolean detachItinerary;
+
+    private List<Long> mediaAssetIds;
 }
 

@@ -26,8 +26,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import Travel_Planner.Travel_Planner.dto.request.UpdatePostRequest;
+import Travel_Planner.Travel_Planner.dto.response.PostResponse;
 
 @SpringBootTest
 class PostServiceJpaIntegrationTest {
@@ -96,5 +100,66 @@ class PostServiceJpaIntegrationTest {
 
         MediaAsset reloaded = mediaAssetRepository.findById(asset.getMediaAssetId()).orElseThrow();
         assertEquals(MediaAssetStatus.ATTACHED, reloaded.getStatus());
+    }
+
+    @Test
+    @DisplayName("Update post via HTTP PATCH /api/community/posts/{id} keeping old media and adding new media")
+    @WithMockUser(username = "http_author")
+    void testUpdatePostKeepOldAndAddNewMedia() throws Exception {
+        User user = userRepository.findByUsername("http_author").orElseThrow();
+
+        // 1. Create asset 1
+        MediaAsset asset1 = MediaAsset.builder()
+                .uploadedBy(user)
+                .cloudinaryPublicId("test/asset1_" + System.currentTimeMillis())
+                .secureUrl("https://cloudinary.com/asset1.jpg")
+                .mediaType("IMAGE")
+                .status(MediaAssetStatus.UNATTACHED)
+                .build();
+        asset1 = mediaAssetRepository.save(asset1);
+
+        // 2. Create post with asset 1
+        CreatePostRequest createReq = CreatePostRequest.builder()
+                .content("Initial Post Content")
+                .visibility(PostVisibility.PUBLIC)
+                .mediaAssetIds(List.of(asset1.getMediaAssetId()))
+                .build();
+
+        MvcResult createResult = mockMvc.perform(post("/api/community/posts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createReq)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        PostResponse createdPost = objectMapper.readValue(createResult.getResponse().getContentAsString(), PostResponse.class);
+        Long postId = createdPost.getPostId();
+
+        // 3. Create asset 2 (newly picked image)
+        MediaAsset asset2 = MediaAsset.builder()
+                .uploadedBy(user)
+                .cloudinaryPublicId("test/asset2_" + System.currentTimeMillis())
+                .secureUrl("https://cloudinary.com/asset2.jpg")
+                .mediaType("IMAGE")
+                .status(MediaAssetStatus.UNATTACHED)
+                .build();
+        asset2 = mediaAssetRepository.save(asset2);
+
+        // 4. Update post keeping asset 1 and adding asset 2
+        UpdatePostRequest updateReq = UpdatePostRequest.builder()
+                .content("Updated Post Content")
+                .visibility(PostVisibility.PUBLIC)
+                .mediaAssetIds(List.of(asset1.getMediaAssetId(), asset2.getMediaAssetId()))
+                .build();
+
+        MvcResult updateResult = mockMvc.perform(patch("/api/community/posts/" + postId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        PostResponse updatedPost = objectMapper.readValue(updateResult.getResponse().getContentAsString(), PostResponse.class);
+        assertEquals(2, updatedPost.getMediaAssetIds().size());
+        assertEquals(asset1.getMediaAssetId(), updatedPost.getMediaAssetIds().get(0));
+        assertEquals(asset2.getMediaAssetId(), updatedPost.getMediaAssetIds().get(1));
     }
 }

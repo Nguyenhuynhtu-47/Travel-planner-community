@@ -9,7 +9,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "post_comments",
         indexes = {
-                @Index(name = "idx_post_comments_post_status", columnList = "post_id,status,created_at")
+                @Index(name = "idx_post_comments_post_status", columnList = "post_id,status,created_at"),
+                @Index(name = "idx_post_comments_parent", columnList = "parent_comment_id"),
+                @Index(name = "idx_post_comments_root", columnList = "root_comment_id")
         }
 )
 @Getter
@@ -31,6 +33,14 @@ public class PostComment {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_comment_id")
+    private PostComment parentComment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "root_comment_id")
+    private PostComment rootComment;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;

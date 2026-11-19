@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/post_model.dart';
+import 'fullscreen_image_viewer.dart';
 
 class PostCardWidget extends StatelessWidget {
   final PostModel post;
@@ -325,8 +326,8 @@ class PostCardWidget extends StatelessWidget {
   Widget _buildPhotoGrid(BuildContext context, List<String> urls) {
     final count = urls.length;
     if (count == 1) {
-      return ClipRRect(
-        borderRadius: BorderRadius.zero,
+      return GestureDetector(
+        onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: 0),
         child: AspectRatio(
           aspectRatio: 16 / 9,
           child: Image.network(
@@ -341,9 +342,9 @@ class PostCardWidget extends StatelessWidget {
         aspectRatio: 16 / 9,
         child: Row(
           children: [
-            Expanded(child: _singleImage(urls[0])),
+            Expanded(child: _singleImage(context, urls, 0)),
             const SizedBox(width: 3),
-            Expanded(child: _singleImage(urls[1])),
+            Expanded(child: _singleImage(context, urls, 1)),
           ],
         ),
       );
@@ -352,15 +353,15 @@ class PostCardWidget extends StatelessWidget {
         aspectRatio: 16 / 9,
         child: Row(
           children: [
-            Expanded(flex: 2, child: _singleImage(urls[0])),
+            Expanded(flex: 2, child: _singleImage(context, urls, 0)),
             const SizedBox(width: 3),
             Expanded(
               flex: 1,
               child: Column(
                 children: [
-                  Expanded(child: _singleImage(urls[1])),
+                  Expanded(child: _singleImage(context, urls, 1)),
                   const SizedBox(height: 3),
-                  Expanded(child: _singleImage(urls[2])),
+                  Expanded(child: _singleImage(context, urls, 2)),
                 ],
               ),
             ),
@@ -375,9 +376,9 @@ class PostCardWidget extends StatelessWidget {
             Expanded(
               child: Row(
                 children: [
-                  Expanded(child: _singleImage(urls[0])),
+                  Expanded(child: _singleImage(context, urls, 0)),
                   const SizedBox(width: 3),
-                  Expanded(child: _singleImage(urls[1])),
+                  Expanded(child: _singleImage(context, urls, 1)),
                 ],
               ),
             ),
@@ -385,9 +386,9 @@ class PostCardWidget extends StatelessWidget {
             Expanded(
               child: Row(
                 children: [
-                  Expanded(child: _singleImage(urls[2])),
+                  Expanded(child: _singleImage(context, urls, 2)),
                   const SizedBox(width: 3),
-                  Expanded(child: _singleImage(urls[3])),
+                  Expanded(child: _singleImage(context, urls, 3)),
                 ],
               ),
             ),
@@ -404,9 +405,9 @@ class PostCardWidget extends StatelessWidget {
               flex: 3,
               child: Row(
                 children: [
-                  Expanded(child: _singleImage(urls[0])),
+                  Expanded(child: _singleImage(context, urls, 0)),
                   const SizedBox(width: 3),
-                  Expanded(child: _singleImage(urls[1])),
+                  Expanded(child: _singleImage(context, urls, 1)),
                 ],
               ),
             ),
@@ -415,11 +416,11 @@ class PostCardWidget extends StatelessWidget {
               flex: 2,
               child: Row(
                 children: [
-                  Expanded(child: _singleImage(urls[2])),
+                  Expanded(child: _singleImage(context, urls, 2)),
                   const SizedBox(width: 3),
-                  Expanded(child: _singleImage(urls[3])),
+                  Expanded(child: _singleImage(context, urls, 3)),
                   const SizedBox(width: 3),
-                  Expanded(child: _singleImage(urls[4])),
+                  Expanded(child: _singleImage(context, urls, 4)),
                 ],
               ),
             ),
@@ -429,13 +430,16 @@ class PostCardWidget extends StatelessWidget {
     }
   }
 
-  Widget _singleImage(String url) {
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+  Widget _singleImage(BuildContext context, List<String> urls, int index) {
+    return GestureDetector(
+      onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: index),
+      child: Image.network(
+        urls[index],
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+      ),
     );
   }
 

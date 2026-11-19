@@ -22,6 +22,11 @@ import '../../../messaging/data/messaging_repository.dart';
 import '../../../messaging/presentation/screens/messaging_settings_screen.dart';
 import '../../data/profile_repository.dart';
 import '../../data/public_profile_repository.dart';
+import '../../../social/data/community_post_repository.dart';
+import '../../../social/data/models/post_model.dart';
+import '../../../social/presentation/screens/create_post_screen.dart';
+import '../../../social/presentation/widgets/post_card_widget.dart';
+import '../../../social/presentation/widgets/post_comments_sheet.dart';
 import 'personal_info_screen.dart';
 import 'public_profile_screen.dart';
 import 'public_user_list_screen.dart';
@@ -30,12 +35,14 @@ class ProfileScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ProfileRepository? repository;
   final ImagePickerService? imagePickerService;
+  final CommunityPostRepository? postRepository;
 
   const ProfileScreen({
     super.key,
     required this.authNotifier,
     this.repository,
     this.imagePickerService,
+    this.postRepository,
   });
 
   @override
@@ -51,6 +58,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _bioController = TextEditingController();
   late final ProfileRepository _repository;
   late final ImagePickerService _imagePickerService;
+  late final CommunityPostRepository _postRepository;
 
   Map<String, dynamic>? _profile;
   String? _observedToken;
@@ -67,12 +75,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<ItinerarySummary> _itineraries = [];
   int _selectedProfileTab = 0;
 
+  List<PostModel> _myPosts = [];
+  bool _loadingPosts = false;
+  bool _hasMorePosts = true;
+  int _postsPage = 0;
+  String? _postsError;
+
   @override
   void initState() {
     super.initState();
     _repository = widget.repository ?? ProfileRepository();
     _imagePickerService =
         widget.imagePickerService ?? DeviceImagePickerService();
+    _postRepository = widget.postRepository ?? CommunityPostRepository();
     _observedToken = widget.authNotifier.token;
     widget.authNotifier.addListener(_handleAuthChanged);
     _loadProfile();
@@ -206,6 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _fillFields(profile);
           _loading = false;
         });
+        _loadMyPosts(refresh: true);
       }
 
       // Fetch public stats (followers, following, itineraries)
@@ -376,12 +392,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'BANNED' => 'Đã khóa',
       _ => value.toString(),
     };
-  }
-
-  String? _formatDate(dynamic value) {
-    final date = DateTime.tryParse(value?.toString() ?? '');
-    if (date == null) return null;
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
   @override
@@ -687,18 +697,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       letterSpacing: -0.2,
                     ),
                   ),
-                  if (p['handle'] != null &&
-                      p['handle'].toString().trim().isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${p['handle']}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
+                  const SizedBox(height: 2),
+                  Text(
+                    (p['handle'] != null && p['handle'].toString().trim().isNotEmpty)
+                        ? '@${p['handle'].toString().trim().replaceFirst(RegExp(r'^@+'), '')}'
+                        : 'Chưa thiết lập',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: (p['handle'] != null && p['handle'].toString().trim().isNotEmpty)
+                          ? AppColors.textSecondary
+                          : AppColors.mutedSoft,
+                      fontWeight: FontWeight.w500,
                     ),
-                  ],
+                  ),
 
                   // Bio
                   if (p['bio'] != null &&
@@ -829,7 +840,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   Expanded(
                     child: InkWell(
-                      onTap: () => setState(() => _selectedProfileTab = 1),
+                      onTap: () {
+                        setState(() => _selectedProfileTab = 1);
+                        if (_myPosts.isEmpty && !_loadingPosts) {
+                          _loadMyPosts();
+                        }
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
@@ -846,7 +862,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.info_outline,
+                              Icons.article_outlined,
                               size: 18,
                               color: _selectedProfileTab == 1
                                   ? AppColors.primary
@@ -854,7 +870,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              'Thông tin tài khoản',
+                              'Bài viết',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
@@ -885,18 +901,311 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
 
-                  // Tab 2: Account Information
+                  // Tab 2: My Posts
                   Opacity(
                     opacity: _selectedProfileTab == 1 ? 1.0 : 0.0,
                     child: IgnorePointer(
                       ignoring: _selectedProfileTab != 1,
-                      child: _buildAccountInfoTab(p),
+                      child: _buildMyPostsTab(),
                     ),
                   ),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadMyPosts({bool refresh = false}) async {
+    final token = widget.authNotifier.token;
+    if (token == null) return;
+    if (refresh) {
+      _postsPage = 0;
+      _hasMorePosts = true;
+    }
+    if (!_hasMorePosts || (_loadingPosts && !refresh)) return;
+
+    setState(() {
+      _loadingPosts = true;
+      _postsError = null;
+    });
+
+    try {
+      final posts = await _postRepository.getMyPosts(
+        page: _postsPage,
+        size: 10,
+        token: token,
+      );
+      if (mounted) {
+        setState(() {
+          if (refresh) {
+            _myPosts = posts;
+          } else {
+            _myPosts.addAll(posts);
+          }
+          _postsPage++;
+          _hasMorePosts = posts.length >= 10;
+          _loadingPosts = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _postsError = 'Không thể tải danh sách bài viết';
+          _loadingPosts = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _likeMyPost(PostModel post) async {
+    final token = widget.authNotifier.token;
+    if (token == null) return;
+
+    final newIsLiked = !post.isLikedByMe;
+    final newCount = post.likeCount + (newIsLiked ? 1 : -1);
+    final updated = post.copyWith(
+      isLikedByMe: newIsLiked,
+      likeCount: newCount < 0 ? 0 : newCount,
+    );
+
+    setState(() {
+      final index = _myPosts.indexWhere((p) => p.postId == post.postId);
+      if (index != -1) _myPosts[index] = updated;
+    });
+
+    try {
+      if (newIsLiked) {
+        await _postRepository.likePost(post.postId, token: token);
+      } else {
+        await _postRepository.unlikePost(post.postId, token: token);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          final index = _myPosts.indexWhere((p) => p.postId == post.postId);
+          if (index != -1) _myPosts[index] = post;
+        });
+      }
+    }
+  }
+
+  void _openPostComments(PostModel post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PostCommentsSheet(
+        postId: post.postId,
+        token: widget.authNotifier.token,
+        repository: _postRepository,
+        onCommentCountChanged: (delta) {
+          setState(() {
+            final idx = _myPosts.indexWhere((p) => p.postId == post.postId);
+            if (idx != -1) {
+              final newCount = (_myPosts[idx].commentCount + delta) < 0
+                  ? 0
+                  : _myPosts[idx].commentCount + delta;
+              _myPosts[idx] = _myPosts[idx].copyWith(commentCount: newCount);
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  Future<void> _openEditMyPost(PostModel post) async {
+    final updated = await Navigator.of(context).push<PostModel>(
+      MaterialPageRoute(
+        builder: (_) => CreatePostScreen(
+          authNotifier: widget.authNotifier,
+          editingPost: post,
+        ),
+      ),
+    );
+
+    if (updated != null && mounted) {
+      setState(() {
+        final index = _myPosts.indexWhere((p) => p.postId == updated.postId);
+        if (index != -1) {
+          _myPosts[index] = updated;
+        }
+      });
+    }
+  }
+
+  Future<void> _deleteMyPost(PostModel post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: const Text('Bạn có chắc chắn muốn xóa bài viết này không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    final token = widget.authNotifier.token;
+    if (token == null) return;
+
+    try {
+      await _postRepository.deletePost(post.postId, token: token);
+      if (mounted) {
+        setState(() {
+          _myPosts.removeWhere((p) => p.postId == post.postId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã xóa bài viết thành công')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể xóa bài viết')),
+        );
+      }
+    }
+  }
+
+  Widget _buildMyPostsTab() {
+    if (_loadingPosts && _myPosts.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_postsError != null && _myPosts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_postsError!, style: const TextStyle(color: AppColors.muted)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => _loadMyPosts(refresh: true),
+              child: const Text('Thử lại'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_myPosts.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.article_outlined,
+                size: 48,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Chưa có bài viết nào',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Chia sẻ trải nghiệm và câu chuyện du lịch của bạn với cộng đồng!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                onPressed: () async {
+                  final newPost = await Navigator.of(context).push<PostModel>(
+                    MaterialPageRoute(
+                      builder: (_) => CreatePostScreen(
+                        authNotifier: widget.authNotifier,
+                      ),
+                    ),
+                  );
+                  if (newPost != null) {
+                    _loadMyPosts(refresh: true);
+                  }
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Tạo bài viết mới'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _loadMyPosts(refresh: true),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (scrollInfo) {
+          if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200 &&
+              !_loadingPosts &&
+              _hasMorePosts) {
+            _loadMyPosts();
+          }
+          return false;
+        },
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          itemCount: _myPosts.length + (_hasMorePosts ? 1 : 0),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            if (index >= _myPosts.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+
+            final post = _myPosts[index];
+            return PostCardWidget(
+              post: post,
+              onLike: () => _likeMyPost(post),
+              onComment: () => _openPostComments(post),
+              onEdit: () => _openEditMyPost(post),
+              onDelete: () => _deleteMyPost(post),
+              onItineraryTap: (itineraryId) {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ItineraryDetailScreen(
+                      itineraryId: itineraryId,
+                      token: widget.authNotifier.token,
+                      authNotifier: widget.authNotifier,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -971,123 +1280,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         );
       },
-    );
-  }
-
-  Widget _buildAccountInfoTab(Map<String, dynamic> p) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      children: [
-        _sectionHeader('Thông tin cá nhân'),
-        const SizedBox(height: 12),
-        _infoCard([
-          _detailRow('Họ và tên', p['fullName']),
-          _detailRow('Số điện thoại', p['phone']),
-          _detailRow('Địa chỉ', p['address']),
-          _detailRow('Giới thiệu', p['bio']),
-        ]),
-        const SizedBox(height: 24),
-        _sectionHeader('Thông tin tài khoản'),
-        const SizedBox(height: 12),
-        _infoCard([
-          _detailRow(
-            'Định danh (@handle)',
-            (p['handle'] != null && p['handle'].toString().trim().isNotEmpty)
-                ? '@${p['handle'].toString().trim()}'
-                : 'Chưa thiết lập',
-          ),
-          _detailRow('Email', p['email']),
-          _detailRow('Vai trò', p['role']),
-          _detailRow('Trạng thái tài khoản', p['status']),
-          _detailRow('Ngày tham gia', _formatDate(p['createdAt'])),
-        ]),
-        const SizedBox(height: 24),
-        OutlinedButton.icon(
-          onPressed: _openSettings,
-          icon: const Icon(Icons.settings_outlined, size: 18),
-          label: const Text('Quản lý thông tin & Cài đặt'),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-            side: const BorderSide(color: AppColors.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: _openMessagingPrivacy,
-          icon: const Icon(Icons.forum_outlined, size: 18),
-          label: const Text('Quyền riêng tư tin nhắn'),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-            side: const BorderSide(color: AppColors.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _sectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
-    );
-  }
-
-  Widget _infoCard(List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
-      ),
-    );
-  }
-
-  Widget _detailRow(String label, dynamic rawValue) {
-    final value = _value(rawValue);
-    final isUnset = value == 'Chưa cập nhật';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            softWrap: true,
-            style: TextStyle(
-              color: isUnset ? AppColors.mutedSoft : AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w400,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

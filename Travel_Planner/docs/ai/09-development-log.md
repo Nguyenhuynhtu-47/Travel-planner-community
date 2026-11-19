@@ -9886,3 +9886,117 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
   - Mobile tests: `activity_detail_screen_test.dart` + `post_comments_sheet_keyboard_test.dart` + `rating_ui_layout_test.dart` (20/20 PASSED).
   - Mobile analysis: `flutter analyze` on modified files completed with 0 errors and 0 warnings.
   - Git working tree preserved without commits, resets, or branch changes.
+
+## 2026-11-19 — Community Posts Enhancements: Full Edit Flow, Facebook-Style Media Viewer, Threaded Comments Reply, Profile My Posts Tab
+
+- **Item 1 — Complete Post Editing Flow (`CreatePostScreen` & Backend `updatePost`):**
+  - Extended `UpdatePostRequest` with `Integer itineraryId`, `Boolean detachItinerary`, and `List<Long> mediaAssetIds`.
+  - In `PostServiceImpl.updatePost`:
+    - Validated ownership ensuring only post creator can edit (returning 403 Forbidden).
+    - Preserved existing `MediaAsset` links matching passed `mediaAssetIds` without requiring re-upload; new IDs are associated; removed IDs are detached and marked `MediaAssetStatus.UNATTACHED`.
+    - Allowed changing attached itinerary or detaching via `detachItinerary: true`.
+    - Maintained non-empty post validation (post must contain at least text, media, or an attached itinerary).
+  - In Flutter `CreatePostScreen`:
+    - Pre-populated content, photos, visibility, and existing itinerary.
+    - Added ability to add more images up to 5 total, tap an image to replace, or tap close icon to remove individual images.
+    - Added close button on attached itinerary to detach, or tap 'Thay đổi lịch trình' to swap itinerary via `_ItinerarySelectionSheet`.
+    - Passed `mediaAssetIds`, `itineraryId`, and `detachItinerary` to `CommunityPostRepository.updatePost`.
+
+- **Item 2 — Facebook-Style Fullscreen Image Viewer (`FullscreenImageViewer`):**
+  - Created `FullscreenImageViewer` with a clean dark theme, top app bar showing page index counter (`1 / N`) and close button.
+  - Implemented pinch-to-zoom using Flutter's built-in `InteractiveViewer` with scale limits [1.0, 4.0].
+  - Implemented smooth horizontal swiping across photos using `PageView.builder`.
+  - Wired `FullscreenImageViewer.open` on all photo thumbnails in `PostCardWidget` while ensuring interaction buttons (like, comment, profile, itinerary) do not trigger the viewer.
+  - Preserved list scroll position when dismissing the viewer.
+
+- **Item 3 — Post Comment Reply Threading:**
+  - Extended `PostComment` entity with `parentComment` and `rootComment` (`@ManyToOne` self-referencing with cascade delete) and added indexes `idx_post_comments_parent` and `idx_post_comments_root`.
+  - Updated `CreatePostCommentRequest` to accept `Long parentCommentId`.
+  - In `PostServiceImpl`:
+    - `addComment`: Linked parent and computed root comment, incremented post comment count, and returned `replyToUser` metadata.
+    - `getComments`: Mapped `parentCommentId`, `rootCommentId`, `replyToUser`, and `replyCount`.
+  - In Flutter `post_comments_sheet.dart`:
+    - Added "Trả lời" action on all comments and replies.
+    - Implemented a reply composer preview banner ("Đang trả lời @...") with a cancel button.
+    - Rendered threaded replies indented under parent root comments (`left: 36.0`) with `Trả lời @{authorName}` context tag.
+    - Passed `parentCommentId` through `CommunityPostRepository.addComment`.
+
+- **Item 4 — Profile Screen "My Posts" Tab Replacement:**
+  - Replaced tab 1 ("Thông tin tài khoản") in `ProfileScreen` with "Bài viết" (`Icons.article_outlined`).
+  - Implemented `_loadMyPosts` calling `CommunityPostRepository.getMyPosts` with pagination support and pull-to-refresh (`RefreshIndicator`).
+  - Rendered `PostCardWidget` with full support for liking, opening comments, editing (navigating to `CreatePostScreen`), deleting with confirmation, and viewing attached itineraries.
+  - Implemented empty state with `Icons.article_outlined` and a "Tạo bài viết mới" button.
+  - Maintained accessibility to personal info and settings via the AppBar settings button and `PersonalInfoScreen`.
+
+- **Verification Summary:**
+  - Backend tests: `CommunityPostServiceTest` (28/28 PASSED), `PostServiceJpaIntegrationTest` (1/1 PASSED).
+  - Mobile tests: `community_post_enhancements_test.dart` (4/4 PASSED), `post_comments_sheet_keyboard_test.dart` (2/2 PASSED), `community_feed_test.dart` (14/14 PASSED), `user_handle_test.dart` (7/7 PASSED), `public_profile_screen_test.dart` (2/2 PASSED), and full test suite (43/43 PASSED).
+  - Code analysis: `flutter analyze` completed with 0 errors and 0 warnings.
+  - All existing working tree changes preserved.
+
+## 2026-11-19 — Resolution of Edit Post Photo Addition & Cloudinary Attachment Flow
+
+- **Root Cause Analysis:**
+  - **Missing / Zero Media Asset IDs in Pre-Populated State:** When navigating to `CreatePostScreen` with `editingPost`, if the post was loaded from an endpoint or state where `mediaAssetIds` was null, empty, or contained non-positive IDs (`0`), `_mediaItems` initialized existing items with `mediaAssetId: null`. Upon adding a new photo, only the new photo possessed an asset ID. During `_submit()`, `whereType<int>()` filtered out all nulls, causing `updatePost` to send only the new asset ID. The backend identified existing photos as removed and marked them `UNATTACHED`, effectively dropping all existing photos. Furthermore, if any asset ID was 0, the backend threw `ResourceNotFoundException("Tệp phương tiện không tồn tại")`, failing the edit entirely.
+  - **`pickMultiImage()` Fallback Deficiency:** When picking images on diverse Android devices/emulators, `picker.pickMultiImage()` could throw `PlatformException` or fail on single-image selections. The broad `catch (_) {}` swallowed the error without attempting a single-image fallback via `pickImage(source: ImageSource.gallery)`.
+  - **Lack of Inline Add Button in Image Strip:** In the horizontal thumbnail preview strip, only replace and remove icons existed. Users looking at their photos had to scroll past multi-line text down to the bottom list tile to discover the "Thêm ảnh" action.
+
+- **Implementation Details:**
+  - **`PostModel` Filtering:** In `PostModel.fromJson`, added `.where((id) => id > 0)` to guarantee non-positive or corrupted IDs are never treated as valid `mediaAssetIds`.
+  - **Automatic Media Recovery via `_fetchFreshPostMedia()`:** In `CreatePostScreen.initState()` and guarded in `_submit()`, if `widget.editingPost` has photos but missing or empty `mediaAssetIds`, `_repo.getPostById(postId)` is automatically fetched asynchronously to resolve and associate canonical `mediaAssetIds` with existing image URLs before submission.
+  - **Robust `ImagePicker` Fallback & Dependency Injection:**
+    - Allowed injecting optional `ImagePicker? imagePicker` into `CreatePostScreen` for direct unit and widget testing.
+    - Updated `_pickImages()` to catch platform failures from `pickMultiImage()` and gracefully fallback to `pickImage(source: ImageSource.gallery)`.
+    - Added upload error handling with user feedback instead of silent failure.
+  - **Inline Add Card in Thumbnail Strip:**
+    - In `ListView.separated`, when `_mediaItems.length < 5`, rendered an intuitive 100x100 `+ Thêm ảnh` card directly at the end of the horizontal thumbnail strip.
+    - Added `errorBuilder` fallback placeholder to `Image.network` thumbnails to prevent crashes on network drops.
+  - **Submission Guard:**
+    - In `_submit()`, verified that non-empty `_mediaItems` constitutes valid post content even if content text is empty.
+    - Ensured `mediaAssetIds` payload contains both retained existing asset IDs and newly uploaded asset IDs in their exact display order.
+
+- **Verification Summary:**
+  - Mobile tests: `community_post_enhancements_test.dart` (7/7 PASSED, including 3 new tests: keeping old photos + adding new photos, recovering missing asset IDs via `getPostById`, and replace/remove actions).
+  - Full suite tests: all 46 tests across `test/features/social/` and `test/features/profile/` PASSED.
+  - Backend tests: `CommunityPostServiceTest` (28/28 PASSED).
+  - Code analysis: `flutter analyze lib/features/social/ lib/features/profile/` has 0 errors and 0 warnings on modified code.
+  - Git working tree preserved without commits, resets, or branch changes.
+
+## 2026-11-19 — Resolution of Backend SQL Constraint & ActionQueue Error on Edit Post with Media
+
+- **Live Environment Investigation & Stack Trace:**
+  - Tracked down database records on real MySQL schema `travel_planner`:
+    - Post ID 4 (author 595, `minhdanh2824`) originally had `post_media` row with `media_asset_id = 11`.
+    - User added a new image on mobile which successfully uploaded to Cloudinary as `media_asset_id = 17` (`UNATTACHED`).
+    - When user tapped Save on Android, mobile sent `PATCH /api/community/posts/4` with payload `{ "content": "...", "mediaAssetIds": [11, 17] }`.
+  - Replicated exact scenario via integration test `PostServiceJpaIntegrationTest.testUpdatePostKeepOldAndAddNewMedia`.
+  - Revealed exact root cause stack trace:
+    ```
+    Caused by: java.sql.SQLIntegrityConstraintViolationException: Duplicate entry '11' for key 'post_media.uk_post_media_asset'
+        at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:109)
+        at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:114)
+        at com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:988)
+    ```
+  - **Root Cause:**
+    - In `PostServiceImpl.updatePost`, `postMediaRepository.deleteByPost_PostId(postId)` was called to purge old records before looping over `newAssetIds` and calling `postMediaRepository.save(new PostMedia(asset = 11))`.
+    - In JPA/Hibernate, derived delete operations queue `EntityDeleteAction` in Hibernate's ActionQueue.
+    - Hibernate's ActionQueue specifies that **INSERTS are executed before DELETES** during flush.
+    - When `postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc` was invoked, Hibernate flushed pending SQL statements: attempting to insert `(post_id=4, media_asset_id=11)` while the original row with `media_asset_id=11` was still present in the table, violating the unique constraint `uk_post_media_asset (media_asset_id)`.
+    - Spring translated this to `DataIntegrityViolationException`, returning HTTP 500 and rolling back the transaction.
+
+- **Solution Implemented in `PostServiceImpl.java`:**
+  - Refactored `updatePost` media synchronization to avoid deleting and re-inserting existing valid mappings:
+    1. Built `Map<Long, PostMedia> currentPmMap` indexing existing attachments by `mediaAssetId`.
+    2. Deleted ONLY removed `PostMedia` entities (assets not in `uniqueIds`), returning their `MediaAsset` to `UNATTACHED`.
+    3. For retained existing assets: updated their `displayOrder` in-place on the existing `PostMedia` entity without creating new rows.
+    4. For newly added assets: created and inserted new `PostMedia` entity, marking the new `MediaAsset` as `ATTACHED`.
+  - Zero duplicate key conflicts on `uk_post_media_asset` and no ActionQueue ordering issues.
+  - Adjusted unit tests in `CommunityPostServiceTest` and added real DB test `testUpdatePostKeepOldAndAddNewMedia` in `PostServiceJpaIntegrationTest`.
+
+- **Verification Results:**
+  - Backend integration test: `PostServiceJpaIntegrationTest` (2/2 PASSED with real MySQL schema).
+  - Backend unit tests: `CommunityPostServiceTest` (28/28 PASSED).
+  - Mobile tests: `community_post_enhancements_test.dart` (7/7 PASSED).
+  - Full mobile suite: 46/46 PASSED.
+  - Code compiled cleanly via `./mvnw compile`.
+  - Git working tree preserved without commits, resets, or branch changes.

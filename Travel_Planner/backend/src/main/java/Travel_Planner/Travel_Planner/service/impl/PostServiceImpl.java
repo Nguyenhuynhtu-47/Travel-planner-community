@@ -181,6 +181,90 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<PostResponse> getUserPosts(Integer targetUserId, int page, int size, String viewerUsername) {
+        if (page < 0 || size < 1) {
+            throw new BadRequestException("Thông tin phân trang không hợp lệ");
+        }
+        int pageSize = Math.min(size, 50);
+        Pageable pageable = PageRequest.of(page, pageSize);
+
+        User viewer = resolveOptionalUser(viewerUsername);
+        Integer viewerId = viewer != null ? viewer.getUserId() : null;
+
+        Integer effectiveUserId = targetUserId != null ? targetUserId : viewerId;
+        if (effectiveUserId == null) {
+            throw new BadRequestException("Không thể xác định người dùng");
+        }
+
+        userRepository.findById(effectiveUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+
+        if (blockAccess != null && viewerId != null && !viewerId.equals(effectiveUserId)) {
+            if (blockAccess.isBlockedBetween(viewerId, effectiveUserId)) {
+                throw new ForbiddenException("Không thể xem bài viết của người dùng này");
+            }
+        }
+
+        boolean isSelf = viewerId != null && viewerId.equals(effectiveUserId);
+        boolean isFriend = false;
+        if (viewerId != null && !isSelf) {
+            int lowId = Math.min(viewerId, effectiveUserId);
+            int highId = Math.max(viewerId, effectiveUserId);
+            isFriend = friendshipRepository.findByUserLow_UserIdAndUserHigh_UserId(lowId, highId)
+                    .map(f -> f.getStatus() == FriendshipStatus.ACCEPTED)
+                    .orElse(false);
+        }
+
+        Page<Post> postsPage;
+        if (isSelf) {
+            postsPage = postRepository.findUserPostsAll(effectiveUserId, pageable);
+        } else if (isFriend) {
+            postsPage = postRepository.findUserPostsForFriend(effectiveUserId, pageable);
+        } else {
+            postsPage = postRepository.findUserPostsPublicOnly(effectiveUserId, pageable);
+        }
+
+        List<Post> posts = postsPage.getContent();
+        if (posts.isEmpty()) {
+            return PageResponse.from(postsPage.map(p -> null));
+        }
+
+        List<Long> postIds = posts.stream().map(Post::getPostId).toList();
+
+        Map<Long, List<String>> mediaUrlsByPost = new HashMap<>();
+        Map<Long, List<Long>> mediaAssetIdsByPost = new HashMap<>();
+        List<PostMedia> postMediaList = postMediaRepository.findByPostIdsWithAsset(postIds);
+        for (PostMedia pm : postMediaList) {
+            Long pid = pm.getPost().getPostId();
+            mediaUrlsByPost.computeIfAbsent(pid, k -> new ArrayList<>()).add(pm.getMediaAsset().getSecureUrl());
+            mediaAssetIdsByPost.computeIfAbsent(pid, k -> new ArrayList<>()).add(pm.getMediaAsset().getMediaAssetId());
+        }
+
+        Set<Long> likedPostIds = Collections.emptySet();
+        if (viewerId != null) {
+            likedPostIds = new HashSet<>(postLikeRepository.findLikedPostIds(postIds, viewerId));
+        }
+
+        Set<Long> finalLikedPostIds = likedPostIds;
+        List<PostResponse> responseList = posts.stream().map(post -> {
+            List<String> urls = mediaUrlsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
+            List<Long> assetIds = mediaAssetIdsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
+            boolean liked = finalLikedPostIds.contains(post.getPostId());
+            return toPostResponse(post, urls, assetIds, liked, viewerId);
+        }).toList();
+
+        return PageResponse.<PostResponse>builder()
+                .content(responseList)
+                .pageNumber(postsPage.getNumber())
+                .pageSize(postsPage.getSize())
+                .totalElements(postsPage.getTotalElements())
+                .totalPages(postsPage.getTotalPages())
+                .last(postsPage.isLast())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PostResponse getPostById(Long postId, String viewerUsername) {
         User viewer = resolveOptionalUser(viewerUsername);
         Post post = getAuthorizedPost(postId, viewer);
@@ -316,12 +400,119 @@ public class PostServiceImpl implements PostService {
         if (request.getVisibility() != null) {
             post.setVisibility(request.getVisibility());
         }
+
+        // Itinerary attachment updates
+        if (Boolean.TRUE.equals(request.getDetachItinerary()) || (request.getItineraryId() != null && request.getItineraryId() <= 0)) {
+            post.setItinerary(null);
+        } else if (request.getItineraryId() != null) {
+            Itinerary itinerary = itineraryRepository.findById(request.getItineraryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch trình"));
+            if (itinerary.getVisibility() != Visibility.PUBLIC
+                    || itinerary.getStatus() != ItineraryStatus.ACTIVE
+                    || itinerary.getUser() == null
+                    || itinerary.getUser().getStatus() != UserStatus.ACTIVE) {
+                throw new BadRequestException("Chỉ được đính kèm lịch trình công khai và đang hoạt động");
+            }
+            post.setItinerary(itinerary);
+        }
+
+        // Media assets update
+        List<PostMedia> currentPostMedia = postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(postId);
+        Map<Long, PostMedia> currentPmMap = currentPostMedia.stream()
+                .collect(Collectors.toMap(pm -> pm.getMediaAsset().getMediaAssetId(), pm -> pm));
+        Set<Long> currentAssetIds = currentPmMap.keySet();
+
+        if (request.getMediaAssetIds() != null) {
+            List<Long> newAssetIds = request.getMediaAssetIds();
+            Set<Long> uniqueIds = new HashSet<>(newAssetIds);
+            if (uniqueIds.size() != newAssetIds.size()) {
+                throw new BadRequestException("Danh sách ảnh chứa định danh trùng lặp");
+            }
+            if (newAssetIds.size() > 5) {
+                throw new BadRequestException("Vượt quá giới hạn tối đa 5 ảnh");
+            }
+
+            // Identify which assets are newly added
+            List<Long> newlyAddedIds = newAssetIds.stream()
+                    .filter(id -> !currentAssetIds.contains(id))
+                    .sorted()
+                    .toList();
+
+            Map<Long, MediaAsset> newAssetsMap = new HashMap<>();
+            if (!newlyAddedIds.isEmpty()) {
+                List<MediaAsset> found = mediaAssetRepository.findByIdsForUpdate(newlyAddedIds);
+                if (found.size() != newlyAddedIds.size()) {
+                    throw new ResourceNotFoundException("Tệp phương tiện không tồn tại");
+                }
+                for (MediaAsset a : found) {
+                    if (!a.getUploadedBy().getUserId().equals(author.getUserId())) {
+                        throw new ResourceNotFoundException("Tệp phương tiện không tồn tại hoặc bạn không có quyền truy cập");
+                    }
+                    if (a.getStatus() == MediaAssetStatus.ATTACHED) {
+                        throw new ConflictException("Tệp phương tiện đã được sử dụng trong bài viết khác");
+                    }
+                    if (a.getStatus() == MediaAssetStatus.DELETING || a.getStatus() == MediaAssetStatus.DELETED) {
+                        throw new ConflictException("Tệp phương tiện đang được xóa hoặc không còn khả dụng");
+                    }
+                    newAssetsMap.put(a.getMediaAssetId(), a);
+                }
+            }
+
+            // Free and delete removed assets
+            for (PostMedia pm : currentPostMedia) {
+                Long assetId = pm.getMediaAsset().getMediaAssetId();
+                if (!uniqueIds.contains(assetId)) {
+                    MediaAsset removedAsset = pm.getMediaAsset();
+                    if (removedAsset != null) {
+                        removedAsset.setStatus(MediaAssetStatus.UNATTACHED);
+                        removedAsset.setUpdatedAt(LocalDateTime.now());
+                        mediaAssetRepository.save(removedAsset);
+                    }
+                    postMediaRepository.delete(pm);
+                }
+            }
+
+            // Update existing or insert new mappings in requested order
+            for (int i = 0; i < newAssetIds.size(); i++) {
+                Long id = newAssetIds.get(i);
+                PostMedia existingPm = currentPmMap.get(id);
+                if (existingPm != null) {
+                    if (!Integer.valueOf(i).equals(existingPm.getDisplayOrder())) {
+                        existingPm.setDisplayOrder(i);
+                        postMediaRepository.save(existingPm);
+                    }
+                } else {
+                    MediaAsset newAsset = newAssetsMap.get(id);
+                    if (newAsset != null) {
+                        newAsset.setStatus(MediaAssetStatus.ATTACHED);
+                        newAsset.setUpdatedAt(LocalDateTime.now());
+                        mediaAssetRepository.save(newAsset);
+
+                        PostMedia newPm = PostMedia.builder()
+                                .post(post)
+                                .mediaAsset(newAsset)
+                                .displayOrder(i)
+                                .build();
+                        postMediaRepository.save(newPm);
+                    }
+                }
+            }
+        }
+
+        // Validate overall post validity
+        List<PostMedia> finalPostMedia = postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(postId);
+        boolean hasContent = post.getContent() != null && !post.getContent().trim().isEmpty();
+        boolean hasMedia = !finalPostMedia.isEmpty();
+        boolean hasItinerary = post.getItinerary() != null;
+        if (!hasContent && !hasMedia && !hasItinerary) {
+            throw new BadRequestException("Bài viết phải có ít nhất nội dung văn bản, ảnh hoặc lịch trình");
+        }
+
         post.setUpdatedAt(LocalDateTime.now());
         post = postRepository.save(post);
 
-        List<PostMedia> postMediaList = postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(postId);
-        List<String> urls = postMediaList.stream().map(pm -> pm.getMediaAsset().getSecureUrl()).toList();
-        List<Long> assetIds = postMediaList.stream().map(pm -> pm.getMediaAsset().getMediaAssetId()).toList();
+        List<String> urls = finalPostMedia.stream().map(pm -> pm.getMediaAsset().getSecureUrl()).toList();
+        List<Long> assetIds = finalPostMedia.stream().map(pm -> pm.getMediaAsset().getMediaAssetId()).toList();
         boolean liked = postLikeRepository.existsByPost_PostIdAndUser_UserId(postId, author.getUserId());
 
         return toPostResponse(post, urls, assetIds, liked, author.getUserId());
@@ -397,12 +588,36 @@ public class PostServiceImpl implements PostService {
                     .fullName(c.getUser().getFullName())
                     .avatar(c.getUser().getAvatar())
                     .build();
+
+            Long parentId = c.getParentComment() != null ? c.getParentComment().getPostCommentId() : null;
+            Long rootId = c.getRootComment() != null ? c.getRootComment().getPostCommentId() : null;
+            PostAuthorResponse replyToUser = null;
+            if (c.getParentComment() != null) {
+                User pu = c.getParentComment().getUser();
+                replyToUser = PostAuthorResponse.builder()
+                        .userId(pu.getUserId())
+                        .handle(pu.getHandle())
+                        .username(pu.getUsername())
+                        .fullName(pu.getFullName())
+                        .avatar(pu.getAvatar())
+                        .build();
+            }
+
+            int replyCount = 0;
+            if (parentId == null) {
+                replyCount = (int) postCommentRepository.countByRootComment_PostCommentIdAndStatus(c.getPostCommentId(), CommentStatus.ACTIVE);
+            }
+
             return PostCommentResponse.builder()
                     .commentId(c.getPostCommentId())
                     .postId(postId)
                     .content(c.getContent())
                     .author(authorResponse)
                     .isOwner(isOwner)
+                    .parentCommentId(parentId)
+                    .rootCommentId(rootId)
+                    .replyToUser(replyToUser)
+                    .replyCount(replyCount)
                     .createdAt(c.getCreatedAt())
                     .updatedAt(c.getUpdatedAt())
                     .build();
@@ -424,9 +639,41 @@ public class PostServiceImpl implements PostService {
         User author = getActiveUser(authorUsername);
         Post post = getAuthorizedPost(postId, author);
 
+        PostComment parentComment = null;
+        PostComment rootComment = null;
+        PostAuthorResponse replyToUser = null;
+
+        if (request.getParentCommentId() != null) {
+            parentComment = postCommentRepository.findById(request.getParentCommentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Bình luận gốc không tồn tại"));
+            if (!parentComment.getPost().getPostId().equals(postId)) {
+                throw new BadRequestException("Bình luận gốc không thuộc bài viết này");
+            }
+            if (parentComment.getStatus() != CommentStatus.ACTIVE) {
+                throw new BadRequestException("Không thể trả lời bình luận đã bị xóa hoặc ẩn");
+            }
+
+            if (parentComment.getRootComment() != null) {
+                rootComment = parentComment.getRootComment();
+            } else {
+                rootComment = parentComment;
+            }
+
+            User pu = parentComment.getUser();
+            replyToUser = PostAuthorResponse.builder()
+                    .userId(pu.getUserId())
+                    .handle(pu.getHandle())
+                    .username(pu.getUsername())
+                    .fullName(pu.getFullName())
+                    .avatar(pu.getAvatar())
+                    .build();
+        }
+
         PostComment comment = PostComment.builder()
                 .post(post)
                 .user(author)
+                .parentComment(parentComment)
+                .rootComment(rootComment)
                 .content(request.getContent().trim())
                 .status(CommentStatus.ACTIVE)
                 .build();
@@ -448,6 +695,10 @@ public class PostServiceImpl implements PostService {
                 .content(comment.getContent())
                 .author(authorResponse)
                 .isOwner(true)
+                .parentCommentId(parentComment != null ? parentComment.getPostCommentId() : null)
+                .rootCommentId(rootComment != null ? rootComment.getPostCommentId() : null)
+                .replyToUser(replyToUser)
+                .replyCount(0)
                 .createdAt(comment.getCreatedAt())
                 .updatedAt(comment.getUpdatedAt())
                 .build();

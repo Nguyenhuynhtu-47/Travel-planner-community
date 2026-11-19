@@ -15,5 +15,11 @@ public class CreatePostCommentRequest {
     @NotBlank(message = "Nội dung bình luận không được để trống")
     @Size(max = 1000, message = "Nội dung bình luận tối đa 1000 ký tự")
     private String content;
+
+    private Long parentCommentId;
+
+    public CreatePostCommentRequest(String content) {
+        this.content = content;
+    }
 }
 

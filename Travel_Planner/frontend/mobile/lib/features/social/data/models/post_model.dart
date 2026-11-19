@@ -182,6 +182,7 @@ class PostModel {
           [],
       mediaAssetIds: (json['mediaAssetIds'] as List<dynamic>?)
               ?.map((e) => e is int ? e : int.tryParse('$e') ?? 0)
+              .where((id) => id > 0)
               .toList() ??
           [],
       itinerary: json['itinerary'] != null

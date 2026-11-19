@@ -18,6 +18,7 @@ class CreatePostScreen extends StatefulWidget {
   final CommunityFeedNotifier? notifier;
   final ItineraryCrudRepository? itineraryRepository;
   final PostModel? editingPost;
+  final ImagePicker? imagePicker;
 
   const CreatePostScreen({
     super.key,
@@ -26,6 +27,7 @@ class CreatePostScreen extends StatefulWidget {
     this.notifier,
     this.itineraryRepository,
     this.editingPost,
+    this.imagePicker,
   });
 
   @override
@@ -36,6 +38,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   late final TextEditingController _contentController;
   late final CommunityPostRepository _repo;
   late final ItineraryCrudRepository _itineraryRepo;
+  late final ImagePicker _picker;
 
   String _visibility = 'PUBLIC';
   final List<_UploadedMediaItem> _mediaItems = [];
@@ -50,18 +53,56 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     super.initState();
     _repo = widget.repository ?? CommunityPostRepository();
     _itineraryRepo = widget.itineraryRepository ?? ItineraryCrudRepository();
+    _picker = widget.imagePicker ?? ImagePicker();
     _contentController = TextEditingController(text: widget.editingPost?.content ?? '');
 
     if (widget.editingPost != null) {
       _visibility = widget.editingPost!.visibility;
       _existingItinerary = widget.editingPost!.itinerary;
       for (int i = 0; i < widget.editingPost!.mediaUrls.length; i++) {
+        final assetId = i < widget.editingPost!.mediaAssetIds.length ? widget.editingPost!.mediaAssetIds[i] : null;
         _mediaItems.add(_UploadedMediaItem(
-          mediaAssetId: i < widget.editingPost!.mediaAssetIds.length ? widget.editingPost!.mediaAssetIds[i] : null,
+          mediaAssetId: (assetId != null && assetId > 0) ? assetId : null,
           url: widget.editingPost!.mediaUrls[i],
         ));
       }
+      if (widget.editingPost!.mediaUrls.isNotEmpty &&
+          _mediaItems.any((m) => m.mediaAssetId == null || m.mediaAssetId! <= 0)) {
+        _fetchFreshPostMedia();
+      }
     }
+  }
+
+  Future<void> _fetchFreshPostMedia() async {
+    final token = widget.authNotifier.token;
+    final postId = widget.editingPost?.postId;
+    if (postId == null) return;
+    try {
+      final fresh = await _repo.getPostById(postId, token: token);
+      if (fresh.mediaAssetIds.isNotEmpty && mounted) {
+        setState(() {
+          for (int i = 0; i < _mediaItems.length; i++) {
+            if (_mediaItems[i].mediaAssetId == null || _mediaItems[i].mediaAssetId! <= 0) {
+              final url = _mediaItems[i].url;
+              final matchIdx = fresh.mediaUrls.indexOf(url);
+              if (matchIdx != -1 && matchIdx < fresh.mediaAssetIds.length) {
+                _mediaItems[i] = _UploadedMediaItem(
+                  mediaAssetId: fresh.mediaAssetIds[matchIdx],
+                  url: url,
+                  bytes: _mediaItems[i].bytes,
+                );
+              } else if (i < fresh.mediaAssetIds.length) {
+                _mediaItems[i] = _UploadedMediaItem(
+                  mediaAssetId: fresh.mediaAssetIds[i],
+                  url: url,
+                  bytes: _mediaItems[i].bytes,
+                );
+              }
+            }
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -71,6 +112,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _pickImages() async {
+    if (_isUploading) return;
     if (_mediaItems.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tối đa 5 ảnh cho mỗi bài viết')),
@@ -78,19 +120,30 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       return;
     }
 
-    final picker = ImagePicker();
     final token = widget.authNotifier.token;
     if (token == null) return;
 
+    List<XFile> pickedFiles = [];
     try {
-      final pickedFiles = await picker.pickMultiImage();
-      if (pickedFiles.isEmpty) return;
+      pickedFiles = await _picker.pickMultiImage();
+    } catch (_) {
+      try {
+        final single = await _picker.pickImage(source: ImageSource.gallery);
+        if (single != null) {
+          pickedFiles = [single];
+        }
+      } catch (_) {}
+    }
 
-      final remainingSlots = 5 - _mediaItems.length;
-      final filesToUpload = pickedFiles.take(remainingSlots).toList();
+    if (pickedFiles.isEmpty) return;
 
-      setState(() => _isUploading = true);
+    final remainingSlots = 5 - _mediaItems.length;
+    final filesToUpload = pickedFiles.take(remainingSlots).toList();
+    if (filesToUpload.isEmpty) return;
 
+    setState(() => _isUploading = true);
+
+    try {
       for (final file in filesToUpload) {
         final bytes = await file.readAsBytes();
         final filename = file.name.isNotEmpty ? file.name : 'upload.jpg';
@@ -104,11 +157,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           final assetId = result['mediaAssetId'] is int
               ? result['mediaAssetId'] as int
               : int.tryParse('${result['mediaAssetId']}');
-          if (assetId != null && mounted) {
+          final secureUrl = result['secureUrl'] as String? ?? '';
+          if (assetId != null && assetId > 0 && mounted) {
             setState(() {
               _mediaItems.add(_UploadedMediaItem(
                 mediaAssetId: assetId,
-                url: result['secureUrl'] as String? ?? '',
+                url: secureUrl,
                 bytes: bytes,
               ));
             });
@@ -121,8 +175,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           }
         }
       }
-    } catch (_) {
-      // Ignored or picker cancelled
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -132,6 +184,48 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     setState(() {
       _mediaItems.removeAt(index);
     });
+  }
+
+  Future<void> _replaceMedia(int index) async {
+    if (_isUploading) return;
+    final token = widget.authNotifier.token;
+    if (token == null) return;
+
+    try {
+      final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return;
+
+      setState(() => _isUploading = true);
+      final bytes = await pickedFile.readAsBytes();
+      final filename = pickedFile.name.isNotEmpty ? pickedFile.name : 'replace.jpg';
+
+      final result = await _repo.uploadImage(
+        bytes: bytes,
+        filename: filename,
+        token: token,
+      );
+      final assetId = result['mediaAssetId'] is int
+          ? result['mediaAssetId'] as int
+          : int.tryParse('${result['mediaAssetId']}');
+      final secureUrl = result['secureUrl'] as String? ?? '';
+      if (assetId != null && assetId > 0 && mounted) {
+        setState(() {
+          _mediaItems[index] = _UploadedMediaItem(
+            mediaAssetId: assetId,
+            url: secureUrl,
+            bytes: bytes,
+          );
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể thay thế ảnh. Vui lòng thử lại.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 
   Future<void> _pickItinerary() async {
@@ -163,32 +257,46 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       return;
     }
 
+    final token = widget.authNotifier.token;
+    if (token == null || _isSubmitting) return;
+
+    if (widget.editingPost != null &&
+        _mediaItems.any((m) => m.mediaAssetId == null || m.mediaAssetId! <= 0)) {
+      await _fetchFreshPostMedia();
+    }
+
     final content = _contentController.text.trim();
     final assetIds = _mediaItems
         .map((m) => m.mediaAssetId)
         .whereType<int>()
+        .where((id) => id > 0)
         .toList();
     final hasItinerary = _selectedItinerary != null || _existingItinerary != null;
 
-    if (content.isEmpty && assetIds.isEmpty && !hasItinerary) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập nội dung, thêm ảnh hoặc đính kèm lịch trình')),
-      );
+    if (content.isEmpty && _mediaItems.isEmpty && !hasItinerary) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vui lòng nhập nội dung, thêm ảnh hoặc đính kèm lịch trình')),
+        );
+      }
       return;
     }
-
-    final token = widget.authNotifier.token;
-    if (token == null || _isSubmitting) return;
 
     setState(() => _isSubmitting = true);
 
     try {
       if (widget.editingPost != null) {
         // Update Post
+        final bool detachItinerary = (_selectedItinerary == null && _existingItinerary == null && widget.editingPost?.itinerary != null);
+        final int? itineraryId = _selectedItinerary?.itineraryId;
+
         final updated = await _repo.updatePost(
           widget.editingPost!.postId,
           content: content,
           visibility: _visibility,
+          mediaAssetIds: assetIds,
+          itineraryId: itineraryId,
+          detachItinerary: detachItinerary,
           token: token,
         );
         widget.notifier?.updatePostInList(updated);
@@ -379,27 +487,61 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 height: 100,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: _mediaItems.length,
+                  itemCount: _mediaItems.length + (_mediaItems.length < 5 ? 1 : 0),
                   separatorBuilder: (context, index) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
+                    if (index == _mediaItems.length) {
+                      return InkWell(
+                        onTap: (_isUploading || _mediaItems.length >= 5) ? null : _pickImages,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceSoft,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.hairline),
+                          ),
+                          child: const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_photo_alternate_outlined, color: AppColors.primary, size: 28),
+                              SizedBox(height: 4),
+                              Text('Thêm ảnh', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
                     final item = _mediaItems[index];
                     return Stack(
                       children: [
-                        ClipRRect(
+                        InkWell(
+                          onTap: () => _replaceMedia(index),
                           borderRadius: BorderRadius.circular(8),
-                          child: item.bytes != null
-                              ? Image.memory(
-                                  item.bytes!,
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
-                                )
-                              : Image.network(
-                                  item.url,
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
-                                ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: item.bytes != null
+                                ? Image.memory(
+                                    item.bytes!,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.network(
+                                    item.url,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      width: 100,
+                                      height: 100,
+                                      color: AppColors.surfaceStrong,
+                                      child: const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+                                    ),
+                                  ),
+                          ),
                         ),
                         Positioned(
                           top: 4,
@@ -413,6 +555,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.close, color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 4,
+                          right: 4,
+                          child: InkWell(
+                            onTap: () => _replaceMedia(index),
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.swap_horiz, color: Colors.white, size: 14),
                             ),
                           ),
                         ),
@@ -512,6 +669,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      tooltip: 'Gỡ lịch trình',
+                      onPressed: () => setState(() => _existingItinerary = null),
+                    ),
                   ],
                 ),
               ),
@@ -521,28 +683,28 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             const Divider(color: AppColors.hairlineSoft),
 
             // Action Attachment Buttons
-            if (widget.editingPost == null) ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.photo_library_outlined, color: Colors.green),
-                title: Text(
-                  'Thêm ảnh (${_mediaItems.length}/5)',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                trailing: const Icon(Icons.chevron_right, size: 20),
-                onTap: _isUploading ? null : _pickImages,
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.photo_library_outlined, color: Colors.green),
+              title: Text(
+                'Thêm ảnh (${_mediaItems.length}/5)',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.map_outlined, color: AppColors.primary),
-                title: const Text(
-                  'Đính kèm lịch trình',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                trailing: const Icon(Icons.chevron_right, size: 20),
-                onTap: _pickItinerary,
+              trailing: const Icon(Icons.chevron_right, size: 20),
+              onTap: (_isUploading || _mediaItems.length >= 5) ? null : _pickImages,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.map_outlined, color: AppColors.primary),
+              title: Text(
+                (_selectedItinerary != null || _existingItinerary != null)
+                    ? 'Thay đổi lịch trình'
+                    : 'Đính kèm lịch trình',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
-            ],
+              trailing: const Icon(Icons.chevron_right, size: 20),
+              onTap: _pickItinerary,
+            ),
           ],
         ),
       ),

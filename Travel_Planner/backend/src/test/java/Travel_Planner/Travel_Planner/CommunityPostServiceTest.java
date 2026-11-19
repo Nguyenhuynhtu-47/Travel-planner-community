@@ -770,5 +770,173 @@ class CommunityPostServiceTest {
                 () -> postService.reportPost(950L, request, "active_user"));
         assertEquals("Bạn không thể tự báo cáo bài viết của chính mình", ex.getMessage());
     }
+
+    @Test
+    @DisplayName("Update post allows adding new media, preserving existing media without re-upload, and detaching itinerary")
+    void updatePost_mediaAndItineraryUpdate_success() {
+        when(userRepository.findByUsername("active_user")).thenReturn(Optional.of(activeUser));
+
+        Itinerary existingItinerary = Itinerary.builder()
+                .itineraryId(123)
+                .title("Lịch trình cũ")
+                .status(ItineraryStatus.ACTIVE)
+                .visibility(Visibility.PUBLIC)
+                .user(activeUser)
+                .build();
+
+        Post post = Post.builder()
+                .postId(888L)
+                .author(activeUser)
+                .content("Nội dung ban đầu")
+                .visibility(PostVisibility.PUBLIC)
+                .status(PostStatus.ACTIVE)
+                .itinerary(existingItinerary)
+                .build();
+
+        MediaAsset oldAsset = MediaAsset.builder()
+                .mediaAssetId(501L)
+                .uploadedBy(activeUser)
+                .status(MediaAssetStatus.ATTACHED)
+                .secureUrl("https://res.cloudinary.com/old.jpg")
+                .build();
+
+        MediaAsset newAsset = MediaAsset.builder()
+                .mediaAssetId(502L)
+                .uploadedBy(activeUser)
+                .status(MediaAssetStatus.UNATTACHED)
+                .secureUrl("https://res.cloudinary.com/new.jpg")
+                .build();
+
+        PostMedia oldPm = PostMedia.builder()
+                .post(post)
+                .mediaAsset(oldAsset)
+                .displayOrder(0)
+                .build();
+
+        when(postRepository.findById(888L)).thenReturn(Optional.of(post));
+        when(postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(888L))
+                .thenReturn(List.of(oldPm))
+                .thenReturn(List.of(
+                        PostMedia.builder().post(post).mediaAsset(oldAsset).displayOrder(0).build(),
+                        PostMedia.builder().post(post).mediaAsset(newAsset).displayOrder(1).build()
+                ));
+        when(mediaAssetRepository.findByIdsForUpdate(List.of(502L))).thenReturn(List.of(newAsset));
+        when(postRepository.save(any(Post.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdatePostRequest updateRequest = UpdatePostRequest.builder()
+                .content("Nội dung đã sửa")
+                .mediaAssetIds(List.of(501L, 502L))
+                .detachItinerary(true)
+                .build();
+
+        PostResponse updated = postService.updatePost(888L, updateRequest, "active_user");
+
+        assertNotNull(updated);
+        assertEquals("Nội dung đã sửa", updated.getContent());
+        assertNull(updated.getItinerary(), "Itinerary must be detached");
+        assertEquals(2, updated.getMediaUrls().size());
+        assertEquals("https://res.cloudinary.com/old.jpg", updated.getMediaUrls().get(0));
+        assertEquals("https://res.cloudinary.com/new.jpg", updated.getMediaUrls().get(1));
+        assertEquals(MediaAssetStatus.ATTACHED, newAsset.getStatus());
+        verify(postMediaRepository, never()).deleteByPost_PostId(888L);
+        verify(postMediaRepository).save(any(PostMedia.class));
+    }
+
+    @Test
+    @DisplayName("Update post: only author can edit, other user gets 403 Forbidden")
+    void updatePost_nonAuthor_throws403() {
+        when(userRepository.findByUsername("other_user")).thenReturn(Optional.of(otherUser));
+
+        Post post = Post.builder()
+                .postId(889L)
+                .author(activeUser)
+                .content("Bài viết của activeUser")
+                .status(PostStatus.ACTIVE)
+                .build();
+
+        when(postRepository.findById(889L)).thenReturn(Optional.of(post));
+
+        UpdatePostRequest req = UpdatePostRequest.builder().content("Hacked").build();
+        assertThrows(ForbiddenException.class, () -> postService.updatePost(889L, req, "other_user"));
+    }
+
+    @Test
+    @DisplayName("Add comment as reply to parent comment links parent, root, and replyToUser")
+    void addComment_asReply_linksParentAndRoot() {
+        when(userRepository.findByUsername("other_user")).thenReturn(Optional.of(otherUser));
+
+        Post post = Post.builder()
+                .postId(300L)
+                .author(activeUser)
+                .visibility(PostVisibility.PUBLIC)
+                .status(PostStatus.ACTIVE)
+                .build();
+
+        PostComment rootComment = PostComment.builder()
+                .postCommentId(10L)
+                .post(post)
+                .user(activeUser)
+                .content("Bình luận gốc")
+                .status(CommentStatus.ACTIVE)
+                .build();
+
+        when(postRepository.findByIdWithDetails(300L)).thenReturn(Optional.of(post));
+        when(postCommentRepository.findById(10L)).thenReturn(Optional.of(rootComment));
+        when(postCommentRepository.save(any(PostComment.class))).thenAnswer(inv -> {
+            PostComment pc = inv.getArgument(0);
+            pc.setPostCommentId(20L);
+            pc.setCreatedAt(LocalDateTime.now());
+            pc.setUpdatedAt(LocalDateTime.now());
+            return pc;
+        });
+
+        CreatePostCommentRequest req = CreatePostCommentRequest.builder()
+                .content("Trả lời bình luận số 10")
+                .parentCommentId(10L)
+                .build();
+
+        PostCommentResponse resp = postService.addComment(300L, req, "other_user");
+
+        assertNotNull(resp);
+        assertEquals(20L, resp.getCommentId());
+        assertEquals("Trả lời bình luận số 10", resp.getContent());
+        assertEquals(10L, resp.getParentCommentId());
+        assertEquals(10L, resp.getRootCommentId());
+        assertNotNull(resp.getReplyToUser());
+        assertEquals(activeUser.getUserId(), resp.getReplyToUser().getUserId());
+        verify(postRepository).incrementCommentCount(300L);
+    }
+
+    @Test
+    @DisplayName("getUserPosts returns active posts for owner including private posts")
+    void getUserPosts_owner_seesAllPosts() {
+        when(userRepository.findByUsername("active_user")).thenReturn(Optional.of(activeUser));
+        when(userRepository.findById(activeUser.getUserId())).thenReturn(Optional.of(activeUser));
+
+        Post publicPost = Post.builder()
+                .postId(1L)
+                .author(activeUser)
+                .content("Public post")
+                .visibility(PostVisibility.PUBLIC)
+                .status(PostStatus.ACTIVE)
+                .build();
+
+        Post privatePost = Post.builder()
+                .postId(2L)
+                .author(activeUser)
+                .content("Private post")
+                .visibility(PostVisibility.PRIVATE)
+                .status(PostStatus.ACTIVE)
+                .build();
+
+        when(postRepository.findUserPostsAll(eq(activeUser.getUserId()), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(publicPost, privatePost)));
+        when(postMediaRepository.findByPostIdsWithAsset(anyList())).thenReturn(Collections.emptyList());
+
+        PageResponse<PostResponse> result = postService.getUserPosts(null, 0, 10, "active_user");
+
+        assertEquals(2, result.getContent().size());
+        assertEquals(2L, result.getContent().get(1).getPostId());
+    }
 }
 
