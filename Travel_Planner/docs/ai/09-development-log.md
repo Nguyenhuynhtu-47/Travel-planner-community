@@ -9857,3 +9857,32 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 - Gỡ API/JPA/UI xóa hoặc ẩn conversation; không drop cột vật lý `hidden_at` nếu đã được tạo trong local/test schema. Không thêm bảng hay migration.
 - Mở rộng block guard cho profile/search/feed/post/itinerary/messaging và WebSocket; block không xóa lịch sử, unblock không tái tạo friendship/accept.
 - Xác minh: backend targeted tests và Spring context trên MySQL test schema pass; Flutter messaging/feed/profile 40 tests pass; analyzer 8 file không có lỗi/warning, còn 12 info-only curly-brace lints ở public profile. Runtime API/WebSocket và hai thiết bị chưa được chạy.
+
+## 2026-11-19 — Resolution of Itinerary Comments Placement, Post Comments Keyboard Overflow, and Sample Itinerary Places
+
+- **Issue 1 — Itinerary Comments Placement Migration:**
+  - Relocated the itinerary-level comments section (`ItineraryCommentsSection`) from the bottom of the "Hoạt động" (Activities) tab to the "Tổng quan" (Overview) tab right above the rating section (`_buildRatingSection`), matching UX layout requirements.
+  - Removed `if (!isOwner)` condition so both itinerary owners and visiting users can view and participate in comments seamlessly.
+  - Retained activity-level comment buttons on individual timeline cards in the Activities tab without duplicates.
+  - Updated mobile widget tests in `activity_detail_screen_test.dart` and verified `rating_ui_layout_test.dart` (all 5 layout tests pass).
+
+- **Issue 2 — Post Comments Virtual Keyboard Layout & Obstruction Fix:**
+  - Diagnosed that fixed sheet height calculation in `PostCommentsSheet` (`0.75 * height`) without accounting for `viewInsets.bottom` caused the comment input field to be occluded beneath the software keyboard and trigger RenderFlex overflow on small displays.
+  - Implemented dynamic sheet height bounded by `availableHeight = screenHeight - keyboardHeight`, wrapped container with `Padding(padding: EdgeInsets.only(bottom: keyboardHeight))`, pinned input bar above keyboard with safe area adjustments, and added `keyboardDismissBehavior: onDrag` to allow smooth independent scrolling of comments.
+  - Added `useSafeArea: true` to `showModalBottomSheet` call in `CommunityFeedScreen`.
+  - Created widget unit test `post_comments_sheet_keyboard_test.dart` testing keyboard height transitions, zero text loss across keyboard open/close, independent comment scrolling, submit actions, and zero RenderFlex overflow on ultra-narrow screens (320x480 with 260dp keyboard).
+
+- **Issue 3 — Sample/Template Itinerary Places Resolution:**
+  - Root cause analysis confirmed that `DataSeeder` created Activities with canonical place IDs (`canonical_place_id`), but never inserted records into the `itinerary_places` table for sample itineraries (IDs 259–276).
+  - Developed a robust multi-layer solution:
+    1. **Startup Migration Runner:** Implemented `SampleItineraryPlaceMigrationRunner` (`@Order(5)`) using connection-bound MySQL advisory locking (`sample_itinerary_place_migration_lock`), non-destructively backfilling missing `itinerary_places` from `activities.canonical_place_id` idempotently.
+    2. **DataSeeder Update:** Added `ItineraryPlaceRepository` injection to `DataSeeder` and implemented `seedItineraryPlaces()`, ensuring all future seeding runs properly associate places with itineraries.
+    3. **Backend Service Linking & Fallback:** Updated `ItineraryServiceImpl` to automatically insert `ItineraryPlace` records whenever activities are created or updated with a canonical place. Updated `ItineraryPlaceServiceImpl` with runtime fallback in `getAllSavedPlaces` and `getSavedPlaces` to scan activities and populate `itinerary_places` if empty.
+    4. **Mobile UI Fallback:** Added `_getEffectiveSavedPlaces(itinerary)` in `itinerary_detail_screen.dart` to derive distinct places from `itinerary.days.activities.place` if the saved places list is empty.
+  - Added `SampleItineraryPlaceMigrationRunnerTest` (2/2 passed) and 2 new tests in `ItineraryPlaceTest` (21/21 passed). Tested `DataSeederTest` (8/8 passed).
+
+- **Verification Summary:**
+  - Backend tests: `SampleItineraryPlaceMigrationRunnerTest` + `ItineraryPlaceTest` (23/23 PASSED), `DataSeederTest` (8/8 PASSED).
+  - Mobile tests: `activity_detail_screen_test.dart` + `post_comments_sheet_keyboard_test.dart` + `rating_ui_layout_test.dart` (20/20 PASSED).
+  - Mobile analysis: `flutter analyze` on modified files completed with 0 errors and 0 warnings.
+  - Git working tree preserved without commits, resets, or branch changes.

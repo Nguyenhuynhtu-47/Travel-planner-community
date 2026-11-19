@@ -43,6 +43,7 @@ public class DataSeeder implements CommandLineRunner {
     private final FollowRepository followRepository;
     private final ItineraryShareRepository itineraryShareRepository;
     private final OfflineDownloadRepository offlineDownloadRepository;
+    private final ItineraryPlaceRepository itineraryPlaceRepository;
 
     public DataSeeder(PasswordEncoder passwordEncoder,
                       UserRepository userRepository,
@@ -57,7 +58,8 @@ public class DataSeeder implements CommandLineRunner {
                       SavedItineraryRepository savedItineraryRepository,
                       FollowRepository followRepository,
                       ItineraryShareRepository itineraryShareRepository,
-                      OfflineDownloadRepository offlineDownloadRepository) {
+                      OfflineDownloadRepository offlineDownloadRepository,
+                      ItineraryPlaceRepository itineraryPlaceRepository) {
         this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
         this.placeRepository = placeRepository;
@@ -72,6 +74,7 @@ public class DataSeeder implements CommandLineRunner {
         this.followRepository = followRepository;
         this.itineraryShareRepository = itineraryShareRepository;
         this.offlineDownloadRepository = offlineDownloadRepository;
+        this.itineraryPlaceRepository = itineraryPlaceRepository;
     }
 
     @Override
@@ -93,6 +96,7 @@ public class DataSeeder implements CommandLineRunner {
         Map<String, Place> placeMap = seedPlaces();
         Map<String, Itinerary> itineraryMap = seedItineraries(userMap);
         seedDaysAndActivities(itineraryMap, placeMap);
+        seedItineraryPlaces(itineraryMap);
         seedSocialInteractions(userMap, itineraryMap);
         synchronizeItineraryCounters(itineraryMap);
 
@@ -1171,6 +1175,38 @@ public class DataSeeder implements CommandLineRunner {
             }
 
             activityRepository.save(builder.build());
+
+            if (place != null && itineraryPlaceRepository != null && day.getItinerary() != null) {
+                if (!itineraryPlaceRepository.existsByItinerary_ItineraryIdAndPlace_PlaceId(day.getItinerary().getItineraryId(), place.getPlaceId())) {
+                    itineraryPlaceRepository.save(ItineraryPlace.builder()
+                            .itinerary(day.getItinerary())
+                            .place(place)
+                            .savedAt(LocalDateTime.now())
+                            .build());
+                }
+            }
+        }
+    }
+
+    private void seedItineraryPlaces(Map<String, Itinerary> itineraryMap) {
+        if (itineraryPlaceRepository == null || itineraryMap == null) {
+            return;
+        }
+        for (Itinerary itin : itineraryMap.values()) {
+            List<Activity> activities = activityRepository.findByItineraryDay_Itinerary_ItineraryIdOrderByDisplayOrderAsc(itin.getItineraryId());
+            Set<Long> seenPlaceIds = new HashSet<>();
+            for (Activity act : activities) {
+                Place p = act.getPlace();
+                if (p != null && seenPlaceIds.add(p.getPlaceId())) {
+                    if (!itineraryPlaceRepository.existsByItinerary_ItineraryIdAndPlace_PlaceId(itin.getItineraryId(), p.getPlaceId())) {
+                        itineraryPlaceRepository.save(ItineraryPlace.builder()
+                                .itinerary(itin)
+                                .place(p)
+                                .savedAt(LocalDateTime.now())
+                                .build());
+                    }
+                }
+            }
         }
     }
 

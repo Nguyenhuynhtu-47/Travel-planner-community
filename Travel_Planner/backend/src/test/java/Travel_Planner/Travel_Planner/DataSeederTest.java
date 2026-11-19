@@ -75,6 +75,9 @@ class DataSeederTest {
     private OfflineDownloadRepository offlineDownloadRepository;
 
     @Autowired
+    private ItineraryPlaceRepository itineraryPlaceRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @BeforeEach
@@ -96,6 +99,7 @@ class DataSeederTest {
         favoriteRepository.deleteAll();
         commentRepository.deleteAll();
         ratingRepository.deleteAll();
+        itineraryPlaceRepository.deleteAll();
         activityRepository.deleteAll();
         itineraryDayRepository.deleteAll();
         itineraryRepository.deleteAll();
@@ -193,6 +197,7 @@ class DataSeederTest {
         assertTrue(followRepository.count() >= 5, "Follows should be >= 5");
         assertTrue(itineraryShareRepository.count() >= 3, "Itinerary shares should be >= 3");
         assertTrue(offlineDownloadRepository.count() >= 5, "Offline downloads should be >= 5");
+        assertTrue(itineraryPlaceRepository.count() >= 10, "Itinerary places should be >= 10");
 
         // Verify no self-follows
         for (Follow f : followRepository.findAll()) {

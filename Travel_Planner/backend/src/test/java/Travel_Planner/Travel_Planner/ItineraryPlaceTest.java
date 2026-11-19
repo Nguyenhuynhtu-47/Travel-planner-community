@@ -488,6 +488,67 @@ class ItineraryPlaceTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("20. Adding an activity with canonicalPlaceId automatically links ItineraryPlace")
+    void testAddActivity_AutomaticallyLinksItineraryPlace() throws Exception {
+        ItineraryDay day = itineraryDayRepository.save(ItineraryDay.builder()
+                .itinerary(publicItinerary)
+                .dayNumber(1)
+                .date(LocalDate.now())
+                .build());
+
+        String json = "{\n" +
+                "  \"name\": \"Khám phá Chợ Bến Thành\",\n" +
+                "  \"startTime\": \"09:00\",\n" +
+                "  \"endTime\": \"11:00\",\n" +
+                "  \"canonicalPlaceId\": " + activePlace1.getPlaceId() + "\n" +
+                "}";
+
+        mockMvc.perform(post("/api/itineraries/" + publicItinerary.getItineraryId() + "/days/" + day.getDayId() + "/activities")
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isCreated());
+
+        assertTrue(itineraryPlaceRepository.existsByItinerary_ItineraryIdAndPlace_PlaceId(
+                publicItinerary.getItineraryId(), activePlace1.getPlaceId()),
+                "Adding activity must automatically register the place in itinerary_places");
+    }
+
+    @Test
+    @DisplayName("21. getAllSavedPlaces gracefully backfills places from activities when itinerary_places is empty")
+    void testGetAllSavedPlaces_GracefullyBackfillsFromActivitiesWhenEmpty() throws Exception {
+        ItineraryDay day = itineraryDayRepository.save(ItineraryDay.builder()
+                .itinerary(publicItinerary)
+                .dayNumber(1)
+                .date(LocalDate.now())
+                .build());
+
+        activityRepository.save(Activity.builder()
+                .itineraryDay(day)
+                .place(activePlace2)
+                .name("Check-in Nhà thờ Đức Bà")
+                .startTime(LocalTime.of(14, 0))
+                .endTime(LocalTime.of(15, 30))
+                .cost(BigDecimal.ZERO)
+                .displayOrder(1)
+                .build());
+
+        // Ensure itinerary_places is currently empty
+        itineraryPlaceRepository.deleteAll();
+
+        // Calling /places/all
+        mockMvc.perform(get("/api/itineraries/" + publicItinerary.getItineraryId() + "/places/all")
+                        .header("Authorization", ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].place.placeId").value(activePlace2.getPlaceId()));
+
+        // Verify it was persisted to itinerary_places table
+        assertTrue(itineraryPlaceRepository.existsByItinerary_ItineraryIdAndPlace_PlaceId(
+                publicItinerary.getItineraryId(), activePlace2.getPlaceId()));
+    }
+
     private void savePlaceDirectly(Itinerary itinerary, Place place) {
         itineraryPlaceRepository.save(ItineraryPlace.builder()
                 .itinerary(itinerary)

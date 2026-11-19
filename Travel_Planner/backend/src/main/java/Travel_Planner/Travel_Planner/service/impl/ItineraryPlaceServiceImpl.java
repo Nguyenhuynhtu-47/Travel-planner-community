@@ -8,12 +8,14 @@ import Travel_Planner.Travel_Planner.exception.BadRequestException;
 import Travel_Planner.Travel_Planner.exception.ConflictException;
 import Travel_Planner.Travel_Planner.exception.ForbiddenException;
 import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
+import Travel_Planner.Travel_Planner.model.Activity;
 import Travel_Planner.Travel_Planner.model.AdministrativeArea;
 import Travel_Planner.Travel_Planner.model.Itinerary;
 import Travel_Planner.Travel_Planner.model.ItineraryPlace;
 import Travel_Planner.Travel_Planner.model.Place;
 import Travel_Planner.Travel_Planner.model.enums.PlaceStatus;
 import Travel_Planner.Travel_Planner.model.enums.Visibility;
+import Travel_Planner.Travel_Planner.repository.ActivityRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryPlaceRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryRepository;
 import Travel_Planner.Travel_Planner.repository.PlaceRepository;
@@ -24,7 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,15 +40,18 @@ public class ItineraryPlaceServiceImpl implements ItineraryPlaceService {
     private final ItineraryRepository itineraryRepository;
     private final PlaceRepository placeRepository;
     private final ItineraryPlaceRepository itineraryPlaceRepository;
+    private final ActivityRepository activityRepository;
 
     public ItineraryPlaceServiceImpl(
             ItineraryRepository itineraryRepository,
             PlaceRepository placeRepository,
-            ItineraryPlaceRepository itineraryPlaceRepository
+            ItineraryPlaceRepository itineraryPlaceRepository,
+            ActivityRepository activityRepository
     ) {
         this.itineraryRepository = itineraryRepository;
         this.placeRepository = placeRepository;
         this.itineraryPlaceRepository = itineraryPlaceRepository;
+        this.activityRepository = activityRepository;
     }
 
     @Override
@@ -82,7 +91,7 @@ public class ItineraryPlaceServiceImpl implements ItineraryPlaceService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<ItineraryPlaceResponse> getSavedPlaces(
             Integer itineraryId,
             Pageable pageable,
@@ -94,11 +103,17 @@ public class ItineraryPlaceServiceImpl implements ItineraryPlaceService {
         validateItineraryViewAccess(itinerary, currentUsernameOrEmail);
 
         Page<ItineraryPlace> page = itineraryPlaceRepository.findByItineraryIdWithPlace(itineraryId, pageable);
+        if (page.isEmpty() && (pageable == null || pageable.getPageNumber() == 0)) {
+            List<ItineraryPlace> backfilled = backfillPlacesFromActivities(itinerary);
+            if (!backfilled.isEmpty()) {
+                page = itineraryPlaceRepository.findByItineraryIdWithPlace(itineraryId, pageable);
+            }
+        }
         return page.map(this::toResponse);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<ItineraryPlaceResponse> getAllSavedPlaces(
             Integer itineraryId,
             String currentUsernameOrEmail
@@ -109,7 +124,33 @@ public class ItineraryPlaceServiceImpl implements ItineraryPlaceService {
         validateItineraryViewAccess(itinerary, currentUsernameOrEmail);
 
         List<ItineraryPlace> list = itineraryPlaceRepository.findAllByItineraryIdWithPlace(itineraryId);
+        if (list.isEmpty()) {
+            list = backfillPlacesFromActivities(itinerary);
+        }
         return list.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    private List<ItineraryPlace> backfillPlacesFromActivities(Itinerary itinerary) {
+        if (activityRepository == null || itinerary == null) {
+            return Collections.emptyList();
+        }
+        List<Activity> activities = activityRepository.findByItineraryDay_Itinerary_ItineraryIdOrderByDisplayOrderAsc(itinerary.getItineraryId());
+        Set<Long> seenPlaceIds = new HashSet<>();
+        List<ItineraryPlace> createdList = new ArrayList<>();
+        for (Activity act : activities) {
+            Place p = act.getPlace();
+            if (p != null && seenPlaceIds.add(p.getPlaceId())) {
+                if (!itineraryPlaceRepository.existsByItinerary_ItineraryIdAndPlace_PlaceId(itinerary.getItineraryId(), p.getPlaceId())) {
+                    ItineraryPlace ip = ItineraryPlace.builder()
+                            .itinerary(itinerary)
+                            .place(p)
+                            .savedAt(LocalDateTime.now())
+                            .build();
+                    createdList.add(itineraryPlaceRepository.save(ip));
+                }
+            }
+        }
+        return createdList;
     }
 
     @Override

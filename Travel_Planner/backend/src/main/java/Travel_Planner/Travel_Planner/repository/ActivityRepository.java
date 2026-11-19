@@ -18,6 +18,9 @@ public interface ActivityRepository extends JpaRepository<Activity, Integer> {
     List<Activity> findByItineraryDay_DayIdOrderByDisplayOrderAsc(Integer dayId);
 
     @EntityGraph(attributePaths = {"place"})
+    List<Activity> findByItineraryDay_Itinerary_ItineraryIdOrderByDisplayOrderAsc(Integer itineraryId);
+
+    @EntityGraph(attributePaths = {"place"})
     java.util.Optional<Activity> findByActivityIdAndItineraryDay_DayId(Integer activityId, Integer dayId);
 
     long countByPlace_PlaceId(Long placeId);

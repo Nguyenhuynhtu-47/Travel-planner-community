@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.function.Function;
@@ -961,6 +962,15 @@ public class ItineraryServiceImpl implements ItineraryService {
         activity.setImageUrl(validateActivityImageUrl(request.getImageUrl()));
 
         activity = activityRepository.save(activity);
+        if (activity.getPlace() != null && itineraryPlaceRepository != null) {
+            if (!itineraryPlaceRepository.existsByItinerary_ItineraryIdAndPlace_PlaceId(itineraryId, activity.getPlace().getPlaceId())) {
+                itineraryPlaceRepository.save(ItineraryPlace.builder()
+                        .itinerary(itinerary)
+                        .place(activity.getPlace())
+                        .savedAt(LocalDateTime.now())
+                        .build());
+            }
+        }
         return mapToActivityResponse(activity);
     }
 
@@ -970,7 +980,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         if (itineraryId == null || dayId == null || activityId == null) {
             throw new BadRequestException("Mã lịch trình, ngày hoặc hoạt động không hợp lệ");
         }
-        findOwnedItinerary(itineraryId, currentUsername, "chỉnh sửa");
+        Itinerary itinerary = findOwnedItinerary(itineraryId, currentUsername, "chỉnh sửa");
 
         itineraryDayRepository.findByDayIdAndItinerary_ItineraryId(dayId, itineraryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ngày không tồn tại hoặc không thuộc lịch trình này"));
@@ -996,6 +1006,15 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         activity = activityRepository.save(activity);
+        if (activity.getPlace() != null && itineraryPlaceRepository != null) {
+            if (!itineraryPlaceRepository.existsByItinerary_ItineraryIdAndPlace_PlaceId(itineraryId, activity.getPlace().getPlaceId())) {
+                itineraryPlaceRepository.save(ItineraryPlace.builder()
+                        .itinerary(itinerary)
+                        .place(activity.getPlace())
+                        .savedAt(LocalDateTime.now())
+                        .build());
+            }
+        }
         return mapToActivityResponse(activity);
     }
 

@@ -225,6 +225,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => PostCommentsSheet(
         postId: post.postId,

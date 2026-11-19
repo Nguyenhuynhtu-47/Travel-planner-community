@@ -388,7 +388,7 @@ void main() {
       days: [testDay],
     );
 
-    testWidgets('Owner editing personal itinerary: activity comment button and bottom comment section are completely hidden', (tester) async {
+    testWidgets('Owner viewing itinerary: comments section is rendered in Overview tab, not in Activities tab', (tester) async {
       final notifier = _FakeItineraryDetailNotifier(publicActiveItinerary);
       final authNotifier = _FakeAuthNotifier(user: {'username': 'test_author', 'userId': 1});
 
@@ -402,23 +402,28 @@ void main() {
               isOwner: true,
               notifier: notifier,
               authNotifier: authNotifier,
+              initialTab: 0,
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Inside activity: "Bình luận hoạt động" must NOT be visible
-      expect(find.text('Bình luận hoạt động'), findsNothing);
+      // In Overview tab (Tab 0), ItineraryCommentsSection is visible for owner
+      expect(find.byType(ItineraryCommentsSection), findsOneWidget);
 
-      // Bottom comments section must NOT be rendered
-      expect(find.byType(ItineraryCommentsSection), findsNothing);
+      // Switch to Activities tab (Tab 1)
+      await tester.tap(find.text('Hoạt động'));
+      await tester.pumpAndSettle();
+
+      // Inside activity: Activity comments button is hidden for owner editing
+      expect(find.text('Bình luận hoạt động'), findsNothing);
 
       // Activity should still be tappable to view detail
       expect(find.text('Đi bộ phố đi bộ Nguyễn Huệ'), findsOneWidget);
     });
 
-    testWidgets('Non-owner viewing public itinerary: activity comments and itinerary comments section remain visible', (tester) async {
+    testWidgets('Non-owner viewing public itinerary: comments in Overview tab and activity comments button in Activities tab', (tester) async {
       final notifier = _FakeItineraryDetailNotifier(publicActiveItinerary);
       final authNotifier = _FakeAuthNotifier(user: {'username': 'guest_user', 'userId': 2});
 
@@ -432,20 +437,22 @@ void main() {
               isOwner: false,
               notifier: notifier,
               authNotifier: authNotifier,
+              initialTab: 0,
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Inside activity: "Bình luận hoạt động" IS visible for public viewers
-      expect(find.text('Bình luận hoạt động'), findsOneWidget);
+      // Overview tab has ItineraryCommentsSection for non-owner
+      expect(find.byType(ItineraryCommentsSection), findsOneWidget);
 
-      // Scroll down to check itinerary comments section
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
+      // Switch to Activities tab (Tab 1)
+      await tester.tap(find.text('Hoạt động'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(ItineraryCommentsSection), findsOneWidget);
+      // Inside activity in Activities tab: "Bình luận hoạt động" IS visible for public viewers
+      expect(find.text('Bình luận hoạt động'), findsOneWidget);
     });
 
     testWidgets('Tapping activity in personal itinerary navigates to ActivityDetailScreen', (tester) async {
@@ -462,6 +469,7 @@ void main() {
               isOwner: true,
               notifier: notifier,
               authNotifier: authNotifier,
+              initialTab: 1, // Start on Activities tab to tap activity
             ),
           ),
         ),

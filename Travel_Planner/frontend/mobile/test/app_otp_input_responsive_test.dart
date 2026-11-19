@@ -16,7 +16,6 @@ void main() {
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
-      String currentCode = '';
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -25,7 +24,7 @@ void main() {
               child: Center(
                 child: AppOtpInput(
                   length: 6,
-                  onChanged: (val) => currentCode = val,
+                  onChanged: (_) {},
                 ),
               ),
             ),

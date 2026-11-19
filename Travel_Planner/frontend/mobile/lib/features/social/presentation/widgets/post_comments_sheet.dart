@@ -161,195 +161,218 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Drag handle
-          Container(
-            margin: const EdgeInsets.only(top: 10, bottom: 6),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.hairline,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          // Title Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                const Text(
-                  'Bình luận',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.hairlineSoft),
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardHeight = mediaQuery.viewInsets.bottom;
+    final screenHeight = mediaQuery.size.height;
+    final availableHeight = (screenHeight - keyboardHeight).clamp(0.0, screenHeight);
+    final sheetHeight = keyboardHeight > 0
+        ? (availableHeight * 0.92).clamp(240.0, availableHeight)
+        : (screenHeight * 0.75).clamp(240.0, screenHeight * 0.85);
 
-          // Flat Comments List
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(
-                        child: TextButton(
-                          onPressed: _loadComments,
-                          child: Text(_error!),
-                        ),
-                      )
-                    : _comments.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'Chưa có bình luận nào. Hãy là người đầu tiên!',
-                              style: TextStyle(color: AppColors.muted),
-                            ),
-                          )
-                        : ListView.separated(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _comments.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 16),
-                            itemBuilder: (context, index) {
-                              final comment = _comments[index];
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: AppColors.surfaceStrong,
-                                    backgroundImage: comment.author.avatar != null &&
-                                            comment.author.avatar!.isNotEmpty
-                                        ? NetworkImage(comment.author.avatar!)
-                                        : null,
-                                    child: comment.author.avatar == null ||
-                                            comment.author.avatar!.isEmpty
-                                        ? const Icon(Icons.person, size: 18, color: AppColors.muted)
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.surfaceSoft,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Text(
-                                                comment.author.displayName,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 13,
-                                                  color: AppColors.textPrimary,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                _formatTime(comment.createdAt),
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  color: AppColors.muted,
-                                                ),
-                                              ),
-                                              const Spacer(),
-                                              if (comment.isOwner)
-                                                InkWell(
-                                                  onTap: () => _deleteComment(comment),
-                                                  child: const Padding(
-                                                    padding: EdgeInsets.all(2.0),
-                                                    child: Icon(
-                                                      Icons.delete_outline,
-                                                      size: 16,
-                                                      color: AppColors.muted,
-                                                    ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: Container(
+        height: sheetHeight,
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Drag handle
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Text(
+                    'Bình luận',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: AppColors.hairlineSoft),
+
+            // Flat Comments List
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: TextButton(
+                            onPressed: _loadComments,
+                            child: Text(_error!),
+                          ),
+                        )
+                      : _comments.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'Chưa có bình luận nào. Hãy là người đầu tiên!',
+                                style: TextStyle(color: AppColors.muted),
+                              ),
+                            )
+                          : ListView.separated(
+                              controller: _scrollController,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _comments.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 16),
+                              itemBuilder: (context, index) {
+                                final comment = _comments[index];
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 16,
+                                      backgroundColor: AppColors.surfaceStrong,
+                                      backgroundImage: comment.author.avatar != null &&
+                                              comment.author.avatar!.isNotEmpty
+                                          ? NetworkImage(comment.author.avatar!)
+                                          : null,
+                                      child: comment.author.avatar == null ||
+                                              comment.author.avatar!.isEmpty
+                                          ? const Icon(Icons.person,
+                                              size: 18, color: AppColors.muted)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surfaceSoft,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  comment.author.displayName,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 13,
+                                                    color: AppColors.textPrimary,
                                                   ),
                                                 ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            comment.content,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              height: 1.3,
-                                              color: AppColors.textPrimary,
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  _formatTime(comment.createdAt),
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppColors.muted,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                if (comment.isOwner)
+                                                  InkWell(
+                                                    onTap: () =>
+                                                        _deleteComment(comment),
+                                                    child: const Padding(
+                                                      padding: EdgeInsets.all(2.0),
+                                                      child: Icon(
+                                                        Icons.delete_outline,
+                                                        size: 16,
+                                                        color: AppColors.muted,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              comment.content,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                height: 1.3,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-          ),
+                                  ],
+                                );
+                              },
+                            ),
+            ),
 
-          // Bottom Input Field
-          if (widget.token != null)
-            SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border(top: BorderSide(color: AppColors.hairlineSoft, width: 1)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _commentController,
-                        maxLines: 3,
-                        minLines: 1,
-                        decoration: InputDecoration(
-                          hintText: 'Viết bình luận...',
-                          hintStyle: const TextStyle(color: AppColors.muted, fontSize: 14),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          filled: true,
-                          fillColor: AppColors.surfaceSoft,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide.none,
+            // Bottom Input Field
+            if (widget.token != null)
+              SafeArea(
+                top: false,
+                bottom: keyboardHeight == 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: const BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border(
+                        top: BorderSide(color: AppColors.hairlineSoft, width: 1)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          maxLines: 3,
+                          minLines: 1,
+                          decoration: InputDecoration(
+                            hintText: 'Viết bình luận...',
+                            hintStyle: const TextStyle(
+                                color: AppColors.muted, fontSize: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            filled: true,
+                            fillColor: AppColors.surfaceSoft,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    _submitting
-                        ? const SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : IconButton(
-                            icon: const Icon(Icons.send_rounded, color: AppColors.primary),
-                            onPressed: _submitComment,
-                          ),
-                  ],
+                      const SizedBox(width: 8),
+                      _submitting
+                          ? const SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : IconButton(
+                              icon: const Icon(Icons.send_rounded,
+                                  color: AppColors.primary),
+                              onPressed: _submitComment,
+                            ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

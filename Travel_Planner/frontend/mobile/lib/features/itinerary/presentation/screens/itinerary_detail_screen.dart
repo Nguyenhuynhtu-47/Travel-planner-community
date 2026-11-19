@@ -1321,7 +1321,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
             child: _buildItinerarySavedPlacesSection(itinerary, isOwner),
           ),
 
-          // 3. Rating summary section if public & active
+          // 3. Comments section if public & active (visible to both owner and other users)
+          if ((itinerary.status == 'ACTIVE' ||
+                  itinerary.status == 'PUBLISHED') &&
+              itinerary.visibility == 'PUBLIC')
+            SliverToBoxAdapter(
+              child: ItineraryCommentsSection(
+                itineraryId: itinerary.itineraryId,
+                token: _effectiveToken,
+                authNotifier: widget.authNotifier,
+              ),
+            ),
+
+          // 4. Rating summary section if public & active
           if ((itinerary.status == 'ACTIVE' ||
                   itinerary.status == 'PUBLISHED') &&
               itinerary.visibility == 'PUBLIC')
@@ -1555,18 +1567,6 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     ),
                     onPressed: () => setState(() => _selectedDayNumber = null),
                   ),
-                ),
-              ),
-          ],
-          if ((itinerary.status == 'ACTIVE' ||
-                  itinerary.status == 'PUBLISHED') &&
-              itinerary.visibility == 'PUBLIC') ...[
-            if (!isOwner)
-              SliverToBoxAdapter(
-                child: ItineraryCommentsSection(
-                  itineraryId: itinerary.itineraryId,
-                  token: _effectiveToken,
-                  authNotifier: widget.authNotifier,
                 ),
               ),
           ],
@@ -2363,11 +2363,35 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     );
   }
 
+  List<ItineraryPlace> _getEffectiveSavedPlaces(ItineraryDetail itinerary) {
+    if (_notifier.savedPlaces.isNotEmpty) {
+      return _notifier.savedPlaces;
+    }
+    final seenPlaceIds = <int>{};
+    final derived = <ItineraryPlace>[];
+    for (final day in itinerary.days) {
+      for (final act in day.activities) {
+        final p = act.place;
+        if (p != null && p.placeId > 0 && !seenPlaceIds.contains(p.placeId)) {
+          seenPlaceIds.add(p.placeId);
+          derived.add(
+            ItineraryPlace(
+              id: p.placeId,
+              itineraryId: itinerary.itineraryId,
+              place: p,
+            ),
+          );
+        }
+      }
+    }
+    return derived;
+  }
+
   Widget _buildItinerarySavedPlacesSection(
     ItineraryDetail itinerary,
     bool isOwner,
   ) {
-    final savedPlaces = _notifier.savedPlaces;
+    final savedPlaces = _getEffectiveSavedPlaces(itinerary);
     final isLoading = _notifier.isLoadingSavedPlaces && savedPlaces.isEmpty;
     final error = _notifier.savedPlacesError;
 
