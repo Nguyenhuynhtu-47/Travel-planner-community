@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/sync/app_sync_bus.dart';
+import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
@@ -32,10 +34,22 @@ class MyItinerariesScreen extends StatefulWidget {
   State<MyItinerariesScreen> createState() => _MyItinerariesScreenState();
 }
 
-class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
+class _MyItinerariesScreenState extends State<MyItinerariesScreen>
+    with AutoRefreshLifecycleMixin<MyItinerariesScreen> {
   late final MyItinerariesNotifier _notifier;
   late final ItineraryCrudRepository _repository;
   final ScrollController _scrollController = ScrollController();
+
+  @override
+  Set<SyncDomain> get syncDomains => {SyncDomain.itineraries};
+
+  @override
+  Duration get syncTtl => const Duration(minutes: 3);
+
+  @override
+  Future<void> onRefreshData({bool isBackground = false}) async {
+    await _notifier.refresh(token: widget.authNotifier.token);
+  }
 
   @override
   void initState() {
@@ -113,6 +127,7 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
         item.itineraryId,
         token: widget.authNotifier.token,
       );
+      AppSyncBus.emitItineraryDeleted(item.itineraryId);
 
       if (!mounted) return;
 
@@ -242,8 +257,10 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
 
                 if (_notifier.isEmptyResults) {
                   return RefreshIndicator(
-                    onRefresh: () =>
-                        _notifier.refresh(token: widget.authNotifier.token),
+                    onRefresh: () async {
+                      await _notifier.refresh(token: widget.authNotifier.token);
+                      recordRefreshedNow();
+                    },
                     color: AppColors.primary,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -263,8 +280,10 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
                 }
 
                 return RefreshIndicator(
-                  onRefresh: () =>
-                      _notifier.refresh(token: widget.authNotifier.token),
+                  onRefresh: () async {
+                    await _notifier.refresh(token: widget.authNotifier.token);
+                    recordRefreshedNow();
+                  },
                   color: AppColors.primary,
                   child: ListView.builder(
                     controller: _scrollController,

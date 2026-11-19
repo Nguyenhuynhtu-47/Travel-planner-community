@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/sync/app_sync_bus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../features/auth/presentation/auth_notifier.dart';
 import '../../features/explore/presentation/explore_notifier.dart';
@@ -14,6 +15,7 @@ import '../../features/collection/presentation/collection_notifier.dart';
 import '../../features/collection/data/collection_repository.dart';
 import '../../features/social/presentation/screens/community_screen.dart';
 import '../../features/social/presentation/community_feed_notifier.dart';
+import '../../features/social/data/community_post_repository.dart';
 import '../../features/messaging/data/messaging_realtime_client.dart';
 
 /// Main navigation shell containing the 5 bottom navigation destinations:
@@ -30,6 +32,8 @@ class MainNavigationShell extends StatefulWidget {
   final ProfileRepository? profileRepository;
   final CollectionNotifier? collectionNotifier;
   final CollectionRepository? collectionRepository;
+  final CommunityFeedNotifier? communityNotifier;
+  final CommunityPostRepository? communityPostRepository;
 
   const MainNavigationShell({
     super.key,
@@ -40,6 +44,8 @@ class MainNavigationShell extends StatefulWidget {
     this.profileRepository,
     this.collectionNotifier,
     this.collectionRepository,
+    this.communityNotifier,
+    this.communityPostRepository,
   });
 
   @override
@@ -54,7 +60,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    _communityNotifier = CommunityFeedNotifier();
+    _communityNotifier = widget.communityNotifier ?? CommunityFeedNotifier();
     widget.authNotifier.addListener(_syncMessagingSession);
     _syncMessagingSession();
   }
@@ -73,7 +79,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   void dispose() {
     widget.authNotifier.removeListener(_syncMessagingSession);
     MessagingRealtimeClient.shared.disconnect();
-    _communityNotifier.dispose();
+    if (widget.communityNotifier == null) {
+      _communityNotifier.dispose();
+    }
     super.dispose();
   }
 
@@ -82,6 +90,20 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     setState(() {
       _currentIndex = index;
     });
+    switch (index) {
+      case 0:
+        AppSyncBus.requestRefresh(SyncDomain.explore);
+        break;
+      case 1:
+        AppSyncBus.requestRefresh(SyncDomain.posts);
+        break;
+      case 3:
+        AppSyncBus.requestRefresh(SyncDomain.collections);
+        break;
+      case 4:
+        AppSyncBus.requestRefresh(SyncDomain.itineraries);
+        break;
+    }
   }
 
   @override
@@ -106,6 +128,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           CommunityScreen(
             authNotifier: widget.authNotifier,
             notifier: _communityNotifier,
+            repository: widget.communityPostRepository,
           ),
           CreateItineraryScreen(
             authNotifier: widget.authNotifier,
@@ -114,6 +137,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               setState(() {
                 _currentIndex = 4; // Switch to My Itineraries after creation
               });
+              AppSyncBus.requestRefresh(SyncDomain.itineraries);
             },
           ),
           CollectionScreen(

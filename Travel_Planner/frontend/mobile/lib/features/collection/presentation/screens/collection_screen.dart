@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/sync/app_sync_bus.dart';
+import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
@@ -30,13 +32,28 @@ class CollectionScreen extends StatefulWidget {
 }
 
 class _CollectionScreenState extends State<CollectionScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutoRefreshLifecycleMixin<CollectionScreen> {
   late final CollectionNotifier _notifier;
   late final TabController _tabController;
   final ScrollController _savedScrollController = ScrollController();
   final ScrollController _favoriteScrollController = ScrollController();
 
   String? get _effectiveToken => widget.authNotifier?.token;
+
+  @override
+  Set<SyncDomain> get syncDomains =>
+      {SyncDomain.collections, SyncDomain.itineraries};
+
+  @override
+  Duration get syncTtl => const Duration(minutes: 3);
+
+  @override
+  Future<void> onRefreshData({bool isBackground = false}) async {
+    await Future.wait([
+      _notifier.loadInitialSaved(token: _effectiveToken),
+      _notifier.loadInitialFavorite(token: _effectiveToken),
+    ]);
+  }
 
   @override
   void initState() {
@@ -93,6 +110,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   Future<void> _handleRemoveSaved(ItinerarySummary item) async {
     try {
       await _notifier.removeSaved(item.itineraryId, token: _effectiveToken);
+      AppSyncBus.emitItinerarySaved(item.itineraryId, false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -116,6 +134,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   Future<void> _handleRemoveFavorite(ItinerarySummary item) async {
     try {
       await _notifier.removeFavorite(item.itineraryId, token: _effectiveToken);
+      AppSyncBus.emitItineraryFavorited(item.itineraryId, false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -256,7 +275,10 @@ class _CollectionScreenState extends State<CollectionScreen>
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: () => _notifier.refreshSaved(token: _effectiveToken),
+      onRefresh: () async {
+        await _notifier.refreshSaved(token: _effectiveToken);
+        recordRefreshedNow();
+      },
       child: ListView.builder(
         key: const PageStorageKey<String>('saved_collection_list'),
         controller: _savedScrollController,
@@ -322,7 +344,10 @@ class _CollectionScreenState extends State<CollectionScreen>
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: () => _notifier.refreshFavorite(token: _effectiveToken),
+      onRefresh: () async {
+        await _notifier.refreshFavorite(token: _effectiveToken);
+        recordRefreshedNow();
+      },
       child: ListView.builder(
         key: const PageStorageKey<String>('favorite_collection_list'),
         controller: _favoriteScrollController,

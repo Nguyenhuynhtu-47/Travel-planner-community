@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/sync/app_sync_bus.dart';
+import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -73,7 +75,7 @@ class ItineraryDetailScreen extends StatefulWidget {
 }
 
 class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, AutoRefreshLifecycleMixin<ItineraryDetailScreen> {
   late final ItineraryDetailNotifier _notifier;
   late final ItineraryCrudRepository _crudRepository;
   late final SocialRepository _socialRepository;
@@ -95,6 +97,69 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   bool _isTogglingSave = false;
 
   String? get _effectiveToken => widget.token ?? widget.authNotifier?.token;
+
+  @override
+  Set<SyncDomain> get syncDomains => {
+        SyncDomain.itineraries,
+        SyncDomain.collections,
+        SyncDomain.ratings,
+      };
+
+  @override
+  Duration get syncTtl => const Duration(minutes: 2);
+
+  @override
+  Future<void> onRefreshData({bool isBackground = false}) async {
+    await Future.wait([
+      _notifier.loadDetail(token: _effectiveToken),
+      _loadItinerarySavedPlaces(),
+    ]);
+  }
+
+  @override
+  void onSyncEvent(SyncEvent event) {
+    if (!mounted) return;
+    if (event.id == widget.itineraryId) {
+      if (event.type == SyncEventType.saved ||
+          event.type == SyncEventType.unsaved) {
+        final payload = event.payload;
+        if (payload is Map && payload['isSaved'] is bool) {
+          setState(() {
+            _userSavedOverride = payload['isSaved'] as bool;
+          });
+        }
+        return;
+      }
+      if (event.type == SyncEventType.favorited ||
+          event.type == SyncEventType.unfavorited) {
+        final payload = event.payload;
+        if (payload is Map && payload['isFavorited'] is bool) {
+          setState(() {
+            _userFavoritedOverride = payload['isFavorited'] as bool;
+          });
+        }
+        return;
+      }
+      if (event.type == SyncEventType.reviewed) {
+        final payload = event.payload;
+        if (payload is Map) {
+          setState(() {
+            if (payload['rating'] is num) {
+              _averageRatingOverride = (payload['rating'] as num).toDouble();
+            }
+            if (payload['count'] is num) {
+              _ratingCountOverride = (payload['count'] as num).toInt();
+            }
+          });
+        }
+        return;
+      }
+      if (event.type == SyncEventType.updated) {
+        onRefreshData(isBackground: true);
+        return;
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -188,6 +253,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         itinerary.itineraryId,
         token: _effectiveToken,
       );
+      AppSyncBus.emitItineraryDeleted(itinerary.itineraryId);
 
       if (!mounted) return;
 
@@ -262,6 +328,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       final clonedItinerary = await _crudRepository.cloneItinerary(
         itinerary.itineraryId,
         token: _effectiveToken,
+      );
+      AppSyncBus.emitItineraryCreated(
+        clonedItinerary,
+        clonedItinerary.itineraryId,
       );
 
       if (!mounted) return;
@@ -671,6 +741,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       });
       final update = _buildSocialUpdate(itinerary);
       widget.onSocialUpdate?.call(update);
+      AppSyncBus.emitItinerarySaved(itinerary.itineraryId, nextSaved);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -750,6 +821,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       });
       final update = _buildSocialUpdate(itinerary);
       widget.onSocialUpdate?.call(update);
+      AppSyncBus.emitItineraryFavorited(itinerary.itineraryId, nextFav);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -939,6 +1011,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         });
         final update = _buildSocialUpdate(itinerary);
         widget.onSocialUpdate?.call(update);
+        AppSyncBus.emitItineraryRatingChanged(
+          itinerary.itineraryId,
+          _averageRatingOverride ?? 0.0,
+          _ratingCountOverride ?? 0,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text('Đã xóa đánh giá')));
@@ -974,6 +1051,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         });
         final update = _buildSocialUpdate(itinerary);
         widget.onSocialUpdate?.call(update);
+        AppSyncBus.emitItineraryRatingChanged(
+          itinerary.itineraryId,
+          _averageRatingOverride ?? 0.0,
+          _ratingCountOverride ?? 0,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Đã gửi đánh giá thành công')),

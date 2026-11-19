@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -234,6 +235,7 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
         request,
         token: widget.authNotifier.token,
       );
+      AppSyncBus.emitItineraryUpdated(updated, widget.itineraryId);
 
       if (!mounted) return;
 

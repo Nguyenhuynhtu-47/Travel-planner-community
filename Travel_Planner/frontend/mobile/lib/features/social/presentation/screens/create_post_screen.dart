@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -300,6 +301,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           token: token,
         );
         widget.notifier?.updatePostInList(updated);
+        AppSyncBus.emitPostUpdated(updated, widget.editingPost!.postId);
         if (mounted) {
           Navigator.pop(context, updated);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -317,6 +319,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         );
 
         widget.notifier?.addPost(created);
+        AppSyncBus.emitPostCreated(created);
         if (mounted) {
           Navigator.pop(context, created);
           ScaffoldMessenger.of(context).showSnackBar(

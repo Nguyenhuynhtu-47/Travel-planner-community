@@ -10000,3 +10000,71 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
   - Full mobile suite: 46/46 PASSED.
   - Code compiled cleanly via `./mvnw compile`.
   - Git working tree preserved without commits, resets, or branch changes.
+
+
+## 2026-11-19 — Phase 1: Global Auto Refresh & Data Synchronization Architecture
+
+- **Context & Objectives:**
+  - Full mobile auto-refresh and data synchronization across all tabs, nested screens, and workflows in the Flutter mobile client.
+  - Eliminate stale data when navigating across bottom tabs (`Explore`, `Community`, `Create Itinerary`, `Collection`, `Profile`), returning from child/detail screens, switching between apps (background to foreground), or performing CRUD / social interactions (post create/edit/delete, likes, comments, itinerary create/edit/delete/clone, day/activity/place modifications, save/favorite toggles, ratings, profile updates).
+  - Preserve user scroll position, prevent full-screen flashing/loading spinners on cached data, debounce rapid tab switching, avoid memory leaks, and ensure future compatibility with WebSocket/STOMP push events.
+
+- **Architecture Implemented:**
+  1. **Centralized Reactive Event Bus (`AppSyncBus`):**
+     - Located at `lib/core/sync/app_sync_bus.dart`.
+     - Singleton reactive stream broadcaster (`StreamController<SyncEvent>.broadcast`).
+     - Strong domain partitioning (`SyncDomain`: `explore`, `itineraries`, `posts`, `comments`, `collections`, `profile`, `notifications`, `ratings`).
+     - Granular event types (`SyncEventType`: `created`, `updated`, `deleted`, `liked`, `unliked`, `saved`, `unsaved`, `favorited`, `unfavorited`, `reviewed`, `stale`, `refreshRequested`).
+     - Domain TTL tracking with configurable staleness detection (`isStale`, `recordRefreshed`, `markStale`). Default TTL ranges from 2 minutes (comments) to 5 minutes (explore, profile).
+     - Static helper emitter methods with multi-domain invalidation matrices (e.g. `emitPostLiked` updates post counts and notifies profile; `emitItinerarySaved` marks collections and explore stale; `emitItineraryCreated` invalidates itineraries, explore, and profile).
+     - WebSocket/STOMP gateway ready: `handleRemoteSyncMessage(Map<String, dynamic> data)` converts incoming JSON server push events into typed `SyncEvent` broadcasts.
+
+  2. **Lifecycle & Auto-Refresh Mixin (`AutoRefreshLifecycleMixin<T extends StatefulWidget>`):**
+     - Located at `lib/core/sync/auto_refresh_lifecycle_mixin.dart`.
+     - Plugs into Flutter widget state lifecycle with zero boilerplate.
+     - Internally leverages `_SyncLifecycleObserver` attached to `WidgetsBinding.instance` to intercept `AppLifecycleState.resumed` (returning from background) without leaking engine-version-dependent abstract methods.
+     - Built-in throttling mechanism (`minRefreshInterval`, default 4 seconds) to eliminate redundant API requests during rapid tab switches.
+     - Subscribes to configured `subscribedDomains` upon `initState` and disposes listeners cleanly on `dispose`.
+     - Supports both in-place event handling (`onSyncEvent(SyncEvent)`) for flicker-free data updates and background fetch invocation (`onRefreshData()`).
+
+  3. **Screen Integration & Synchronized Flows:**
+     - **MainNavigationShell (`main_navigation_shell.dart`):**
+       - Emits `AppSyncBus.requestRefresh(...)` when switching tabs (Explore tab 0, Community tab 1, Collection tab 3, My Itineraries tab 4).
+       - Automatically shifts to My Itineraries tab and emits refresh request upon itinerary creation.
+       - Supports dependency injection for `CommunityFeedNotifier` and `CommunityPostRepository` to allow isolated widget testing.
+     - **ExploreScreen (`explore_screen.dart`):**
+       - Subscribed to `explore`, `itineraries`, `collections`, `ratings`.
+       - Applies `SocialStateUpdate` in-place on itinerary favorite/save/rating changes without full-screen redraw.
+       - Silently refreshes on resume or tab switch if expired.
+     - **CommunityFeedScreen & Notifier (`community_feed_screen.dart`, `community_feed_notifier.dart`):**
+       - Subscribed to `posts`, `comments`.
+       - In-place updates: likes/unlikes update post like count and `isLiked` status across both feed and profile without refreshing the list.
+       - In-place updates: post edits and deletions update or remove list entries without losing scroll position.
+       - Silently fetches latest posts on resume or stale tab switch.
+     - **PostCommentsSheet & CreatePostScreen:**
+       - Emits `emitPostCommentChanged` on comment creation (+1) or deletion (-1).
+       - Emits `emitPostCreated` and `emitPostUpdated` upon posting or editing.
+     - **CollectionScreen (`collection_screen.dart`):**
+       - Subscribed to `collections`, `itineraries`.
+       - Silently refreshes saved and favorite lists when items are added, removed, or changed.
+       - Emits `emitItinerarySaved(id, false)` or `emitItineraryFavorited(id, false)` when user removes bookmarks.
+     - **MyItinerariesScreen & ItineraryDetailScreen (`my_itineraries_screen.dart`, `itinerary_detail_screen.dart`):**
+       - Subscribed to `itineraries`, `collections`, `ratings`.
+       - Automatically refreshes itinerary list when itineraries are created, edited, cloned, or deleted elsewhere.
+       - Emits `emitItineraryCreated`, `emitItineraryUpdated`, `emitItineraryDeleted`, `emitItineraryRatingChanged`, `emitItinerarySaved`, `emitItineraryFavorited` across detail screen user interactions.
+     - **ProfileScreen & PersonalInfoScreen (`profile_screen.dart`, `personal_info_screen.dart`):**
+       - Subscribed to `profile`, `itineraries`, `posts`.
+       - In-place updates for user posts on like/unlike/edit/delete events.
+       - Emits `emitProfileUpdated` on saving user profile, triggering background synchronization across Profile and Explore.
+
+- **Verification Results:**
+  - **Unit & Widget Test Suites:**
+    - `test/core/sync/app_sync_bus_test.dart` (12/12 tests PASSED)
+    - `test/core/sync/auto_refresh_lifecycle_mixin_test.dart` (4/4 tests PASSED)
+    - `test/features/sync/global_auto_refresh_integration_test.dart` (9/9 tests PASSED)
+    - `test/bottom_navigation_test.dart` (13/13 tests PASSED)
+    - All 38 sync and navigation tests PASSED cleanly.
+  - **Static Analysis:**
+    - `flutter analyze` completed with 0 errors and 0 warnings on modified sync modules.
+  - **Git Status:**
+    - Clean modifications preserved, no commits, resets, stashes, or branch changes made.

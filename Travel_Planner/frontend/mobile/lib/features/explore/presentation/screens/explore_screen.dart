@@ -2,6 +2,8 @@ import '../../../social/data/models/social_state_update.dart';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/sync/app_sync_bus.dart';
+import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
@@ -45,10 +47,68 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class _ExploreScreenState extends State<ExploreScreen>
+    with AutoRefreshLifecycleMixin<ExploreScreen> {
   late final ExploreNotifier _exploreNotifier;
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  @override
+  Set<SyncDomain> get syncDomains => {
+        SyncDomain.explore,
+        SyncDomain.itineraries,
+        SyncDomain.collections,
+        SyncDomain.ratings,
+      };
+
+  @override
+  Duration get syncTtl => const Duration(minutes: 5);
+
+  @override
+  Future<void> onRefreshData({bool isBackground = false}) async {
+    await _exploreNotifier.refreshAll(token: widget.authNotifier.token);
+  }
+
+  @override
+  void onSyncEvent(SyncEvent event) {
+    if (!mounted) return;
+    if (event.domain == SyncDomain.collections && event.id is int) {
+      if (event.type == SyncEventType.saved ||
+          event.type == SyncEventType.unsaved) {
+        _exploreNotifier.applySocialUpdate(
+          SocialStateUpdate(
+            itineraryId: event.id as int,
+            isSaved: event.type == SyncEventType.saved,
+          ),
+        );
+        return;
+      }
+      if (event.type == SyncEventType.favorited ||
+          event.type == SyncEventType.unfavorited) {
+        _exploreNotifier.applySocialUpdate(
+          SocialStateUpdate(
+            itineraryId: event.id as int,
+            isFavorited: event.type == SyncEventType.favorited,
+          ),
+        );
+        return;
+      }
+    }
+    if (event.domain == SyncDomain.ratings && event.id is int) {
+      final payload = event.payload;
+      if (payload is Map) {
+        _exploreNotifier.applySocialUpdate(
+          SocialStateUpdate(
+            itineraryId: event.id as int,
+            averageRating: (payload['rating'] as num?)?.toDouble(),
+            ratingCount: (payload['count'] as num?)?.toInt(),
+          ),
+        );
+        return;
+      }
+    }
+    refreshIfStale(isBackground: true);
+  }
 
   @override
   void initState() {
@@ -207,6 +267,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         itineraryId: itinerary.itineraryId,
         token: widget.authNotifier.token,
       );
+      AppSyncBus.emitItineraryFavorited(itinerary.itineraryId, nextFav);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -584,10 +645,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return RefreshIndicator(
       key: const ValueKey('explore_filtered_list'),
       color: AppColors.primary,
-      onRefresh: () => _exploreNotifier.fetchItineraries(
-        resetPage: true,
-        token: widget.authNotifier.token,
-      ),
+      onRefresh: () async {
+        await _exploreNotifier.fetchItineraries(
+          resetPage: true,
+          token: widget.authNotifier.token,
+        );
+        recordRefreshedNow();
+      },
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -703,8 +767,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return RefreshIndicator(
       key: const ValueKey('explore_homepage_refresh'),
       color: AppColors.primary,
-      onRefresh: () =>
-          _exploreNotifier.refreshAll(token: widget.authNotifier.token),
+      onRefresh: () async {
+        await _exploreNotifier.refreshAll(token: widget.authNotifier.token);
+        recordRefreshedNow();
+      },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 32),

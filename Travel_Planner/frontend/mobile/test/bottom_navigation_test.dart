@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/sync/app_sync_bus.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/presentation/auth_notifier.dart';
 import 'package:mobile/features/auth/presentation/screens/login_screen.dart';
@@ -208,12 +209,21 @@ void main() {
     testWidgets(
       'Tapping each destination updates selected index and renders the correct screen',
       (tester) async {
+        final emittedDomains = <SyncDomain>[];
+        final sub = AppSyncBus.instance.events.listen((e) {
+          if (e.type == SyncEventType.refreshRequested) {
+            emittedDomains.add(e.domain);
+          }
+        });
+        addTearDown(() => sub.cancel());
+
         await tester.pumpWidget(buildTestShell());
         await tester.pumpAndSettle();
 
         // 1. Tap Community (Index 1)
         await tester.tap(find.byIcon(Icons.group_outlined));
         await tester.pumpAndSettle();
+        expect(emittedDomains, contains(SyncDomain.posts));
 
         var bottomNav = tester.widget<BottomNavigationBar>(
           find.byType(BottomNavigationBar),
@@ -240,6 +250,7 @@ void main() {
         // 3. Tap Collection (Index 3)
         await tester.tap(find.byIcon(Icons.collections_bookmark_outlined));
         await tester.pumpAndSettle();
+        expect(emittedDomains, contains(SyncDomain.collections));
 
         bottomNav = tester.widget<BottomNavigationBar>(
           find.byType(BottomNavigationBar),
@@ -253,6 +264,7 @@ void main() {
         // 4. Tap My Itineraries (Index 4)
         await tester.tap(find.byIcon(Icons.luggage_outlined));
         await tester.pumpAndSettle();
+        expect(emittedDomains, contains(SyncDomain.itineraries));
 
         bottomNav = tester.widget<BottomNavigationBar>(
           find.byType(BottomNavigationBar),
@@ -264,6 +276,7 @@ void main() {
         // 5. Tap Explore (Index 0)
         await tester.tap(find.byIcon(Icons.explore_outlined));
         await tester.pumpAndSettle();
+        expect(emittedDomains, contains(SyncDomain.explore));
 
         bottomNav = tester.widget<BottomNavigationBar>(
           find.byType(BottomNavigationBar),

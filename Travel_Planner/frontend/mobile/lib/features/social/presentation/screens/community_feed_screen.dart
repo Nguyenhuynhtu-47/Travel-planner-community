@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/sync/app_sync_bus.dart';
+import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
@@ -38,7 +40,7 @@ class CommunityFeedScreen extends StatefulWidget {
 }
 
 class _CommunityFeedScreenState extends State<CommunityFeedScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin, AutoRefreshLifecycleMixin<CommunityFeedScreen> {
   late final TabController _tabController;
   late final CommunityFeedNotifier _notifier;
   late final CommunityPostRepository _repo;
@@ -52,6 +54,56 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   bool get _isAuthenticated => widget.authNotifier?.isAuthenticated == true;
 
   @override
+  Set<SyncDomain> get syncDomains => {SyncDomain.posts, SyncDomain.comments};
+
+  @override
+  Duration get syncTtl => const Duration(minutes: 3);
+
+  @override
+  Future<void> onRefreshData({bool isBackground = false}) async {
+    final token = _token;
+    if (token != null) {
+      _notifier.fetchBadges(token);
+    }
+    await _notifier.refresh(token);
+  }
+
+  @override
+  void onSyncEvent(SyncEvent event) {
+    if (!mounted) return;
+    if (event.domain == SyncDomain.posts) {
+      if (event.type == SyncEventType.liked ||
+          event.type == SyncEventType.unliked) {
+        final payload = event.payload;
+        if (payload is Map && event.id is int) {
+          final isLiked = payload['isLiked'] == true;
+          final likeCount = (payload['likeCount'] as num?)?.toInt() ?? 0;
+          _notifier.applyLikeUpdate(event.id as int, isLiked, likeCount);
+        }
+        return;
+      }
+      if (event.type == SyncEventType.deleted && event.id is int) {
+        _notifier.removePost(event.id as int);
+        return;
+      }
+      if (event.type == SyncEventType.updated && event.payload is PostModel) {
+        _notifier.updatePostInList(event.payload as PostModel);
+        return;
+      }
+      if (event.type == SyncEventType.created && event.payload is PostModel) {
+        final post = event.payload as PostModel;
+        final pubIdx =
+            _notifier.publicPosts.indexWhere((p) => p.postId == post.postId);
+        if (pubIdx == -1) {
+          _notifier.addPost(post);
+        }
+        return;
+      }
+    }
+    refreshIfStale(isBackground: true);
+  }
+
+  @override
   void initState() {
     super.initState();
     _repo = widget.repository ?? CommunityPostRepository();
@@ -61,7 +113,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       final token = _token;
       if (token != null) _notifier.fetchBadges(token);
     });
-    WidgetsBinding.instance.addObserver(this);
     widget.authNotifier?.addListener(_authChanged);
     _tabController = TabController(length: 2, vsync: this);
     _scrollController = ScrollController();
@@ -87,7 +138,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     _tabController.dispose();
     _scrollController.dispose();
     _messagingEvents?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
     widget.authNotifier?.removeListener(_authChanged);
     super.dispose();
   }
@@ -116,9 +166,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _token != null) {
-      _notifier.fetchBadges(_token!);
+  void onAppResumed() {
+    super.onAppResumed();
+    final token = _token;
+    if (token != null) {
+      _notifier.fetchBadges(token);
     }
   }
 
@@ -207,6 +259,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       try {
         await _repo.deletePost(post.postId, token: _token!);
         _notifier.removePost(post.postId);
+        AppSyncBus.emitPostDeleted(post.postId);
         if (mounted) {
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text('Đã xóa bài viết')));
@@ -436,7 +489,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: () => _notifier.refresh(_token),
+      onRefresh: () async {
+        await _notifier.refresh(_token);
+        recordRefreshedNow();
+      },
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),

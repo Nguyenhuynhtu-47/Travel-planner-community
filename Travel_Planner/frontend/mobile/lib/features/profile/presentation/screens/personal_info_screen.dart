@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
@@ -176,6 +177,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         'bio': _bioController.text.trim(),
       });
       await widget.authNotifier.updateCurrentUser(profile);
+      AppSyncBus.emitProfileUpdated(profile);
       if (!mounted) return;
       setState(() {
         _profile = profile;

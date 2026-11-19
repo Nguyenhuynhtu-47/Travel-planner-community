@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/sync/app_sync_bus.dart';
+import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
@@ -49,7 +51,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with AutoRefreshLifecycleMixin<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _handleController = TextEditingController();
@@ -80,6 +83,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _hasMorePosts = true;
   int _postsPage = 0;
   String? _postsError;
+
+  @override
+  Set<SyncDomain> get syncDomains => {
+        SyncDomain.profile,
+        SyncDomain.itineraries,
+        SyncDomain.posts,
+      };
+
+  @override
+  Duration get syncTtl => const Duration(minutes: 3);
+
+  @override
+  Future<void> onRefreshData({bool isBackground = false}) async {
+    await Future.wait([
+      _loadProfile(),
+      _loadMyPosts(refresh: true),
+    ]);
+  }
+
+  @override
+  void onSyncEvent(SyncEvent event) {
+    if (!mounted) return;
+    if (event.domain == SyncDomain.posts) {
+      if (event.type == SyncEventType.liked ||
+          event.type == SyncEventType.unliked) {
+        final payload = event.payload;
+        if (payload is Map && event.id is int) {
+          final isLiked = payload['isLiked'] == true;
+          final count =
+              (payload['likeCount'] as num?)?.toInt() ?? 0;
+          final index = _myPosts.indexWhere((p) => p.postId == event.id);
+          if (index != -1) {
+            setState(() {
+              _myPosts[index] = _myPosts[index].copyWith(
+                isLikedByMe: isLiked,
+                likeCount: count,
+              );
+            });
+          }
+        }
+        return;
+      }
+      if (event.type == SyncEventType.deleted && event.id is int) {
+        setState(() {
+          _myPosts.removeWhere((p) => p.postId == event.id);
+        });
+        return;
+      }
+      if (event.type == SyncEventType.updated && event.payload is PostModel) {
+        final updated = event.payload as PostModel;
+        final idx = _myPosts.indexWhere((p) => p.postId == updated.postId);
+        if (idx != -1) {
+          setState(() {
+            _myPosts[idx] = updated;
+          });
+        }
+        return;
+      }
+      if (event.type == SyncEventType.created && event.payload is PostModel) {
+        final post = event.payload as PostModel;
+        if (post.isOwner && !_myPosts.any((p) => p.postId == post.postId)) {
+          setState(() {
+            _myPosts.insert(0, post);
+          });
+        }
+        return;
+      }
+    }
+    if (event.domain == SyncDomain.profile) {
+      _loadProfile();
+      return;
+    }
+    refreshIfStale(isBackground: true);
+  }
 
   @override
   void initState() {
@@ -296,6 +373,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'bio': _bioController.text.trim(),
       });
       await widget.authNotifier.updateCurrentUser(profile);
+      AppSyncBus.emitProfileUpdated(profile);
       if (!mounted) return;
       setState(() {
         _profile = profile;
@@ -982,6 +1060,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } else {
         await _postRepository.unlikePost(post.postId, token: token);
       }
+      AppSyncBus.emitPostLiked(post.postId, newIsLiked, newCount < 0 ? 0 : newCount);
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1065,6 +1144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() {
           _myPosts.removeWhere((p) => p.postId == post.postId);
         });
+        AppSyncBus.emitPostDeleted(post.postId);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đã xóa bài viết thành công')),
         );

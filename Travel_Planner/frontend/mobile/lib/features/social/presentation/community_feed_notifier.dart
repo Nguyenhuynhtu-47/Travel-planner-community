@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/sync/app_sync_bus.dart';
 import '../data/community_post_repository.dart';
 import '../data/models/post_model.dart';
 import '../../messaging/data/messaging_repository.dart';
@@ -235,6 +236,7 @@ class CommunityFeedNotifier extends ChangeNotifier {
       } else {
         await _repository.unlikePost(postId, token: token);
       }
+      AppSyncBus.emitPostLiked(postId, newLiked, newCount);
     } catch (e) {
       // Rollback on failure
       if (publicIndex != -1) _publicPosts[publicIndex] = target;
@@ -259,6 +261,27 @@ class CommunityFeedNotifier extends ChangeNotifier {
     if (folIdx != -1) _followingPosts[folIdx] = post;
 
     notifyListeners();
+  }
+
+  void applyLikeUpdate(int postId, bool isLiked, int likeCount) {
+    int publicIndex = _publicPosts.indexWhere((p) => p.postId == postId);
+    int followingIndex = _followingPosts.indexWhere((p) => p.postId == postId);
+
+    if (publicIndex != -1) {
+      _publicPosts[publicIndex] = _publicPosts[publicIndex].copyWith(
+        isLikedByMe: isLiked,
+        likeCount: likeCount,
+      );
+    }
+    if (followingIndex != -1) {
+      _followingPosts[followingIndex] = _followingPosts[followingIndex].copyWith(
+        isLikedByMe: isLiked,
+        likeCount: likeCount,
+      );
+    }
+    if (publicIndex != -1 || followingIndex != -1) {
+      notifyListeners();
+    }
   }
 
   void removePost(int postId) {

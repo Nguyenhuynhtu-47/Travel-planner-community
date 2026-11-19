@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/community_post_repository.dart';
 import '../../data/models/post_comment_model.dart';
@@ -102,6 +103,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
         });
         widget.notifier?.updateCommentCount(widget.postId, 1);
         widget.onCommentCountChanged?.call(1);
+        AppSyncBus.emitPostCommentChanged(widget.postId, 1);
         Future.delayed(const Duration(milliseconds: 100), () {
           if (_scrollController.hasClients) {
             _scrollController.animateTo(
@@ -161,6 +163,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
         });
         widget.notifier?.updateCommentCount(widget.postId, -1);
         widget.onCommentCountChanged?.call(-1);
+        AppSyncBus.emitPostCommentChanged(widget.postId, -1);
       }
     } catch (_) {
       if (mounted) {
