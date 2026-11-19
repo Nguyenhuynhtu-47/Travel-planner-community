@@ -1,45 +1,47 @@
-﻿# 09 — Rủi ro và quyết định còn mở
+﻿# 09 — Rủi ro và câu hỏi còn mở
 
-## 1. Xung đột tài liệu và phạm vi
+**Cập nhật:** 2026-11-17.
 
-1. Tài liệu trạng thái cũ ghi chat ngoài scope; yêu cầu hiện tại mở rộng scope có giới hạn cho feature chat/friendship. Khi implementation được yêu cầu, đồng bộ docs chính thức tương ứng, không suy rộng sang feature khác.
-2. Entity-generation cũ giới hạn 12 bảng. Quyết định Giai đoạn 2 cho phép bổ sung bảng chat trong Development; các quy tắc khác vẫn giữ. Không thêm bảng ngoài scope chat/friendship.
-3. Tài liệu community cũ có mô tả Follow chưa triển khai nhưng source hiện đã có PublicUserController/Service/UI. Không viết lại Follow; regression phải xác nhận chức năng này còn nguyên.
-4. docs/ai/01-architecture.md có phần mô tả bảo mật cũ; kế hoạch bám source hiện tại đã audit.
-5. UserHandleBackfillRunner hiện tồn tại và phải giữ nguyên theo quyết định người dùng. Không dùng nó làm cơ chế schema cho chat.
+## 1. Rủi ro đã xác minh trong source trước implementation
 
-## 2. Rủi ro kỹ thuật và biện pháp
+- Chat UI khởi tạo disconnected mà không lấy `currentStatus`: banner có thể stale dù client socket connected.
+- Public profile mở chat với client WebSocket mới, nhưng client không được dispose sau route pop; backend cap 5 session/user, có thể gây các CONNECT sau bị từ chối.
+- Community badge chỉ được nạp theo load/refresh; không nghe event toàn cục nên stale.
+- `friendRequestsCount` tồn tại trong notifier nhưng chưa có nguồn callsite/badge.
+- `NotificationsScreen` là empty state, backend không có notification persistence/API.
+- STOMP simple broker volatile và event delivery post-commit không retry; lịch sử REST là recovery.
 
-- **Hibernate update và schema vật lý chưa biết:** trước implementation cần backup/restore, xác nhận profile/DB Development, kiểm tra kiểu FK và schema hiện tại. Hibernate update không phải migration versioned; do đó chỉ cho thay đổi additive, không drop/rename.
-- **Constraint/index mapping:** cần xác minh MySQL/Hibernate runtime thực sự tạo unique/index/foreign key yêu cầu. Nếu không tạo được invariant thiết yếu thì dừng, ghi quyết định bổ sung; không âm thầm thêm Flyway/Liquibase, baseline hay startup DDL.
-- **Thứ tự gửi đồng thời:** auto-increment ID không đảm bảo thứ tự commit. Cấp sequence_number theo từng conversation dưới row lock; insert, tăng sequence và cập nhật summary cùng transaction; mọi page/delta sort theo sequence.
-- **Simple broker:** in-memory, single instance; không durable/clustered. Multi-instance cần broker relay/outbox được duyệt riêng.
-- **Commit/publish crash gap:** AFTER_COMMIT có thể mất event nếu process chết sau DB commit. REST sync sửa mất event; outbox là scope riêng.
-- **Token/socket:** token hết hạn trong socket sống; server cần từ chối/đóng khi hết hạn và client refresh/reconnect. Không truyền token trên URL.
-- **Authorization leakage:** subscription topic hội thoại chung hoặc recipientId do client truyền có thể lộ tin; dùng user queue, REST send và check membership phía server.
-- **Duplicate/reconnect:** idempotency key và messageId/clientMessageId dedupe; sequence_number xác định thứ tự.
-- **Privacy/abuse:** policy, block/unfriend có thể đổi giữa lúc mở chat; recheck mỗi lần gửi. Rate, payload, session cap và block UX cần chốt.
-- **Mobile lifecycle:** OS có thể dừng app; socket không đảm bảo background/terminated notification.
-- **Retention/deletion:** chưa có chính sách xóa tài khoản, backup, moderation, export.
-- **WebSocket browser security:** same-origin/CORS và browser STOMP cần kiểm thử nếu mở rộng web; Web chat hiện ngoài MVP.
+Các mục lifecycle stale banner, tạo socket riêng từ profile và thiếu badge/request inbox đã được xử lý ở source. Runtime và device vẫn chưa xác minh.
 
-## 3. Quyết định sản phẩm còn mở
+## 2. Giả thuyết runtime chưa được xác minh
 
-Các mục sau vẫn là đề xuất, không được coi là đã duyệt chỉ vì nằm trong plan:
+Sai API_BASE_URL/host, localhost trên phone, emulator và phone vào backend khác nhau; backend bind/firewall/VPN/Wi-Fi; JWT expiry/disabled; Origin mismatch; socket subscribe failure; server restart; session cap; mạng di động ngủ nền. Cần runtime logs hai thiết bị và cùng host để phân định. Không kết luận root cause từ banner UI.
 
-1. Default privacy FRIENDS_ONLY hay lựa chọn khác, áp dụng thế nào với account cũ.
-2. EVERYONE gửi thẳng vào inbox hay có message-request inbox.
-3. NOBODY có chặn tin từ bạn bè hiện có không.
-4. Reverse pending friend request tự accept hay cần người nhận thao tác rõ ràng.
-5. Block/unfriend xử lý quan hệ, history và inbox hiển thị thế nào.
-6. Read cursor chỉ phục vụ unread hay hiển thị receipt cho peer.
-7. Giới hạn text, rate limit, số socket/user, payload và idle timeout.
-8. Simple broker single instance có phù hợp nơi chạy Development/demo.
-9. Có yêu cầu push notification nền không; push vẫn ngoài MVP hiện tại.
-10. Retention, account deletion, moderation và data export.
-11. Web chat có release riêng hay sẽ không nằm trong feature.
-12. Chọn/pin STOMP Flutter package sau compatibility spike.
+## 3. Câu hỏi product/architecture còn mở
 
-## 4. Giới hạn audit và trạng thái
+1. Incoming reverse friendship request có accept tự động không? Plan hiện hữu nói không.
+2. Stranger Inbox có cần report/abuse flow ngoài block hiện có không?
+3. Có cần unread conversation count riêng trên UI hay chỉ unread message total?
+4. App cần chat khi backend chạy nhiều instance hoặc delivery bền vững không? Nếu có, broker/outbox là scope vận hành đáng kể.
+5. DB test/target version/schema/backup/restore là gì? Cần xác nhận trước khi chạy context hoặc app.
+6. Search name có cần match phần giữa mọi từ hay prefix/token-prefix đáp ứng? Ưu tiên prefix/indexed, cần duyệt theo yêu cầu thực tế.
+7. Có chấp thuận `full_name_search` normalized column/index nếu MySQL query plan chứng minh cần không? Chưa có collation/EXPLAIN evidence.
+8. “Username” trong UI là public `@handle` hay login username? Plan giữ @handle và không expose credential username/email.
+9. Duyệt Profile > Cài đặt làm canonical entry privacy, giữ Community settings shortcut làm deep link hay bỏ shortcut?
 
-Audit dựa trên source/config/docs tại nhánh develop ngày 2026-11-10. Không kết nối DB, không kiểm tra schema vật lý, không chạy test/build/device pair. Plan đã được cập nhật theo quyết định kiến trúc về Development JPA/Hibernate, nhưng chưa triển khai code, dependency, entity, API, DDL/DML hay cấu hình runtime. Các mục mở cần chốt trước implementation.
+## 4. Rủi ro dữ liệu và vận hành
+
+Hibernate update có thể làm thay đổi schema theo mapping; không dùng như migration review cho production. User FK là Integer, messaging IDs là BIGINT; cần đối chiếu exact type/signedness. Pair canonical constraints và concurrent inserts phụ thuộc MySQL behavior. Simple broker không scale multi-instance. Không có outbox, nên event có thể mất sau khi DB commit. Logs phải tránh token/message PII.
+
+## 5. Mitigation/owner
+
+Product decisions: người sở hữu yêu cầu. DB evidence/migration: backend + DB operator. Lifecycle/UI: Flutter owner. Two-device environment/logs: test owner. Mỗi câu hỏi cần được ghi quyết định vào 11 trước khi implementation phụ thuộc vào nó.
+
+## Addendum — Rủi ro revision 2
+- Không xóa nghiệp vụ Stranger Inbox khi bỏ shortcut header; entry Inbox và count/badge phải còn.
+- Explore có hai search domains: itinerary search trong body và user search trên AppBar. Entry point mới không được hijack query/filter hiện tại.
+- `canMessage` hiện không phân biệt start-new và continue-existing. Nếu không additive contract, profile CTA có thể mất đối với accepted thread sau privacy change.
+- User search endpoint hiện có nhưng chỉ prefix; tiếng Việt có dấu/không dấu chưa được test trên schema target. Full-name substring không index-backed có thể scan nhiều user.
+- Search result yêu cầu relation/conversation flags; per-row query gây N+1 nếu không batch.
+- Privacy screen/API/storage tồn tại; chỉ navigation cần hoàn thiện. Tạo thêm settings storage sẽ tạo nguồn state cạnh tranh.
+- Pending request khác unread message; gộp badge gây trạng thái sai. Chi tiết revision 2 ở plan 12.

@@ -1,105 +1,62 @@
-﻿# 03 — Thiết kế database đề xuất
+﻿# 03 — Thiết kế dữ liệu
 
-## 1. ERD
+**Cập nhật:** 2026-11-18. Mô tả JPA mappings trong source; không phải introspection schema MySQL đang chạy.
 
-~~~mermaid
-erDiagram
-  USERS ||--o{ CONVERSATIONS : member_low
-  USERS ||--o{ CONVERSATIONS : member_high
-  CONVERSATIONS ||--o{ MESSAGES : stores
-  USERS ||--o{ MESSAGES : sends
-  CONVERSATIONS ||--o{ CONVERSATION_READ_STATES : cursor
-  USERS ||--o{ CONVERSATION_READ_STATES : reads_as
-  USERS ||--o| USER_MESSAGING_SETTINGS : configures
-  USERS ||--o{ FRIENDSHIPS : low_or_high
-  USERS ||--o{ USER_BLOCKS : blocks_or_blocked
-  USERS ||--o{ FOLLOWS : existing_one_way_follow
-~~~
+## 1. Quy tắc an toàn
 
-Follow giữ nguyên quan hệ một chiều hiện có. Chat MVP chỉ 1-1 nên hai thành viên lưu trực tiếp trên conversations; chưa cần bảng participants.
+Source hiện dùng Hibernate `ddl-auto=update` ở cấu hình development/local và `validate` ở production; không thấy Flyway/Liquibase. Không đổi schema framework, không drop/reset bảng, không chạy app trên DB người dùng để “xem Hibernate tạo gì”. Trước migration cần xác định host/database/schema, backup có kiểm tra restore, kiểm tra `SHOW CREATE TABLE`/indexes và chạy thử trên disposable MySQL tương thích. Entity mapping không chứng minh bảng vật lý đã tồn tại hoặc cùng kiểu/collation/index.
 
-## 2. Quy ước kiểu dữ liệu
+## 2. Mapping hiện có
 
-Bảng users hiện dùng user_id INT ở entity. Trước code cần xác minh signedness/kiểu thực tế trên Development database và dùng khớp chính xác cho mọi FK user. ID chat có thể BIGINT. Các thời điểm lưu UTC với precision thống nhất; không suy ra timezone từ máy client. Dùng InnoDB/FK.
-
-## 3. Bảng đề xuất
-
-### conversations
-
-| Cột | Kiểu đề xuất | Vai trò |
+| Nhóm | Khóa/ràng buộc chính | Chỉ mục/ghi chú |
 |---|---|---|
-| conversation_id | BIGINT PK auto increment | ID hội thoại |
-| user_low_id, user_high_id | INT FK users | cặp thành viên chuẩn hóa |
-| last_message_sequence | BIGINT NOT NULL DEFAULT 0 | sequence mới nhất đã cấp |
-| last_message_id | BIGINT nullable | tham chiếu message cuối để hydrate summary |
-| last_message_at | DATETIME(3) nullable | thời gian activity |
-| created_at, updated_at | DATETIME(3) NOT NULL | thời gian UTC |
+| `conversations` | BIGINT id; hai participant FK tới User Integer ID; unique canonical user pair | cặp unique; participant + activity/list ordering; last message sequence/id/time; timestamps |
+| `messages` | BIGINT id; FK conversation/sender; sequence; client message ID; content TEXT; created time | unique (conversation, sequence), unique (sender, client_message_id), lookup conversation+sequence và sender+created |
+| `conversation_read_states` | composite key (conversation,user); monotonic read cursor | index user+conversation; cursor chỉ tiến lên sau thao tác đọc hợp lệ hoặc accept request |
+| `friendships` | canonical low/high user pair, requester, status/timestamps | unique pair; indexes low/high/requester; PENDING/ACCEPTED/REJECTED |
+| `user_messaging_settings` | user id làm PK/FK; policy | policy + updated time; default ở service nếu chưa có row là EVERYONE |
+| `user_blocks` | directed blocker/blocked pair | unique directed pair, reverse lookup; block thao tác hiện tại xóa friendship nhưng giữ chat history |
 
-UNIQUE(user_low_id,user_high_id) bảo đảm một direct conversation cho mỗi cặp. Luôn canonicalize low=min(idA,idB), high=max(...); CHECK(low < high) chỉ là lớp bảo vệ bổ sung nếu runtime MySQL thực thi. Index theo từng thành viên và last activity. Không lưu preview body trùng lặp.
+Kiểu số ID của user hiện là Integer; FK trong MySQL phải khớp kiểu signedness và engine/collation thực tế. Xác minh JPA column names, nullable, cascade, delete policy, precision/length và index names trực tiếp từ mapping + DB trước khi viết DDL.
 
-### messages
+## 3. Bổ sung cho Stranger Inbox — mapping đã triển khai trong source
 
-| Cột | Kiểu đề xuất | Vai trò |
-|---|---|---|
-| message_id | BIGINT PK auto increment | định danh, dedupe và tham chiếu |
-| conversation_id | BIGINT FK conversations | hội thoại |
-| sequence_number | BIGINT NOT NULL | thứ tự tăng dần riêng trong chat |
-| sender_user_id | INT FK users | luôn lấy từ principal |
-| client_message_id | VARCHAR(36) NOT NULL | UUID idempotency do app tạo |
-| content | TEXT hoặc VARCHAR(4000) | nội dung đã validate |
-| created_at | DATETIME(3) NOT NULL | giờ server sau khi lấy khóa conversation |
+Không tạo bảng notification hoặc bảng message request riêng. `Conversation` có các nullable fields `conversation_status`, `requester_user_id`, `request_recipient_user_id`, `request_created_at`, `request_declined_at`; enum là `PENDING`, `ACCEPTED`, `DECLINED`. Bản ghi cũ có status null được hiểu là `ACCEPTED`. Có index recipient/status/updatedAt cho inbox request. Đây chỉ là mapping trong source; chưa xác nhận DDL/foreign keys/index thực tế trên MySQL.
 
-UNIQUE(conversation_id,sequence_number) và UNIQUE(sender_user_id,client_message_id). Index history theo (conversation_id,sequence_number), index bổ sung cho các truy vấn sender khi cần. Sequence là thứ tự chuẩn để sắp xếp, phân trang và đồng bộ; message_id chỉ là ID. Không dựa vào thứ tự auto-increment để biểu diễn thứ tự commit: InnoDB có thể cấp ID trước khi transaction commit, nên hai transaction có thể commit khác thứ tự ID.
+Bất biến D-25: pending request chỉ người nhận mới được accept/decline; người gửi ở policy EVERYONE có thể gửi nhiều tin trước khi recipient accept tường minh; mở detail không tăng read cursor, accept cập nhật status và cursor nguyên tử. Decline giữ lịch sử sender-side nhưng recipient-invisible tin thuộc vòng request cũ; retry sau 1 ngày dùng canonical conversation. Block chặn gửi/nhận và ẩn request; tài khoản inactive không thể tiếp tục chat. Policy chỉ chặn mở chat mới; accepted chat tiếp tục sau đổi policy/unfriend. Không thêm bảng notification.
 
-### conversation_read_states
+Một conversation canonical cho mỗi cặp user được tái sử dụng khi gửi lại sau cooldown; nội dung cũ được giữ, `request_created_at` đánh dấu vòng request mới. Unit test kiểm tra cooldown và legacy status, nhưng chưa kiểm chứng concurrent retry hoặc truy vấn trên MySQL.
 
-| Cột | Kiểu đề xuất | Vai trò |
-|---|---|---|
-| conversation_id | BIGINT FK conversations | hội thoại |
-| user_id | INT FK users | người đọc |
-| last_read_sequence | BIGINT NOT NULL DEFAULT 0 | sequence cuối đã đọc |
-| last_read_at | DATETIME(3) nullable | thời điểm cập nhật |
+## 4. Unread, friend badge, notifications
 
-Composite PK(conversation_id,user_id), tối đa hai row cho mỗi chat. Chỉ thành viên được cập nhật. Cursor phải trong khoảng 0..last_message_sequence và chỉ tiến về trước. Unread count đếm message của peer có sequence_number lớn hơn cursor; truy vấn batch/projection để tránh N+1.
+Unread message total hiện có query/API và chỉ tính conversation accepted; pending requests có badge count riêng qua `GET /api/conversations/message-requests/count`. Incoming friend count được lấy từ endpoint friend requests phân trang (`totalElements`); UI refetch khi app resume/events. Chưa thêm unread conversation count riêng.
 
-### friendships
+Không có Notification entity/API trong source; Notifications screen là placeholder. Không thêm bảng notification như phụ phẩm của badge. Nếu cần notification history bền vững cho friend/message-request events, thiết kế riêng actor/recipient/type/reference/readAt/createdAt, retention, idempotency, privacy, pagination và indexes; đây là scope/decision mở.
 
-Một canonical row mỗi cặp: friendship_id BIGINT PK, user_low_id/user_high_id INT FK, requested_by_user_id INT FK, status PENDING/ACCEPTED/REJECTED, created_at/updated_at. UNIQUE cặp. Khi PENDING người nhận là thành viên còn lại. Index theo từng thành viên + status + updated_at. `requested_by_user_id` phải thuộc cặp. Lịch sử nhiều lần gửi lời mời không nằm trong MVP. Xem transition ở 06.
+## 5. Migration/verification checklist
 
-### user_messaging_settings
+1. Capture schema thật trên đúng disposable MySQL version, compare từng column/FK/unique/index với entities.
+2. Xác định dữ liệu legacy, orphan rows và pair duplicates trước backfill.
+3. Viết thay đổi additive với null/default tương thích và transaction/rollback strategy phù hợp MySQL.
+4. Test concurrent open/request, duplicate client retry, accept-vs-block, decline-vs-resend, read cursor và unread queries.
+5. Chạy migration thử trên bản copy, xác minh row count và constraints trước/ sau; có backup/restore evidence.
+6. Production profile phải validate, không dựa vào auto-update để thay thế migration đã review.
 
-user_id INT PK/FK, inbound_policy VARCHAR(20) (EVERYONE/FRIENDS_ONLY/NOBODY), updated_at. Settings chỉ chủ tài khoản đọc/sửa. Default và rollout account cũ hiện là đề xuất nghiệp vụ, chưa được chốt.
+Spring context đã chạy trên MySQL 8.0.44 với test schema; Hibernate `ddl-auto=update` đã tạo/cập nhật JPA mapping và repositories khởi tạo thành công. Chưa có backup/restore evidence, reviewed DDL/query plan, hoặc API-level migration test. Không chạy backend với DB development/người dùng để xác nhận.
 
-### user_blocks
+## 6. Revision 2 — Public user search và quyền tiếp tục conversation
 
-block_id BIGINT PK, blocker_user_id INT FK, blocked_user_id INT FK, created_at. UNIQUE(blocker_user_id,blocked_user_id); không cho tự block; index hỗ trợ kiểm tra cả hai hướng. Chính sách giữ history được mô tả ở 06.
+- Không cần bảng mới cho user discovery, search pagination, friendship actions hoặc can-start/can-continue context. Reuse `users`, `friendships`, `user_blocks`, `user_messaging_settings`, `conversations`.
+- Search hiện có `UserRepository.searchActiveUsers` dùng prefix theo `handle`/`fullName`. `handle` unique có index; fullName normalized/indexed field không tồn tại trong Entity hiện tại. Không khẳng định dấu tiếng Việt được xử lý chỉ từ `lower()`.
+- Nếu query plan chứng minh prefix full-name chưa đáp ứng, đề xuất thêm `full_name_search` nullable-first/indexed field chứa Unicode-normalized lowercase/không dấu value; cập nhật khi create/profile rename và backfill hiện tại. Cần migration additive và rollback plan. Chỉ dùng sau khi `EXPLAIN` và test collation/MySQL xác nhận lợi ích.
+- Partial substring match giữa từ bằng `LIKE '%q%'` sẽ khó dùng B-tree và có thể scan toàn bảng. Ưu tiên normalized prefix; nếu yêu cầu substring thật sự, đánh giá full-text ngram index riêng trước khi đưa vào schema. Không tải users vào Flutter.
+- Cần batch query từ `conversations` để profile/search xác định accepted thread tồn tại và có thể tiếp tục, tách khỏi permission tạo mới. Không cần cột mới: status null/ACCEPTED đã có nghĩa canonical accepted; block/account status kiểm tra từ bảng hiện hữu.
 
-## 4. Tính toàn vẹn và thứ tự gửi đồng thời
+## 7. Revision 3 — Ẩn hội thoại theo participant (đã bị D-25 thay thế)
 
-Mọi conversation/friendship pair canonicalize ở backend; không nhận member pair do client cung cấp. Unique constraint là bảo vệ cuối cùng, không thay precheck/service logic.
-
-Gửi message phải chạy trong một transaction theo trình tự:
-
-1. Tìm idempotency key trước để retry trả lại row cũ khi đã tồn tại.
-2. Khóa row conversation bằng cơ chế tương đương SELECT ... FOR UPDATE; kiểm tra thành viên, trạng thái account, privacy và block trong phạm vi transaction.
-3. Sau khi giữ được khóa, cấp sequence_number = last_message_sequence + 1; ghi message và cập nhật sequence, last_message_id, last_message_at trên conversation trong cùng transaction.
-4. Commit rồi mới publish realtime event. Khóa được giữ đến commit, vì vậy request tiếp theo cùng conversation chỉ cấp sequence sau commit/rollback request trước. Rollback không để lại sequence gap do cập nhật conversation cũng rollback.
-5. Nếu unique idempotency collision từ retry đua, đọc lại message tương ứng và trả kết quả idempotent.
-
-Thứ tự history và UI là sequence_number, không phải created_at hoặc message_id. Thời gian chỉ phục vụ hiển thị. Điều này tạo thứ tự tuyến tính cho mỗi hội thoại dù nhiều thiết bị gửi đồng thời. Không giữ DB lock khi gọi broker/network. Giao dịch friendships cũng cần khóa theo cặp user có thứ tự tăng dần hoặc conditional update/unique-collision reload để tránh deadlock và request trùng.
-
-Mở conversation: check recipient ACTIVE, không tự chat, block và inbound policy; tìm cặp chuẩn hóa; nếu concurrent insert đụng unique thì load lại row chuẩn.
-
-## 5. Đồng bộ Hibernate Development
-
-Đã được chấp thuận cho plan này: dự án đang ở Development, dùng JPA/Hibernate với ddl-auto=update; cho phép thêm bảng feature chat thông qua entity mới. Không tạo Flyway/Liquibase/baseline; không chuyển toàn dự án sang schema manager khác. Đây là plan, chưa chạy Hibernate hay sửa code/config.
-
-Khi implementation, chỉ thêm entity/repository và mapping additive; kiểm tra mapping trước khi khởi động trên database Development có dữ liệu cần giữ. Không đổi hoặc xóa bảng/cột hiện hữu, không thay strategy global, không chạy lệnh reset/drop/recreate. Giữ nguyên UserHandleBackfillRunner; không sửa logic, không nhân rộng thành schema runner chat. Kiểm tra startup log/schema để xác nhận Hibernate chỉ bổ sung các bảng/cột dự kiến và dữ liệu cũ còn nguyên.
-
-Không có đảm bảo Hibernate update tự tạo mọi CHECK/index/database-specific constraint theo thiết kế. Trước code cần xác minh khả năng mapping/runtime MySQL. Nếu thiếu constraint quan trọng, dừng ở thiết kế, ghi rõ constraint thiếu và đề xuất cách bổ sung an toàn cho chính Development; không âm thầm thêm framework migration hoặc SQL startup. Production deployment/schema validation không thuộc giả định Development và cần plan riêng nếu đưa ứng dụng ra ngoài Development.
-
-## 6. An toàn dữ liệu và xác minh
-
-Trước lần chạy đầu tiên sau khi thêm entity: xác định chính xác profile và URL database, xác nhận đây là Development DB dự kiến, tạo backup có thể phục hồi, kiểm tra user ID types/table constraints, và bảo đảm test dùng database cô lập. Không dùng cơ sở dữ liệu chứa dữ liệu duy nhất làm test concurrency/destructive test. Sau khởi động so sánh schema/table/data trước-sau, xác nhận bảng mới và không mất dữ liệu/chức năng cũ. Đây là checklist tương lai; không truy cập database trong Giai đoạn 2.
-
-Giai đoạn 2 không đọc/ghi DB runtime, không chạy DDL/DML, không thêm entity hay config.
+- Reuse `conversation_read_states` (đã có khóa ghép conversation/user), thêm `hidden_at` nullable; không thêm bảng hoặc xóa Conversation/Message.
+- Inbox, request list và unread counts loại bỏ hội thoại có `hidden_at` của viewer. Xóa khỏi list không đồng nghĩa xóa lịch sử.
+- Tin mới chỉ xóa `hidden_at` cho sender và recipient nếu message recipient-visible. Tin FRIENDS_ONLY sender-only không làm hội thoại xuất hiện ở phía recipient.
+- Mapping JPA là additive theo cơ chế schema local hiện hành. Production cần DDL additive đã review; schema vật lý chưa được xác minh.
+- **D-25:** không còn dùng `hidden_at`, `DELETE /api/conversations/{id}` hoặc thao tác xóa/ẩn hội thoại. JPA mapping/query/API sẽ được gỡ; nếu cột `hidden_at` đã được Hibernate thêm vào DB local/test thì để nguyên chưa sử dụng để tránh DDL phá hủy dữ liệu. Không cần migration/drop.
+- `UserMessagingSettings`/`user_messaging_settings` là persistence hiện có. Không thêm settings table. Physical schema/collation/index chưa được introspect trong lần plan revision này.

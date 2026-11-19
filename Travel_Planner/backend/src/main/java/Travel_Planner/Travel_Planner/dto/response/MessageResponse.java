@@ -19,4 +19,6 @@ public class MessageResponse {
     private String clientMessageId;
     private String content;
     private LocalDateTime createdAt;
+    private String conversationStatus;
+    private Boolean recipientVisible;
 }

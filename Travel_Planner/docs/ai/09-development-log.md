@@ -9803,3 +9803,57 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 
 
 
+## 2026-11-16 — CODEBASE_GUIDE alignment
+
+- Reconciled the CODEBASE_GUIDE inventory and backend/mobile flow descriptions against the current `develop` source tree.
+- Updated the documented inventory to 265 backend Java files, 128 mobile Dart files, 27 web Dart files, and test inventories of 50/42/6 files respectively. These are file counts, not test results.
+- Documented the current Place catalog and Activity location snapshot model, itinerary-scoped saved places, chat/friendship APIs, and the remaining unused mobile `/api/destinations` contract.
+- Clarified that mobile notifications are currently an empty-state screen without a matching backend notification API, and that the web authenticated shell remains a placeholder around selected admin/profile screens.
+- No application source or database was changed. Tests were not run as part of this documentation update.
+
+## 2026-11-17 — Realtime messaging and friendship plan audit
+
+- Audited current backend/mobile messaging, friendship, privacy, unread, Community entry points, STOMP lifecycle, configuration, and the related existing plan documents against source and project guidance.
+- Updated the existing `docs/plan/realtime-messaging` README and documents 01–11 to distinguish implemented source behavior from runtime/database verification, record source-level lifecycle findings, and plan message-request inbox, badge, privacy, API, schema, UI, and test work.
+- Preserved `IMPLEMENTATION-REPORT.md` as a historical report; no application source or database was changed.
+- No build, tests, device session, or MySQL introspection was run. Runtime connectivity and the physical database schema remain unverified.
+
+## 2026-11-17 — Realtime messaging implementation
+
+- Implemented the approved message-request and privacy behavior in the existing conversation model and APIs; legacy conversations remain accepted. The user confirmed a one-day retry delay after decline.
+- Added the Stranger Inbox flow, separate friend/stranger/unread badges, post-commit invalidation, shared realtime ownership, and chat avatar/timestamp/connection-state behavior in the existing Flutter structure.
+- Updated the realtime plan, implementation report, and CODEBASE_GUIDE with source/API changes and verification limits.
+- Backend messaging unit subset: 9 tests passed; Spring context passed on MySQL 8.0.44 test schema. Full backend suite: 455 passed, 42 test-data/FK cleanup errors in three unrelated controller/service suites; those suites pass 42/42 when isolated on a fresh schema. Full Flutter suite: 427 passed, 26 failed in itinerary/activity/rating widget tests outside messaging. `flutter analyze` still reports informational lints.
+- ADB sees one Android device and one emulator, but app/backend integration was not run. Database target and backup were not confirmed, so no Spring/MySQL startup or schema update was attempted.
+
+## 2026-11-17 — Community navigation and user discovery implementation
+
+- Implemented separate mobile routes for the regular messaging inbox, stranger inbox, and friends/invites while keeping the existing five bottom-navigation destinations and Community feed entry point.
+- Added authenticated public-user prefix search by display name and handle, paginated relationship-aware results, and a batch relationship-context lookup. Search responses do not include login username or email.
+- Added an unread pending-message-request count endpoint and wired the Community navigation dot to unread normal messages, unread stranger messages, or incoming friend requests. Pending request totals remain separate from unread counts.
+- No database table, column, or migration was added. The square-icon control remains unchanged because its exact location is not identified; the user will provide a screenshot later.
+- `PublicUserServiceTest` passed. Flutter model and Community feed tests passed 19/19. Scoped Flutter analysis found no compile errors but exited nonzero for 17 informational lints in changed screens.
+- `PublicUserServiceTest`, `MessageRequestServiceTest`, and `FriendshipPrivacyServiceTest` passed. All Flutter messaging tests and the Community feed/badge tests passed in a 20-test combined run; the new inbox/friends/stranger/search screens have no analyzer issues.
+- Full backend suite compiled and started its Spring context, then ended with 175 test setup/cleanup errors (499 tests total, zero assertion failures), predominantly foreign-key cleanup failures for `media_assets.uploaded_by` in the reused test schema. Runtime API and two-device verification remain outstanding.
+# 2026-11-18 — Điều chỉnh luồng tin nhắn người lạ theo D-23
+
+- Sửa Hibernate `null identifier (UserMessagingSettings)` khi PUT privacy lần đầu: bỏ gán thủ công ID trên entity `@MapsId`; kiểm thử ghi/đọc thật trên MySQL `travel_planner_test` thành công.
+- Chốt semantics mới: EVERYONE nhận nhiều tin người lạ và reply tự accept; FRIENDS_ONLY vẫn cho người gửi gửi không giới hạn nhưng lưu các tin đó chỉ phía sender, loại khỏi mọi bề mặt phía recipient kể cả history/unread/realtime/read cursor. Kết bạn không làm lộ tin cũ; tin mới được hiển thị.
+- Thêm `messages.recipient_visible`, bộ query theo viewer, hạn chế truy cập request pending ở REST/mark-read/accept/decline; Flutter bỏ cap một tin, hiện banner giải thích và chỉ còn hai lựa chọn privacy. Cập nhật D-23 và regression plan/report.
+- Giá trị legacy NOBODY được giữ để deserialize row cũ nhưng backend thực thi như FRIENDS_ONLY, khớp với cách Flutter hiển thị.
+- Xác minh: backend targeted + Spring context/MySQL integration 11 tests pass; Flutter messaging 18 tests pass; analyzer 6 file liên quan không có issue. Chưa kiểm thử hai thiết bị thật.
+- Hồi quy toàn repo ngày 18/11: Maven 506 tests run, 175 errors/0 assertion failures do fixture DB dùng chung có duplicate email và FK `media_assets.uploaded_by`; Flutter 440 pass/26 fail ở các test activity/itinerary/comment/rating/map ngoài phạm vi sửa messaging.
+
+## 2026-11-18 — Ẩn hội thoại theo user và cập nhật privacy sau unfriend
+
+- Dùng `conversation_read_states.hidden_at` để xóa mềm theo từng participant; API DELETE kiểm tra membership, conversation/message không bị xóa vật lý. Query Inbox, Stranger Inbox và unread count lọc trạng thái ẩn; tin mới chỉ khôi phục list cho participant được quyền thấy.
+- Sau unfriend, tin mới xét lại policy: EVERYONE tái sử dụng canonical thread dưới dạng Stranger request; FRIENDS_ONLY sender-only. Response gửi thêm status/visibility để sender UI hiện thông báo chính xác và không hiển thị delivery/read receipt giả.
+- Thêm menu row profile/block/delete ở hai Inbox; block/xóa có dialog xác nhận; unread badge không còn dựa trên số request đã đọc.
+- Kết quả: backend targeted 17 + Spring/JPA context 1 pass trên MySQL test schema; Flutter messaging/community 37 pass; analyze 11 file No issues. Chưa chạy full suite mới, API runtime hoặc hai thiết bị.
+
+## 2026-11-18 — D-25 thay thế hành vi ẩn hội thoại và auto-accept
+
+- D-24 phía trên là lịch sử, không còn phản ánh code hiện tại. D-25 được người dùng chốt: accept tường minh, không mark-read khi mở pending request, giữ accepted conversation sau unfriend/privacy change, decline ẩn tin cũ phía recipient, retry sau một ngày trên conversation canonical.
+- Gỡ API/JPA/UI xóa hoặc ẩn conversation; không drop cột vật lý `hidden_at` nếu đã được tạo trong local/test schema. Không thêm bảng hay migration.
+- Mở rộng block guard cho profile/search/feed/post/itinerary/messaging và WebSocket; block không xóa lịch sử, unblock không tái tạo friendship/accept.
+- Xác minh: backend targeted tests và Spring context trên MySQL test schema pass; Flutter messaging/feed/profile 40 tests pass; analyzer 8 file không có lỗi/warning, còn 12 info-only curly-brace lints ở public profile. Runtime API/WebSocket và hai thiết bị chưa được chạy.

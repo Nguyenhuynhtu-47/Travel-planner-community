@@ -14,6 +14,7 @@ import Travel_Planner.Travel_Planner.model.enums.Visibility;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.repository.specification.ItinerarySpecification;
 import Travel_Planner.Travel_Planner.service.ItineraryService;
+import Travel_Planner.Travel_Planner.service.FriendshipService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +43,7 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final SavedItineraryRepository savedItineraryRepository;
     private final CommentRepository commentRepository;
     private final ItineraryPlaceRepository itineraryPlaceRepository;
+    private final FriendshipService blockAccess;
 
     private static final ThreadLocal<Runnable> testFaultInjector = new ThreadLocal<>();
 
@@ -79,7 +81,8 @@ public class ItineraryServiceImpl implements ItineraryService {
             FavoriteRepository favoriteRepository,
             SavedItineraryRepository savedItineraryRepository,
             CommentRepository commentRepository,
-            ItineraryPlaceRepository itineraryPlaceRepository
+            ItineraryPlaceRepository itineraryPlaceRepository,
+            FriendshipService blockAccess
     ) {
         this.itineraryRepository = itineraryRepository;
         this.ratingRepository = ratingRepository;
@@ -91,6 +94,23 @@ public class ItineraryServiceImpl implements ItineraryService {
         this.savedItineraryRepository = savedItineraryRepository;
         this.commentRepository = commentRepository;
         this.itineraryPlaceRepository = itineraryPlaceRepository;
+        this.blockAccess = blockAccess;
+    }
+
+    public ItineraryServiceImpl(ItineraryRepository itineraryRepository, RatingRepository ratingRepository,
+            ItineraryDayRepository itineraryDayRepository, ActivityRepository activityRepository,
+            UserRepository userRepository, PlaceRepository placeRepository, FavoriteRepository favoriteRepository,
+            SavedItineraryRepository savedItineraryRepository, CommentRepository commentRepository,
+            ItineraryPlaceRepository itineraryPlaceRepository) {
+        this(itineraryRepository, ratingRepository, itineraryDayRepository, activityRepository, userRepository,
+                placeRepository, favoriteRepository, savedItineraryRepository, commentRepository,
+                itineraryPlaceRepository, null);
+    }
+
+    private Set<Integer> blockedPeerIds(String username) {
+        if (username == null || username.isBlank() || blockAccess == null) return Set.of();
+        return userRepository.findByUsername(username)
+                .map(user -> blockAccess.blockedPeerIds(user.getUserId())).orElseGet(Set::of);
     }
 
     @Override
@@ -108,6 +128,16 @@ public class ItineraryServiceImpl implements ItineraryService {
             int size,
             String sort
     ) {
+        return getPublicItineraries(keyword, location, theme, minBudget, maxBudget, minDays, maxDays,
+                minRating, page, size, sort, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ItinerarySummaryResponse> getPublicItineraries(
+            String keyword, String location, String theme, BigDecimal minBudget, BigDecimal maxBudget,
+            Integer minDays, Integer maxDays, Double minRating, int page, int size, String sort,
+            String currentUsername) {
         validateFilters(minBudget, maxBudget, minDays, maxDays, minRating);
 
         int normalizedPage = Math.max(page, 0);
@@ -119,6 +149,10 @@ public class ItineraryServiceImpl implements ItineraryService {
         Specification<Itinerary> spec = ItinerarySpecification.filter(
                 keyword, location, theme, minBudget, maxBudget, minDays, maxDays, minRating
         );
+        Set<Integer> blockedPeers = blockedPeerIds(currentUsername);
+        if (!blockedPeers.isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.not(root.get("user").get("userId").in(blockedPeers)));
+        }
 
         Page<Itinerary> itineraryPage = itineraryRepository.findAll(spec, pageable);
 
@@ -150,6 +184,7 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         List<String> preferredThemes = new ArrayList<>();
         Set<Integer> excludeIds = new HashSet<>();
+        Set<Integer> blockedPeers = blockedPeerIds(currentUsername);
 
         if (currentUsername != null && !currentUsername.isBlank()) {
             userRepository.findByUsername(currentUsername).ifPresent(user -> {
@@ -201,6 +236,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 if (!excludeIds.isEmpty()) {
                     predicates.add(cb.not(root.get("itineraryId").in(excludeIds)));
                 }
+                if (!blockedPeers.isEmpty()) predicates.add(cb.not(root.get("user").get("userId").in(blockedPeers)));
                 predicates.add(root.get("theme").in(topThemes));
                 return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
             };
@@ -221,6 +257,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 if (!excludeIds.isEmpty()) {
                     predicates.add(cb.not(root.get("itineraryId").in(excludeIds)));
                 }
+                if (!blockedPeers.isEmpty()) predicates.add(cb.not(root.get("user").get("userId").in(blockedPeers)));
                 return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
             };
             Pageable pageable = PageRequest.of(normalizedPage, normalizedSize,
@@ -362,6 +399,13 @@ public class ItineraryServiceImpl implements ItineraryService {
 
         if (itinerary.getStatus() == ItineraryStatus.DELETED || itinerary.getUser().getStatus() != UserStatus.ACTIVE) {
             throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
+        }
+
+        if (currentUsername != null && !currentUsername.isBlank() && blockAccess != null) {
+            Integer viewerId = userRepository.findByUsername(currentUsername).map(User::getUserId).orElse(null);
+            if (viewerId != null && blockAccess.isBlockedBetween(viewerId, itinerary.getUser().getUserId())) {
+                throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
+            }
         }
 
         boolean isOwner = currentUsername != null && currentUsername.equals(itinerary.getUser().getUsername());

@@ -1,7 +1,7 @@
 ﻿# 08 — Mobile core, shared và cấu hình
 
-core/network/api_client.dart tập trung HTTP; api_exception.dart chuẩn hóa lỗi client. core/constants/api_constants.dart lưu API config; map_constants.dart và map_tile_provider_config.dart lưu cấu hình bản đồ. core/theme chứa color, spacing, text style và theme.
+`core/network/api_client.dart` tập trung HTTP, multipart, timeout và xử lý lỗi/401. `core/constants/api_constants.dart` chứa backend paths; cần đối chiếu constant với controller vì còn `destinationsEndpoint` legacy không có backend/call site. `map_constants.dart` và `map_tile_provider_config.dart` cấu hình tile riêng với API backend. `core/theme` chứa color, spacing, typography và theme.
 
-shared/navigation/main_navigation_shell.dart nối điều hướng. shared/widgets tái sử dụng map, marker, error/empty state, input/button, avatar, upload preview; shared/services/image_picker_service.dart bọc chọn ảnh.
+`shared/navigation/main_navigation_shell.dart` dựng năm tab chính. Shared widgets/services cung cấp map/marker, empty/error state, controls, avatar và image picker. Các feature có thể dùng Navigator trực tiếp; `core/router` chưa điều khiển toàn app.
 
-Base URL phụ thuộc thiết bị: Android emulator thường truy cập host máy phát triển qua 10.0.2.2; browser/máy thật cần địa chỉ phù hợp. Backend URL và map tile key là hai cấu hình khác nhau. Không commit secret. Xem pubspec, README, hằng số cùng nhau trước khi nâng dependency hoặc đổi cấu hình.
+Base URL phụ thuộc thiết bị: Android emulator thường gọi host qua `10.0.2.2`; browser/máy thật cần địa chỉ phù hợp. Backend URL, provider geocoding/routing và map tile key là các cấu hình khác nhau. Không commit secret. Xem README, `.env.example`, Spring properties, Flutter constants và runtime `--dart-define` cùng nhau trước khi đổi config.

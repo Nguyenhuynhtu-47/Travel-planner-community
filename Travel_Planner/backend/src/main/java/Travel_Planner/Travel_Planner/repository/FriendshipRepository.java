@@ -30,6 +30,13 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
     @Query("select f.userLow.userId, f.userHigh.userId from Friendship f where f.status = :status and ((f.userLow.userId = :userId and f.userHigh.userId in :otherIds) or (f.userHigh.userId = :userId and f.userLow.userId in :otherIds))")
     java.util.List<Object[]> findPairsByUserAndStatus(@Param("userId") Integer userId, @Param("otherIds") java.util.List<Integer> otherIds, @Param("status") FriendshipStatus status);
 
+    @EntityGraph(attributePaths = {"userLow", "userHigh", "requestedByUser"})
+    @Query("select f from Friendship f where " +
+            "(f.userLow.userId = :userId and f.userHigh.userId in :otherIds) or " +
+            "(f.userHigh.userId = :userId and f.userLow.userId in :otherIds)")
+    java.util.List<Friendship> findRelationshipsForUserAndPeers(@Param("userId") Integer userId,
+            @Param("otherIds") java.util.List<Integer> otherIds);
+
     @EntityGraph(attributePaths = {"userLow", "userHigh"})
     @Query("select f from Friendship f where f.status = :status and (f.userLow.userId = :userId or f.userHigh.userId = :userId) order by f.updatedAt desc, f.friendshipId desc")
     Page<Friendship> findByUserAndStatus(@Param("userId") Integer userId, @Param("status") FriendshipStatus status, Pageable pageable);

@@ -1,251 +1,401 @@
 ﻿# 07 — Mobile: feature catalogue và bản đồ file
 
-Ứng dụng chia core (nền tảng), shared (thành phần tái sử dụng), features (nghiệp vụ). Mỗi feature thường có data (repository/model) và presentation (screen/notifier/widget); không phải module nào cũng có đủ cả hai.
+Mobile chia core, shared và features. Luồng thường đi screen/widget → notifier/state → repository → model/API. Danh mục file được kiểm kê ngày 2026-11-16; khai báo được trích bằng pattern đơn giản và có thể không bao gồm hàm/extension hoặc class sinh tự động.
 
-| Feature | Trách nhiệm chính |
+| Feature | Trách nhiệm trong source |
 |---|---|
-| auth | đăng nhập, đăng ký, quản lý phiên |
-| explore | khám phá, lọc, phân trang itinerary công khai |
-| itinerary | chuyến đi, ngày, hoạt động, bản đồ và tuyến |
-| location | tìm địa điểm, resolve, reverse-geocode, chọn pin |
-| comments | bình luận/reply theo thread |
-| profile | hồ sơ cá nhân và công khai |
-| social | cộng đồng và đánh giá |
-| collection | bộ sưu tập |
-| saved_itineraries | itinerary đã lưu |
-| notifications | màn hình thông báo |
-
-Luồng sửa màn hình thường đi screen → notifier → repository → model → API. Phụ lục 07A–07F giải thích nghiệp vụ và các ranh giới quan trọng.
+| auth | đăng nhập và session |
+| explore / itinerary | khám phá, lịch trình, ngày, activity, map, route |
+| location | POI search, reverse, resolve, picker |
+| comments / reviews | comment thread và rating |
+| collection / saved_itineraries | saved/favorite collections |
+| social | community feed/post, follow/profile integration |
+| messaging | conversation, REST messages, STOMP realtime, friendship |
+| notifications | placeholder empty state; chưa có backend notification API |
+| profile | hồ sơ cá nhân/công khai |
 
 ## Danh mục file Dart
 
-### auth/data/auth_repository.dart
-- Types: class AuthRepository {
+### core/constants/api_constants.dart
+- Khai báo: class ApiConstants
 
-### auth/data/auth_storage.dart
-- Types: class AuthStorage {
+### core/constants/map_constants.dart
+- Khai báo: class MapConstants
 
-### auth/presentation/auth_notifier.dart
-- Types: enum AuthStatus { initial, loading, authenticated, unauthenticated, error }; class AuthNotifier extends ChangeNotifier {
+### core/constants/map_tile_provider_config.dart
+- Khai báo: class MapTileProviderConfig
 
-### auth/presentation/screens/login_screen.dart
-- Types: class LoginScreen extends StatefulWidget {; class _LoginScreenState extends State<LoginScreen> {
+### core/network/api_client.dart
+- Khai báo: class ApiClient
 
-### auth/presentation/screens/register_screen.dart
-- Types: class RegisterScreen extends StatefulWidget {; class _RegisterScreenState extends State<RegisterScreen> {
+### core/network/api_exception.dart
+- Khai báo: class ApiException
 
-### collection/data/collection_repository.dart
-- Types: class CollectionRepository {
+### core/theme/app_colors.dart
+- Khai báo: class AppColors
 
-### collection/presentation/collection_notifier.dart
-- Types: class SubListState {; class CollectionNotifier extends ChangeNotifier {
+### core/theme/app_spacing.dart
+- Khai báo: không có khai báo class/enum/type nổi bật (xem hàm top-level trong source)
 
-### collection/presentation/screens/collection_screen.dart
-- Types: class CollectionScreen extends StatefulWidget {; class _CollectionScreenState extends State<CollectionScreen>
+### core/theme/app_text_styles.dart
+- Khai báo: không có khai báo class/enum/type nổi bật (xem hàm top-level trong source)
 
-### comments/data/comments_repository.dart
-- Types: class CommentsRepository {
+### core/theme/app_theme.dart
+- Khai báo: class AppTheme
 
-### comments/data/models/itinerary_comment.dart
-- Types: class ItineraryComment {
+### features/auth/data/auth_repository.dart
+- Khai báo: class AuthRepository
 
-### comments/presentation/comments_notifier.dart
-- Types: class CommentsNotifier extends ChangeNotifier {
+### features/auth/data/auth_storage.dart
+- Khai báo: class AuthStorage
 
-### comments/presentation/widgets/itinerary_comments_section.dart
-- Types: class ItineraryCommentsSection extends StatefulWidget {; class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {; class _CommentTile extends StatelessWidget {; class _CommentThread extends StatefulWidget {; class _CommentThreadState extends State<_CommentThread> {; class ActivityCommentsSection extends StatelessWidget {
+### features/auth/presentation/auth_notifier.dart
+- Khai báo: enum AuthStatus; class AuthNotifier
 
-### explore/data/explore_repository.dart
-- Types: class ExploreRepository {
+### features/auth/presentation/screens/login_screen.dart
+- Khai báo: class LoginScreen; class _LoginScreenState
 
-### explore/data/models/creator_summary.dart
-- Types: class CreatorSummary {
+### features/auth/presentation/screens/register_screen.dart
+- Khai báo: class RegisterScreen; class _RegisterScreenState
 
-### explore/data/models/itinerary_summary.dart
-- Types: class ItinerarySummary {
+### features/collection/data/collection_repository.dart
+- Khai báo: class CollectionRepository
 
-### explore/data/models/page_result.dart
-- Types: class PageResult<T> {
+### features/collection/presentation/collection_notifier.dart
+- Khai báo: class SubListState; class CollectionNotifier
 
-### explore/presentation/explore_notifier.dart
-- Types: enum ExploreStatus { initial, loading, success, error }; enum SectionStatus { initial, loading, success, error }; enum HomeSectionType { featured, recommended, topRated, popular, recent }; class SectionState<T> {; class ExploreFilter {; class ExploreNotifier extends ChangeNotifier {
+### features/collection/presentation/screens/collection_screen.dart
+- Khai báo: class CollectionScreen; class _CollectionScreenState
 
-### explore/presentation/screens/explore_screen.dart
-- Types: class ExploreScreen extends StatefulWidget {; class _ExploreScreenState extends State<ExploreScreen> {
+### features/comments/data/comments_repository.dart
+- Khai báo: class CommentsRepository
 
-### explore/presentation/widgets/compact_itinerary_card.dart
-- Types: enum CompactCardHighlight { rating, popular, theme }; class CompactItineraryCard extends StatelessWidget {
+### features/comments/data/models/itinerary_comment.dart
+- Khai báo: class ItineraryComment
 
-### explore/presentation/widgets/featured_itinerary_card.dart
-- Types: class FeaturedItineraryCard extends StatelessWidget {
+### features/comments/presentation/comments_notifier.dart
+- Khai báo: class CommentsNotifier
 
-### explore/presentation/widgets/filter_bottom_sheet.dart
-- Types: class FilterBottomSheet extends StatefulWidget {; class _FilterBottomSheetState extends State<FilterBottomSheet> {
+### features/comments/presentation/widgets/itinerary_comments_section.dart
+- Khai báo: class ItineraryCommentsSection; class _ItineraryCommentsSectionState; class _CommentTile; class _CommentThread; class _CommentThreadState; class ActivityCommentsSection
 
-### explore/presentation/widgets/itinerary_card.dart
-- Types: class ItineraryCard extends StatelessWidget {; class _FavoriteHeartButton extends StatefulWidget {; class _FavoriteHeartButtonState extends State<_FavoriteHeartButton> {; class _CustomCardActionButton extends StatefulWidget {; class _CustomCardActionButtonState extends State<_CustomCardActionButton> {
+### features/explore/data/explore_repository.dart
+- Khai báo: class ExploreRepository
 
-### explore/presentation/widgets/search_bar_pill.dart
-- Types: class SearchBarPill extends StatelessWidget {
+### features/explore/data/models/creator_summary.dart
+- Khai báo: class CreatorSummary
 
-### explore/presentation/widgets/section_error_view.dart
-- Types: class SectionErrorView extends StatelessWidget {
+### features/explore/data/models/itinerary_summary.dart
+- Khai báo: class ItinerarySummary
 
-### explore/presentation/widgets/section_header.dart
-- Types: class SectionHeader extends StatelessWidget {
+### features/explore/data/models/page_result.dart
+- Khai báo: class PageResult
 
-### explore/presentation/widgets/section_skeleton_loader.dart
-- Types: class SectionSkeletonLoader extends StatefulWidget {; class _SectionSkeletonLoaderState extends State<SectionSkeletonLoader>
+### features/explore/presentation/explore_notifier.dart
+- Khai báo: enum ExploreStatus; enum SectionStatus; enum HomeSectionType; class SectionState; class ExploreFilter; class ExploreNotifier
 
-### explore/presentation/widgets/theme_category_card.dart
-- Types: class ThemeCategoryItem {; class ThemeCategoryCard extends StatelessWidget {
+### features/explore/presentation/screens/explore_screen.dart
+- Khai báo: class ExploreScreen; class _ExploreScreenState
 
-### itinerary/data/itinerary_crud_repository.dart
-- Types: class ItineraryCrudRepository {
+### features/explore/presentation/widgets/compact_itinerary_card.dart
+- Khai báo: enum CompactCardHighlight; class CompactItineraryCard
 
-### itinerary/data/itinerary_repository.dart
-- Types: class ItineraryRepository {
+### features/explore/presentation/widgets/featured_itinerary_card.dart
+- Khai báo: class FeaturedItineraryCard
 
-### itinerary/data/models/activity_detail.dart
-- Types: class ActivityDetail {
+### features/explore/presentation/widgets/filter_bottom_sheet.dart
+- Khai báo: class FilterBottomSheet; class _FilterBottomSheetState
 
-### itinerary/data/models/create_activity_request.dart
-- Types: class CreateActivityRequest {
+### features/explore/presentation/widgets/itinerary_card.dart
+- Khai báo: class ItineraryCard; class _FavoriteHeartButton; class _FavoriteHeartButtonState; class _CustomCardActionButton; class _CustomCardActionButtonState
 
-### itinerary/data/models/create_day_request.dart
-- Types: class CreateDayRequest {
+### features/explore/presentation/widgets/search_bar_pill.dart
+- Khai báo: class SearchBarPill
 
-### itinerary/data/models/create_itinerary_request.dart
-- Types: class CreateItineraryRequest {
+### features/explore/presentation/widgets/section_error_view.dart
+- Khai báo: class SectionErrorView
 
-### itinerary/data/models/destination_summary.dart
-- Types: class DestinationSummary {
+### features/explore/presentation/widgets/section_header.dart
+- Khai báo: class SectionHeader
 
-### itinerary/data/models/itinerary_day_detail.dart
-- Types: class ItineraryDayDetail {
+### features/explore/presentation/widgets/section_skeleton_loader.dart
+- Khai báo: class SectionSkeletonLoader; class _SectionSkeletonLoaderState
 
-### itinerary/data/models/itinerary_detail.dart
-- Types: class ItineraryDetail {
+### features/explore/presentation/widgets/theme_category_card.dart
+- Khai báo: class ThemeCategoryItem; class ThemeCategoryCard
 
-### itinerary/data/models/reorder_activity_item.dart
-- Types: class ReorderActivityItem {
+### features/itinerary/data/helpers/location_activity_mapper.dart
+- Khai báo: class LocationActivityMapper
 
-### itinerary/data/models/route_models.dart
-- Types: class RouteWaypoint {; class RouteResponse {
+### features/itinerary/data/itinerary_crud_repository.dart
+- Khai báo: class ItineraryCrudRepository
 
-### itinerary/data/models/update_activity_request.dart
-- Types: class UpdateActivityRequest {
+### features/itinerary/data/itinerary_repository.dart
+- Khai báo: class ItineraryRepository
 
-### itinerary/data/models/update_day_request.dart
-- Types: class UpdateDayRequest {
+### features/itinerary/data/models/activity_detail.dart
+- Khai báo: class ActivityDetail
 
-### itinerary/data/models/update_itinerary_request.dart
-- Types: class UpdateItineraryRequest {
+### features/itinerary/data/models/create_activity_request.dart
+- Khai báo: class CreateActivityRequest
 
-### itinerary/data/route_repository.dart
-- Types: class RouteRepository {
+### features/itinerary/data/models/create_day_request.dart
+- Khai báo: class CreateDayRequest
 
-### itinerary/presentation/itinerary_detail_notifier.dart
-- Types: class ItineraryDetailNotifier extends ChangeNotifier {
+### features/itinerary/data/models/create_itinerary_request.dart
+- Khai báo: class CreateItineraryRequest
 
-### itinerary/presentation/my_itineraries_notifier.dart
-- Types: enum MyItinerariesStatus { initial, loading, success, error }; class MyItinerariesNotifier extends ChangeNotifier {
+### features/itinerary/data/models/destination_summary.dart
+- Khai báo: class DestinationSummary
 
-### itinerary/presentation/screens/activity_detail_screen.dart
-- Types: class ActivityDetailScreen extends StatelessWidget {
+### features/itinerary/data/models/itinerary_day_detail.dart
+- Khai báo: class ItineraryDayDetail
 
-### itinerary/presentation/screens/create_itinerary_screen.dart
-- Types: class CreateItineraryScreen extends StatefulWidget {; class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
+### features/itinerary/data/models/itinerary_detail.dart
+- Khai báo: class ItineraryDetail
 
-### itinerary/presentation/screens/edit_itinerary_screen.dart
-- Types: class EditItineraryScreen extends StatefulWidget {; class _EditItineraryScreenState extends State<EditItineraryScreen> {
+### features/itinerary/data/models/itinerary_place.dart
+- Khai báo: class ItineraryPlace
 
-### itinerary/presentation/screens/itinerary_detail_screen.dart
-- Types: class ItineraryDetailScreen extends StatefulWidget {; class _ItineraryDetailScreenState extends State<ItineraryDetailScreen> {
+### features/itinerary/data/models/place_summary.dart
+- Khai báo: class PlaceSummary
 
-### itinerary/presentation/screens/itinerary_map_screen.dart
-- Types: class ItineraryMapScreen extends StatefulWidget {; class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
+### features/itinerary/data/models/reorder_activity_item.dart
+- Khai báo: class ReorderActivityItem
 
-### itinerary/presentation/screens/my_itineraries_screen.dart
-- Types: class MyItinerariesScreen extends StatefulWidget {; class _MyItinerariesScreenState extends State<MyItinerariesScreen> {
+### features/itinerary/data/models/route_models.dart
+- Khai báo: class RouteWaypoint; class RouteResponse
 
-### itinerary/presentation/widgets/activity_form_dialog.dart
-- Types: class ActivityFormBottomSheet extends StatefulWidget {; class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
+### features/itinerary/data/models/update_activity_request.dart
+- Khai báo: class UpdateActivityRequest
 
-### itinerary/presentation/widgets/activity_timeline_item.dart
-- Types: class ActivityTimelineItem extends StatelessWidget {
+### features/itinerary/data/models/update_day_request.dart
+- Khai báo: class UpdateDayRequest
 
-### itinerary/presentation/widgets/day_form_dialog.dart
-- Types: class DayFormDialog extends StatefulWidget {; class _DayFormDialogState extends State<DayFormDialog> {
+### features/itinerary/data/models/update_itinerary_request.dart
+- Khai báo: class UpdateItineraryRequest
 
-### itinerary/presentation/widgets/delete_activity_dialog.dart
+### features/itinerary/data/route_repository.dart
+- Khai báo: class RouteRepository
 
-### itinerary/presentation/widgets/delete_day_dialog.dart
+### features/itinerary/presentation/itinerary_detail_notifier.dart
+- Khai báo: class ItineraryDetailNotifier
 
-### itinerary/presentation/widgets/delete_itinerary_dialog.dart
+### features/itinerary/presentation/my_itineraries_notifier.dart
+- Khai báo: enum MyItinerariesStatus; class MyItinerariesNotifier
 
-### itinerary/presentation/widgets/itinerary_day_card.dart
-- Types: class ItineraryDayCard extends StatefulWidget {; class _ItineraryDayCardState extends State<ItineraryDayCard> {
+### features/itinerary/presentation/screens/activity_detail_screen.dart
+- Khai báo: class ActivityDetailScreen
 
-### itinerary/presentation/widgets/itinerary_location_search_field.dart
-- Types: class ItineraryLocationSearchField extends StatefulWidget {; class _ItineraryLocationSearchFieldState
+### features/itinerary/presentation/screens/create_itinerary_screen.dart
+- Khai báo: class CreateItineraryScreen; class _CreateItineraryScreenState
 
-### itinerary/presentation/widgets/itinerary_map_helper.dart
-- Types: class MappedActivityStop {; class ItineraryMapHelper {
+### features/itinerary/presentation/screens/edit_itinerary_screen.dart
+- Khai báo: class EditItineraryScreen; class _EditItineraryScreenState
 
-### itinerary/presentation/widgets/itinerary_map_preview_card.dart
-- Types: class ItineraryMapPreviewCard extends StatefulWidget {; class _ItineraryMapPreviewCardState extends State<ItineraryMapPreviewCard> {
+### features/itinerary/presentation/screens/itinerary_detail_screen.dart
+- Khai báo: class ItineraryDetailScreen; class _ItineraryDetailScreenState; class _KeepAliveTabWrapper; class _KeepAliveTabWrapperState
 
-### itinerary/presentation/widgets/my_itinerary_card.dart
-- Types: class MyItineraryCard extends StatelessWidget {
+### features/itinerary/presentation/screens/itinerary_map_screen.dart
+- Khai báo: class ItineraryMapScreen; class _ItineraryMapScreenState
 
-### itinerary/presentation/widgets/navigation_launcher_helper.dart
-- Types: typedef UrlLauncherFn = Future<bool> Function(Uri uri, {LaunchMode mode});; class NavigationLauncherHelper {
+### features/itinerary/presentation/screens/my_itineraries_screen.dart
+- Khai báo: class MyItinerariesScreen; class _MyItinerariesScreenState
 
-### itinerary/presentation/widgets/reorder_activities_dialog.dart
-- Types: class _ReorderActivitiesBottomSheet extends StatefulWidget {; class _ReorderActivitiesBottomSheetState
+### features/itinerary/presentation/widgets/activity_form_dialog.dart
+- Khai báo: class ActivityFormBottomSheet; class _ActivityFormBottomSheetState
 
-### location/data/location_repository.dart
-- Types: class LocationRepository {
+### features/itinerary/presentation/widgets/activity_timeline_item.dart
+- Khai báo: class ActivityTimelineItem
 
-### location/data/models/location_search_result.dart
-- Types: class LocationSearchResult {
+### features/itinerary/presentation/widgets/add_place_to_itinerary_sheet.dart
+- Khai báo: class AddPlaceToItinerarySheet; class _AddPlaceToItinerarySheetState
 
-### location/presentation/widgets/location_picker_sheet.dart
-- Types: class CustomLocationResult {; class LocationPickerSheet extends StatefulWidget {; class _LocationPickerSheetState extends State<LocationPickerSheet> {
+### features/itinerary/presentation/widgets/day_form_dialog.dart
+- Khai báo: class DayFormDialog; class _DayFormDialogState
 
-### notifications/presentation/screens/notifications_screen.dart
-- Types: class NotificationsScreen extends StatelessWidget {
+### features/itinerary/presentation/widgets/day_picker_bottom_sheet.dart
+- Khai báo: class DayPickerBottomSheet; class _DayPickerBottomSheetState
 
-### profile/data/models/public_profile.dart
-- Types: class PublicProfile {
+### features/itinerary/presentation/widgets/delete_activity_dialog.dart
+- Khai báo: không có khai báo class/enum/type nổi bật (xem hàm top-level trong source)
 
-### profile/data/models/public_user_summary.dart
-- Types: class PublicUserSummary {
+### features/itinerary/presentation/widgets/delete_day_dialog.dart
+- Khai báo: không có khai báo class/enum/type nổi bật (xem hàm top-level trong source)
 
-### profile/data/profile_repository.dart
-- Types: class ProfileRepository {
+### features/itinerary/presentation/widgets/delete_itinerary_dialog.dart
+- Khai báo: không có khai báo class/enum/type nổi bật (xem hàm top-level trong source)
 
-### profile/data/public_profile_repository.dart
-- Types: class PublicProfileRepository {
+### features/itinerary/presentation/widgets/itinerary_day_card.dart
+- Khai báo: class ItineraryDayCard; class _ItineraryDayCardState
 
-### profile/presentation/screens/profile_screen.dart
-- Types: class ProfileScreen extends StatefulWidget {; class _ProfileScreenState extends State<ProfileScreen> {
+### features/itinerary/presentation/widgets/itinerary_location_search_field.dart
+- Khai báo: class ItineraryLocationSearchField; class _ItineraryLocationSearchFieldState
 
-### profile/presentation/screens/public_profile_screen.dart
-- Types: class PublicProfileScreen extends StatefulWidget {; class _PublicProfileScreenState extends State<PublicProfileScreen> {
+### features/itinerary/presentation/widgets/itinerary_map_helper.dart
+- Khai báo: class MappedActivityStop; class ItineraryMapHelper
 
-### profile/presentation/screens/public_user_list_screen.dart
-- Types: class PublicUserListScreen extends StatefulWidget {; class _PublicUserListScreenState extends State<PublicUserListScreen> {
+### features/itinerary/presentation/widgets/itinerary_map_preview_card.dart
+- Khai báo: class ItineraryMapPreviewCard; class _ItineraryMapPreviewCardState
 
-### saved_itineraries/presentation/screens/saved_itineraries_screen.dart
-- Types: class SavedItinerariesScreen extends StatelessWidget {
+### features/itinerary/presentation/widgets/itinerary_picker_bottom_sheet.dart
+- Khai báo: enum ItineraryPickerMode; class ItineraryPickerBottomSheet; class _ItineraryPickerBottomSheetState
 
-### social/data/models/social_state_update.dart
-- Types: class SocialStateUpdate {
+### features/itinerary/presentation/widgets/my_itinerary_card.dart
+- Khai báo: class MyItineraryCard
 
-### social/data/social_repository.dart
-- Types: class SocialRepository {
+### features/itinerary/presentation/widgets/navigation_launcher_helper.dart
+- Khai báo: typedef UrlLauncherFn; class NavigationLauncherHelper
 
-### social/presentation/screens/community_screen.dart
-- Types: class CommunityScreen extends StatelessWidget {
+### features/itinerary/presentation/widgets/reorder_activities_dialog.dart
+- Khai báo: class _ReorderActivitiesBottomSheet; class _ReorderActivitiesBottomSheetState
+
+### features/itinerary/presentation/widgets/save_place_to_itinerary_sheet.dart
+- Khai báo: class SavePlaceToItinerarySheet; class _SavePlaceToItinerarySheetState
+
+### features/location/data/location_repository.dart
+- Khai báo: class LocationRepository
+
+### features/location/data/models/location_search_result.dart
+- Khai báo: class LocationSearchResult
+
+### features/location/presentation/widgets/location_picker_sheet.dart
+- Khai báo: class SimpleTokenAuthNotifier; class CustomLocationResult; class LocationPickerSheet; class _LocationPickerSheetState
+
+### features/messaging/data/messaging_realtime_client.dart
+- Khai báo: enum RealtimeStatus; class MessagingRealtimeClient
+
+### features/messaging/data/messaging_repository.dart
+- Khai báo: class MessagingRepository; class MessagePage; API message request list/count/accept/decline
+
+### features/messaging/data/models/chat_event.dart
+- Khai báo: class ChatEvent
+
+### features/messaging/data/models/chat_message.dart
+- Khai báo: class ChatMessage
+
+### features/messaging/data/models/conversation_summary.dart
+- Khai báo: class ConversationSummary
+
+### features/messaging/data/models/friend_request.dart
+- Khai báo: class FriendRequest
+
+### features/messaging/data/models/messaging_settings.dart
+- Khai báo: enum InboundMessagePolicy; class MessagingSettings
+
+### features/messaging/presentation/screens/chat_screen.dart
+- Khai báo: class ChatScreen; class _ChatScreenState
+
+### features/messaging/presentation/screens/community_screen.dart
+- Khai báo: class CommunityScreen; class _CommunityScreenState; inbox/friends/friend requests/Stranger Inbox
+
+### features/messaging/presentation/screens/messaging_settings_screen.dart
+- Khai báo: class MessagingSettingsScreen; class _MessagingSettingsScreenState
+
+### features/notifications/presentation/screens/notifications_screen.dart
+- Khai báo: class NotificationsScreen
+
+### features/profile/data/models/public_profile.dart
+- Khai báo: class PublicProfile
+
+### features/profile/data/models/public_user_summary.dart
+- Khai báo: class PublicUserSummary
+
+### features/profile/data/profile_repository.dart
+- Khai báo: class ProfileRepository
+
+### features/profile/data/public_profile_repository.dart
+- Khai báo: class PublicProfileRepository
+
+### features/profile/presentation/screens/personal_info_screen.dart
+- Khai báo: class PersonalInfoScreen; class _PersonalInfoScreenState
+
+### features/profile/presentation/screens/profile_screen.dart
+- Khai báo: class ProfileScreen; class _ProfileScreenState
+
+### features/profile/presentation/screens/public_profile_screen.dart
+- Khai báo: class PublicProfileScreen; class _PublicProfileScreenState
+
+### features/profile/presentation/screens/public_user_list_screen.dart
+- Khai báo: class PublicUserListScreen; class _PublicUserListScreenState
+
+### features/saved_itineraries/presentation/screens/saved_itineraries_screen.dart
+- Khai báo: class SavedItinerariesScreen
+
+### features/social/data/community_post_repository.dart
+- Khai báo: class CommunityPostRepository
+
+### features/social/data/models/post_comment_model.dart
+- Khai báo: class PostCommentModel
+
+### features/social/data/models/post_model.dart
+- Khai báo: class PostAuthorModel; class PostItineraryModel; class PostModel
+
+### features/social/data/models/social_state_update.dart
+- Khai báo: class SocialStateUpdate
+
+### features/social/data/social_repository.dart
+- Khai báo: class SocialRepository
+
+### features/social/presentation/community_feed_notifier.dart
+- Khai báo: class CommunityFeedNotifier
+
+### features/social/presentation/screens/community_feed_screen.dart
+- Khai báo: class CommunityFeedScreen; class _CommunityFeedScreenState
+
+### features/social/presentation/screens/community_screen.dart
+- Khai báo: class CommunityScreen
+
+### features/social/presentation/screens/create_post_screen.dart
+- Khai báo: class CreatePostScreen; class _CreatePostScreenState; class _UploadedMediaItem; class _ItinerarySelectionSheet; class _ItinerarySelectionSheetState
+
+### features/social/presentation/widgets/post_card_widget.dart
+- Khai báo: class PostCardWidget
+
+### features/social/presentation/widgets/post_comments_sheet.dart
+- Khai báo: class PostCommentsSheet; class _PostCommentsSheetState
+
+### features/social/presentation/widgets/report_post_dialog.dart
+- Khai báo: class ReportPostDialog; class _ReportPostDialogState
+
+### main.dart
+- Khai báo: class MyApp; class _MyAppState; class PlaceholderHomeScreen
+
+### shared/navigation/main_navigation_shell.dart
+- Khai báo: class MainNavigationShell; class _MainNavigationShellState
+
+### shared/services/image_picker_service.dart
+- Khai báo: abstract class ImagePickerService; class DeviceImagePickerService
+
+### shared/widgets/app_base_map.dart
+- Khai báo: class AppBaseMap
+
+### shared/widgets/app_empty_state.dart
+- Khai báo: class AppEmptyState
+
+### shared/widgets/app_error_state.dart
+- Khai báo: class AppErrorState
+
+### shared/widgets/app_map_view.dart
+- Khai báo: class AppMapView
+
+### shared/widgets/app_page_title.dart
+- Khai báo: class AppPageTitle
+
+### shared/widgets/app_primary_button.dart
+- Khai báo: class AppPrimaryButton
+
+### shared/widgets/app_text_field.dart
+- Khai báo: class AppTextField; class _AppTextFieldState
+
+### shared/widgets/current_user_avatar_button.dart
+- Khai báo: class CurrentUserAvatarButton
+
+### shared/widgets/image_upload_preview.dart
+- Khai báo: class ImageUploadPreview
+
+### shared/widgets/map_api_key_missing_banner.dart
+- Khai báo: class MapApiKeyMissingBanner; class _MapApiKeyMissingBannerState
+
+### shared/widgets/map_marker_builder.dart
+- Khai báo: class MapMarkerBuilder; class _StopMarkerWidget; class _PinTeardropPainter

@@ -22,15 +22,14 @@ public class UserMessagingSettings {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "inbound_policy", nullable = false, length = 20)
-    private InboundMessagePolicy inboundPolicy = InboundMessagePolicy.FRIENDS_ONLY;
+    private InboundMessagePolicy inboundPolicy = InboundMessagePolicy.EVERYONE;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     public UserMessagingSettings(User user) {
         this.user = user;
-        this.userId = user.getUserId();
-        this.inboundPolicy = InboundMessagePolicy.FRIENDS_ONLY;
+        this.inboundPolicy = InboundMessagePolicy.EVERYONE;
     }
 
     @PrePersist @PreUpdate

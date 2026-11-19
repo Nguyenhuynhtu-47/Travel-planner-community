@@ -41,8 +41,11 @@ public class RatingController {
     }
 
     @GetMapping
-    public ResponseEntity<RatingSummaryResponse> getRatingSummary(@PathVariable Integer itineraryId) {
-        RatingSummaryResponse response = ratingService.getRatingSummary(itineraryId);
+    public ResponseEntity<RatingSummaryResponse> getRatingSummary(@PathVariable Integer itineraryId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        RatingSummaryResponse response = userDetails == null
+                ? ratingService.getRatingSummary(itineraryId)
+                : ratingService.getRatingSummary(itineraryId, userDetails.getUsername());
         return ResponseEntity.ok(response);
     }
 

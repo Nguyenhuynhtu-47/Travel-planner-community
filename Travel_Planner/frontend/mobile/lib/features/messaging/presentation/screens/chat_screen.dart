@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/auth_notifier.dart';
+import '../../../profile/presentation/screens/public_profile_screen.dart';
+import '../../data/messaging_date_time.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/messaging_realtime_client.dart';
 import '../../data/models/chat_event.dart';
@@ -16,12 +18,14 @@ class ChatScreen extends StatefulWidget {
   final MessagingRepository repository;
   final MessagingRealtimeClient? realtime;
   final ConversationSummary conversation;
+  final String? initialSystemNotice;
   const ChatScreen({
     super.key,
     required this.authNotifier,
     required this.repository,
     this.realtime,
     required this.conversation,
+    this.initialSystemNotice,
   });
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -31,10 +35,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final List<ChatMessage> _messages = [];
+  late final String? _initialSystemNotice = widget.initialSystemNotice;
   bool _loading = true,
       _loadingOlder = false,
       _sending = false,
+      _messageRequestBusy = false,
+      _requestAccepted = false,
+      _blockingPeer = false,
+      _unblockingPeer = false,
+      _blockedPeer = false,
+      _blockStateLoaded = false,
       _hasMore = false;
+  bool? _canSendOverride;
+  late String _conversationStatus;
+  late bool _recipientPrivacyRestricted;
+  late bool _canRespondToMessageRequest;
   int? _before;
   String? _error;
   int _peerReadSequence = 0;
@@ -44,14 +59,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   late final int _me;
   late final MessagingRealtimeClient _realtime =
       widget.realtime ?? MessagingRealtimeClient.shared;
+
+  bool get _canSendMessage =>
+      (_canSendOverride ?? widget.conversation.canSendMessage) &&
+      !_blockedPeer &&
+      _blockStateLoaded;
+  bool get _isPending => _conversationStatus == 'PENDING' && !_requestAccepted;
   @override
   void initState() {
     super.initState();
+    _conversationStatus = widget.conversation.status;
+    _recipientPrivacyRestricted =
+        widget.conversation.recipientPrivacyRestricted;
+    _canRespondToMessageRequest =
+        widget.conversation.canRespondToMessageRequest;
     _me =
         int.tryParse('${widget.authNotifier.currentUser?['userId'] ?? ''}') ??
         -1;
     widget.authNotifier.addListener(_authChanged);
     WidgetsBinding.instance.addObserver(this);
+    _realtimeStatus = _realtime.currentStatus;
     _eventSubscription = _realtime.events.listen(_onEvent);
     _statusSubscription = _realtime.statuses.listen((status) {
       if (mounted) setState(() => _realtimeStatus = status);
@@ -62,6 +89,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _realtime.connect(widget.authNotifier.token!, "$_me");
     }
     _load();
+    if (widget.conversation.conversationId > 0 &&
+        widget.authNotifier.token != null &&
+        _realtime.currentStatus != RealtimeStatus.connected) {
+      _realtime.connect(widget.authNotifier.token!, "$_me");
+    }
+    if (widget.conversation.conversationId > 0 &&
+        widget.initialSystemNotice == null) {
+      _load();
+      _refreshBlockState();
+    } else {
+      _blockStateLoaded = true;
+    }
     _scroll.addListener(_onScroll);
   }
 
@@ -91,7 +130,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _peerReadSequence = p.peerReadSequence ?? 0;
         _loading = false;
       });
-      if (_messages.isNotEmpty) _markRead(_messages.last.sequenceNumber);
+      if (_messages.isNotEmpty && !_isPending) {
+        _markRead(_messages.last.sequenceNumber);
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollBottom());
     } catch (_) {
       if (mounted) {
@@ -145,16 +186,57 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _messages.clear();
       _input.clear();
       if (mounted) Navigator.of(context).maybePop();
+    } else if (mounted) {
+      // Profile updates notify AuthNotifier even when the account ID is unchanged.
+      setState(() {});
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _syncNewMessages();
+    if (state == AppLifecycleState.resumed) {
+      _syncNewMessages();
+      _refreshBlockState();
+    }
+  }
+
+  Future<void> _refreshBlockState() async {
+    final token = widget.authNotifier.token;
+    if (token == null || widget.conversation.conversationId <= 0) {
+      if (mounted) setState(() => _blockStateLoaded = true);
+      return;
+    }
+    try {
+      var page = 0;
+      var blocked = false;
+      while (page < 100) {
+        final result = await widget.repository.blockedUsers(token, page: page);
+        if (result.content.any(
+          (user) => user.userId == widget.conversation.peer.userId,
+        )) {
+          blocked = true;
+          break;
+        }
+        if (result.isLast) break;
+        page++;
+      }
+      if (mounted) {
+        setState(() {
+          _blockedPeer = blocked;
+          if (blocked) _canSendOverride = false;
+          _blockStateLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _blockStateLoaded = true);
+    }
   }
 
   Future<void> _syncNewMessages() async {
     if (!mounted || _messages.isEmpty || widget.authNotifier.token == null) {
+    if (!mounted ||
+        widget.conversation.conversationId <= 0 ||
+        widget.authNotifier.token == null) {
       return;
     }
     try {
@@ -174,13 +256,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           _merge(page.content);
           _peerReadSequence = page.peerReadSequence ?? _peerReadSequence;
         });
-        _markRead(page.content.last.sequenceNumber);
+        if (!_isPending) _markRead(page.content.last.sequenceNumber);
       }
     } catch (_) {}
   }
 
   void _onEvent(ChatEvent event) {
     if (event.conversationId != widget.conversation.conversationId || !mounted) {
+      return;
+    }
+    if (event.type == 'CONVERSATION_ACCESS_REVOKED' &&
+        event.blockedUserId == _me &&
+        event.blockedByUserId == widget.conversation.peer.userId) {
+      _messages.clear();
+      _input.clear();
+      if (mounted) {
+        setState(() => _error = 'Bạn không thể xem cuộc trò chuyện này.');
+        Navigator.of(context).maybePop();
+      }
+      return;
+    }
+    if (event.conversationId != widget.conversation.conversationId ||
+        !mounted) {
+      return;
+    }
+    if (event.type == 'MESSAGE_REQUEST_ACCEPTED') {
+      setState(() {
+        _requestAccepted = true;
+        _conversationStatus = 'ACCEPTED';
+        _canRespondToMessageRequest = false;
+        _canSendOverride = true;
+      });
       return;
     }
     if (event.type == 'READ_CURSOR_UPDATED' &&
@@ -194,6 +300,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (event.message != null) {
       setState(() => _merge([event.message!]));
       if (event.message!.senderUserId != _me) {
+      if (_blockedPeer && event.message!.senderUserId != _me) return;
+      setState(() {
+        _merge([event.message!]);
+      });
+      if (event.message!.senderUserId != _me && !_isPending) {
         _markRead(event.message!.sequenceNumber);
       }
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollBottom());
@@ -248,7 +359,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _send({String? retryId}) async {
     final text = _input.text.trim();
-    if (text.isEmpty || _sending || !widget.conversation.canSendMessage) return;
+    if (text.isEmpty || _sending || !_canSendMessage) return;
     final token = widget.authNotifier.token;
     if (token == null) return;
     final id = retryId ?? _uuid();
@@ -285,7 +396,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         text,
         token,
       );
-      if (mounted) setState(() => _merge([sent]));
+      if (mounted) {
+        setState(() {
+          _merge([sent]);
+          if (sent.conversationStatus != null) {
+            _conversationStatus = sent.conversationStatus!;
+          }
+          if (!sent.recipientVisible) _recipientPrivacyRestricted = true;
+          if (sent.conversationStatus == 'ACCEPTED') {
+            _requestAccepted = true;
+          }
+        });
+      }
     } catch (_) {
       if (mounted) {
         final i = _messages.indexWhere((m) => m.clientMessageId == id);
@@ -309,6 +431,297 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  Widget _messageAvatar(ChatMessage message) {
+    final isOwn = message.senderUserId == _me;
+    final ownAvatar = widget.authNotifier.currentUser?['avatar']?.toString();
+    final avatar = isOwn
+        ? ownAvatar
+        : (message.senderAvatar?.trim().isNotEmpty == true
+              ? message.senderAvatar!.trim()
+              : widget.conversation.peer.avatar);
+    return _avatarFromUrl(avatar, size: 28);
+  }
+
+  Widget _avatarFromUrl(String? url, {required double size}) {
+    final imageUrl = url?.trim();
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: AppColors.surfaceStrong,
+      child: imageUrl?.isNotEmpty == true
+          ? ClipOval(
+              child: Image.network(
+                imageUrl!,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, progress) =>
+                    progress == null ? child : _avatarPlaceholder(),
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.person_outline,
+                  size: 17,
+                  color: AppColors.muted,
+                ),
+              ),
+            )
+          : _avatarPlaceholder(),
+    );
+  }
+
+  Widget _avatarPlaceholder() =>
+      const Icon(Icons.person_outline, size: 17, color: AppColors.muted);
+
+  bool _sameVisualGroup(int first, int second) {
+    if (first < 0 || second >= _messages.length) return false;
+    final a = _messages[first];
+    final b = _messages[second];
+    if (a.senderUserId != b.senderUserId) return false;
+    final aTime = MessagingDateTime.toVietnamTime(a.createdAt);
+    final bTime = MessagingDateTime.toVietnamTime(b.createdAt);
+    if (aTime.year != bTime.year ||
+        aTime.month != bTime.month ||
+        aTime.day != bTime.day) {
+      return false;
+    }
+    return bTime.difference(aTime).abs() <= const Duration(minutes: 2);
+  }
+
+  Widget _buildMessageRow(BuildContext context, int messageIndex) {
+    final message = _messages[messageIndex];
+    final own = message.senderUserId == _me;
+    final startsGroup = !_sameVisualGroup(messageIndex - 1, messageIndex);
+    final endsGroup = !_sameVisualGroup(messageIndex, messageIndex + 1);
+    const avatarSize = 28.0;
+    const avatarGap = 8.0;
+    final rowWidth = MediaQuery.sizeOf(context).width - 24;
+    final maxBubbleWidth = min(
+      rowWidth * .78,
+      rowWidth - avatarSize - avatarGap,
+    ).clamp(0.0, rowWidth).toDouble();
+
+    final bubble = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+      decoration: BoxDecoration(
+        color: own ? AppColors.primaryLight : AppColors.surfaceStrong,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(message.content),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              MessagingDateTime.format(message.createdAt),
+              style: const TextStyle(fontSize: 11, color: AppColors.muted),
+            ),
+          ),
+          if (message.failed)
+            TextButton(
+              onPressed: () => _send(retryId: message.clientMessageId),
+              child: const Text('Thử gửi lại'),
+            )
+          else if (message.sending)
+            const Text('Đang gửi…', style: TextStyle(fontSize: 10))
+          else if (own &&
+              message.recipientVisible &&
+              message.sequenceNumber <= _peerReadSequence)
+            const Text('Đã đọc', style: TextStyle(fontSize: 10))
+          else if (own && message.recipientVisible && message.messageId != null)
+            const Text('Đã gửi', style: TextStyle(fontSize: 10)),
+        ],
+      ),
+    );
+
+    final avatarSlot = SizedBox(
+      width: avatarSize,
+      height: avatarSize,
+      child: endsGroup ? _messageAvatar(message) : null,
+    );
+    final children = own
+        ? <Widget>[
+            Flexible(child: bubble),
+            const SizedBox(width: avatarGap),
+            avatarSlot,
+          ]
+        : <Widget>[
+            avatarSlot,
+            const SizedBox(width: avatarGap),
+            Flexible(child: bubble),
+          ];
+
+    return Padding(
+      key: ValueKey(message.clientMessageId),
+      padding: EdgeInsets.only(top: startsGroup ? 7 : 1, bottom: 1),
+      child: Row(
+        mainAxisAlignment: own
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: children,
+      ),
+    );
+  }
+
+  Future<void> _openPeerProfile() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicProfileScreen(
+          userId: widget.conversation.peer.userId,
+          authNotifier: widget.authNotifier,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _blockPeer() async {
+    if (_blockedPeer || _blockingPeer) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Chặn người dùng?'),
+        content: Text(
+          'Bạn sẽ không thể nhắn tin hoặc kết bạn với ${widget.conversation.peer.fullName?.trim().isNotEmpty == true ? widget.conversation.peer.fullName : '@${widget.conversation.peer.effectiveHandle}'}. Lịch sử trò chuyện vẫn được giữ.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Chặn'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final token = widget.authNotifier.token;
+    if (token == null) return;
+    setState(() => _blockingPeer = true);
+    try {
+      await widget.repository.block(widget.conversation.peer.userId, token);
+      if (mounted) {
+        setState(() {
+          _blockedPeer = true;
+          _canSendOverride = false;
+        });
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Đã chặn người dùng.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể chặn người dùng lúc này.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _blockingPeer = false);
+    }
+  }
+
+  Future<void> _unblockPeer() async {
+    if (!_blockedPeer || _unblockingPeer) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Bỏ chặn người dùng?'),
+        content: const Text(
+          'Sau khi bỏ chặn, hai bên có thể nhắn tin theo cài đặt quyền riêng tư hiện tại. Lịch sử trò chuyện vẫn được giữ.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Giữ chặn'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Bỏ chặn'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final token = widget.authNotifier.token;
+    if (token == null) return;
+    setState(() => _unblockingPeer = true);
+    try {
+      await widget.repository.unblock(widget.conversation.peer.userId, token);
+      final current = widget.conversation.conversationId > 0
+          ? await widget.repository.openDirect(
+              widget.conversation.peer.userId,
+              token,
+            )
+          : null;
+      if (mounted) {
+        setState(() {
+          _blockedPeer = false;
+          if (current != null) _canSendOverride = current.canSendMessage;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Đã bỏ chặn người dùng.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể bỏ chặn người dùng lúc này.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _unblockingPeer = false);
+    }
+  }
+
+  void _handleChatAction(String action) {
+    if (action == 'profile') _openPeerProfile();
+    if (action == 'block') _blockPeer();
+    if (action == 'unblock') _unblockPeer();
+  }
+
+  Future<void> _respondToMessageRequest({required bool accept}) async {
+    if (_messageRequestBusy || !_canRespondToMessageRequest) {
+      return;
+    }
+    final token = widget.authNotifier.token;
+    if (token == null) return;
+    setState(() => _messageRequestBusy = true);
+    try {
+      if (accept) {
+        final accepted = await widget.repository.acceptMessageRequest(
+          widget.conversation.conversationId,
+          token,
+        );
+        if (mounted) {
+          setState(() {
+            _requestAccepted = true;
+            _conversationStatus = accepted.status;
+            _canRespondToMessageRequest = false;
+            _canSendOverride = accepted.canSendMessage;
+          });
+        }
+      } else {
+        await widget.repository.declineMessageRequest(
+          widget.conversation.conversationId,
+          token,
+        );
+      }
+      if (!accept && mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể cập nhật yêu cầu tin nhắn. Hãy tải lại.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _messageRequestBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final peer = widget.conversation.peer;
@@ -317,7 +730,54 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         : '@${peer.effectiveHandle}';
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            _avatarFromUrl(peer.avatar, size: 36),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Tùy chọn cuộc trò chuyện',
+            onSelected: _handleChatAction,
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.person_outline),
+                  title: Text('Xem trang cá nhân'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _blockedPeer ? 'unblock' : 'block',
+                enabled:
+                    _blockStateLoaded && !_blockingPeer && !_unblockingPeer,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(_blockedPeer ? Icons.lock_open : Icons.block),
+                  title: Text(
+                    _blockedPeer
+                        ? _unblockingPeer
+                              ? 'Đang bỏ chặn…'
+                              : 'Bỏ chặn người dùng'
+                        : !_blockStateLoaded
+                        ? 'Đang kiểm tra trạng thái…'
+                        : _blockingPeer
+                        ? 'Đang chặn…'
+                        : 'Chặn người dùng',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Column(
         children: [
           if (_realtimeStatus != RealtimeStatus.connected)
@@ -325,23 +785,117 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               color: AppColors.surface,
-              child: Text(
-                _realtimeStatus == RealtimeStatus.connecting
-                    ? 'Đang kết nối chat…'
-                    : 'Mất kết nối realtime · đang chờ đồng bộ',
+              child: Text(switch (_realtimeStatus) {
+                RealtimeStatus.connecting => 'Đang kết nối chat…',
+                RealtimeStatus.reconnecting =>
+                  'Kết nối gián đoạn · đang thử kết nối lại…',
+                RealtimeStatus.failed => 'Phiên realtime không hợp lệ hoặc đã hết hạn. Hãy đăng nhập lại.',
+                RealtimeStatus.disconnected => 'Realtime đang ngoại tuyến · lịch sử vẫn được đồng bộ từ máy chủ.',
+                RealtimeStatus.connected => '',
+              }),
+            ),
+          if (_isPending && _canRespondToMessageRequest)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: AppColors.surfaceSoft,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final actions = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        onPressed: _messageRequestBusy
+                            ? null
+                            : () => _respondToMessageRequest(accept: false),
+                        child: const Text('Từ chối'),
+                      ),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        onPressed: _messageRequestBusy
+                            ? null
+                            : () => _respondToMessageRequest(accept: true),
+                        child: const Text('Chấp nhận'),
+                      ),
+                    ],
+                  );
+                  const label = Text('Yêu cầu tin nhắn từ người chưa kết bạn');
+                  if (constraints.maxWidth < 340) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        label,
+                        Align(alignment: Alignment.centerRight, child: actions),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      const Expanded(child: label),
+                      actions,
+                    ],
+                  );
+                },
               ),
             ),
-          if (!widget.conversation.canSendMessage)
+          if (_isPending &&
+              !_canRespondToMessageRequest &&
+              widget.conversation.canSendMessage)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: AppColors.surfaceSoft,
+              child: Text(
+                _recipientPrivacyRestricted
+                    ? 'Người này chỉ nhận tin nhắn từ bạn bè. Tin nhắn bạn gửi chỉ hiển thị với bạn; nếu kết bạn sau này, các tin cũ vẫn không được chuyển.'
+                    : 'Tin nhắn của bạn đang ở mục Tin nhắn người lạ. Bạn có thể gửi thêm; khi người nhận trả lời, cuộc trò chuyện chuyển vào hộp thư chính.',
+              ),
+            ),
+          if (_blockedPeer)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: AppColors.surfaceSoft,
+              child: const Text(
+                'Bạn đã chặn người dùng này. Lịch sử vẫn được giữ.',
+              ),
+            ),
+          if (!_canSendMessage)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               color: AppColors.surface,
-              child: const Text(
-                'Bạn hiện không thể gửi tin nhắn trong cuộc trò chuyện này.',
+              child: Text(
+                _initialSystemNotice ??
+                    (_isPending &&
+                            !_canRespondToMessageRequest &&
+                            widget.conversation.lastMessageSequence == 0
+                        ? 'Người này hiện không nhận tin nhắn từ người chưa kết bạn. Hãy kết bạn hoặc thay đổi cài đặt quyền riêng tư để bắt đầu trò chuyện.'
+                        : widget.conversation.status == 'DECLINED' &&
+                              widget.conversation.requestAvailableAt != null
+                        ? 'Yêu cầu đã bị từ chối. Bạn có thể gửi lại sau ${MessagingDateTime.format(widget.conversation.requestAvailableAt!)}.'
+                        : 'Bạn hiện không thể gửi tin nhắn trong cuộc trò chuyện này.'),
               ),
             ),
           Expanded(
-            child: _loading
+            child: _initialSystemNotice != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        _initialSystemNotice,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                 ? Center(
@@ -416,6 +970,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ),
                         ),
                       );
+                      final messageIndex = index - (_loadingOlder ? 1 : 0);
+                      return _buildMessageRow(context, messageIndex);
                     },
                   ),
           ),
@@ -431,7 +987,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       maxLength: 4000,
                       minLines: 1,
                       maxLines: 5,
-                      enabled: widget.conversation.canSendMessage,
+                      enabled: _canSendMessage,
                       decoration: const InputDecoration(
                         hintText: 'Nhập tin nhắn',
                         counterText: '',
@@ -441,7 +997,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: _sending ? null : _send,
+                    onPressed: _sending || !_canSendMessage ? null : _send,
                     icon: const Icon(Icons.send),
                     color: AppColors.primary,
                   ),

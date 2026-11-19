@@ -16,6 +16,8 @@ public class ChatEventResponse {
     private Long sequenceNumber;
     private MessageResponse message;
     private Integer readerUserId;
+    private Integer blockedByUserId;
+    private Integer blockedUserId;
     private String readerName;
     private LocalDateTime readAt;
 }

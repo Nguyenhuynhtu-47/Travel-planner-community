@@ -17,6 +17,10 @@ public interface UserBlockRepository extends JpaRepository<UserBlock, Long> {
     @Query("select count(b) > 0 from UserBlock b where (b.blocker.userId = :first and b.blockedUser.userId = :second) or (b.blocker.userId = :second and b.blockedUser.userId = :first)")
     boolean existsBetween(@Param("first") Integer first, @Param("second") Integer second);
 
+    @Query("select case when b.blocker.userId = :userId then b.blockedUser.userId else b.blocker.userId end "
+            + "from UserBlock b where b.blocker.userId = :userId or b.blockedUser.userId = :userId")
+    java.util.List<Integer> findRelatedUserIds(@Param("userId") Integer userId);
+
     @Query("select b.blocker.userId, b.blockedUser.userId from UserBlock b where (b.blocker.userId = :userId and b.blockedUser.userId in :otherIds) or (b.blockedUser.userId = :userId and b.blocker.userId in :otherIds)")
     java.util.List<Object[]> findPairsForUser(@Param("userId") Integer userId, @Param("otherIds") java.util.List<Integer> otherIds);
 

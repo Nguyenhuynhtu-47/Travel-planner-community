@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.context.ApplicationEventPublisher;
 import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -26,22 +27,28 @@ class FriendshipPrivacyServiceTest {
     @Mock FriendshipRepository friendships;
     @Mock UserBlockRepository blocks;
     @Mock UserMessagingSettingsRepository settings;
+    @Mock ApplicationEventPublisher events;
     FriendshipServiceImpl service;
     User sender;
     User recipient;
 
     @BeforeEach
     void setUp() {
-        service = new FriendshipServiceImpl(users, friendships, blocks, settings);
+        service = new FriendshipServiceImpl(users, friendships, blocks, settings, events);
         sender = User.builder().userId(1).username("sender").status(UserStatus.ACTIVE).build();
         recipient = User.builder().userId(2).username("recipient").status(UserStatus.ACTIVE).build();
         when(users.findById(2)).thenReturn(Optional.of(recipient));
     }
 
     @Test
-    void defaultsToFriendsOnlyAndAllowsAcceptedFriends() {
+    void defaultsToEveryoneAndAllowsStrangers() {
         when(blocks.existsBetween(1, 2)).thenReturn(false);
         when(settings.findById(2)).thenReturn(Optional.empty());
+        assertTrue(service.canMessage(1, 2));
+
+        UserMessagingSettings explicitFriendsOnly = new UserMessagingSettings();
+        explicitFriendsOnly.setInboundPolicy(InboundMessagePolicy.FRIENDS_ONLY);
+        when(settings.findById(2)).thenReturn(Optional.of(explicitFriendsOnly));
         when(friendships.findByUserLow_UserIdAndUserHigh_UserId(1, 2)).thenReturn(Optional.empty());
         assertFalse(service.canMessage(1, 2));
 
@@ -52,18 +59,35 @@ class FriendshipPrivacyServiceTest {
     }
 
     @Test
-    void everyoneAllowsStrangersButNobodyAndBlockDenyMessages() {
+    void everyoneAllowsStrangersAndBlockDeniesMessages() {
         when(blocks.existsBetween(1, 2)).thenReturn(false);
         UserMessagingSettings policy = new UserMessagingSettings();
         policy.setInboundPolicy(InboundMessagePolicy.EVERYONE);
         when(settings.findById(2)).thenReturn(Optional.of(policy));
         assertTrue(service.canMessage(1, 2));
 
-        policy.setInboundPolicy(InboundMessagePolicy.NOBODY);
-        assertFalse(service.canMessage(1, 2));
-
         policy.setInboundPolicy(InboundMessagePolicy.EVERYONE);
         when(blocks.existsBetween(1, 2)).thenReturn(true);
         assertFalse(service.canMessage(1, 2));
+    }
+
+    @Test
+    void legacyNobodyValueUsesFriendsOnlySemantics() {
+        when(blocks.existsBetween(1, 2)).thenReturn(false);
+        UserMessagingSettings policy = new UserMessagingSettings();
+        policy.setInboundPolicy(InboundMessagePolicy.NOBODY);
+        when(settings.findById(2)).thenReturn(Optional.of(policy));
+        when(users.findById(1)).thenReturn(Optional.of(sender));
+        when(users.findById(2)).thenReturn(Optional.of(recipient));
+        assertFalse(service.canMessage(1, 2));
+        assertTrue(service.canContinueConversation(1, 2));
+
+        Friendship accepted = new Friendship();
+        accepted.setStatus(FriendshipStatus.ACCEPTED);
+        when(friendships.findByUserLow_UserIdAndUserHigh_UserId(1, 2)).thenReturn(Optional.of(accepted));
+        assertTrue(service.canMessage(1, 2));
+
+        when(blocks.existsBetween(1, 2)).thenReturn(true);
+        assertFalse(service.canContinueConversation(1, 2));
     }
 }

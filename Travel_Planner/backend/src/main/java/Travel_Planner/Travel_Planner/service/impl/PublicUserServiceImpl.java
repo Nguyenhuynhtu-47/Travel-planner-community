@@ -24,25 +24,33 @@ public class PublicUserServiceImpl implements PublicUserService {
     private final ItineraryRepository itineraries;
     private final RatingRepository ratings;
     private final FriendshipService friendships;
+    private final ConversationRepository conversations;
 
     @Autowired
     public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
-            RatingRepository ratings, FriendshipService friendships) {
+            RatingRepository ratings, FriendshipService friendships, ConversationRepository conversations) {
         this.users = users;
         this.follows = follows;
         this.itineraries = itineraries;
         this.ratings = ratings;
         this.friendships = friendships;
+        this.conversations = conversations;
+    }
+
+    public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
+            RatingRepository ratings, FriendshipService friendships) {
+        this(users, follows, itineraries, ratings, friendships, null);
     }
 
     public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
             RatingRepository ratings) {
-        this(users, follows, itineraries, ratings, null);
+        this(users, follows, itineraries, ratings, null, null);
     }
     @Override @Transactional(readOnly = true)
     public PublicProfileResponse getProfile(Integer userId, String viewerUsername) {
         User target = activeTarget(userId);
         User viewer = viewerUsername == null ? null : users.findByUsername(viewerUsername).orElse(null);
+        requireVisible(viewer, target);
         boolean own = viewer != null && viewer.getUserId().equals(target.getUserId());
         boolean following = viewer != null && !own && follows.existsByFollower_UserIdAndFollowing_UserId(viewer.getUserId(), target.getUserId());
         Travel_Planner.Travel_Planner.dto.response.RelationshipContextResponse context = context(target, viewer);
@@ -51,7 +59,9 @@ public class PublicUserServiceImpl implements PublicUserService {
                 .createdAt(target.getCreatedAt()).followerCount(follows.countByFollowing_UserId(userId))
                 .followingCount(follows.countByFollower_UserId(userId)).isFollowing(following).isOwnProfile(own)
                 .friendshipStatus(context.getFriendshipStatus()).friendRequestDirection(context.getFriendRequestDirection())
-                .canMessage(context.isCanMessage()).canSendFriendRequest(context.isCanSendFriendRequest()).build();
+                .canMessage(context.isCanMessage())
+                .canContinueConversation(hasAcceptedConversation(viewer, target, context))
+                .canSendFriendRequest(context.isCanSendFriendRequest()).build();
     }
     @Override @Transactional(readOnly = true)
     public PublicProfileResponse getProfileByHandle(String handle, String viewerUsername) {
@@ -70,9 +80,54 @@ public class PublicUserServiceImpl implements PublicUserService {
         return getProfile(target.getUserId(), viewerUsername);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<UserSearchResultResponse> searchUsers(String query, int page, int size, String viewerUsername) {
+        User viewer = activeViewer(viewerUsername);
+        if (query == null || query.trim().length() < 2 || query.trim().length() > 50) {
+            throw new BadRequestException("Từ khóa tìm kiếm cần từ 2 đến 50 ký tự");
+        }
+        if (page < 0 || size < 1) throw new BadRequestException("Thông tin phân trang không hợp lệ");
+        String normalized = query.trim().replaceFirst("^@", "").toLowerCase(Locale.ROOT);
+        if (normalized.length() < 2) throw new BadRequestException("Từ khóa tìm kiếm cần từ 2 đến 50 ký tự");
+        String escaped = normalized.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        Pageable pageable = PageRequest.of(page, Math.min(size, 50));
+        Page<User> result = viewer == null
+                ? users.searchActiveUsers(escaped + "%", normalized, pageable)
+                : users.searchActiveUsersVisibleTo(escaped + "%", normalized, viewer.getUserId(), pageable);
+        List<Integer> peerIds = result.getContent().stream().map(User::getUserId)
+                .filter(id -> !id.equals(viewer.getUserId())).toList();
+        Map<Integer, RelationshipContextResponse> contexts = friendships == null || peerIds.isEmpty()
+                ? Map.of() : friendships.relationshipContexts(viewer.getUserId(), peerIds);
+        Set<Integer> acceptedPeers = new HashSet<>();
+        if (conversations != null && !peerIds.isEmpty()) {
+            acceptedPeers.addAll(conversations.findAcceptedPeerIds(viewer.getUserId(), peerIds,
+                    ConversationStatus.ACCEPTED));
+        }
+        Map<Integer, Boolean> canContinue = friendships == null || acceptedPeers.isEmpty()
+                ? Map.of() : friendships.canContinueConversationForPeers(viewer.getUserId(), List.copyOf(acceptedPeers));
+        List<UserSearchResultResponse> content = result.getContent().stream().map(user -> {
+            boolean self = viewer.getUserId().equals(user.getUserId());
+            RelationshipContextResponse context = contexts.get(user.getUserId());
+            return UserSearchResultResponse.builder().userId(user.getUserId()).handle(user.getHandle())
+                    .fullName(user.getFullName()).avatar(user.getAvatar()).isSelf(self)
+                    .friendshipId(context == null ? null : context.getFriendshipId())
+                    .friendshipStatus(self ? "SELF" : context == null ? null : context.getFriendshipStatus())
+                    .friendRequestDirection(context == null ? null : context.getFriendRequestDirection())
+                    .canMessage(!self && context != null && context.isCanMessage())
+                    .canContinueConversation(!self && acceptedPeers.contains(user.getUserId())
+                            && canContinue.getOrDefault(user.getUserId(), false))
+                    .canSendFriendRequest(!self && context != null && context.isCanSendFriendRequest()).build();
+        }).toList();
+        return PageResponse.<UserSearchResultResponse>builder().content(content).pageNumber(result.getNumber())
+                .pageSize(result.getSize()).totalElements(result.getTotalElements()).totalPages(result.getTotalPages())
+                .last(result.isLast()).build();
+    }
+
     @Override @Transactional(readOnly = true)
-    public PageResponse<ItinerarySummaryResponse> getItineraries(Integer userId, int page, int size) {
-        activeTarget(userId);
+    public PageResponse<ItinerarySummaryResponse> getItineraries(Integer userId, int page, int size, String viewerUsername) {
+        User target = activeTarget(userId);
+        requireVisible(viewerUsername == null ? null : users.findByUsername(viewerUsername).orElse(null), target);
         Page<Itinerary> result = itineraries.findByUser_UserIdAndVisibilityAndStatusAndUser_StatusOrderByCreatedAtDesc(
                 userId, Visibility.PUBLIC, ItineraryStatus.ACTIVE, UserStatus.ACTIVE, itineraryPage(page, size));
         List<Integer> ids = result.getContent().stream().map(Itinerary::getItineraryId).toList();
@@ -93,6 +148,7 @@ public class PublicUserServiceImpl implements PublicUserService {
         if (actor.getUserId().equals(targetId)) throw new BadRequestException("Bạn không thể theo dõi chính mình");
         User target = users.findByUserIdForUpdate(targetId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
         if (target.getStatus() != UserStatus.ACTIVE) throw new ResourceNotFoundException("Không tìm thấy hồ sơ công khai");
+        requireVisible(actor, target);
         if (!follows.existsByFollower_UserIdAndFollowing_UserId(actor.getUserId(), targetId)) {
             try { follows.save(Follow.builder().follower(actor).following(target).build()); }
             catch (DataIntegrityViolationException duplicate) { /* idempotent duplicate request; unique key is final guard */ }
@@ -104,19 +160,23 @@ public class PublicUserServiceImpl implements PublicUserService {
         User actor = activeViewer(username);
         if (actor.getUserId().equals(targetId)) throw new BadRequestException("Bạn không thể bỏ theo dõi chính mình");
         activeTarget(targetId);
+        User target = users.findById(targetId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ công khai"));
+        requireVisible(actor, target);
         follows.findByFollower_UserIdAndFollowing_UserId(actor.getUserId(), targetId).ifPresent(follows::delete);
     }
 
     @Override @Transactional(readOnly = true)
-    public PageResponse<PublicUserSummaryResponse> getFollowers(Integer userId, int page, int size) {
-        activeTarget(userId);
+    public PageResponse<PublicUserSummaryResponse> getFollowers(Integer userId, int page, int size, String viewerUsername) {
+        User target = activeTarget(userId);
+        requireVisible(viewerUsername == null ? null : users.findByUsername(viewerUsername).orElse(null), target);
         return PageResponse.from(follows.findByFollowing_UserIdAndFollower_StatusOrderByCreatedAtDesc(
                 userId, UserStatus.ACTIVE, followPage(page, size)).map(f -> userSummary(f.getFollower())));
     }
 
     @Override @Transactional(readOnly = true)
-    public PageResponse<PublicUserSummaryResponse> getFollowing(Integer userId, int page, int size) {
-        activeTarget(userId);
+    public PageResponse<PublicUserSummaryResponse> getFollowing(Integer userId, int page, int size, String viewerUsername) {
+        User target = activeTarget(userId);
+        requireVisible(viewerUsername == null ? null : users.findByUsername(viewerUsername).orElse(null), target);
         return PageResponse.from(follows.findByFollower_UserIdAndFollowing_StatusOrderByCreatedAtDesc(
                 userId, UserStatus.ACTIVE, followPage(page, size)).map(f -> userSummary(f.getFollowing())));
     }
@@ -128,10 +188,24 @@ public class PublicUserServiceImpl implements PublicUserService {
         }
         return friendships.relationshipContext(viewer.getUserId(), target.getUserId());
     }
+    private boolean hasAcceptedConversation(User viewer, User target, RelationshipContextResponse context) {
+        return viewer != null && !viewer.getUserId().equals(target.getUserId())
+                && conversations != null
+                && conversations.findAcceptedPeerIds(viewer.getUserId(), List.of(target.getUserId()),
+                        ConversationStatus.ACCEPTED).contains(target.getUserId())
+                && friendships != null
+                && friendships.canContinueConversation(viewer.getUserId(), target.getUserId());
+    }
     private User activeTarget(Integer id) {
         User user = users.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ công khai"));
         if (user.getStatus() != UserStatus.ACTIVE) throw new ResourceNotFoundException("Không tìm thấy hồ sơ công khai");
         return user;
+    }
+    private void requireVisible(User viewer, User target) {
+        if (viewer != null && !viewer.getUserId().equals(target.getUserId())
+                && friendships != null && friendships.isBlockedBetween(viewer.getUserId(), target.getUserId())) {
+            throw new ResourceNotFoundException("Không tìm thấy hồ sơ công khai");
+        }
     }
     private User activeViewer(String username) {
         if (username == null || username.isBlank()) throw new UnauthorizedException("Bạn cần đăng nhập");

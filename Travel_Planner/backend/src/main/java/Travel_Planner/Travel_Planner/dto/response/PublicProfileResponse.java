@@ -22,5 +22,6 @@ public class PublicProfileResponse {
     private String friendshipStatus;
     private String friendRequestDirection;
     private Boolean canMessage;
+    private Boolean canContinueConversation;
     private Boolean canSendFriendRequest;
 }

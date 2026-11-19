@@ -1,67 +1,73 @@
-# 06 — Friendship, Follow và privacy
+﻿# 06 — Friendship, privacy và message requests
 
-## 1. Quan hệ khác nhau
+**Cập nhật:** 2026-11-18. D-25 là semantics hiện hành; phần D-16/D-23/D-24 phía dưới chỉ là lịch sử khi không mâu thuẫn.
 
-- Follow hiện là cạnh một chiều follower → following, có API POST/DELETE /api/users/{userId}/follow, follower/following list và trạng thái isFollowing.
-- Friendship là trạng thái theo cặp, hai chiều sau khi accept. Không dùng FollowRepository để giả lập friend list; không xóa/đổi Follow API.
-- Người dùng có thể follow nhưng chưa friend; friend nhưng không follow; cả hai hoặc không quan hệ.
+**D-25:** Accept là trạng thái toàn Conversation, chỉ recipient accept; mở detail không mark-read. Accept và read cursor được commit nguyên tử. Decline giữ tin cho sender nhưng ẩn với recipient. Accepted thread giữ nguyên sau unfriend/privacy changes. Block pair chặn nội dung/tương tác trên mọi API và realtime nhưng không xóa history; unblock không tự thay đổi friendship/status. Inbox menus không có delete/hide.
 
-## 2. State model
+## Quyết định lịch sử — D-23 (được D-25 điều chỉnh)
 
-Bảng friendships giữ một canonical row per pair:
-- NONE: không có row.
-- PENDING: requested_by_user_id gửi; participant kia nhận.
-- ACCEPTED: hai chiều là bạn bè.
-- REJECTED: request đã từ chối; không là bạn.
-- BLOCKED là quan hệ riêng ở user_blocks, không phải friendship state.
+- Tài khoản mới mặc định `EVERYONE`. Stranger gửi được nhiều tin; recipient thấy trong Stranger Inbox. **D-25 supersedes:** chỉ nút Accept của recipient chuyển conversation sang accepted; reply không tự accept.
+- Với `FRIENDS_ONLY`, stranger vẫn gửi được nhiều tin. Các tin được lưu sender-only; recipient không đọc được trong inbox, request list, history, preview, unread count, WebSocket hoặc read cursor. Sender thấy tin của mình và banner giải thích privacy.
+- Khi kết bạn, tin sender-only cũ vẫn ẩn recipient; tin mới sau khi hai bên là bạn hiển thị bình thường. Block vẫn chặn hai phía.
+- UI chỉ có `EVERYONE` và `FRIENDS_ONLY`. Giá trị `NOBODY` còn lưu ở các row cũ được backend xử lý như `FRIENDS_ONLY` để không làm hỏng dữ liệu và không tạo policy mà UI không còn cung cấp.
+- Backend dùng `messages.recipient_visible` và lọc trong query trước pagination. Schema dev thêm cột qua `ddl-auto=update`, không reset dữ liệu hoặc thêm bảng.
 
-Transitions:
-- NONE → PENDING khi gửi lời mời.
-- PENDING → ACCEPTED bởi đúng người nhận.
-- PENDING → REJECTED bởi đúng người nhận.
-- PENDING → NONE khi requester hủy (xóa row hoặc reset; contract cần chốt).
-- ACCEPTED → NONE khi một trong hai unfriend.
-- REJECTED → PENDING khi một bên gửi lời mời mới sau cooldown/policy.
-- Nếu A có pending tới B và B gửi ngược lại: không tự động accept; trả trạng thái conflict/pending request hiện có và yêu cầu người nhận thao tác Chấp nhận hoặc Từ chối.
-- Hai thao tác cùng lúc được serialize theo canonical user pair/conditional update; unique pair là guard cuối. Không dựa pre-check trong service.
+## Điều chỉnh ngày 2026-11-18 — Sau khi hủy kết bạn (đã bị D-25 thay thế)
 
-Acceptance là quan hệ idempotent; double accept trả trạng thái hiện tại hoặc 409 consistent. Request duplicate cùng chiều trả existing pending. Target không active, self request, block hoặc already friend trả lỗi domain phù hợp, không tạo row.
+- Conversation canonical và lịch sử cũ vẫn được giữ. Tin mới sau khi friendship bị hủy phải xét lại trạng thái bạn bè và privacy hiện tại.
+- Với `EVERYONE`, thread cũ chuyển thành `PENDING` request trong cùng conversation; người nhận thấy tin mới ở Stranger Inbox. Khi recipient reply, thread trở lại `ACCEPTED`.
+- Với `FRIENDS_ONLY` (gồm legacy `NOBODY`), tin mới lưu sender-only; recipient không nhận nội dung, event, unread hoặc inbox entry. Các tin lịch sử cũ không bị phân loại lại.
+- Nếu thread đã có lịch sử accepted, API history vẫn trả các tin cũ vốn recipient-visible; query per-message tiếp tục loại tin sender-only. Thread pending bị hạn chế không xuất hiện trong Inbox/Stranger Inbox.
+- Block/inactive vẫn chặn send. Không tạo conversation trùng.
 
-## 3. Privacy policies đề xuất
+## 1. Hai quan hệ khác nhau
 
-| Policy | Người không phải friend | Friend | New conversation | Existing conversation |
-|---|---|---|---|---|
-| EVERYONE | Được gửi | Được gửi | Mở trực tiếp | gửi nếu không block/account inactive |
-| FRIENDS_ONLY (default) | Không gửi; có thể gửi friend request | Được gửi | Chỉ mở khi ACCEPTED | history giữ; send yêu cầu vẫn là friend |
-| NOBODY | Không gửi | Không gửi | Không mở/gửi | history giữ; send bị chặn |
+Friendship hiện là trạng thái quan hệ user-user (PENDING/ACCEPTED/REJECTED). Follow là quan hệ một chiều độc lập và không cấp quyền nhắn tin trừ khi service policy nói rõ. Message request là trạng thái tiếp nhận một cuộc trò chuyện; không dùng friendship row để giả lập stranger inbox.
 
-Policy mặc định FRIENDS_ONLY đã được người dùng chốt. Với EVERYONE, strangers gửi thẳng inbox ở MVP; chưa có message request inbox. Nếu trải nghiệm cần chấp nhận tin nhắn riêng, phải thêm trạng thái request conversation và luồng UI/API riêng.
+## 2. Hiện trạng policy và settings (snapshot D-16, được D-23 thay thế)
 
-Settings là owner-only. Backend kiểm tra inboundPolicy của recipient mỗi lần mở/gửi; friendship ACCEPTED chỉ thỏa FRIENDS_ONLY. Mọi hướng block chặn. Không cho tạo conversation nếu policy đang cấm. Existing conversation/history không bị xóa; khi policy đổi, thao tác send được đánh giá theo rule mới. Có thể trả 403 generic “Không thể gửi tin nhắn cho người dùng này”.
+- `EVERYONE` là mặc định hiện tại nếu user chưa có row (D-22); setting đã lưu không đổi. `UserMessagingSettings` lưu lựa chọn theo user. GET/PUT `/api/users/me/messaging-settings`, service, repository và Flutter `MessagingSettingsScreen` còn trong source.
+- `MessagingSettingsScreen` hiện được mở từ Community headers (active feed và legacy messaging Community); Profile settings chưa có đường vào privacy messaging. Do đó phần persistence/API không bị mất, nhưng vị trí hiện tại khiến chức năng khó phát hiện.
+- `canMessage` được dùng để quyết định bắt đầu chat mới. `EVERYONE` với nonfriend tạo `PENDING` Stranger Inbox request và sender có thể gửi nhiều tin chờ; chỉ recipient accept tường minh mới chuyển thành accepted.
+- `FRIENDS_ONLY` cho bạn bè bắt đầu conversation mới; nonfriend không được. `NOBODY` chặn mọi conversation mới, kể cả giữa bạn bè.
+- Accepted conversation dùng `canContinueConversation`: vẫn có thể nhắn sau policy change hoặc unfriend nếu hai account ACTIVE và không block. `send` revalidate membership/status/block. Vì vậy không đúng khi nói policy được check như start permission trên mọi tin accepted.
+- Block kiểm tra hai chiều, xóa friendship nhưng giữ conversation/message history và chặn gửi/nhận. Request đã tồn tại giữ lifecycle theo D-16.
+- Đây là semantics D-16 đã duyệt; revision 2 chỉ cần biểu diễn rõ trên profile/UI và giữ nguyên server authorization.
 
-Profile canMessage là contextual projection với viewer; không lộ raw setting hay block direction. Guest canMessage=false. Own profile canMessage=false.
+## 3. Ma trận hành vi D-16 (lịch sử, được D-23 thay thế)
 
-## 4. Block
+| Tình huống | FRIENDS_ONLY | EVERYONE | NOBODY |
+|---|---|---|---|
+| Bạn bè bắt đầu chat mới | Cho phép/accepted | Cho phép/accepted | Chặn chat mới |
+| Người lạ bắt đầu chat mới | Chặn | Tạo pending request ở Stranger Inbox | Chặn |
+| Tiếp tục accepted thread | Cho phép | Cho phép | Cho phép |
+| Bên bị block gửi/nhận | Chặn | Chặn | Chặn |
 
-Nên có block tối thiểu ngay MVP vì tính năng mở tin nhắn người lạ tạo nguy cơ quấy rối. user_blocks có hướng blocker → blocked; backend luôn kiểm tra cả hai hướng.
+Đoạn ma trận trên là snapshot D-16 đã bị D-23/D-25 thay thế. Theo D-25, accepted conversation tiếp tục cho tới khi block/account inactive; `EVERYONE` cho phép nhiều tin trong Stranger Inbox trước explicit accept. Declined request giữ lịch sử requester-side, tin cũ bị ẩn recipient-side, và retry sau một ngày dùng lại conversation canonical.
 
-Khi block:
-- Ngăn new conversation, send message, friend invite/accept giữa hai phía.
-- Hủy friendship/pending request pair để unblock không tự khôi phục friend; giữ block record.
-- Conversation và message history không xóa; ẩn/giữ row trong inbox là quyết định UX phụ, nhưng không phát event chat mới.
-- Không thông báo cho target “bạn bị block”; trả lỗi generic.
-- Unblock không tự restore friendship/conversation permission. Không xóa history.
+## 4. Friendship request flows
 
-Block/unblock cần idempotent và unique guard. Danh sách block/private, chỉ user sở hữu đọc được.
+Incoming request: PENDING → accept thành ACCEPTED hoặc decline thành REJECTED. Outgoing: cancel nếu còn pending. Friend badge chỉ đếm incoming PENDING của user hiện tại. Chống gửi trùng pair, race accept/decline, self-request, inactive/blocked accounts. Khi unfriend, lịch sử chat được bảo toàn; quyền tiếp tục thread theo quyết định privacy đã chốt.
 
-## 5. Deactivation / banned / deletion
+## 5. Block và quyền truy cập
 
-UserStatus hiện ACTIVE/INACTIVE/BANNED; không thấy hard-delete account API trong module đã khảo sát. Inactive/banned không thể CONNECT, gửi/đọc API yêu cầu auth; người khác không được nhận user đó trong friend suggestions/lists. Preserve rows/history; không cascade delete user data.
+Block phải thắng friendship/privacy và chặn open/new/send theo cả hai hướng. API detail/history cần quyết định mức truy cập lịch sử sau block; giữ dữ liệu không có nghĩa tiếp tục cho phép giao tiếp. Không xóa message. Quy tắc unblock không tự khôi phục friendship hoặc tự accept request cũ trừ khi product quyết định rõ.
 
-Nếu tài khoản bị xóa vĩnh viễn về sau, cần retention/privacy/legal policy: xóa hoặc ẩn danh sender, xử lý message/backup, FK strategy và khả năng khôi phục. Không tự đặt hard-delete cascade trong MVP.
+## 6. API/state invariants cần test
 
-## 6. Message request và spam
+- Mỗi canonical user pair không tạo duplicate friendship/conversation ngoài chủ đích.
+- Request sender không thể tự accept; recipient chỉ xử lý request pending đúng thread.
+- Concurrent reverse request, accept/decline và block/send có kết quả xác định qua transaction/locking.
+- Legacy conversations được coi accepted khi rollout để giữ tương thích.
+- Client UI chỉ là affordance; service kiểm lại policy, status, participants, block trên từng mutation.
 
-MVP không tạo message-request inbox: FRIENDS_ONLY mặc định và friend request tạo consent gate đơn giản; EVERYONE là explicit opt-in của chủ tài khoản. Message request inbox có ích nếu muốn strangers liên hệ mà không vào inbox chính; sẽ cần pending/accepted/declined state per sender-conversation, giới hạn số request, mute/ignore và unread/request badge. Đưa vào phase sau sau feedback.
+## Addendum — Friend discovery tách khỏi messaging privacy
+Tìm theo fullName/public handle, không dùng login username/email. Người chưa kết bạn được tìm và gửi friend request mà không cần chat trước. Backend vẫn kiểm tra self, ACTIVE, relation/request, block và quyền mutation. Batch relationship context để tránh N+1; xem plan 12.
 
-Rate limit send theo account, recipient, IP/context; friend invitation theo sender-recipient/quota. Dùng UserDetails current status, server-side validation, block checks, idempotency and rate limits; Bucket4j có trong pom nhưng limiter hiện tại cho location cần tách key/limits cho chat, không tái dùng limiter bằng IP một cách mặc định.
+## Addendum — Revision 2: start-new, continue-existing và access path (plan-only)
+
+- Public profile/search response hiện chỉ có `canMessage`, mô tả khả năng start; không có riêng `canContinueConversation`/existing accepted-thread state. `PublicProfileScreen` chỉ vẽ nút Nhắn tin khi `canMessage=true`, dù `openDirect` có thể trả thread cũ accepted và backend cho phép tiếp tục. Kế hoạch thêm additive flags, giữ `canMessage` alias trong giai đoạn tương thích, và dùng batch query cho result page.
+- UI phải show Nhắn tin khi người xem có quyền bắt đầu mới hoặc thread accepted có thể tiếp tục. Khi không có quyền mới, giải thích tổng quát; không leak block identity. API/service vẫn là enforcement.
+- Chuyển canonical entry point settings vào Profile > Cài đặt > Quyền riêng tư tin nhắn và reuse screen/API/storage hiện tại. Có thể giữ shortcut Community mở cùng route.
+- Privacy transition: new starts/retries luôn theo policy mới; accepted existing thread tiếp tục theo D-16; PENDING request đã tạo hợp lệ vẫn recipient-actionable; block chặn mọi communication. `FRIENDS_ONLY` cho bạn bè khởi tạo mới; `NOBODY` chặn new thread kể cả friend nhưng không đóng accepted thread cũ.
+- Không cần bảng/cột mới cho policy. Chỉ search normalization/index có thể cần migration additive; xem plan 03/12 và đo trước.

@@ -5,11 +5,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import java.time.LocalDateTime;
+import Travel_Planner.Travel_Planner.model.enums.ConversationStatus;
 
 @Entity
 @Table(name = "conversations", uniqueConstraints = @UniqueConstraint(name = "uk_conversations_user_pair", columnNames = {"user_low_id", "user_high_id"}), indexes = {
     @Index(name = "idx_conversations_low_activity", columnList = "user_low_id,last_message_at,conversation_id"),
-    @Index(name = "idx_conversations_high_activity", columnList = "user_high_id,last_message_at,conversation_id")
+    @Index(name = "idx_conversations_high_activity", columnList = "user_high_id,last_message_at,conversation_id"),
+    @Index(name = "idx_conversations_request_inbox", columnList = "request_recipient_user_id,conversation_status,updated_at")
 })
 @Getter @Setter @NoArgsConstructor
 public class Conversation {
@@ -41,6 +43,25 @@ public class Conversation {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // Nullable for existing rows: a missing status is interpreted as an accepted legacy conversation.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "conversation_status", length = 16)
+    private ConversationStatus status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requester_user_id")
+    private User requester;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "request_recipient_user_id")
+    private User requestRecipient;
+
+    @Column(name = "request_created_at")
+    private LocalDateTime requestCreatedAt;
+
+    @Column(name = "request_declined_at")
+    private LocalDateTime requestDeclinedAt;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
@@ -54,6 +75,10 @@ public class Conversation {
 
     public boolean includes(Integer userId) {
         return userId != null && (userLow.getUserId().equals(userId) || userHigh.getUserId().equals(userId));
+    }
+
+    public boolean isAccepted() {
+        return status == null || status == ConversationStatus.ACCEPTED;
     }
 
     public User otherUser(Integer userId) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/api_exception.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/models/messaging_settings.dart';
 
@@ -43,8 +44,13 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
       if (mounted) setState(() => _settings = result);
     } catch (_) {
       if (mounted) {
+    } catch (error) {
+      if (mounted) {
+        final message = error is ApiException
+            ? '${error.message} (HTTP ${error.statusCode})'
+            : 'Không thể kết nối đến máy chủ để lưu cài đặt.';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể lưu quyền riêng tư.')),
+          SnackBar(content: Text('Không thể lưu quyền riêng tư: $message')),
         );
       }
     }
@@ -66,24 +72,29 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
               ),
               const SizedBox(height: 8),
-              RadioListTile<InboundMessagePolicy>(
-                value: InboundMessagePolicy.friendsOnly,
+              RadioGroup<InboundMessagePolicy>(
                 groupValue: _settings!.inboundPolicy,
-                onChanged: _saving ? null : (v) => _update(v!),
-                title: const Text('Bạn bè'),
-                subtitle: const Text('Cài đặt mặc định'),
-              ),
-              RadioListTile<InboundMessagePolicy>(
-                value: InboundMessagePolicy.everyone,
-                groupValue: _settings!.inboundPolicy,
-                onChanged: _saving ? null : (v) => _update(v!),
-                title: const Text('Mọi người'),
-              ),
-              RadioListTile<InboundMessagePolicy>(
-                value: InboundMessagePolicy.nobody,
-                groupValue: _settings!.inboundPolicy,
-                onChanged: _saving ? null : (v) => _update(v!),
-                title: const Text('Không ai'),
+                onChanged: (value) {
+                  if (!_saving && value != null) _update(value);
+                },
+                child: const Column(
+                  children: [
+                    RadioListTile<InboundMessagePolicy>(
+                      value: InboundMessagePolicy.friendsOnly,
+                      title: Text('Bạn bè'),
+                      subtitle: Text(
+                        'Người lạ vẫn gửi được; tin nhắn chỉ hiển thị với người gửi cho đến khi hai người kết bạn.',
+                      ),
+                    ),
+                    RadioListTile<InboundMessagePolicy>(
+                      value: InboundMessagePolicy.everyone,
+                      title: Text('Mọi người'),
+                      subtitle: Text(
+                        'Người lạ có thể gửi tin nhắn không giới hạn trong mục Tin nhắn người lạ.',
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const Divider(),
               const Text(

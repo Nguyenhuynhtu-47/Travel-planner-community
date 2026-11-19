@@ -11,6 +11,8 @@ import Travel_Planner.Travel_Planner.model.*;
 import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.CommentService;
+import Travel_Planner.Travel_Planner.service.FriendshipService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,25 +27,38 @@ public class CommentServiceImpl implements CommentService {
     private final ItineraryRepository itineraries;
     private final ActivityRepository activities;
     private final UserRepository users;
+    private final FriendshipService friendshipService;
 
+    @Autowired
     public CommentServiceImpl(CommentRepository comments, ItineraryRepository itineraries,
-                              ActivityRepository activities, UserRepository users) {
+                              ActivityRepository activities, UserRepository users, FriendshipService friendshipService) {
         this.comments = comments;
         this.itineraries = itineraries;
         this.activities = activities;
         this.users = users;
+        this.friendshipService = friendshipService;
+    }
+
+    public CommentServiceImpl(CommentRepository comments, ItineraryRepository itineraries,
+                              ActivityRepository activities, UserRepository users) {
+        this(comments, itineraries, activities, users, null);
     }
 
     @Override @Transactional(readOnly = true)
     public PageResponse<CommentResponse> getComments(Integer itineraryId, int page, int size) {
-        requirePublicItinerary(itineraryId);
+        return getComments(itineraryId, page, size, null);
+    }
+
+    @Override @Transactional(readOnly = true)
+    public PageResponse<CommentResponse> getComments(Integer itineraryId, int page, int size, String viewerUsername) {
+        requireVisibleItinerary(requirePublicItinerary(itineraryId), viewerUsername);
         return toRootPage(comments.pageItineraryRoots(itineraryId, CommentStatus.ACTIVE, CommentStatus.DELETED,
                 pageRequest(page, size, Sort.Direction.DESC)));
     }
 
     @Override @Transactional
     public CommentResponse createComment(Integer itineraryId, CreateCommentRequest request, String username) {
-        Itinerary itinerary = requirePublicItinerary(itineraryId);
+        Itinerary itinerary = requireVisibleItinerary(requirePublicItinerary(itineraryId), username);
         User author = requireActiveUser(username);
         Comment comment = new Comment();
         comment.setUser(author); comment.setItinerary(itinerary);
@@ -57,14 +72,19 @@ public class CommentServiceImpl implements CommentService {
 
     @Override @Transactional(readOnly = true)
     public PageResponse<CommentResponse> getActivityComments(Integer activityId, int page, int size) {
-        Activity activity = requirePublicActivity(activityId);
+        return getActivityComments(activityId, page, size, null);
+    }
+
+    @Override @Transactional(readOnly = true)
+    public PageResponse<CommentResponse> getActivityComments(Integer activityId, int page, int size, String viewerUsername) {
+        Activity activity = requireVisibleActivity(requirePublicActivity(activityId), viewerUsername);
         return toRootPage(comments.pageActivityRoots(activity.getActivityId(), CommentStatus.ACTIVE,
                 CommentStatus.DELETED, pageRequest(page, size, Sort.Direction.DESC)));
     }
 
     @Override @Transactional
     public CommentResponse createActivityComment(Integer activityId, CreateCommentRequest request, String username) {
-        Activity activity = requirePublicActivity(activityId);
+        Activity activity = requireVisibleActivity(requirePublicActivity(activityId), username);
         User author = requireActiveUser(username);
         Comment comment = new Comment();
         comment.setUser(author); comment.setActivity(activity);
@@ -78,8 +98,13 @@ public class CommentServiceImpl implements CommentService {
 
     @Override @Transactional(readOnly = true)
     public PageResponse<CommentResponse> getReplies(Integer commentId, int page, int size) {
+        return getReplies(commentId, page, size, null);
+    }
+
+    @Override @Transactional(readOnly = true)
+    public PageResponse<CommentResponse> getReplies(Integer commentId, int page, int size, String viewerUsername) {
         Comment parent = findComment(commentId);
-        requireTargetPublic(parent);
+        requireVisibleItinerary(requireTargetPublic(parent), viewerUsername);
         Comment root = resolveRoot(parent);
         return PageResponse.from(comments.pageThreadReplies(root.getCommentId(), CommentStatus.ACTIVE,
                 CommentStatus.DELETED, pageRequest(page, size, Sort.Direction.ASC)).map(this::toResponse));
@@ -88,7 +113,7 @@ public class CommentServiceImpl implements CommentService {
     @Override @Transactional
     public CommentResponse createReply(Integer commentId, CreateCommentRequest request, String username) {
         Comment parent = findComment(commentId);
-        Itinerary itinerary = requireTargetPublic(parent);
+        Itinerary itinerary = requireVisibleItinerary(requireTargetPublic(parent), username);
         if (parent.getStatus() != CommentStatus.ACTIVE) throw new ResourceNotFoundException("Không tìm thấy bình luận");
         User author = requireActiveUser(username);
         Comment root = resolveRoot(parent);
@@ -105,7 +130,7 @@ public class CommentServiceImpl implements CommentService {
     @Override @Transactional
     public CommentResponse updateComment(Integer commentId, CreateCommentRequest request, String username) {
         Comment comment = findComment(commentId);
-        requireTargetExists(comment);
+        requireVisibleItinerary(requireTargetExists(comment), username);
         User actor = requireActiveUser(username);
         if (!comment.getUser().getUserId().equals(actor.getUserId()) && actor.getRole() != Role.ADMIN)
             throw new UnauthorizedException("Bạn không có quyền sửa bình luận này");
@@ -117,7 +142,7 @@ public class CommentServiceImpl implements CommentService {
     @Override @Transactional
     public void deleteComment(Integer commentId, String username) {
         Comment comment = findComment(commentId);
-        requireTargetExists(comment);
+        requireVisibleItinerary(requireTargetExists(comment), username);
         User actor = requireActiveUser(username);
         if (!comment.getUser().getUserId().equals(actor.getUserId()) && actor.getRole() != Role.ADMIN)
             throw new UnauthorizedException("Bạn không có quyền xóa bình luận này");
@@ -143,6 +168,20 @@ public class CommentServiceImpl implements CommentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hoạt động"));
         requirePublicItinerary(activity.getItineraryDay().getItinerary().getItineraryId());
         return activity;
+    }
+
+    private Activity requireVisibleActivity(Activity activity, String viewerUsername) {
+        requireVisibleItinerary(activity.getItineraryDay().getItinerary(), viewerUsername);
+        return activity;
+    }
+
+    private Itinerary requireVisibleItinerary(Itinerary itinerary, String viewerUsername) {
+        if (friendshipService != null && viewerUsername != null && !viewerUsername.isBlank()) {
+            User viewer = requireActiveUser(viewerUsername);
+            if (friendshipService.isBlockedBetween(viewer.getUserId(), itinerary.getUser().getUserId()))
+                throw new ResourceNotFoundException("Không tìm thấy lịch trình công khai");
+        }
+        return itinerary;
     }
 
     private Itinerary requireTargetPublic(Comment comment) {
