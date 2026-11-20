@@ -33,6 +33,36 @@ import 'personal_info_screen.dart';
 import 'public_profile_screen.dart';
 import 'public_user_list_screen.dart';
 
+class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+
+  ProfileTabBarDelegate({required this.child, this.height = 46.0});
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      color: AppColors.background,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant ProfileTabBarDelegate oldDelegate) {
+    return oldDelegate.child != child || oldDelegate.height != height;
+  }
+}
+
 class ProfileScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ProfileRepository? repository;
@@ -709,289 +739,292 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 600),
-        child: Column(
-          children: [
-            // Instagram-inspired Profile Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Row: Avatar on Left + Stats on Right
-                  Row(
-                    children: [
-                      ClipOval(
-                        child: avatar.startsWith('http')
-                            ? Image.network(
-                                avatar,
-                                width: 76,
-                                height: 76,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => _defaultAvatar(),
-                              )
-                            : _defaultAvatar(),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Expanded(
-                              child: _statItem(
-                                'Lịch trình',
-                                _itineraries.isNotEmpty
-                                    ? _itineraries.length
-                                    : 0,
-                              ),
-                            ),
-                            Expanded(
-                              child: _statItem(
-                                'Người theo dõi',
-                                _followerCount,
-                                onTap: () => _openUsers(true),
-                              ),
-                            ),
-                            Expanded(
-                              child: _statItem(
-                                'Đang theo dõi',
-                                _followingCount,
-                                onTap: () => _openUsers(false),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await _loadProfile();
+            if (_selectedProfileTab == 1) {
+              await _loadMyPosts(refresh: true);
+            }
+          },
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverToBoxAdapter(
+                  child: _buildProfileHeader(p, avatar, role, status),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: ProfileTabBarDelegate(
+                    child: _buildTabBar(),
                   ),
-                  const SizedBox(height: 14),
+                ),
+              ];
+            },
+            body: _selectedProfileTab == 0
+                ? _buildItinerariesTab()
+                : _buildMyPostsTab(),
+          ),
+        ),
+      ),
+    );
+  }
 
-                  // Display Name & Handle
-                  Text(
-                    _value(p['fullName']),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                      letterSpacing: -0.2,
+  Widget _buildProfileHeader(
+    Map<String, dynamic> p,
+    String avatar,
+    String role,
+    String status,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row: Avatar on Left + Stats on Right
+          Row(
+            children: [
+              ClipOval(
+                child: avatar.startsWith('http')
+                    ? Image.network(
+                        avatar,
+                        width: 76,
+                        height: 76,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _defaultAvatar(),
+                      )
+                    : _defaultAvatar(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Expanded(
+                      child: _statItem(
+                        'Lịch trình',
+                        _itineraries.isNotEmpty ? _itineraries.length : 0,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    (p['handle'] != null && p['handle'].toString().trim().isNotEmpty)
-                        ? '@${p['handle'].toString().trim().replaceFirst(RegExp(r'^@+'), '')}'
-                        : 'Chưa thiết lập',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: (p['handle'] != null && p['handle'].toString().trim().isNotEmpty)
-                          ? AppColors.textSecondary
-                          : AppColors.mutedSoft,
-                      fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: _statItem(
+                        'Người theo dõi',
+                        _followerCount,
+                        onTap: () => _openUsers(true),
+                      ),
                     ),
-                  ),
-
-                  // Bio
-                  if (p['bio'] != null &&
-                      p['bio'].toString().trim().isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      p['bio'].toString().trim(),
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        color: AppColors.textPrimary,
-                        height: 1.35,
+                    Expanded(
+                      child: _statItem(
+                        'Đang theo dõi',
+                        _followingCount,
+                        onTap: () => _openUsers(false),
                       ),
                     ),
                   ],
-
-                  const SizedBox(height: 8),
-
-                  // Role & Status Badges
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceSoft,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Text(
-                          role,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      _statusBadge(p['status'], status),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // Action: Edit Profile
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        // Allow inline editing or open settings
-                        setState(() => _editing = true);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(38),
-                        side: const BorderSide(color: AppColors.border),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        backgroundColor: AppColors.surface,
-                      ),
-                      child: const Text(
-                        'Chỉnh sửa hồ sơ',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Tabs: Lịch trình & Thông tin tài khoản
-            Container(
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
-                  bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => setState(() => _selectedProfileTab = 0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: _selectedProfileTab == 0
-                                  ? AppColors.primary
-                                  : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.map_outlined,
-                              size: 18,
-                              color: _selectedProfileTab == 0
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Lịch trình',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: _selectedProfileTab == 0
-                                    ? AppColors.primary
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        setState(() => _selectedProfileTab = 1);
-                        if (_myPosts.isEmpty && !_loadingPosts) {
-                          _loadMyPosts();
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: _selectedProfileTab == 1
-                                  ? AppColors.primary
-                                  : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.article_outlined,
-                              size: 18,
-                              color: _selectedProfileTab == 1
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Bài viết',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: _selectedProfileTab == 1
-                                    ? AppColors.primary
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Display Name & Handle
+          Text(
+            _value(p['fullName']),
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.2,
             ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            (p['handle'] != null && p['handle'].toString().trim().isNotEmpty)
+                ? '@${p['handle'].toString().trim().replaceFirst(RegExp(r'^@+'), '')}'
+                : 'Chưa thiết lập',
+            style: TextStyle(
+              fontSize: 13,
+              color: (p['handle'] != null &&
+                      p['handle'].toString().trim().isNotEmpty)
+                  ? AppColors.textSecondary
+                  : AppColors.mutedSoft,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
 
-            // Content: Stack with Opacity preserves state and accessibility of both tabs
-            Expanded(
-              child: Stack(
-                children: [
-                  // Tab 1: Itineraries
-                  Opacity(
-                    opacity: _selectedProfileTab == 0 ? 1.0 : 0.0,
-                    child: IgnorePointer(
-                      ignoring: _selectedProfileTab != 0,
-                      child: _buildItinerariesTab(),
-                    ),
-                  ),
-
-                  // Tab 2: My Posts
-                  Opacity(
-                    opacity: _selectedProfileTab == 1 ? 1.0 : 0.0,
-                    child: IgnorePointer(
-                      ignoring: _selectedProfileTab != 1,
-                      child: _buildMyPostsTab(),
-                    ),
-                  ),
-                ],
+          // Bio
+          if (p['bio'] != null && p['bio'].toString().trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              p['bio'].toString().trim(),
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: AppColors.textPrimary,
+                height: 1.35,
               ),
             ),
           ],
+
+          const SizedBox(height: 8),
+
+          // Role & Status Badges
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSoft,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  role,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              _statusBadge(p['status'], status),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // Action: Edit Profile
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () {
+                setState(() => _editing = true);
+              },
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(38),
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                backgroundColor: AppColors.surface,
+              ),
+              child: const Text(
+                'Chỉnh sửa hồ sơ',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        border: Border(
+          top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
+          bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
         ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _selectedProfileTab = 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: _selectedProfileTab == 0
+                          ? AppColors.primary
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.map_outlined,
+                      size: 18,
+                      color: _selectedProfileTab == 0
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Lịch trình',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: _selectedProfileTab == 0
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() => _selectedProfileTab = 1);
+                if (_myPosts.isEmpty && !_loadingPosts) {
+                  _loadMyPosts();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: _selectedProfileTab == 1
+                          ? AppColors.primary
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.article_outlined,
+                      size: 18,
+                      color: _selectedProfileTab == 1
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Bài viết',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: _selectedProfileTab == 1
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1182,6 +1215,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (_myPosts.isEmpty) {
       return Center(
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1237,56 +1271,56 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => _loadMyPosts(refresh: true),
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (scrollInfo) {
-          if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200 &&
-              !_loadingPosts &&
-              _hasMorePosts) {
-            _loadMyPosts();
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scrollInfo) {
+        if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200 &&
+            !_loadingPosts &&
+            _hasMorePosts) {
+          _loadMyPosts();
+        }
+        return false;
+      },
+      child: ListView.separated(
+        key: const PageStorageKey('profile_my_posts_list'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(top: 8, bottom: 24),
+        itemCount: _myPosts.length + (_hasMorePosts ? 1 : 0),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        itemBuilder: (context, index) {
+          if (index >= _myPosts.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
           }
-          return false;
-        },
-        child: ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          itemCount: _myPosts.length + (_hasMorePosts ? 1 : 0),
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            if (index >= _myPosts.length) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+
+          final post = _myPosts[index];
+          return PostCardWidget(
+            post: post,
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            onLike: () => _likeMyPost(post),
+            onComment: () => _openPostComments(post),
+            onEdit: () => _openEditMyPost(post),
+            onDelete: () => _deleteMyPost(post),
+            onItineraryTap: (itineraryId) {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ItineraryDetailScreen(
+                    itineraryId: itineraryId,
+                    token: widget.authNotifier.token,
+                    authNotifier: widget.authNotifier,
                   ),
                 ),
               );
-            }
-
-            final post = _myPosts[index];
-            return PostCardWidget(
-              post: post,
-              onLike: () => _likeMyPost(post),
-              onComment: () => _openPostComments(post),
-              onEdit: () => _openEditMyPost(post),
-              onDelete: () => _deleteMyPost(post),
-              onItineraryTap: (itineraryId) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ItineraryDetailScreen(
-                      itineraryId: itineraryId,
-                      token: widget.authNotifier.token,
-                      authNotifier: widget.authNotifier,
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
+            },
+          );
+        },
       ),
     );
   }
@@ -1295,6 +1329,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (_itineraries.isEmpty) {
       return Center(
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1340,6 +1375,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     return ListView.builder(
+      key: const PageStorageKey('profile_itineraries_list'),
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: _itineraries.length,
       itemBuilder: (context, index) {

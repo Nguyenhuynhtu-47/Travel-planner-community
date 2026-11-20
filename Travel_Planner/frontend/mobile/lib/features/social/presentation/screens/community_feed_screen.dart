@@ -41,7 +41,9 @@ class CommunityFeedScreen extends StatefulWidget {
 }
 
 class _CommunityFeedScreenState extends State<CommunityFeedScreen>
-    with SingleTickerProviderStateMixin, AutoRefreshLifecycleMixin<CommunityFeedScreen> {
+    with
+        SingleTickerProviderStateMixin,
+        AutoRefreshLifecycleMixin<CommunityFeedScreen> {
   late final TabController _tabController;
   late final CommunityFeedNotifier _notifier;
   late final CommunityPostRepository _repo;
@@ -93,8 +95,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       }
       if (event.type == SyncEventType.created && event.payload is PostModel) {
         final post = event.payload as PostModel;
-        final pubIdx =
-            _notifier.publicPosts.indexWhere((p) => p.postId == post.postId);
+        final pubIdx = _notifier.publicPosts.indexWhere(
+          (p) => p.postId == post.postId,
+        );
         if (pubIdx == -1) {
           _notifier.addPost(post);
         }
@@ -342,7 +345,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
-            title: const AppPageTitle(title: 'Cộng đồng du lịch'),
+            title: const AppPageTitle(title: 'Cộng đồng'),
             backgroundColor: AppColors.background,
             foregroundColor: AppColors.textPrimary,
             surfaceTintColor: Colors.transparent,
@@ -388,11 +391,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               ),
               if (_isAuthenticated && widget.authNotifier != null)
                 CurrentUserAvatarButton(
-                  avatarUrl: widget.authNotifier?.currentUser?['avatar']?.toString(),
+                  avatarUrl: widget.authNotifier?.currentUser?['avatar']
+                      ?.toString(),
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => ProfileScreen(authNotifier: widget.authNotifier!),
+                        builder: (_) =>
+                            ProfileScreen(authNotifier: widget.authNotifier!),
                       ),
                     );
                   },

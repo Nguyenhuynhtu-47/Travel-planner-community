@@ -12,6 +12,7 @@ class PostCardWidget extends StatelessWidget {
   final VoidCallback? onReport;
   final void Function(int itineraryId)? onItineraryTap;
   final void Function(int userId)? onUserTap;
+  final EdgeInsetsGeometry? margin;
 
   const PostCardWidget({
     super.key,
@@ -23,6 +24,7 @@ class PostCardWidget extends StatelessWidget {
     this.onReport,
     this.onItineraryTap,
     this.onUserTap,
+    this.margin,
   });
 
   String _formatTime(DateTime time) {
@@ -61,7 +63,7 @@ class PostCardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -114,7 +116,7 @@ class PostCardWidget extends StatelessWidget {
                                       post.author.displayName,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 15,
+                                        fontSize: 15.5,
                                         color: AppColors.textPrimary,
                                       ),
                                       maxLines: 1,
@@ -228,8 +230,8 @@ class PostCardWidget extends StatelessWidget {
               child: Text(
                 post.content,
                 style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.4,
+                  fontSize: 15.5,
+                  height: 1.45,
                   color: AppColors.textPrimary,
                 ),
               ),
@@ -262,21 +264,21 @@ class PostCardWidget extends StatelessWidget {
                     onTap: onLike,
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             post.isLikedByMe ? Icons.favorite : Icons.favorite_border,
                             color: post.isLikedByMe ? AppColors.primary : AppColors.muted,
-                            size: 20,
+                            size: 22,
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Text(
                             post.likeCount > 0 ? '${post.likeCount}' : 'Thích',
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: post.isLikedByMe ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 13.5,
+                              fontWeight: post.isLikedByMe ? FontWeight.w700 : FontWeight.w600,
                               color: post.isLikedByMe ? AppColors.primary : AppColors.textPrimary,
                             ),
                           ),
@@ -292,21 +294,21 @@ class PostCardWidget extends StatelessWidget {
                     onTap: onComment,
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(
                             Icons.chat_bubble_outline,
                             color: AppColors.muted,
-                            size: 20,
+                            size: 22,
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Text(
                             post.commentCount > 0 ? '${post.commentCount}' : 'Bình luận',
                             style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary,
                             ),
                           ),
@@ -329,7 +331,7 @@ class PostCardWidget extends StatelessWidget {
       return GestureDetector(
         onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: 0),
         child: AspectRatio(
-          aspectRatio: 16 / 9,
+          aspectRatio: 4 / 3,
           child: Image.network(
             urls[0],
             fit: BoxFit.cover,
@@ -339,7 +341,7 @@ class PostCardWidget extends StatelessWidget {
       );
     } else if (count == 2) {
       return AspectRatio(
-        aspectRatio: 16 / 9,
+        aspectRatio: 3 / 2,
         child: Row(
           children: [
             Expanded(child: _singleImage(context, urls, 0)),
@@ -350,7 +352,7 @@ class PostCardWidget extends StatelessWidget {
       );
     } else if (count == 3) {
       return AspectRatio(
-        aspectRatio: 16 / 9,
+        aspectRatio: 4 / 3,
         child: Row(
           children: [
             Expanded(flex: 2, child: _singleImage(context, urls, 0)),

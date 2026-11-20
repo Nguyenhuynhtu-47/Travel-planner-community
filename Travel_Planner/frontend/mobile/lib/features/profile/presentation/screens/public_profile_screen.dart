@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
@@ -16,6 +17,10 @@ import '../../../messaging/data/messaging_repository.dart';
 import '../../../messaging/data/messaging_realtime_client.dart';
 import '../../../messaging/presentation/screens/chat_screen.dart';
 import '../../../messaging/data/models/conversation_summary.dart';
+import '../../../social/data/community_post_repository.dart';
+import '../../../social/data/models/post_model.dart';
+import '../../../social/presentation/widgets/post_card_widget.dart';
+import '../../../social/presentation/widgets/post_comments_sheet.dart';
 import 'profile_screen.dart';
 import 'public_user_list_screen.dart';
 
@@ -23,11 +28,13 @@ class PublicProfileScreen extends StatefulWidget {
   final int userId;
   final AuthNotifier? authNotifier;
   final PublicProfileRepository? repository;
+  final CommunityPostRepository? postRepository;
   const PublicProfileScreen({
     super.key,
     required this.userId,
     this.authNotifier,
     this.repository,
+    this.postRepository,
   });
   @override
   State<PublicProfileScreen> createState() => _PublicProfileScreenState();
@@ -36,7 +43,8 @@ class PublicProfileScreen extends StatefulWidget {
 class _PublicProfileScreenState extends State<PublicProfileScreen> {
   late final PublicProfileRepository _repo =
       widget.repository ?? PublicProfileRepository();
-  final ScrollController _scroll = ScrollController();
+  late final CommunityPostRepository _postRepo =
+      widget.postRepository ?? CommunityPostRepository();
   PublicProfile? _profile;
   List<ItinerarySummary> _itineraries = [];
   int _page = 0;
@@ -51,17 +59,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   bool get _following => _profile?.isFollowing ?? false;
 
+  int _selectedTab = 0; // 0: Lịch trình, 1: Bài viết
+  List<PostModel> _posts = [];
+  bool _loadingPosts = false;
+  bool _hasMorePosts = true;
+  int _postsPage = 0;
+  String? _postsError;
+
   @override
   void initState() {
     super.initState();
     _load();
-    _scroll.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -92,10 +100,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
-  void _onScroll() {
-    if (_scroll.position.extentAfter < 300) _loadMore();
-  }
-
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) return;
     setState(() => _loadingMore = true);
@@ -119,6 +123,117 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
+  }
+
+  Future<void> _loadPosts({bool refresh = false}) async {
+    if (refresh) {
+      _postsPage = 0;
+      _hasMorePosts = true;
+    }
+    if (!_hasMorePosts || (_loadingPosts && !refresh)) return;
+
+    setState(() {
+      _loadingPosts = true;
+      _postsError = null;
+    });
+
+    try {
+      final posts = await _postRepo.getUserPosts(
+        widget.userId,
+        page: _postsPage,
+        size: 10,
+        token: _token,
+      );
+      if (mounted) {
+        setState(() {
+          if (refresh) {
+            _posts = posts;
+          } else {
+            _posts.addAll(posts);
+          }
+          _postsPage++;
+          _hasMorePosts = posts.length >= 10;
+          _loadingPosts = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _postsError = 'Không thể tải danh sách bài viết';
+          _loadingPosts = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _likePost(PostModel post) async {
+    final token = _token;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đăng nhập để thích bài viết.')),
+      );
+      return;
+    }
+
+    final newIsLiked = !post.isLikedByMe;
+    final newCount = post.likeCount + (newIsLiked ? 1 : -1);
+    final updated = post.copyWith(
+      isLikedByMe: newIsLiked,
+      likeCount: newCount < 0 ? 0 : newCount,
+    );
+
+    setState(() {
+      final index = _posts.indexWhere((p) => p.postId == post.postId);
+      if (index != -1) _posts[index] = updated;
+    });
+
+    try {
+      if (newIsLiked) {
+        await _postRepo.likePost(post.postId, token: token);
+      } else {
+        await _postRepo.unlikePost(post.postId, token: token);
+      }
+      AppSyncBus.emitPostLiked(post.postId, newIsLiked, newCount < 0 ? 0 : newCount);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          final index = _posts.indexWhere((p) => p.postId == post.postId);
+          if (index != -1) _posts[index] = post;
+        });
+      }
+    }
+  }
+
+  void _openPostComments(PostModel post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PostCommentsSheet(
+        postId: post.postId,
+        token: _token,
+        repository: _postRepo,
+        onCommentCountChanged: (delta) {
+          setState(() {
+            final idx = _posts.indexWhere((p) => p.postId == post.postId);
+            if (idx != -1) {
+              final newCount = (_posts[idx].commentCount + delta) < 0
+                  ? 0
+                  : _posts[idx].commentCount + delta;
+              _posts[idx] = _posts[idx].copyWith(commentCount: newCount);
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  void _openReport(PostModel post) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Đã ghi nhận báo cáo bài viết. Cảm ơn phản hồi của bạn!'),
+      ),
+    );
   }
 
   Future<void> _toggleFollow() async {
@@ -444,6 +559,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final name = profile.fullName?.trim().isNotEmpty == true
         ? profile.fullName!.trim()
         : '@$handleDisplay';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -460,267 +576,376 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           child: Container(height: 0.5, color: AppColors.hairlineSoft),
         ),
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          controller: _scroll,
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-          children: [
-            // Instagram-inspired Header
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 38,
-                  backgroundColor: AppColors.surfaceStrong,
-                  backgroundImage: profile.avatar?.isNotEmpty == true
-                      ? NetworkImage(profile.avatar!)
-                      : null,
-                  child: profile.avatar?.isNotEmpty == true
-                      ? null
-                      : const Icon(
-                          Icons.person_outline,
-                          size: 38,
-                          color: AppColors.textSecondary,
-                        ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Expanded(
-                        child: _statItem('Lịch trình', _itineraries.length),
-                      ),
-                      Expanded(
-                        child: _statItem(
-                          'Người theo dõi',
-                          profile.followerCount,
-                          onTap: () => _openUsers(true),
-                        ),
-                      ),
-                      Expanded(
-                        child: _statItem(
-                          'Đang theo dõi',
-                          profile.followingCount,
-                          onTap: () => _openUsers(false),
-                        ),
-                      ),
-                    ],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await _load();
+              if (_selectedTab == 1) {
+                await _loadPosts(refresh: true);
+              }
+            },
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  SliverToBoxAdapter(
+                    child: _buildHeader(profile, name, handleDisplay),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Name & Handle
-            Text(
-              name,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '@$handleDisplay',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            if (profile.bio?.trim().isNotEmpty == true) ...[
-              const SizedBox(height: 6),
-              Text(
-                profile.bio!.trim(),
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  color: AppColors.textPrimary,
-                  height: 1.35,
-                ),
-              ),
-            ],
-            const SizedBox(height: 14),
-
-            // Action Buttons
-            if (!profile.isOwnProfile) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: _following
-                        ? OutlinedButton(
-                            onPressed: _followBusy ? null : _toggleFollow,
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(38),
-                              side: const BorderSide(color: AppColors.border),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: _followBusy
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Đang theo dõi',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                          )
-                        : FilledButton(
-                            onPressed: _followBusy ? null : _toggleFollow,
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(38),
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: _followBusy
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Theo dõi',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                          ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: ProfileTabBarDelegate(
+                      child: _buildTabBar(),
+                    ),
                   ),
-                  if (profile.canMessage ||
-                      profile.canContinueConversation) ...[
-                    const SizedBox(width: 8),
+                ];
+              },
+              body: _selectedTab == 0
+                  ? _buildItinerariesTab()
+                  : _buildPostsTab(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(
+    PublicProfile profile,
+    String name,
+    String handleDisplay,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Instagram-inspired Header
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 38,
+                backgroundColor: AppColors.surfaceStrong,
+                backgroundImage: profile.avatar?.isNotEmpty == true
+                    ? NetworkImage(profile.avatar!)
+                    : null,
+                child: profile.avatar?.isNotEmpty == true
+                    ? null
+                    : const Icon(
+                        Icons.person_outline,
+                        size: 38,
+                        color: AppColors.textSecondary,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
                     Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _openConversation(profile),
-                        icon: const Icon(Icons.chat_bubble_outline, size: 16),
-                        label: const Text(
-                          'Nhắn tin',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(38),
-                          side: const BorderSide(color: AppColors.border),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
+                      child: _statItem('Lịch trình', _itineraries.length),
+                    ),
+                    Expanded(
+                      child: _statItem(
+                        'Người theo dõi',
+                        profile.followerCount,
+                        onTap: () => _openUsers(true),
+                      ),
+                    ),
+                    Expanded(
+                      child: _statItem(
+                        'Đang theo dõi',
+                        profile.followingCount,
+                        onTap: () => _openUsers(false),
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
-              if (profile.canSendFriendRequest ||
-                  profile.friendshipStatus != null) ...[
-                const SizedBox(height: 8),
-                _relationshipActions(profile),
-              ],
             ],
-            if (profile.isOwnProfile && widget.authNotifier != null)
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        ProfileScreen(authNotifier: widget.authNotifier!),
-                  ),
-                ),
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Chỉnh sửa hồ sơ'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(38),
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: AppColors.hairlineSoft),
-            const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 14),
 
-            // Itineraries Header
+          // Name & Handle
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '@$handleDisplay',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (profile.bio?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            Text(
+              profile.bio!.trim(),
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: AppColors.textPrimary,
+                height: 1.35,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+
+          // Action Buttons
+          if (!profile.isOwnProfile) ...[
             Row(
               children: [
-                const Icon(
-                  Icons.map_outlined,
-                  size: 18,
-                  color: AppColors.primary,
+                Expanded(
+                  child: _following
+                      ? OutlinedButton(
+                          onPressed: _followBusy ? null : _toggleFollow,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(38),
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: _followBusy
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Đang theo dõi',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                        )
+                      : FilledButton(
+                          onPressed: _followBusy ? null : _toggleFollow,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(38),
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: _followBusy
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Theo dõi',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
                 ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Lịch trình công khai',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSoft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${_itineraries.length}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
+                if (profile.canMessage || profile.canContinueConversation) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openConversation(profile),
+                      icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                      label: const Text(
+                        'Nhắn tin',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(38),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
-            const SizedBox(height: 12),
-            if (_itineraries.isEmpty)
-              const AppEmptyState(
-                title: 'Chưa có lịch trình công khai',
-                message:
-                    'Các lịch trình công khai của người dùng sẽ hiện ở đây.',
-                icon: Icons.luggage_outlined,
+            if (profile.canSendFriendRequest ||
+                profile.friendshipStatus != null) ...[
+              const SizedBox(height: 8),
+              _relationshipActions(profile),
+            ],
+          ],
+          if (profile.isOwnProfile && widget.authNotifier != null)
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      ProfileScreen(authNotifier: widget.authNotifier!),
+                ),
               ),
-            for (final item in _itineraries)
-              ItineraryCard(
-                itinerary: item,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ItineraryDetailScreen(
-                      itineraryId: item.itineraryId,
-                      initialSummary: item,
-                      token: _token,
-                      authNotifier: widget.authNotifier,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Chỉnh sửa hồ sơ'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(38),
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        border: Border(
+          top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
+          bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _selectedTab = 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: _selectedTab == 0
+                          ? AppColors.primary
+                          : Colors.transparent,
+                      width: 2,
                     ),
                   ),
                 ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.map_outlined,
+                      size: 18,
+                      color: _selectedTab == 0
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Lịch trình',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: _selectedTab == 0
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            if (_loadingMore)
-              const Padding(
-                padding: EdgeInsets.all(AppSpacing.base),
-                child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() => _selectedTab = 1);
+                if (_posts.isEmpty && !_loadingPosts) {
+                  _loadPosts();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: _selectedTab == 1
+                          ? AppColors.primary
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.article_outlined,
+                      size: 18,
+                      color: _selectedTab == 1
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Bài viết',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: _selectedTab == 1
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            if (_moreError != null)
-              Center(
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItinerariesTab() {
+    if (_itineraries.isEmpty) {
+      return const Center(
+        child: SingleChildScrollView(
+          physics: AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(24),
+          child: AppEmptyState(
+            title: 'Chưa có lịch trình công khai',
+            message: 'Các lịch trình công khai của người dùng sẽ hiện ở đây.',
+            icon: Icons.luggage_outlined,
+          ),
+        ),
+      );
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scrollInfo) {
+        if (scrollInfo.metrics.pixels >=
+                scrollInfo.metrics.maxScrollExtent - 200 &&
+            !_loadingMore &&
+            _hasMore) {
+          _loadMore();
+        }
+        return false;
+      },
+      child: ListView.builder(
+        key: const PageStorageKey('public_profile_itineraries'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        itemCount:
+            _itineraries.length + (_loadingMore || _moreError != null ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index >= _itineraries.length) {
+            if (_moreError != null) {
+              return Center(
                 child: TextButton(
                   onPressed: () {
                     setState(() => _moreError = null);
@@ -728,9 +953,133 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   },
                   child: const Text('Thử tải thêm'),
                 ),
+              );
+            }
+            return const Padding(
+              padding: EdgeInsets.all(AppSpacing.base),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final item = _itineraries[index];
+          return ItineraryCard(
+            itinerary: item,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ItineraryDetailScreen(
+                  itineraryId: item.itineraryId,
+                  initialSummary: item,
+                  token: _token,
+                  authNotifier: widget.authNotifier,
+                ),
               ),
-          ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPostsTab() {
+    if (_loadingPosts && _posts.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    if (_postsError != null && _posts.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text(
+                _postsError!,
+                style:
+                    const TextStyle(fontSize: 15, color: AppColors.textPrimary),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () => _loadPosts(refresh: true),
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
         ),
+      );
+    }
+
+    if (_posts.isEmpty) {
+      return const Center(
+        child: SingleChildScrollView(
+          physics: AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(24),
+          child: AppEmptyState(
+            title: 'Chưa có bài viết nào',
+            message: 'Người dùng này chưa chia sẻ bài viết nào.',
+            icon: Icons.article_outlined,
+          ),
+        ),
+      );
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scrollInfo) {
+        if (scrollInfo.metrics.pixels >=
+                scrollInfo.metrics.maxScrollExtent - 200 &&
+            !_loadingPosts &&
+            _hasMorePosts) {
+          _loadPosts();
+        }
+        return false;
+      },
+      child: ListView.separated(
+        key: const PageStorageKey('public_profile_posts'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(top: 8, bottom: 24),
+        itemCount: _posts.length + (_hasMorePosts ? 1 : 0),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        itemBuilder: (context, index) {
+          if (index >= _posts.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
+
+          final post = _posts[index];
+          return PostCardWidget(
+            post: post,
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            onLike: () => _likePost(post),
+            onComment: () => _openPostComments(post),
+            onEdit: null,
+            onDelete: null,
+            onReport: () => _openReport(post),
+            onItineraryTap: (itineraryId) {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ItineraryDetailScreen(
+                    itineraryId: itineraryId,
+                    token: _token,
+                    authNotifier: widget.authNotifier,
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
