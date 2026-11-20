@@ -56,7 +56,8 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ??
+    _repository =
+        widget.repository ??
         widget.notifier?.repository ??
         ItineraryCrudRepository();
     _notifier =
@@ -184,7 +185,8 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
             onPressed: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => ProfileScreen(authNotifier: widget.authNotifier),
+                  builder: (_) =>
+                      ProfileScreen(authNotifier: widget.authNotifier),
                 ),
               );
               if (mounted) setState(() {});
@@ -194,10 +196,7 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 0.5,
-            color: AppColors.hairlineSoft,
-          ),
+          child: Container(height: 0.5, color: AppColors.hairlineSoft),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -255,8 +254,7 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
                         padding: const EdgeInsets.only(top: 80),
                         child: AppEmptyState(
                           title: 'Chưa có lịch trình nào',
-                          message:
-                              'Bạn chưa tạo lịch trình nào hoặc không có lịch trình nào phù hợp với bộ lọc.',
+                          message: 'Bạn chưa tạo lịch trình nào hoặc không có lịch trình nào phù hợp với bộ lọc.',
                           icon: Icons.map_outlined,
                           actionText: 'Tạo lịch trình ngay',
                           onActionPressed: _navigateToCreateScreen,
@@ -335,103 +333,93 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
     return ListenableBuilder(
       listenable: _notifier,
       builder: (context, _) {
-        final isAll = _notifier.statusFilter == null && _notifier.visibilityFilter == null;
+        final isAll =
+            _notifier.statusFilter == null &&
+            _notifier.visibilityFilter == null;
         final isPublic = _notifier.visibilityFilter == 'PUBLIC';
         final isPrivate = _notifier.visibilityFilter == 'PRIVATE';
-        final isDraft = _notifier.statusFilter == 'DRAFT';
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              FilterChip(
-                label: const Text('Tất cả'),
-                selected: isAll,
-                onSelected: (_) {
-                  _notifier.setStatusFilter(null, token: widget.authNotifier.token);
-                  _notifier.setVisibilityFilter(null, token: widget.authNotifier.token);
-                },
-                selectedColor: AppColors.primaryLight,
-                checkmarkColor: AppColors.primary,
-                labelStyle: TextStyle(
-                  color: isAll ? AppColors.primary : AppColors.textPrimary,
-                  fontWeight: isAll ? FontWeight.w600 : FontWeight.normal,
-                  fontSize: 13,
+        return SizedBox(
+          width: double.infinity,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildFilterChip(
+                  label: 'Tất cả',
+                  selected: isAll,
+                  onSelected: () {
+                    _notifier.setStatusFilter(
+                      null,
+                      token: widget.authNotifier.token,
+                    );
+                    _notifier.setVisibilityFilter(
+                      null,
+                      token: widget.authNotifier.token,
+                    );
+                  },
                 ),
-                backgroundColor: AppColors.surface,
-                side: BorderSide(
-                  color: isAll ? AppColors.primary : AppColors.hairline,
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'Công khai',
+                  selected: isPublic,
+                  onSelected: () {
+                    _notifier.setStatusFilter(
+                      null,
+                      token: widget.authNotifier.token,
+                    );
+                    _notifier.setVisibilityFilter(
+                      'PUBLIC',
+                      token: widget.authNotifier.token,
+                    );
+                  },
                 ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-              const SizedBox(width: 8),
-              FilterChip(
-                label: const Text('Công khai'),
-                selected: isPublic,
-                onSelected: (_) {
-                  _notifier.setStatusFilter(null, token: widget.authNotifier.token);
-                  _notifier.setVisibilityFilter('PUBLIC', token: widget.authNotifier.token);
-                },
-                selectedColor: AppColors.primaryLight,
-                checkmarkColor: AppColors.primary,
-                labelStyle: TextStyle(
-                  color: isPublic ? AppColors.primary : AppColors.textPrimary,
-                  fontWeight: isPublic ? FontWeight.w600 : FontWeight.normal,
-                  fontSize: 13,
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'Riêng tư',
+                  selected: isPrivate,
+                  onSelected: () {
+                    _notifier.setStatusFilter(
+                      null,
+                      token: widget.authNotifier.token,
+                    );
+                    _notifier.setVisibilityFilter(
+                      'PRIVATE',
+                      token: widget.authNotifier.token,
+                    );
+                  },
                 ),
-                backgroundColor: AppColors.surface,
-                side: BorderSide(
-                  color: isPublic ? AppColors.primary : AppColors.hairline,
-                ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-              const SizedBox(width: 8),
-              FilterChip(
-                label: const Text('Riêng tư'),
-                selected: isPrivate,
-                onSelected: (_) {
-                  _notifier.setStatusFilter(null, token: widget.authNotifier.token);
-                  _notifier.setVisibilityFilter('PRIVATE', token: widget.authNotifier.token);
-                },
-                selectedColor: AppColors.primaryLight,
-                checkmarkColor: AppColors.primary,
-                labelStyle: TextStyle(
-                  color: isPrivate ? AppColors.primary : AppColors.textPrimary,
-                  fontWeight: isPrivate ? FontWeight.w600 : FontWeight.normal,
-                  fontSize: 13,
-                ),
-                backgroundColor: AppColors.surface,
-                side: BorderSide(
-                  color: isPrivate ? AppColors.primary : AppColors.hairline,
-                ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-              const SizedBox(width: 8),
-              FilterChip(
-                label: const Text('Bản nháp'),
-                selected: isDraft,
-                onSelected: (_) {
-                  _notifier.setVisibilityFilter(null, token: widget.authNotifier.token);
-                  _notifier.setStatusFilter('DRAFT', token: widget.authNotifier.token);
-                },
-                selectedColor: AppColors.primaryLight,
-                checkmarkColor: AppColors.primary,
-                labelStyle: TextStyle(
-                  color: isDraft ? AppColors.primary : AppColors.textPrimary,
-                  fontWeight: isDraft ? FontWeight.w600 : FontWeight.normal,
-                  fontSize: 13,
-                ),
-                backgroundColor: AppColors.surface,
-                side: BorderSide(
-                  color: isDraft ? AppColors.primary : AppColors.hairline,
-                ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: AppColors.primaryLight,
+      checkmarkColor: AppColors.primary,
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textPrimary,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        fontSize: 13,
+      ),
+      backgroundColor: AppColors.surface,
+      side: BorderSide(
+        color: selected ? AppColors.primary : AppColors.hairline,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 }

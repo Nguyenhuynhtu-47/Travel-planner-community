@@ -337,7 +337,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Future<void> _openConversation(PublicProfile profile) async {
     final token = _token;
-    if (token == null || widget.authNotifier == null) return;
+    if (token == null || widget.authNotifier == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đăng nhập để nhắn tin với người dùng.')),
+      );
+      return;
+    }
     try {
       final conversation = await _messaging.openDirect(widget.userId, token);
       final realtime = MessagingRealtimeClient.shared
@@ -402,72 +407,304 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     }
   }
 
-  Widget _relationshipActions(PublicProfile profile) {
-    if (profile.isOwnProfile || widget.authNotifier == null) {
-      return const SizedBox.shrink();
-    }
-    final direction = profile.friendRequestDirection;
-    final pending = profile.friendshipStatus == 'PENDING';
-    final accepted = profile.friendshipStatus == 'ACCEPTED';
-    final actions = <Widget>[];
-    if (accepted) {
-      actions.add(
-        TextButton(
-          onPressed: _relationshipBusy
-              ? null
-              : () => _relationshipAction('unfriend'),
-          child: const Text('Bạn bè · Hủy kết bạn'),
+  Widget _buildFollowButton(PublicProfile profile) {
+    if (_following) {
+      return OutlinedButton(
+        onPressed: _followBusy ? null : _toggleFollow,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(38),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          side: const BorderSide(color: AppColors.border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          backgroundColor: AppColors.surface,
         ),
-      );
-    } else if (pending && direction == 'received') {
-      actions.addAll([
-        FilledButton(
-          onPressed: _relationshipBusy
-              ? null
-              : () => _relationshipAction('accept'),
-          child: const Text('Chấp nhận'),
-        ),
-        TextButton(
-          onPressed: _relationshipBusy
-              ? null
-              : () => _relationshipAction('decline'),
-          child: const Text('Từ chối'),
-        ),
-      ]);
-    } else if (pending && direction == 'sent') {
-      actions.add(
-        OutlinedButton(
-          onPressed: _relationshipBusy
-              ? null
-              : () => _relationshipAction('cancel'),
-          child: const Text('Hủy lời mời'),
-        ),
-      );
-    } else if (profile.canSendFriendRequest) {
-      actions.add(
-        FilledButton(
-          onPressed: _relationshipBusy
-              ? null
-              : () => _relationshipAction('send'),
-          child: const Text('Thêm bạn bè'),
-        ),
+        child: _followBusy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textPrimary,
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, size: 15, color: AppColors.textPrimary),
+                  SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'Đang theo dõi',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
       );
     }
-    if (_relationshipBusy) {
-      actions.add(
-        const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
+
+    return FilledButton(
+      onPressed: _followBusy ? null : _toggleFollow,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(38),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
-      );
-    }
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 4,
-      children: actions,
+      ),
+      child: _followBusy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.person_add_alt_1_outlined,
+                  size: 15,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'Theo dõi',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
     );
+  }
+
+  Widget _buildMessageButton(PublicProfile profile) {
+    return OutlinedButton(
+      onPressed: () => _openConversation(profile),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(38),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        side: const BorderSide(color: AppColors.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        backgroundColor: AppColors.surface,
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 15,
+            color: AppColors.textPrimary,
+          ),
+          SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              'Nhắn tin',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFriendButton(PublicProfile profile) {
+    final status = profile.friendshipStatus;
+    final direction = profile.friendRequestDirection;
+    final isAccepted = status == 'ACCEPTED';
+    final isPending = status == 'PENDING';
+
+    final String label;
+    final IconData icon;
+    final VoidCallback? onTap;
+
+    if (isAccepted) {
+      label = 'Bạn bè';
+      icon = Icons.people_outline;
+      onTap = _relationshipBusy ? null : () => _confirmUnfriend(profile);
+    } else if (isPending && direction == 'sent') {
+      label = 'Hủy lời mời';
+      icon = Icons.schedule_outlined;
+      onTap = _relationshipBusy ? null : () => _relationshipAction('cancel');
+    } else if (isPending && direction == 'received') {
+      label = 'Phản hồi';
+      icon = Icons.how_to_reg_outlined;
+      onTap = _relationshipBusy ? null : () => _showFriendRequestRespondModal(profile);
+    } else {
+      label = 'Kết bạn';
+      icon = Icons.person_add_outlined;
+      onTap = (_relationshipBusy || (!profile.canSendFriendRequest && status != null))
+          ? null
+          : () => _relationshipAction('send');
+    }
+
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(38),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        side: BorderSide(
+          color: (isPending && direction == 'received')
+              ? AppColors.primary
+              : AppColors.border,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        backgroundColor: (isPending && direction == 'received')
+            ? AppColors.primaryLight.withValues(alpha: 0.15)
+            : AppColors.surface,
+      ),
+      child: _relationshipBusy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.textPrimary,
+              ),
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 15,
+                  color: (isPending && direction == 'received')
+                      ? AppColors.primary
+                      : AppColors.textPrimary,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: (isPending && direction == 'received')
+                          ? AppColors.primary
+                          : AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  void _showFriendRequestRespondModal(PublicProfile profile) {
+    final displayName = profile.fullName?.trim().isNotEmpty == true
+        ? profile.fullName!.trim()
+        : '@${profile.effectiveHandle}';
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Text(
+                  'Lời mời kết bạn từ $displayName',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.hairlineSoft),
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline, color: AppColors.primary),
+                title: const Text(
+                  'Chấp nhận lời mời',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.primary),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _relationshipAction('accept');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                title: const Text('Từ chối lời mời'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _relationshipAction('decline');
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmUnfriend(PublicProfile profile) async {
+    final displayName = profile.fullName?.trim().isNotEmpty == true
+        ? profile.fullName!.trim()
+        : '@${profile.effectiveHandle}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hủy kết bạn'),
+        content: Text('Bạn có chắc chắn muốn hủy kết bạn với $displayName không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Đóng'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Hủy kết bạn'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _relationshipAction('unfriend');
+    }
   }
 
   Future<void> _openUsers(bool followers) async {
@@ -698,92 +935,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           ],
           const SizedBox(height: 14),
 
-          // Action Buttons
+          // Action Buttons: 3 buttons on one single row
           if (!profile.isOwnProfile) ...[
             Row(
               children: [
-                Expanded(
-                  child: _following
-                      ? OutlinedButton(
-                          onPressed: _followBusy ? null : _toggleFollow,
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(38),
-                            side: const BorderSide(color: AppColors.border),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: _followBusy
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text(
-                                  'Đang theo dõi',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                        )
-                      : FilledButton(
-                          onPressed: _followBusy ? null : _toggleFollow,
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(38),
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: _followBusy
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Theo dõi',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ),
-                ),
-                if (profile.canMessage || profile.canContinueConversation) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openConversation(profile),
-                      icon: const Icon(Icons.chat_bubble_outline, size: 16),
-                      label: const Text(
-                        'Nhắn tin',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(38),
-                        side: const BorderSide(color: AppColors.border),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                Expanded(child: _buildFollowButton(profile)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildMessageButton(profile)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildFriendButton(profile)),
               ],
             ),
-            if (profile.canSendFriendRequest ||
-                profile.friendshipStatus != null) ...[
-              const SizedBox(height: 8),
-              _relationshipActions(profile),
-            ],
           ],
           if (profile.isOwnProfile && widget.authNotifier != null)
             OutlinedButton.icon(
