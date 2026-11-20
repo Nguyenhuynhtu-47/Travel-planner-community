@@ -6,12 +6,14 @@ import '../../../../core/theme/app_colors.dart';
 import '../../data/messaging_date_time.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/messaging_realtime_client.dart';
 import '../../data/models/conversation_summary.dart';
 import '../../data/models/friend_request.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import 'chat_screen.dart';
 import 'messaging_settings_screen.dart';
@@ -465,6 +467,15 @@ class _CommunityScreenState extends State<CommunityScreen>
               ),
             ),
           ),
+          if (auth?.isAuthenticated == true)
+            CurrentUserAvatarButton(
+              avatarUrl: auth?.currentUser?['avatar']?.toString(),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProfileScreen(authNotifier: auth!),
+                ),
+              ),
+            ),
           const SizedBox(width: 8),
         ],
       ),

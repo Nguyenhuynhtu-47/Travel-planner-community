@@ -1170,46 +1170,48 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               ),
               actions: [
                 if (itinerary != null) ...[
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 38,
-                      minHeight: 38,
+                  if (!isOwner) ...[
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 38,
+                        minHeight: 38,
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      icon: Icon(
+                        effectiveSaved
+                            ? Icons.bookmark
+                            : Icons.bookmark_border_rounded,
+                        color: effectiveSaved
+                            ? AppColors.savedActive
+                            : AppColors.textPrimary,
+                      ),
+                      tooltip: effectiveSaved ? 'Bỏ lưu' : 'Lưu lịch trình',
+                      onPressed: _isTogglingSave
+                          ? null
+                          : () => _handleToggleSave(itinerary),
                     ),
-                    padding: const EdgeInsets.all(6),
-                    icon: Icon(
-                      effectiveSaved
-                          ? Icons.bookmark
-                          : Icons.bookmark_border_rounded,
-                      color: effectiveSaved
-                          ? AppColors.savedActive
-                          : AppColors.textPrimary,
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 38,
+                        minHeight: 38,
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      icon: Icon(
+                        effectiveFavorited
+                            ? Icons.favorite
+                            : Icons.favorite_border_rounded,
+                        color: effectiveFavorited
+                            ? Colors.redAccent
+                            : AppColors.textPrimary,
+                      ),
+                      tooltip: effectiveFavorited ? 'Bỏ yêu thích' : 'Yêu thích',
+                      onPressed: _isTogglingFavorite
+                          ? null
+                          : () => _handleToggleFavorite(itinerary, isOwner),
                     ),
-                    tooltip: effectiveSaved ? 'Bỏ lưu' : 'Lưu lịch trình',
-                    onPressed: _isTogglingSave
-                        ? null
-                        : () => _handleToggleSave(itinerary),
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 38,
-                      minHeight: 38,
-                    ),
-                    padding: const EdgeInsets.all(6),
-                    icon: Icon(
-                      effectiveFavorited
-                          ? Icons.favorite
-                          : Icons.favorite_border_rounded,
-                      color: effectiveFavorited
-                          ? Colors.redAccent
-                          : AppColors.textPrimary,
-                    ),
-                    tooltip: effectiveFavorited ? 'Bỏ yêu thích' : 'Yêu thích',
-                    onPressed: _isTogglingFavorite
-                        ? null
-                        : () => _handleToggleFavorite(itinerary, isOwner),
-                  ),
+                  ],
                   if (_isCloning)
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 10),

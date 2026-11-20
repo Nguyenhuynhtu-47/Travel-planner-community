@@ -10114,3 +10114,46 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
   - **Preservation & Scope Integrity:**
     - No backend code or database changes were made.
     - Working tree and uncommitted changes preserved; no git commit, push, stash, or branch switch.
+
+---
+
+## 2026-11-20 - Mobile UI Polish: Avatar, Notification, Profile Edit Layout & Itinerary Ownership Actions
+
+- **Task Summary:**
+  1. Add `CurrentUserAvatarButton` on the AppBar of `CollectionScreen` and `CommunityFeedScreen` (and messaging `CommunityScreen`), navigating to `ProfileScreen`.
+  2. Add notification bell icon button (`Icons.notifications_outlined`) on the AppBar of `MyItinerariesScreen` navigating to `NotificationsScreen`, and unify the profile avatar using `CurrentUserAvatarButton`.
+  3. Reorder profile editing layout in `ProfileScreen`: move `ImageUploadPreview` (avatar photo picker and preview) to the top of the form, directly above personal information fields (`fullName`, `handle`, `phone`, etc.).
+  4. Hide Save (Bookmark) and Favorite (Heart) actions on itineraries belonging to the current authenticated user across all views (`ItineraryDetailScreen`, `ExploreScreen`, `ItineraryCard`, `FeaturedItineraryCard`, `CompactItineraryCard`, and `ProfileScreen`), while continuing to display them for other users' itineraries and system template itineraries with no awkward layout gaps.
+
+- **Implementation Details:**
+  1. **AppBar Avatar Navigation (`collection_screen.dart`, `community_feed_screen.dart`, `community_screen.dart`):**
+     - Reused existing `CurrentUserAvatarButton` widget.
+     - Added `authNotifier` change listener in `CollectionScreen` so avatar updates immediately reflect without app restart.
+     - Tapping the avatar navigates to `ProfileScreen(authNotifier: widget.authNotifier!)`.
+  2. **My Itineraries AppBar (`my_itineraries_screen.dart`):**
+     - Replaced custom `CircleAvatar` + `InkWell` with consistent `IconButton(icon: Icon(Icons.notifications_outlined))` navigating to `NotificationsScreen` followed by `CurrentUserAvatarButton` navigating to `ProfileScreen`.
+  3. **Profile Edit Layout (`profile_screen.dart`):**
+     - Moved `ImageUploadPreview` from middle of the form (below `@handle`) to the top directly above `_fullNameController`. Preserved all image picking, bytes preview, network fallback, validation, and update business logic.
+  4. **Ownership-Aware Action Visibility:**
+     - `ItineraryDetailScreen`: Wrapped AppBar actions for `effectiveSaved` (Bookmark) and `effectiveFavorited` (Heart) in `if (!isOwner) ...[ ... ]`. When viewing own itinerary, both icons are hidden cleanly with zero gap left behind. Sample itineraries (no creator / anonymous) and other users' itineraries show both icons.
+     - `ItineraryCard`: Added `bool showFavorite = true` parameter. Evaluated in top-right `Stack` child to suppress `_FavoriteHeartButton` and the `Positioned` container when `showFavorite` is false or `onFavoriteTap == null`.
+     - `ExploreScreen`: Added `_isItineraryOwner(ItinerarySummary)` helper comparing `currentUserId` and case-insensitive `username`. Passed `onFavoriteTap: isOwner ? null : ...` and `showFavorite: !isOwner` across all sections (`Featured`, `TopRated`, `Popular`, `Recommended`, `Recent`, and search/filter results).
+     - `ProfileScreen`: Set `showFavorite: false` on own itinerary list cards in `_buildItinerariesTab`.
+
+- **Verification Results:**
+  - **Automated Tests:**
+    - Created `test/mobile_ui_updates_test.dart` (9/9 passed) covering avatar buttons, notification icon, profile avatar positioning, and own vs other vs sample itinerary bookmark/favorite icon visibility.
+    - Full test suite passed 100/100 tests:
+      - `test/mobile_ui_updates_test.dart` (9/9)
+      - `test/itinerary_route_test.dart` (31/31)
+      - `test/activity_detail_screen_test.dart` (13/13)
+      - `test/features/collection/collection_screen_test.dart` (4/4)
+      - `test/my_itineraries_test.dart` (12/12)
+      - `test/explore_test.dart` (17/17)
+      - `test/features/social/community_feed_test.dart` (14/14)
+  - **Static Analysis:**
+    - `flutter analyze --no-pub` verified zero errors and zero warnings across all updated files.
+  - **Preservation & Scope Integrity:**
+    - No backend changes, no database schema changes, and no API alterations.
+    - All local modifications preserved without commit, push, stash, or branch switch.
+

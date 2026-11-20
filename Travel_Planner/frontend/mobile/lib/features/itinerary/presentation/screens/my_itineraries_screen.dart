@@ -7,9 +7,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
+import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../my_itineraries_notifier.dart';
 import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/my_itinerary_card.dart';
@@ -166,44 +168,29 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(24),
-              onTap: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ProfileScreen(authNotifier: widget.authNotifier),
-                  ),
-                );
-                if (mounted) setState(() {});
-              },
-              child: Tooltip(
-                message: 'Hồ sơ cá nhân',
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: CircleAvatar(
-                    radius: 17,
-                    backgroundColor: AppColors.surfaceStrong,
-                    backgroundImage: widget.authNotifier.currentUser?['avatar'] != null &&
-                            widget.authNotifier.currentUser!['avatar'].toString().trim().isNotEmpty
-                        ? NetworkImage(
-                            widget.authNotifier.currentUser!['avatar'].toString().trim(),
-                          )
-                        : null,
-                    child: widget.authNotifier.currentUser?['avatar'] == null ||
-                            widget.authNotifier.currentUser!['avatar'].toString().trim().isEmpty
-                        ? const Icon(
-                            Icons.person_outline,
-                            size: 20,
-                            color: AppColors.textSecondary,
-                          )
-                        : null,
-                  ),
+          IconButton(
+            tooltip: 'Thông báo',
+            icon: const Icon(Icons.notifications_outlined, size: 24),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen(),
                 ),
-              ),
-            ),
+              );
+            },
           ),
+          CurrentUserAvatarButton(
+            avatarUrl: widget.authNotifier.currentUser?['avatar']?.toString(),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProfileScreen(authNotifier: widget.authNotifier),
+                ),
+              );
+              if (mounted) setState(() {});
+            },
+          ),
+          const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),

@@ -8,6 +8,7 @@ class ItineraryCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteTap;
   final bool isFavorited;
+  final bool showFavorite;
   final Widget? topTrailingWidget;
   final IconData? actionIcon;
   final Color? actionIconColor;
@@ -20,6 +21,7 @@ class ItineraryCard extends StatelessWidget {
     this.onTap,
     this.onFavoriteTap,
     this.isFavorited = false,
+    this.showFavorite = true,
     this.topTrailingWidget,
     this.actionIcon,
     this.actionIconColor,
@@ -156,18 +158,24 @@ class ItineraryCard extends StatelessWidget {
                   ),
 
                 // Action / Favorite Button
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: topTrailingWidget ??
-                      (actionIcon != null
-                          ? _CustomCardActionButton(
-                              icon: actionIcon!,
-                              iconColor: actionIconColor,
-                              onTap: onActionTap,
-                            )
-                          : _FavoriteHeartButton(onTap: onFavoriteTap, isFavorited: isFavorited)),
-                ),
+                if (topTrailingWidget != null ||
+                    actionIcon != null ||
+                    (showFavorite && onFavoriteTap != null))
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: topTrailingWidget ??
+                        (actionIcon != null
+                            ? _CustomCardActionButton(
+                                icon: actionIcon!,
+                                iconColor: actionIconColor,
+                                onTap: onActionTap,
+                              )
+                            : _FavoriteHeartButton(
+                                onTap: onFavoriteTap,
+                                isFavorited: isFavorited,
+                              )),
+                  ),
               ],
             ),
 

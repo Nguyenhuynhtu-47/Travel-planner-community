@@ -217,6 +217,30 @@ class _ExploreScreenState extends State<ExploreScreen>
     }
   }
 
+  bool _isItineraryOwner(ItinerarySummary itinerary) {
+    if (!widget.authNotifier.isAuthenticated) return false;
+    final currentUsername = widget.authNotifier.currentUser?['username']
+        ?.toString()
+        .trim();
+    final currentUserId = widget.authNotifier.currentUser?['userId'] is num
+        ? (widget.authNotifier.currentUser!['userId'] as num).toInt()
+        : int.tryParse(
+            widget.authNotifier.currentUser?['userId']?.toString() ?? '',
+          );
+    final creatorUserId = itinerary.creator?.userId;
+    final creatorUsername = itinerary.creator?.username.trim();
+
+    return (currentUserId != null &&
+            creatorUserId != null &&
+            creatorUserId != 0 &&
+            currentUserId == creatorUserId) ||
+        (currentUsername != null &&
+            creatorUsername != null &&
+            creatorUsername.isNotEmpty &&
+            creatorUsername.toLowerCase() != 'anonymous' &&
+            currentUsername.toLowerCase() == creatorUsername.toLowerCase());
+  }
+
   Future<void> _handleFavoriteTap(ItinerarySummary itinerary) async {
     if (!widget.authNotifier.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -235,20 +259,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       return;
     }
 
-    final currentUsername = widget.authNotifier.currentUser?['username']
-        ?.toString()
-        .trim();
-    final currentUserId = widget.authNotifier.currentUser?['userId'] is num
-        ? (widget.authNotifier.currentUser!['userId'] as num).toInt()
-        : int.tryParse(
-            widget.authNotifier.currentUser?['userId']?.toString() ?? '',
-          );
-    final isOwner =
-        (currentUserId != null && itinerary.creator?.userId == currentUserId) ||
-        (currentUsername != null &&
-            itinerary.creator?.username != null &&
-            itinerary.creator!.username.toLowerCase() ==
-                currentUsername.toLowerCase());
+    final isOwner = _isItineraryOwner(itinerary);
 
     if (isOwner) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -675,10 +686,12 @@ class _ExploreScreenState extends State<ExploreScreen>
           }
 
           final itinerary = itineraries[index];
+          final isOwner = _isItineraryOwner(itinerary);
           return ItineraryCard(
             itinerary: itinerary,
             isFavorited: _exploreNotifier.isFavorited(itinerary.itineraryId),
-            onFavoriteTap: () => _handleFavoriteTap(itinerary),
+            showFavorite: !isOwner,
+            onFavoriteTap: isOwner ? null : () => _handleFavoriteTap(itinerary),
             onTap: () => _navigateToDetail(itinerary),
             onCreatorTap: () => _navigateToCreator(itinerary.creator?.userId),
           );
@@ -861,7 +874,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                   itinerary: itin,
                   isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   onTap: () => _navigateToDetail(itin),
-                  onFavoriteTap: () => _handleFavoriteTap(itin),
+                  onFavoriteTap: _isItineraryOwner(itin)
+                      ? null
+                      : () => _handleFavoriteTap(itin),
                 );
               },
             ),
@@ -947,7 +962,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                   isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   highlight: CompactCardHighlight.theme,
                   onTap: () => _navigateToDetail(itin),
-                  onFavoriteTap: () => _handleFavoriteTap(itin),
+                  onFavoriteTap: _isItineraryOwner(itin)
+                      ? null
+                      : () => _handleFavoriteTap(itin),
                 );
               },
             ),
@@ -995,7 +1012,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                   isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   highlight: CompactCardHighlight.rating,
                   onTap: () => _navigateToDetail(itin),
-                  onFavoriteTap: () => _handleFavoriteTap(itin),
+                  onFavoriteTap: _isItineraryOwner(itin)
+                      ? null
+                      : () => _handleFavoriteTap(itin),
                 );
               },
             ),
@@ -1042,7 +1061,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                   isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   highlight: CompactCardHighlight.popular,
                   onTap: () => _navigateToDetail(itin),
-                  onFavoriteTap: () => _handleFavoriteTap(itin),
+                  onFavoriteTap: _isItineraryOwner(itin)
+                      ? null
+                      : () => _handleFavoriteTap(itin),
                 );
               },
             ),
@@ -1080,11 +1101,13 @@ class _ExploreScreenState extends State<ExploreScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               children: items.map((itin) {
+                final isOwner = _isItineraryOwner(itin);
                 return ItineraryCard(
                   itinerary: itin,
                   isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
+                  showFavorite: !isOwner,
                   onTap: () => _navigateToDetail(itin),
-                  onFavoriteTap: () => _handleFavoriteTap(itin),
+                  onFavoriteTap: isOwner ? null : () => _handleFavoriteTap(itin),
                   onCreatorTap: () => _navigateToCreator(itin.creator?.userId),
                 );
               }).toList(),

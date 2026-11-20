@@ -7,6 +7,7 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../messaging/presentation/screens/messaging_inbox_screen.dart';
@@ -385,6 +386,17 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                   );
                 },
               ),
+              if (_isAuthenticated && widget.authNotifier != null)
+                CurrentUserAvatarButton(
+                  avatarUrl: widget.authNotifier?.currentUser?['avatar']?.toString(),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ProfileScreen(authNotifier: widget.authNotifier!),
+                      ),
+                    );
+                  },
+                ),
               const SizedBox(width: 8),
             ],
             bottom: PreferredSize(

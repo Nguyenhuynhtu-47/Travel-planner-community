@@ -1346,12 +1346,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         final item = _itineraries[index];
         return ItineraryCard(
           itinerary: item,
+          showFavorite: false,
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ItineraryDetailScreen(
                   itineraryId: item.itineraryId,
                   initialSummary: item,
+                  isOwner: true,
                   token: widget.authNotifier.token,
                   authNotifier: widget.authNotifier,
                 ),
@@ -1386,7 +1388,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                 'Cập nhật thông tin cá nhân của bạn',
                 style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              Center(
+                child: ImageUploadPreview(
+                  circular: true,
+                  selectedBytes: _selectedAvatarBytes,
+                  imageUrl: _profile?['avatar']?.toString(),
+                  buttonLabel: _selectedAvatar == null
+                      ? 'Chọn ảnh đại diện'
+                      : 'Chọn ảnh khác',
+                  onPick: _pickAvatar,
+                ),
+              ),
+              const SizedBox(height: 20),
               AppTextField(
                 label: 'Họ và tên',
                 hint: 'Nhập họ và tên đầy đủ',
@@ -1420,16 +1434,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   }
                   return null;
                 },
-              ),
-              const SizedBox(height: 16),
-              ImageUploadPreview(
-                circular: true,
-                selectedBytes: _selectedAvatarBytes,
-                imageUrl: _profile?['avatar']?.toString(),
-                buttonLabel: _selectedAvatar == null
-                    ? 'Chọn ảnh đại diện'
-                    : 'Chọn ảnh khác',
-                onPick: _pickAvatar,
               ),
               const SizedBox(height: 16),
               AppTextField(

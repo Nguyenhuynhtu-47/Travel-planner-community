@@ -6,11 +6,13 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../data/collection_repository.dart';
 import '../collection_notifier.dart';
 import '../../../social/data/models/social_state_update.dart';
@@ -67,6 +69,7 @@ class _CollectionScreenState extends State<CollectionScreen>
 
     _savedScrollController.addListener(_onSavedScroll);
     _favoriteScrollController.addListener(_onFavoriteScroll);
+    widget.authNotifier?.addListener(_onAuthChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -76,8 +79,37 @@ class _CollectionScreenState extends State<CollectionScreen>
     });
   }
 
+  void _onAuthChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool _isItineraryOwner(ItinerarySummary itinerary) {
+    if (widget.authNotifier?.isAuthenticated != true) return false;
+    final currentUsername = widget.authNotifier?.currentUser?['username']
+        ?.toString()
+        .trim();
+    final currentUserId = widget.authNotifier?.currentUser?['userId'] is num
+        ? (widget.authNotifier!.currentUser!['userId'] as num).toInt()
+        : int.tryParse(
+            widget.authNotifier?.currentUser?['userId']?.toString() ?? '',
+          );
+    final creatorUserId = itinerary.creator?.userId;
+    final creatorUsername = itinerary.creator?.username.trim();
+
+    return (currentUserId != null &&
+            creatorUserId != null &&
+            creatorUserId != 0 &&
+            currentUserId == creatorUserId) ||
+        (currentUsername != null &&
+            creatorUsername != null &&
+            creatorUsername.isNotEmpty &&
+            creatorUsername.toLowerCase() != 'anonymous' &&
+            currentUsername.toLowerCase() == creatorUsername.toLowerCase());
+  }
+
   @override
   void dispose() {
+    widget.authNotifier?.removeListener(_onAuthChanged);
     _savedScrollController.removeListener(_onSavedScroll);
     _favoriteScrollController.removeListener(_onFavoriteScroll);
     _savedScrollController.dispose();
@@ -203,6 +235,17 @@ class _CollectionScreenState extends State<CollectionScreen>
               );
             },
           ),
+          if (widget.authNotifier?.isAuthenticated == true)
+            CurrentUserAvatarButton(
+              avatarUrl: widget.authNotifier?.currentUser?['avatar']?.toString(),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProfileScreen(authNotifier: widget.authNotifier!),
+                  ),
+                );
+              },
+            ),
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
@@ -303,11 +346,13 @@ class _CollectionScreenState extends State<CollectionScreen>
           }
 
           final item = state.items[index];
+          final isOwner = _isItineraryOwner(item);
           return ItineraryCard(
             itinerary: item,
-            actionIcon: Icons.bookmark,
+            actionIcon: isOwner ? null : Icons.bookmark,
             actionIconColor: AppColors.savedActive,
-            onActionTap: () => _handleRemoveSaved(item),
+            onActionTap: isOwner ? null : () => _handleRemoveSaved(item),
+            showFavorite: !isOwner,
             onTap: () => _openDetail(item, isSaved: true),
           );
         },
@@ -372,11 +417,13 @@ class _CollectionScreenState extends State<CollectionScreen>
           }
 
           final item = state.items[index];
+          final isOwner = _isItineraryOwner(item);
           return ItineraryCard(
             itinerary: item,
-            actionIcon: Icons.favorite,
+            actionIcon: isOwner ? null : Icons.favorite,
             actionIconColor: Colors.redAccent,
-            onActionTap: () => _handleRemoveFavorite(item),
+            onActionTap: isOwner ? null : () => _handleRemoveFavorite(item),
+            showFavorite: !isOwner,
             onTap: () => _openDetail(item, isFavorited: true),
           );
         },
