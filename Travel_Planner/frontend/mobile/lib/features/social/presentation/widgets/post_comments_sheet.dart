@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/community_post_repository.dart';
@@ -31,8 +32,17 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
   final FocusNode _inputFocusNode = FocusNode();
 
   List<PostCommentModel> _comments = [];
+  final Map<int, List<PostCommentModel>> _repliesByRoot = {};
+  final Map<int, int> _replyPageByRoot = {};
+  final Map<int, bool> _replyHasMoreByRoot = {};
+  final Map<int, String> _replyErrorsByRoot = {};
+  final Set<int> _expandedRoots = {};
+  final Set<int> _loadingReplyRoots = {};
   PostCommentModel? _replyTo;
   bool _loading = true;
+  bool _loadingMoreRoots = false;
+  bool _hasMoreRoots = false;
+  int _rootPage = 0;
   bool _submitting = false;
   String? _error;
 
@@ -55,32 +65,108 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
     FocusScope.of(context).requestFocus(_inputFocusNode);
   }
 
-  Future<void> _loadComments() async {
+  Future<void> _loadComments({bool append = false}) async {
+    if (_loadingMoreRoots || (append && !_hasMoreRoots)) return;
+    final requestedPage = append ? _rootPage + 1 : 0;
     setState(() {
-      _loading = true;
-      _error = null;
+      if (append) {
+        _loadingMoreRoots = true;
+      } else {
+        _loading = true;
+        _error = null;
+      }
     });
 
     try {
-      final list = await widget.repository.getComments(
+      final result = await widget.repository.getComments(
         widget.postId,
+        page: requestedPage,
         token: widget.token,
       );
       if (mounted) {
         setState(() {
-          _comments = list;
+          if (append) {
+            final existingIds = _comments
+                .map((comment) => comment.commentId)
+                .toSet();
+            _comments.addAll(
+              result.comments.where(
+                (comment) => !existingIds.contains(comment.commentId),
+              ),
+            );
+          } else {
+            _comments = result.comments;
+          }
+          _rootPage = result.pageNumber;
+          _hasMoreRoots = !result.last;
           _loading = false;
+          _loadingMoreRoots = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Không thể tải bình luận';
+          if (!append) _error = 'Không thể tải bình luận';
           _loading = false;
+          _loadingMoreRoots = false;
         });
       }
     }
   }
+
+  Future<void> _toggleReplies(PostCommentModel root) async {
+    final rootId = root.commentId;
+    if (_expandedRoots.contains(rootId)) {
+      setState(() => _expandedRoots.remove(rootId));
+      return;
+    }
+    setState(() => _expandedRoots.add(rootId));
+    if (root.replyCount > 0 && !_repliesByRoot.containsKey(rootId)) {
+      await _loadReplies(rootId, page: 0);
+    }
+  }
+
+  Future<void> _loadReplies(int rootId, {required int page}) async {
+    if (_loadingReplyRoots.contains(rootId)) return;
+    setState(() {
+      _loadingReplyRoots.add(rootId);
+      _replyErrorsByRoot.remove(rootId);
+    });
+    try {
+      final result = await widget.repository.getCommentReplies(
+        widget.postId,
+        rootId,
+        page: page,
+        token: widget.token,
+      );
+      if (!mounted) return;
+      setState(() {
+        final current = page == 0
+            ? <PostCommentModel>[]
+            : (_repliesByRoot[rootId] ?? []);
+        final existingIds = current.map((comment) => comment.commentId).toSet();
+        current.addAll(
+          result.comments.where(
+            (comment) => !existingIds.contains(comment.commentId),
+          ),
+        );
+        _repliesByRoot[rootId] = current;
+        _replyPageByRoot[rootId] = result.pageNumber;
+        _replyHasMoreByRoot[rootId] = !result.last;
+        _loadingReplyRoots.remove(rootId);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _replyErrorsByRoot[rootId] = 'Không thể tải câu trả lời';
+        _loadingReplyRoots.remove(rootId);
+      });
+    }
+  }
+
+  int _rootIdFor(PostCommentModel comment) => comment.parentCommentId == null
+      ? comment.commentId
+      : comment.rootCommentId ?? comment.parentCommentId!;
 
   Future<void> _submitComment() async {
     final text = _commentController.text.trim();
@@ -96,7 +182,27 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
       );
       if (mounted) {
         setState(() {
-          _comments.add(comment);
+          if (_replyTo == null) {
+            _comments.add(comment);
+          } else {
+            final rootId = _rootIdFor(_replyTo!);
+            final replies = _repliesByRoot.putIfAbsent(rootId, () => []);
+            if (replies.every(
+              (reply) => reply.commentId != comment.commentId,
+            )) {
+              replies.add(comment);
+            }
+            _expandedRoots.add(rootId);
+            final rootIndex = _comments.indexWhere(
+              (root) => root.commentId == rootId,
+            );
+            if (rootIndex >= 0) {
+              _comments[rootIndex] = _comments[rootIndex].copyWith(
+                replyCount: _comments[rootIndex].replyCount + 1,
+              );
+            }
+            _replyHasMoreByRoot.putIfAbsent(rootId, () => false);
+          }
           _commentController.clear();
           _replyTo = null;
           _submitting = false;
@@ -118,7 +224,9 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
       if (mounted) {
         setState(() => _submitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể gửi bình luận. Vui lòng thử lại.')),
+          const SnackBar(
+            content: Text('Không thể gửi bình luận. Vui lòng thử lại.'),
+          ),
         );
       }
     }
@@ -153,10 +261,39 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
       );
       if (mounted) {
         setState(() {
-          _comments.removeWhere((c) =>
-              c.commentId == comment.commentId ||
-              c.rootCommentId == comment.commentId ||
-              c.parentCommentId == comment.commentId);
+          final rootId = _rootIdFor(comment);
+          if (comment.parentCommentId == null) {
+            if (comment.replyCount > 0) {
+              final rootIndex = _comments.indexWhere(
+                (item) => item.commentId == rootId,
+              );
+              if (rootIndex >= 0) {
+                _comments[rootIndex] = _comments[rootIndex].copyWith(
+                  content: 'Bình luận đã bị xóa',
+                  deleted: true,
+                );
+              }
+              _expandedRoots.add(rootId);
+            } else {
+              _repliesByRoot.remove(rootId);
+              _expandedRoots.remove(rootId);
+              _comments.removeWhere((item) => item.commentId == rootId);
+            }
+          } else {
+            _repliesByRoot[rootId]?.removeWhere(
+              (item) => item.commentId == comment.commentId,
+            );
+            final rootIndex = _comments.indexWhere(
+              (item) => item.commentId == rootId,
+            );
+            if (rootIndex >= 0) {
+              _comments[rootIndex] = _comments[rootIndex].copyWith(
+                replyCount: (_comments[rootIndex].replyCount - 1)
+                    .clamp(0, 1 << 30)
+                    .toInt(),
+              );
+            }
+          }
           if (_replyTo?.commentId == comment.commentId) {
             _replyTo = null;
           }
@@ -164,6 +301,11 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
         widget.notifier?.updateCommentCount(widget.postId, -1);
         widget.onCommentCountChanged?.call(-1);
         AppSyncBus.emitPostCommentChanged(widget.postId, -1);
+        if (comment.parentCommentId == null &&
+            comment.replyCount > 0 &&
+            !_repliesByRoot.containsKey(comment.commentId)) {
+          await _loadReplies(comment.commentId, page: 0);
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -191,11 +333,18 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
           CircleAvatar(
             radius: isReply ? 14 : 16,
             backgroundColor: AppColors.surfaceStrong,
-            backgroundImage: comment.author.avatar != null && comment.author.avatar!.isNotEmpty
+            backgroundImage:
+                comment.author.avatar != null &&
+                    comment.author.avatar!.isNotEmpty
                 ? NetworkImage(comment.author.avatar!)
                 : null,
-            child: comment.author.avatar == null || comment.author.avatar!.isEmpty
-                ? Icon(Icons.person, size: isReply ? 16 : 18, color: AppColors.muted)
+            child:
+                comment.author.avatar == null || comment.author.avatar!.isEmpty
+                ? Icon(
+                    Icons.person,
+                    size: isReply ? 16 : 18,
+                    color: AppColors.muted,
+                  )
                 : null,
           ),
           const SizedBox(width: 10),
@@ -231,8 +380,11 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                             ),
                           ),
                           const Spacer(),
-                          if (comment.isOwner)
+                          if (comment.isOwner && !comment.deleted)
                             InkWell(
+                              key: ValueKey(
+                                'delete_comment_${comment.commentId}',
+                              ),
                               onTap: () => _deleteComment(comment),
                               child: const Padding(
                                 padding: EdgeInsets.all(2.0),
@@ -245,7 +397,8 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                             ),
                         ],
                       ),
-                      if (comment.parentCommentId != null && comment.replyToUser != null) ...[
+                      if (comment.parentCommentId != null &&
+                          comment.replyToUser != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           'Trả lời @${comment.replyToUser!.displayName}',
@@ -268,10 +421,11 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                     ],
                   ),
                 ),
-                if (widget.token != null)
+                if (widget.token != null && !comment.deleted)
                   Padding(
                     padding: const EdgeInsets.only(left: 4, top: 4),
                     child: InkWell(
+                      key: ValueKey('reply_comment_${comment.commentId}'),
                       onTap: () => _startReply(comment),
                       child: const Text(
                         'Trả lời',
@@ -296,18 +450,13 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
     final mediaQuery = MediaQuery.of(context);
     final keyboardHeight = mediaQuery.viewInsets.bottom;
     final screenHeight = mediaQuery.size.height;
-    final availableHeight = (screenHeight - keyboardHeight).clamp(0.0, screenHeight);
+    final availableHeight = (screenHeight - keyboardHeight).clamp(
+      0.0,
+      screenHeight,
+    );
     final sheetHeight = keyboardHeight > 0
         ? (availableHeight * 0.92).clamp(240.0, availableHeight)
         : (screenHeight * 0.75).clamp(240.0, screenHeight * 0.85);
-
-    final rootComments = _comments.where((c) => c.parentCommentId == null).toList();
-    final orphanReplies = _comments
-        .where((c) =>
-            c.parentCommentId != null &&
-            !rootComments.any((r) => r.commentId == (c.rootCommentId ?? c.parentCommentId)))
-        .toList();
-    final displayRoots = [...rootComments, ...orphanReplies];
 
     return Padding(
       padding: EdgeInsets.only(bottom: keyboardHeight),
@@ -357,47 +506,151 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
-                      ? Center(
-                          child: TextButton(
-                            onPressed: _loadComments,
-                            child: Text(_error!),
-                          ),
-                        )
-                      : displayRoots.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'Chưa có bình luận nào. Hãy là người đầu tiên!',
-                                style: TextStyle(color: AppColors.muted),
-                              ),
-                            )
-                          : ListView.separated(
-                              controller: _scrollController,
-                              keyboardDismissBehavior:
-                                  ScrollViewKeyboardDismissBehavior.onDrag,
-                              padding: const EdgeInsets.all(16),
-                              itemCount: displayRoots.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 16),
-                              itemBuilder: (context, index) {
-                                final root = displayRoots[index];
-                                final replies = _comments
-                                    .where((c) =>
-                                        c != root &&
-                                        (c.rootCommentId == root.commentId ||
-                                            c.parentCommentId == root.commentId))
-                                    .toList();
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildCommentItem(root, isReply: false),
-                                    for (final reply in replies) ...[
-                                      const SizedBox(height: 8),
-                                      _buildCommentItem(reply, isReply: true),
-                                    ],
-                                  ],
-                                );
-                              },
+                  ? Center(
+                      child: TextButton(
+                        onPressed: _loadComments,
+                        child: Text(_error!),
+                      ),
+                    )
+                  : _comments.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Chưa có bình luận nào. Hãy là người đầu tiên!',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: _scrollController,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.all(16),
+                      itemCount:
+                          _comments.length +
+                          (_hasMoreRoots || _loadingMoreRoots ? 1 : 0),
+                      separatorBuilder: (_, _) => const SizedBox(height: 16),
+                      itemBuilder: (context, index) {
+                        if (index >= _comments.length) {
+                          return Center(
+                            child: TextButton.icon(
+                              onPressed: _loadingMoreRoots
+                                  ? null
+                                  : () => _loadComments(append: true),
+                              icon: _loadingMoreRoots
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.expand_more),
+                              label: const Text('Xem thêm bình luận'),
                             ),
+                          );
+                        }
+                        final root = _comments[index];
+                        final expanded = _expandedRoots.contains(
+                          root.commentId,
+                        );
+                        final replies =
+                            _repliesByRoot[root.commentId] ??
+                            const <PostCommentModel>[];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildCommentItem(root, isReply: false),
+                            if (root.replyCount > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 58,
+                                  top: 4,
+                                ),
+                                child: InkWell(
+                                  onTap: () => _toggleReplies(root),
+                                  child: Text(
+                                    expanded
+                                        ? 'Thu gọn câu trả lời'
+                                        : 'Xem ${root.replyCount} câu trả lời',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.muted,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (expanded &&
+                                _loadingReplyRoots.contains(root.commentId))
+                              const Padding(
+                                padding: EdgeInsets.only(left: 58, top: 8),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            if (expanded &&
+                                _replyErrorsByRoot.containsKey(root.commentId))
+                              TextButton(
+                                onPressed: () => _loadReplies(
+                                  root.commentId,
+                                  page:
+                                      _repliesByRoot.containsKey(root.commentId)
+                                      ? (_replyPageByRoot[root.commentId] ??
+                                                -1) +
+                                            1
+                                      : 0,
+                                ),
+                                child: Text(
+                                  _replyErrorsByRoot[root.commentId]!,
+                                ),
+                              ),
+                            if (expanded)
+                              for (final reply in replies) ...[
+                                const SizedBox(height: 8),
+                                _buildCommentItem(reply, isReply: true),
+                              ],
+                            if (expanded &&
+                                (_replyHasMoreByRoot[root.commentId] ?? false))
+                              Padding(
+                                padding: const EdgeInsets.only(left: 58),
+                                child: TextButton(
+                                  onPressed:
+                                      _loadingReplyRoots.contains(
+                                        root.commentId,
+                                      )
+                                      ? null
+                                      : () => _loadReplies(
+                                          root.commentId,
+                                          page:
+                                              (_replyPageByRoot[root
+                                                      .commentId] ??
+                                                  0) +
+                                              1,
+                                        ),
+                                  child: const Text('Xem thêm câu trả lời'),
+                                ),
+                              ),
+                            if (expanded &&
+                                replies.isEmpty &&
+                                !_loadingReplyRoots.contains(root.commentId) &&
+                                !_replyErrorsByRoot.containsKey(root.commentId))
+                              const Padding(
+                                padding: EdgeInsets.only(left: 58, top: 6),
+                                child: Text(
+                                  'Chưa có câu trả lời nào.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.muted,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
             ),
 
             // Bottom Input Field with Reply Preview
@@ -409,14 +662,18 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                   decoration: const BoxDecoration(
                     color: AppColors.surface,
                     border: Border(
-                        top: BorderSide(color: AppColors.hairlineSoft, width: 1)),
+                      top: BorderSide(color: AppColors.hairlineSoft, width: 1),
+                    ),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_replyTo != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           color: AppColors.surfaceSoft,
                           child: Row(
                             children: [
@@ -435,15 +692,23 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                               IconButton(
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.close, size: 16, color: AppColors.muted),
+                                icon: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: AppColors.muted,
+                                ),
                                 tooltip: 'Hủy trả lời',
-                                onPressed: () => setState(() => _replyTo = null),
+                                onPressed: () =>
+                                    setState(() => _replyTo = null),
                               ),
                             ],
                           ),
                         ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
                             Expanded(
@@ -457,9 +722,13 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                                       ? 'Trả lời @${_replyTo!.author.displayName}...'
                                       : 'Viết bình luận...',
                                   hintStyle: const TextStyle(
-                                      color: AppColors.muted, fontSize: 14),
+                                    color: AppColors.muted,
+                                    fontSize: 14,
+                                  ),
                                   contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
                                   filled: true,
                                   fillColor: AppColors.surfaceSoft,
                                   border: OutlineInputBorder(
@@ -474,11 +743,15 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                                 ? const SizedBox(
                                     width: 28,
                                     height: 28,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : IconButton(
-                                    icon: const Icon(Icons.send_rounded,
-                                        color: AppColors.primary),
+                                    icon: const Icon(
+                                      Icons.send_rounded,
+                                      color: AppColors.primary,
+                                    ),
                                     onPressed: _submitComment,
                                   ),
                           ],

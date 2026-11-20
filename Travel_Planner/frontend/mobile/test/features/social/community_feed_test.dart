@@ -66,13 +66,18 @@ class MockCommunityPostRepository extends CommunityPostRepository {
   }
 
   @override
-  Future<List<PostCommentModel>> getComments(
+  Future<PostCommentPage> getComments(
     int postId, {
     int page = 0,
     int size = 20,
     String? token,
   }) async {
-    return commentsToReturn;
+    return PostCommentPage(
+      comments: commentsToReturn,
+      pageNumber: page,
+      totalPages: 1,
+      last: true,
+    );
   }
 
   @override

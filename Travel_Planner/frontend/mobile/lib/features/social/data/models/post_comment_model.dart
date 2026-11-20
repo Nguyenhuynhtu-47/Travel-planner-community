@@ -10,6 +10,7 @@ class PostCommentModel {
   final int? rootCommentId;
   final PostAuthorModel? replyToUser;
   final int replyCount;
+  final bool deleted;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -23,6 +24,7 @@ class PostCommentModel {
     this.rootCommentId,
     this.replyToUser,
     this.replyCount = 0,
+    this.deleted = false,
     required this.createdAt,
     this.updatedAt,
   });
@@ -37,7 +39,8 @@ class PostCommentModel {
           : int.tryParse('${json['postId']}') ?? 0,
       content: json['content']?.toString() ?? '',
       author: PostAuthorModel.fromJson(
-          Map<String, dynamic>.from(json['author'] as Map? ?? {})),
+        Map<String, dynamic>.from(json['author'] as Map? ?? {}),
+      ),
       isOwner: json['isOwner'] == true,
       parentCommentId: json['parentCommentId'] is int
           ? json['parentCommentId'] as int
@@ -47,11 +50,13 @@ class PostCommentModel {
           : int.tryParse('${json['rootCommentId']}'),
       replyToUser: json['replyToUser'] != null
           ? PostAuthorModel.fromJson(
-              Map<String, dynamic>.from(json['replyToUser'] as Map? ?? {}))
+              Map<String, dynamic>.from(json['replyToUser'] as Map? ?? {}),
+            )
           : null,
       replyCount: json['replyCount'] is int
           ? json['replyCount'] as int
           : int.tryParse('${json['replyCount']}') ?? 0,
+      deleted: json['deleted'] == true,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -71,8 +76,27 @@ class PostCommentModel {
     'rootCommentId': rootCommentId,
     'replyToUser': replyToUser?.toJson(),
     'replyCount': replyCount,
+    'deleted': deleted,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt?.toIso8601String(),
   };
-}
 
+  PostCommentModel copyWith({
+    int? replyCount,
+    String? content,
+    bool? deleted,
+  }) => PostCommentModel(
+    commentId: commentId,
+    postId: postId,
+    content: content ?? this.content,
+    author: author,
+    isOwner: isOwner,
+    parentCommentId: parentCommentId,
+    rootCommentId: rootCommentId,
+    replyToUser: replyToUser,
+    replyCount: replyCount ?? this.replyCount,
+    deleted: deleted ?? this.deleted,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+}

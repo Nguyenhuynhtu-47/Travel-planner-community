@@ -3,11 +3,25 @@ import '../../../core/network/api_client.dart';
 import 'models/post_comment_model.dart';
 import 'models/post_model.dart';
 
+class PostCommentPage {
+  final List<PostCommentModel> comments;
+  final int pageNumber;
+  final int totalPages;
+  final bool last;
+
+  const PostCommentPage({
+    required this.comments,
+    required this.pageNumber,
+    required this.totalPages,
+    required this.last,
+  });
+}
+
 class CommunityPostRepository {
   final ApiClient _apiClient;
 
   CommunityPostRepository({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient();
 
   Future<List<PostModel>> getPublicFeed({
     int page = 0,
@@ -21,7 +35,10 @@ class CommunityPostRepository {
     if (response is Map<String, dynamic> && response['content'] is List) {
       final list = response['content'] as List;
       return list
-          .map((item) => PostModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                PostModel.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList();
     }
     return [];
@@ -39,7 +56,10 @@ class CommunityPostRepository {
     if (response is Map<String, dynamic> && response['content'] is List) {
       final list = response['content'] as List;
       return list
-          .map((item) => PostModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                PostModel.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList();
     }
     return [];
@@ -137,24 +157,66 @@ class CommunityPostRepository {
     );
   }
 
-  Future<List<PostCommentModel>> getComments(
+  Future<PostCommentPage> getComments(
     int postId, {
     int page = 0,
     int size = 20,
     String? token,
   }) async {
     final response = await _apiClient.get(
-      '${ApiConstants.communityPostCommentsEndpoint(postId)}?page=$page&size=$size',
+      '${ApiConstants.communityPostCommentRootsEndpoint(postId)}?page=$page&size=$size',
       token: token,
     );
+    return _parseCommentPage(response, fallbackPage: page);
+  }
+
+  Future<PostCommentPage> getCommentReplies(
+    int postId,
+    int rootCommentId, {
+    int page = 0,
+    int size = 20,
+    String? token,
+  }) async {
+    final response = await _apiClient.get(
+      '${ApiConstants.communityPostCommentRepliesEndpoint(postId, rootCommentId)}?page=$page&size=$size',
+      token: token,
+    );
+    return _parseCommentPage(response, fallbackPage: page);
+  }
+
+  PostCommentPage _parseCommentPage(
+    dynamic response, {
+    required int fallbackPage,
+  }) {
     if (response is Map<String, dynamic> && response['content'] is List) {
-      final list = response['content'] as List;
-      return list
-          .map((item) =>
-              PostCommentModel.fromJson(Map<String, dynamic>.from(item as Map)))
+      final comments = (response['content'] as List)
+          .map(
+            (item) => PostCommentModel.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
+      final totalPages = _parseInt(response['totalPages']) ?? 1;
+      return PostCommentPage(
+        comments: comments,
+        pageNumber: _parseInt(response['pageNumber']) ?? fallbackPage,
+        totalPages: totalPages,
+        last: response['last'] is bool
+            ? response['last'] as bool
+            : fallbackPage + 1 >= totalPages,
+      );
     }
-    return [];
+    return PostCommentPage(
+      comments: const [],
+      pageNumber: fallbackPage,
+      totalPages: fallbackPage,
+      last: true,
+    );
+  }
+
+  int? _parseInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse('$value');
   }
 
   Future<PostCommentModel> addComment(
@@ -190,8 +252,10 @@ class CommunityPostRepository {
     if (response is Map<String, dynamic> && response['content'] is List) {
       final list = response['content'] as List;
       return list
-          .map((item) =>
-              PostModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                PostModel.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList();
     }
     return [];
@@ -210,8 +274,10 @@ class CommunityPostRepository {
     if (response is Map<String, dynamic> && response['content'] is List) {
       final list = response['content'] as List;
       return list
-          .map((item) =>
-              PostModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                PostModel.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList();
     }
     return [];
@@ -273,12 +339,8 @@ class CommunityPostRepository {
           ? response['mediaAssetId'] as int
           : int.tryParse('${response['mediaAssetId']}');
       final secureUrl = response['secureUrl']?.toString() ?? '';
-      return {
-        'mediaAssetId': mediaAssetId,
-        'secureUrl': secureUrl,
-      };
+      return {'mediaAssetId': mediaAssetId, 'secureUrl': secureUrl};
     }
     throw Exception('Tải ảnh lên thất bại');
   }
 }
-

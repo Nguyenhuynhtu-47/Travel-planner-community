@@ -650,6 +650,75 @@ class CommunityPostServiceTest {
     }
 
     @Test
+    @DisplayName("Root comment page excludes replies and loads reply counts in one grouped query")
+    void getComments_returnsRootsAndBatchedReplyCounts() {
+        Post post = Post.builder().postId(601L).author(otherUser)
+                .visibility(PostVisibility.PUBLIC).status(PostStatus.ACTIVE).build();
+        PostComment root = PostComment.builder().postCommentId(10L).post(post).user(activeUser)
+                .content("Bình luận gốc").status(CommentStatus.ACTIVE).build();
+        when(postRepository.findByIdWithDetails(601L)).thenReturn(Optional.of(post));
+        when(postCommentRepository.findVisibleRootsByPostId(eq(601L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(root), org.springframework.data.domain.PageRequest.of(0, 20), 1));
+        when(postCommentRepository.countActiveRepliesByRootIds(List.of(10L), CommentStatus.ACTIVE))
+                .thenReturn(Collections.singletonList(new Object[]{10L, 3L}));
+
+        PageResponse<PostCommentResponse> result = postService.getCommentRoots(601L, 0, 20, null);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals(10L, result.getContent().getFirst().getCommentId());
+        assertEquals(3, result.getContent().getFirst().getReplyCount());
+        verify(postCommentRepository).countActiveRepliesByRootIds(List.of(10L), CommentStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("Legacy flat comment endpoint remains compatible for existing clients")
+    void getComments_keepsFlatPageContract() {
+        Post post = Post.builder().postId(603L).author(otherUser)
+                .visibility(PostVisibility.PUBLIC).status(PostStatus.ACTIVE).build();
+        PostComment root = PostComment.builder().postCommentId(30L).post(post).user(activeUser)
+                .content("Root").status(CommentStatus.ACTIVE).build();
+        PostComment reply = PostComment.builder().postCommentId(31L).post(post).user(otherUser)
+                .parentComment(root).rootComment(root).content("Reply").status(CommentStatus.ACTIVE).build();
+        when(postRepository.findByIdWithDetails(603L)).thenReturn(Optional.of(post));
+        when(postCommentRepository.findByPostIdActive(eq(603L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(root, reply),
+                        org.springframework.data.domain.PageRequest.of(0, 20), 2));
+        when(postCommentRepository.countActiveRepliesByRootIds(List.of(30L), CommentStatus.ACTIVE))
+                .thenReturn(Collections.singletonList(new Object[]{30L, 1L}));
+
+        PageResponse<PostCommentResponse> result = postService.getComments(603L, 0, 20, null);
+
+        assertEquals(2, result.getContent().size());
+        assertEquals(31L, result.getContent().get(1).getCommentId());
+        assertEquals(30L, result.getContent().get(1).getParentCommentId());
+    }
+
+    @Test
+    @DisplayName("Reply page retains the direct parent while grouping nested replies under their root")
+    void getCommentReplies_preservesParentAndRootIds() {
+        Post post = Post.builder().postId(602L).author(otherUser)
+                .visibility(PostVisibility.PUBLIC).status(PostStatus.ACTIVE).build();
+        PostComment root = PostComment.builder().postCommentId(20L).post(post).user(activeUser)
+                .content("Gốc").status(CommentStatus.ACTIVE).build();
+        PostComment parentReply = PostComment.builder().postCommentId(21L).post(post).user(otherUser)
+                .parentComment(root).rootComment(root).content("Reply cấp 1").status(CommentStatus.ACTIVE).build();
+        PostComment nestedReply = PostComment.builder().postCommentId(22L).post(post).user(activeUser)
+                .parentComment(parentReply).rootComment(root).content("Reply cấp 2").status(CommentStatus.ACTIVE).build();
+        when(postRepository.findByIdWithDetails(602L)).thenReturn(Optional.of(post));
+        when(postCommentRepository.findById(20L)).thenReturn(Optional.of(root));
+        when(postCommentRepository.findActiveRepliesByPostAndRoot(eq(602L), eq(20L), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(parentReply, nestedReply),
+                        org.springframework.data.domain.PageRequest.of(0, 20), 2));
+
+        PageResponse<PostCommentResponse> result = postService.getCommentReplies(602L, 20L, 0, 20, null);
+
+        assertEquals(2, result.getContent().size());
+        assertEquals(20L, result.getContent().get(0).getRootCommentId());
+        assertEquals(20L, result.getContent().get(1).getRootCommentId());
+        assertEquals(21L, result.getContent().get(1).getParentCommentId());
+    }
+
+    @Test
     @DisplayName("Soft delete post: marks status DELETED and keeps media ATTACHED")
     void deletePost_softDelete_preservesMedia() {
         Post post = Post.builder()

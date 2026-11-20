@@ -28,6 +28,11 @@ public interface PostService {
 
     PageResponse<PostCommentResponse> getComments(Long postId, int page, int size, String viewerUsername);
 
+    PageResponse<PostCommentResponse> getCommentRoots(Long postId, int page, int size, String viewerUsername);
+
+    PageResponse<PostCommentResponse> getCommentReplies(Long postId, Long rootCommentId,
+            int page, int size, String viewerUsername);
+
     PostCommentResponse addComment(Long postId, CreatePostCommentRequest request, String authorUsername);
 
     PostCommentResponse updateComment(Long postId, Long commentId, UpdatePostCommentRequest request, String authorUsername);

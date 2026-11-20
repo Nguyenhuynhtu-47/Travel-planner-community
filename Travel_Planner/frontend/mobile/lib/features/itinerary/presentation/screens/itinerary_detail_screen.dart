@@ -75,7 +75,9 @@ class ItineraryDetailScreen extends StatefulWidget {
 }
 
 class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
-    with TickerProviderStateMixin, AutoRefreshLifecycleMixin<ItineraryDetailScreen> {
+    with
+        TickerProviderStateMixin,
+        AutoRefreshLifecycleMixin<ItineraryDetailScreen> {
   late final ItineraryDetailNotifier _notifier;
   late final ItineraryCrudRepository _crudRepository;
   late final SocialRepository _socialRepository;
@@ -100,10 +102,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
   @override
   Set<SyncDomain> get syncDomains => {
-        SyncDomain.itineraries,
-        SyncDomain.collections,
-        SyncDomain.ratings,
-      };
+    SyncDomain.itineraries,
+    SyncDomain.collections,
+    SyncDomain.ratings,
+  };
 
   @override
   Duration get syncTtl => const Duration(minutes: 2);
@@ -1122,10 +1124,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               titleSpacing: 0,
               title: const Text(
                 'Chi tiết lịch trình',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1173,7 +1172,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 if (itinerary != null) ...[
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    constraints: const BoxConstraints(
+                      minWidth: 38,
+                      minHeight: 38,
+                    ),
                     padding: const EdgeInsets.all(6),
                     icon: Icon(
                       effectiveSaved
@@ -1190,7 +1192,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   ),
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    constraints: const BoxConstraints(
+                      minWidth: 38,
+                      minHeight: 38,
+                    ),
                     padding: const EdgeInsets.all(6),
                     icon: Icon(
                       effectiveFavorited
@@ -1222,7 +1227,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   else
                     IconButton(
                       visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                      constraints: const BoxConstraints(
+                        minWidth: 38,
+                        minHeight: 38,
+                      ),
                       padding: const EdgeInsets.all(6),
                       icon: const Icon(Icons.copy_all_outlined),
                       tooltip: 'Sao chép lịch trình',
@@ -1247,7 +1255,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   else ...[
                     IconButton(
                       visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                      constraints: const BoxConstraints(
+                        minWidth: 38,
+                        minHeight: 38,
+                      ),
                       padding: const EdgeInsets.all(6),
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: 'Chỉnh sửa lịch trình',
@@ -1255,7 +1266,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     ),
                     IconButton(
                       visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                      constraints: const BoxConstraints(
+                        minWidth: 38,
+                        minHeight: 38,
+                      ),
                       padding: const EdgeInsets.all(6),
                       icon: const Icon(
                         Icons.delete_outline,
@@ -1539,8 +1553,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 ),
                 child: AppEmptyState(
                   title: 'Chưa có lịch trình theo ngày',
-                  message:
-                      'Lịch trình này chưa có ngày hoặc hoạt động được lên kế hoạch.',
+                  message: 'Lịch trình này chưa có ngày hoặc hoạt động được lên kế hoạch.',
                   icon: Icons.calendar_today_outlined,
                   actionText: isOwner ? 'Thêm ngày đầu tiên' : null,
                   onActionPressed: isOwner
@@ -1573,9 +1586,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     onDeleteActivity: isOwner
                         ? (act) => _handleDeleteActivity(itinerary, day, act)
                         : null,
-                    onActivityTap: (act) =>
-                        _handleViewActivityDetail(act, day),
-                    onActivityComments: !isOwner &&
+                    onActivityTap: (act) => _handleViewActivityDetail(act, day),
+                    onActivityComments:
+                        !isOwner &&
                             itinerary.visibility == 'PUBLIC' &&
                             (itinerary.status == 'ACTIVE' ||
                                 itinerary.status == 'PUBLISHED')
@@ -1699,12 +1712,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 ),
                 const Divider(height: 1),
                 Expanded(
-                  child: SingleChildScrollView(
-                    child: ActivityCommentsSection(
-                      activityId: activityId,
-                      token: _effectiveToken,
-                      authNotifier: widget.authNotifier,
-                    ),
+                  child: ActivityCommentsSection(
+                    activityId: activityId,
+                    token: _effectiveToken,
+                    authNotifier: widget.authNotifier,
                   ),
                 ),
               ],
@@ -2330,7 +2341,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Đã xóa "${ip.place.name}" khỏi danh sách lưu của lịch trình.'),
+            content: Text(
+              'Đã xóa "${ip.place.name}" khỏi danh sách lưu của lịch trình.',
+            ),
           ),
         );
       }
@@ -2338,7 +2351,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e is ApiException ? e.message : 'Lỗi khi xóa địa điểm'),
+            content: Text(
+              e is ApiException ? e.message : 'Lỗi khi xóa địa điểm',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -2618,7 +2633,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     const SizedBox(height: 12),
                     FilledButton.tonalIcon(
                       onPressed: _showAddPlaceToItineraryDialog,
-                      icon: const Icon(Icons.add_location_alt_outlined, size: 16),
+                      icon: const Icon(
+                        Icons.add_location_alt_outlined,
+                        size: 16,
+                      ),
                       label: const Text('Thêm địa điểm'),
                     ),
                   ],

@@ -571,65 +571,124 @@ public class PostServiceImpl implements PostService {
         User viewer = resolveOptionalUser(viewerUsername);
         getAuthorizedPost(postId, viewer);
 
+        Pageable pageable = commentPageable(page, size);
+        Page<PostComment> commentsPage = postCommentRepository.findByPostIdActive(postId, pageable);
+        List<Long> rootIds = commentsPage.getContent().stream()
+                .filter(comment -> comment.getParentComment() == null)
+                .map(PostComment::getPostCommentId)
+                .toList();
+        Map<Long, Integer> replyCounts = countRepliesByRootIds(rootIds);
+        Integer viewerId = viewer == null ? null : viewer.getUserId();
+        List<PostCommentResponse> content = commentsPage.getContent().stream()
+                .map(comment -> toPostCommentResponse(comment, postId, viewerId,
+                        comment.getParentComment() == null
+                                ? replyCounts.getOrDefault(comment.getPostCommentId(), 0)
+                                : 0))
+                .toList();
+        return toPageResponse(commentsPage, content);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PostCommentResponse> getCommentRoots(Long postId, int page, int size, String viewerUsername) {
+        User viewer = resolveOptionalUser(viewerUsername);
+        getAuthorizedPost(postId, viewer);
+
+        Pageable pageable = commentPageable(page, size);
+        Page<PostComment> commentsPage = postCommentRepository.findVisibleRootsByPostId(postId, pageable);
+        List<Long> rootIds = commentsPage.getContent().stream().map(PostComment::getPostCommentId).toList();
+        Map<Long, Integer> replyCounts = countRepliesByRootIds(rootIds);
+        Integer viewerId = viewer == null ? null : viewer.getUserId();
+        List<PostCommentResponse> content = commentsPage.getContent().stream()
+                .map(comment -> toPostCommentResponse(comment, postId, viewerId,
+                        replyCounts.getOrDefault(comment.getPostCommentId(), 0)))
+                .toList();
+
+        return toPageResponse(commentsPage, content);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PostCommentResponse> getCommentReplies(
+            Long postId, Long rootCommentId, int page, int size, String viewerUsername) {
+        User viewer = resolveOptionalUser(viewerUsername);
+        getAuthorizedPost(postId, viewer);
+        Pageable pageable = commentPageable(page, size);
+
+        PostComment root = postCommentRepository.findById(rootCommentId)
+                .filter(comment -> comment.getPost().getPostId().equals(postId)
+                        && comment.getParentComment() == null)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy luồng bình luận"));
+
+        Page<PostComment> replies = postCommentRepository.findActiveRepliesByPostAndRoot(
+                postId, rootCommentId, pageable);
+        if (root.getStatus() != CommentStatus.ACTIVE && replies.getTotalElements() == 0) {
+            throw new ResourceNotFoundException("Không tìm thấy luồng bình luận");
+        }
+
+        Integer viewerId = viewer == null ? null : viewer.getUserId();
+        List<PostCommentResponse> content = replies.getContent().stream()
+                .map(comment -> toPostCommentResponse(comment, postId, viewerId, 0))
+                .toList();
+        return toPageResponse(replies, content);
+    }
+
+    private Pageable commentPageable(int page, int size) {
         if (page < 0 || size < 1) {
             throw new BadRequestException("Thông tin phân trang không hợp lệ");
         }
-        Pageable pageable = PageRequest.of(page, Math.min(size, 50));
-        Page<PostComment> commentsPage = postCommentRepository.findByPostIdActive(postId, pageable);
+        return PageRequest.of(page, Math.min(size, 50));
+    }
 
-        Integer viewerId = viewer != null ? viewer.getUserId() : null;
+    private Map<Long, Integer> countRepliesByRootIds(List<Long> rootIds) {
+        if (rootIds.isEmpty()) return Collections.emptyMap();
+        return postCommentRepository.countActiveRepliesByRootIds(rootIds, CommentStatus.ACTIVE).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> ((Number) row[1]).intValue()));
+    }
 
-        List<PostCommentResponse> content = commentsPage.getContent().stream().map(c -> {
-            boolean isOwner = viewerId != null && viewerId.equals(c.getUser().getUserId());
-            PostAuthorResponse authorResponse = PostAuthorResponse.builder()
-                    .userId(c.getUser().getUserId())
-                    .handle(c.getUser().getHandle())
-                    .username(c.getUser().getUsername())
-                    .fullName(c.getUser().getFullName())
-                    .avatar(c.getUser().getAvatar())
-                    .build();
+    private PostCommentResponse toPostCommentResponse(PostComment comment, Long postId,
+            Integer viewerId, int replyCount) {
+        User author = comment.getUser();
+        PostAuthorResponse authorResponse = toPostAuthorResponse(author);
+        PostComment parent = comment.getParentComment();
+        boolean deleted = comment.getStatus() == CommentStatus.DELETED;
+        return PostCommentResponse.builder()
+                .commentId(comment.getPostCommentId())
+                .postId(postId)
+                .content(deleted ? "Bình luận đã bị xóa" : comment.getContent())
+                .author(authorResponse)
+                .isOwner(viewerId != null && viewerId.equals(author.getUserId()))
+                .parentCommentId(parent == null ? null : parent.getPostCommentId())
+                .rootCommentId(comment.getRootComment() == null
+                        ? (parent == null ? null : parent.getPostCommentId())
+                        : comment.getRootComment().getPostCommentId())
+                .replyToUser(parent == null ? null : toPostAuthorResponse(parent.getUser()))
+                .replyCount(replyCount)
+                .deleted(deleted)
+                .createdAt(comment.getCreatedAt())
+                .updatedAt(comment.getUpdatedAt())
+                .build();
+    }
 
-            Long parentId = c.getParentComment() != null ? c.getParentComment().getPostCommentId() : null;
-            Long rootId = c.getRootComment() != null ? c.getRootComment().getPostCommentId() : null;
-            PostAuthorResponse replyToUser = null;
-            if (c.getParentComment() != null) {
-                User pu = c.getParentComment().getUser();
-                replyToUser = PostAuthorResponse.builder()
-                        .userId(pu.getUserId())
-                        .handle(pu.getHandle())
-                        .username(pu.getUsername())
-                        .fullName(pu.getFullName())
-                        .avatar(pu.getAvatar())
-                        .build();
-            }
+    private PostAuthorResponse toPostAuthorResponse(User user) {
+        return PostAuthorResponse.builder()
+                .userId(user.getUserId())
+                .handle(user.getHandle())
+                .username(user.getUsername())
+                .fullName(user.getFullName())
+                .avatar(user.getAvatar())
+                .build();
+    }
 
-            int replyCount = 0;
-            if (parentId == null) {
-                replyCount = (int) postCommentRepository.countByRootComment_PostCommentIdAndStatus(c.getPostCommentId(), CommentStatus.ACTIVE);
-            }
-
-            return PostCommentResponse.builder()
-                    .commentId(c.getPostCommentId())
-                    .postId(postId)
-                    .content(c.getContent())
-                    .author(authorResponse)
-                    .isOwner(isOwner)
-                    .parentCommentId(parentId)
-                    .rootCommentId(rootId)
-                    .replyToUser(replyToUser)
-                    .replyCount(replyCount)
-                    .createdAt(c.getCreatedAt())
-                    .updatedAt(c.getUpdatedAt())
-                    .build();
-        }).toList();
-
+    private PageResponse<PostCommentResponse> toPageResponse(
+            Page<PostComment> page, List<PostCommentResponse> content) {
         return PageResponse.<PostCommentResponse>builder()
                 .content(content)
-                .pageNumber(commentsPage.getNumber())
-                .pageSize(commentsPage.getSize())
-                .totalElements(commentsPage.getTotalElements())
-                .totalPages(commentsPage.getTotalPages())
-                .last(commentsPage.isLast())
+                .pageNumber(page.getNumber())
+                .pageSize(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .last(page.isLast())
                 .build();
     }
 

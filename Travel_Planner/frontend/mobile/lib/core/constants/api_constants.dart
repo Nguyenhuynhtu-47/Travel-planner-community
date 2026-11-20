@@ -40,11 +40,16 @@ class ApiConstants {
   static const String changePasswordEndpoint = '/api/auth/change-password';
   static const String logoutEndpoint = '/api/auth/logout';
   static const String sessionsEndpoint = '/api/auth/sessions';
-  static String revokeSessionEndpoint(String sessionId) => '/api/auth/sessions/$sessionId/revoke';
-  static const String revokeOtherSessionsEndpoint = '/api/auth/sessions/revoke-others';
-  static const String revokeAllSessionsEndpoint = '/api/auth/sessions/revoke-all';
-  static const String emailChangeRequestEndpoint = '/api/auth/email-change/request';
-  static const String emailChangeVerifyEndpoint = '/api/auth/email-change/verify';
+  static String revokeSessionEndpoint(String sessionId) =>
+      '/api/auth/sessions/$sessionId/revoke';
+  static const String revokeOtherSessionsEndpoint =
+      '/api/auth/sessions/revoke-others';
+  static const String revokeAllSessionsEndpoint =
+      '/api/auth/sessions/revoke-all';
+  static const String emailChangeRequestEndpoint =
+      '/api/auth/email-change/request';
+  static const String emailChangeVerifyEndpoint =
+      '/api/auth/email-change/verify';
   static const String currentProfileEndpoint = '/api/user/profile';
   static const String itinerariesEndpoint = '/api/itineraries';
   static const String recommendationsEndpoint =
@@ -80,14 +85,28 @@ class ApiConstants {
 
   // Community Feed & Social
   static const String communityFeedEndpoint = '/api/community/feed';
-  static const String communityFollowingFeedEndpoint = '/api/community/feed/following';
+  static const String communityFollowingFeedEndpoint =
+      '/api/community/feed/following';
   static const String communityPostsEndpoint = '/api/community/posts';
-  static String communityPostDetailEndpoint(int postId) => '/api/community/posts/$postId';
-  static String communityPostLikesEndpoint(int postId) => '/api/community/posts/$postId/likes';
-  static String communityPostCommentsEndpoint(int postId) => '/api/community/posts/$postId/comments';
-  static String communityPostCommentDetailEndpoint(int postId, int commentId) => '/api/community/posts/$postId/comments/$commentId';
-  static String communityPostReportEndpoint(int postId) => '/api/community/posts/$postId/report';
+  static String communityPostDetailEndpoint(int postId) =>
+      '/api/community/posts/$postId';
+  static String communityPostLikesEndpoint(int postId) =>
+      '/api/community/posts/$postId/likes';
+  static String communityPostCommentsEndpoint(int postId) =>
+      '/api/community/posts/$postId/comments';
+  static String communityPostCommentRootsEndpoint(int postId) =>
+      '/api/community/posts/$postId/comments/roots';
+  static String communityPostCommentRepliesEndpoint(
+    int postId,
+    int rootCommentId,
+  ) => '/api/community/posts/$postId/comments/$rootCommentId/replies';
+  static String communityPostCommentDetailEndpoint(int postId, int commentId) =>
+      '/api/community/posts/$postId/comments/$commentId';
+  static String communityPostReportEndpoint(int postId) =>
+      '/api/community/posts/$postId/report';
   static const String communityMyPostsEndpoint = '/api/community/me/posts';
-  static String communityUserPostsEndpoint(int userId) => '/api/community/users/$userId/posts';
-  static const String conversationsUnreadTotalEndpoint = '/api/conversations/unread-total';
+  static String communityUserPostsEndpoint(int userId) =>
+      '/api/community/users/$userId/posts';
+  static const String conversationsUnreadTotalEndpoint =
+      '/api/conversations/unread-total';
 }

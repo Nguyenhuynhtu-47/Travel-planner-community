@@ -21,6 +21,7 @@ public class PostCommentResponse {
     private Long rootCommentId;
     private PostAuthorResponse replyToUser;
     private int replyCount;
+    private boolean deleted;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -121,6 +121,27 @@ public class CommunityPostController {
         return ResponseEntity.ok(postService.getComments(id, page, size, username));
     }
 
+    @GetMapping("/posts/{id}/comments/roots")
+    public ResponseEntity<PageResponse<PostCommentResponse>> getCommentRoots(
+            @PathVariable("id") Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        String username = viewer != null ? viewer.getUsername() : null;
+        return ResponseEntity.ok(postService.getCommentRoots(id, page, size, username));
+    }
+
+    @GetMapping("/posts/{id}/comments/{commentId}/replies")
+    public ResponseEntity<PageResponse<PostCommentResponse>> getCommentReplies(
+            @PathVariable("id") Long id,
+            @PathVariable("commentId") Long commentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        String username = viewer != null ? viewer.getUsername() : null;
+        return ResponseEntity.ok(postService.getCommentReplies(id, commentId, page, size, username));
+    }
+
     @PostMapping("/posts/{id}/comments")
     public ResponseEntity<PostCommentResponse> addComment(
             @PathVariable("id") Long id,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -44,9 +46,11 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
   late final CommentsNotifier _notifier;
   final TextEditingController _controller = TextEditingController();
   final FocusNode _composerFocus = FocusNode();
+  final GlobalKey _composerKey = GlobalKey();
   ItineraryComment? _replyTo;
   String? get _token => widget.token ?? widget.authNotifier?.token;
   bool get _isAuthenticated => _token?.isNotEmpty ?? false;
+  String get _replyDisplayName => _replyTo?.displayName ?? 'người dùng';
 
   @override
   void initState() {
@@ -85,7 +89,19 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
 
   void _startReply(ItineraryComment comment) {
     setState(() => _replyTo = comment);
-    FocusScope.of(context).requestFocus(_composerFocus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(_composerFocus);
+      final composerContext = _composerKey.currentContext;
+      if (composerContext != null) {
+        Scrollable.ensureVisible(
+          composerContext,
+          alignment: 0.85,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _openCreator(int? userId) {
@@ -112,79 +128,122 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
         _notifier,
         if (widget.authNotifier != null) widget.authNotifier!,
       ]),
-      builder: (context, _) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.base,
-          AppSpacing.lg,
-          AppSpacing.base,
-          AppSpacing.lg,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Bình luận${widget.activityId == null ? '' : ' hoạt động'} (${_notifier.totalElements})',
-              style: AppTextStyles.titleMd.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            if (_isAuthenticated) _buildComposer() else _buildLoginPrompt(),
-            if (_notifier.isLoading)
-              const Padding(
-                padding: EdgeInsets.all(AppSpacing.base),
-                child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
-              )
-            else if (_notifier.errorMessage != null &&
-                _notifier.comments.isEmpty)
-              _buildError()
-            else if (_notifier.comments.isEmpty)
-              const AppEmptyState(
-                title: 'Chưa có bình luận',
-                message: 'Hãy chia sẻ suy nghĩ đầu tiên về lịch trình này.',
-                icon: Icons.mode_comment_outlined,
-              )
-            else ...[
-              const SizedBox(height: AppSpacing.sm),
-              for (final comment in _notifier.comments)
-                _CommentThread(
-                  key: ValueKey('comment_thread_${comment.commentId}'),
-                  comment: comment,
-                  notifier: _notifier,
-                  token: _token,
-                  currentUserId: int.tryParse(
-                    '${widget.authNotifier?.currentUser?['userId'] ?? ''}',
-                  ),
-                  onReply: _startReply,
-                  onCreatorTap: _openCreator,
-                ),
-              if (_notifier.hasMore)
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _notifier.isLoadingMore
-                        ? null
-                        : _notifier.loadMore,
-                    icon: _notifier.isLoadingMore
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.expand_more),
-                    label: Text(
-                      _notifier.errorMessage != null
-                          ? 'Thử lại'
-                          : 'Xem thêm bình luận',
-                    ),
-                  ),
-                ),
-            ],
-          ],
-        ),
-      ),
+      builder: (context, _) => widget.activityId == null
+          ? _buildItinerarySection()
+          : _buildActivitySection(),
     );
+  }
+
+  Widget _buildItinerarySection() => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.base,
+      AppSpacing.lg,
+      AppSpacing.base,
+      AppSpacing.lg,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(),
+        const SizedBox(height: AppSpacing.md),
+        if (_isAuthenticated) _buildComposer() else _buildLoginPrompt(),
+        ..._buildCommentItems(),
+      ],
+    ),
+  );
+
+  Widget _buildActivitySection() => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.base,
+      AppSpacing.md,
+      AppSpacing.base,
+      0,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            children: _buildCommentItems(),
+          ),
+        ),
+        Container(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.hairlineSoft)),
+          ),
+          padding: const EdgeInsets.only(
+            top: AppSpacing.sm,
+            bottom: AppSpacing.md,
+          ),
+          child: _isAuthenticated ? _buildComposer() : _buildLoginPrompt(),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildSectionTitle() => Text(
+    'Bình luận${widget.activityId == null ? '' : ' hoạt động'} (${_notifier.totalElements})',
+    style: AppTextStyles.titleMd.copyWith(color: AppColors.textPrimary),
+  );
+
+  List<Widget> _buildCommentItems() {
+    if (_notifier.isLoading) {
+      return const [
+        Padding(
+          padding: EdgeInsets.all(AppSpacing.base),
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          ),
+        ),
+      ];
+    }
+    if (_notifier.errorMessage != null && _notifier.comments.isEmpty) {
+      return [_buildError()];
+    }
+    if (_notifier.comments.isEmpty) {
+      return const [
+        AppEmptyState(
+          title: 'Chưa có bình luận',
+          message: 'Hãy chia sẻ suy nghĩ đầu tiên về lịch trình này.',
+          icon: Icons.mode_comment_outlined,
+        ),
+      ];
+    }
+
+    return [
+      const SizedBox(height: AppSpacing.sm),
+      for (final comment in _notifier.comments)
+        _CommentThread(
+          key: ValueKey('comment_thread_${comment.commentId}'),
+          comment: comment,
+          notifier: _notifier,
+          token: _token,
+          currentUserId: int.tryParse(
+            '${widget.authNotifier?.currentUser?['userId'] ?? ''}',
+          ),
+          onReply: _startReply,
+          onCreatorTap: _openCreator,
+        ),
+      if (_notifier.hasMore)
+        Center(
+          child: TextButton.icon(
+            onPressed: _notifier.isLoadingMore ? null : _notifier.loadMore,
+            icon: _notifier.isLoadingMore
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.expand_more),
+            label: Text(
+              _notifier.errorMessage != null ? 'Thử lại' : 'Xem thêm bình luận',
+            ),
+          ),
+        ),
+    ];
   }
 
   Widget _buildComposer() => Column(
@@ -197,9 +256,10 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
             children: [
               Expanded(
                 child: Text(
-                  'Đang trả lời ${_replyTo!.fullName ?? (_replyTo!.handle != null ? '@${_replyTo!.handle}' : 'người dùng')}',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
+                  'Đang trả lời @$_replyDisplayName',
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -216,13 +276,16 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
         children: [
           Expanded(
             child: TextField(
+              key: _composerKey,
               controller: _controller,
               focusNode: _composerFocus,
               minLines: 1,
               maxLines: 4,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                hintText: 'Chia sẻ cảm nhận của bạn…',
+              decoration: InputDecoration(
+                hintText: _replyTo == null
+                    ? 'Viết bình luận…'
+                    : 'Trả lời @$_replyDisplayName…',
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: AppSpacing.md,
                   vertical: AppSpacing.md,
@@ -493,6 +556,17 @@ class _CommentThread extends StatefulWidget {
 
 class _CommentThreadState extends State<_CommentThread> {
   bool _expanded = false;
+
+  void _startReply(ItineraryComment comment) {
+    if (!_expanded) setState(() => _expanded = true);
+    widget.onReply(comment);
+
+    if (!widget.notifier.replies.containsKey(widget.comment.commentId) &&
+        !widget.notifier.loadingReplies.contains(widget.comment.commentId)) {
+      unawaited(widget.notifier.loadReplies(widget.comment.commentId));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final comment = widget.comment;
@@ -507,7 +581,7 @@ class _CommentThreadState extends State<_CommentThread> {
         _CommentTile(
           comment: comment,
           canManage: canManage,
-          onReply: comment.deleted ? null : () => widget.onReply(comment),
+          onReply: comment.deleted ? null : () => _startReply(comment),
           onCreatorTap: () => widget.onCreatorTap(comment.userId),
           onEdit: (text) => widget.notifier.updateComment(
             comment.commentId,
@@ -551,7 +625,7 @@ class _CommentThreadState extends State<_CommentThread> {
                 canManage:
                     widget.currentUserId != null &&
                     widget.currentUserId == reply.userId,
-                onReply: () => widget.onReply(reply),
+                onReply: () => _startReply(reply),
                 onCreatorTap: () => widget.onCreatorTap(reply.userId),
                 onEdit: (text) => widget.notifier.updateComment(
                   reply.commentId,

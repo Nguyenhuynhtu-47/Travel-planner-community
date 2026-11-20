@@ -7,28 +7,83 @@ import 'package:mobile/features/explore/data/models/page_result.dart';
 
 class _ThreadRepository extends CommentsRepository {
   int? repliedTo;
+  int rootReplyCount = 1;
   @override
-  Future<PageResult<ItineraryComment>> getComments(int id, {int page = 0, int size = 10}) async => PageResult(
-    content: const [ItineraryComment(commentId: 1, content: 'Bình luận gốc', replyCount: 1, userId: 9)],
-    pageNumber: 0, pageSize: 10, totalElements: 1, totalPages: 1, isLast: true,
+  Future<PageResult<ItineraryComment>> getComments(
+    int id, {
+    int page = 0,
+    int size = 10,
+  }) async => PageResult(
+    content: [
+      ItineraryComment(
+        commentId: 1,
+        content: 'Bình luận gốc',
+        replyCount: rootReplyCount,
+        userId: 9,
+      ),
+    ],
+    pageNumber: 0,
+    pageSize: 10,
+    totalElements: 1,
+    totalPages: 1,
+    isLast: true,
+  );
+
+  @override
+  Future<PageResult<ItineraryComment>> getActivityComments(
+    int id, {
+    int page = 0,
+    int size = 10,
+  }) => getComments(id, page: page, size: size);
+
+  @override
+  Future<PageResult<ItineraryComment>> getReplies(
+    int id, {
+    int page = 0,
+    int size = 10,
+  }) async => PageResult(
+    content: const [
+      ItineraryComment(
+        commentId: 2,
+        content: 'Câu trả lời',
+        parentCommentId: 1,
+        rootCommentId: 1,
+      ),
+    ],
+    pageNumber: 0,
+    pageSize: 10,
+    totalElements: 1,
+    totalPages: 1,
+    isLast: true,
   );
   @override
-  Future<PageResult<ItineraryComment>> getReplies(int id, {int page = 0, int size = 10}) async => PageResult(
-    content: const [ItineraryComment(commentId: 2, content: 'Câu trả lời', parentCommentId: 1, rootCommentId: 1)],
-    pageNumber: 0, pageSize: 10, totalElements: 1, totalPages: 1, isLast: true,
-  );
-  @override
-  Future<ItineraryComment> createReply(int id, {required String content, required String token}) async {
+  Future<ItineraryComment> createReply(
+    int id, {
+    required String content,
+    required String token,
+  }) async {
     repliedTo = id;
-    return ItineraryComment(commentId: 3, content: content, parentCommentId: id, rootCommentId: 1);
+    return ItineraryComment(
+      commentId: 3,
+      content: content,
+      parentCommentId: id,
+      rootCommentId: 1,
+    );
   }
 }
 
 void main() {
   testWidgets('mở và thu gọn reply ngay dưới comment gốc', (tester) async {
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ItineraryCommentsSection(
-      itineraryId: 1, repository: _ThreadRepository(),
-    ))));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ItineraryCommentsSection(
+            itineraryId: 1,
+            repository: _ThreadRepository(),
+          ),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Câu trả lời'), findsNothing);
     await tester.tap(find.text('Xem 1 câu trả lời'));
@@ -39,22 +94,88 @@ void main() {
     expect(find.text('Câu trả lời'), findsNothing);
   });
 
-  testWidgets('gửi khi trả lời một reply vẫn dùng commentId của reply làm parent', (tester) async {
-    final repository = _ThreadRepository();
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ItineraryCommentsSection(
-      itineraryId: 1, token: 'test-token', repository: repository,
-    ))));
+  testWidgets('trả lời comment gốc tự mở thread và focus ô nhập', (
+    tester,
+  ) async {
+    final repository = _ThreadRepository()..rootReplyCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ItineraryCommentsSection(
+            itineraryId: 1,
+            token: 'test-token',
+            repository: repository,
+          ),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Xem 1 câu trả lời'));
+
+    await tester.tap(find.text('Trả lời').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Trả lời').last);
-    await tester.pump();
+
+    expect(find.text('Câu trả lời'), findsOneWidget);
     expect(find.textContaining('Đang trả lời'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'Câu trả lời sâu');
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Gửi bình luận'));
-    await tester.pumpAndSettle();
-    expect(repository.repliedTo, 2);
-    expect(find.text('Câu trả lời sâu'), findsOneWidget);
+    expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
   });
+
+  testWidgets('composer hoạt động nằm dưới thread và hiện ngữ cảnh trả lời', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 600,
+            child: ActivityCommentsSection(
+              activityId: 1,
+              token: 'test-token',
+              repository: _ThreadRepository(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Trả lời').first);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Đang trả lời @'), findsOneWidget);
+    expect(find.text('Trả lời @Người dùng…'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byType(TextField)).dy,
+      greaterThan(tester.getTopLeft(find.text('Bình luận gốc')).dy),
+    );
+  });
+
+  testWidgets(
+    'gửi khi trả lời một reply vẫn dùng commentId của reply làm parent',
+    (tester) async {
+      final repository = _ThreadRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ItineraryCommentsSection(
+              itineraryId: 1,
+              token: 'test-token',
+              repository: repository,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Xem 1 câu trả lời'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Trả lời').last);
+      await tester.pump();
+      expect(find.textContaining('Đang trả lời'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'Câu trả lời sâu');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Gửi bình luận'));
+      await tester.pumpAndSettle();
+      expect(repository.repliedTo, 2);
+      expect(find.text('Câu trả lời sâu'), findsOneWidget);
+    },
+  );
 }

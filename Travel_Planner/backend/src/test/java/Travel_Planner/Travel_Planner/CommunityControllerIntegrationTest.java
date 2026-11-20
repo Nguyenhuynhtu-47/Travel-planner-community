@@ -165,6 +165,62 @@ class CommunityControllerIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "traveller_an")
+    @DisplayName("GET community post replies uses a separately paginated thread endpoint")
+    void getPostCommentReplies_authenticated_success() throws Exception {
+        PostCommentResponse reply = PostCommentResponse.builder()
+                .commentId(31L)
+                .postId(20L)
+                .content("Trả lời")
+                .parentCommentId(30L)
+                .rootCommentId(30L)
+                .build();
+        PageResponse<PostCommentResponse> response = PageResponse.<PostCommentResponse>builder()
+                .content(List.of(reply))
+                .pageNumber(1)
+                .pageSize(20)
+                .totalElements(21)
+                .totalPages(2)
+                .last(true)
+                .build();
+        when(postService.getCommentReplies(20L, 30L, 1, 20, "traveller_an"))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/community/posts/20/comments/30/replies?page=1&size=20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].parentCommentId").value(30))
+                .andExpect(jsonPath("$.content[0].rootCommentId").value(30))
+                .andExpect(jsonPath("$.pageNumber").value(1))
+                .andExpect(jsonPath("$.last").value(true));
+    }
+
+    @Test
+    @WithMockUser(username = "traveller_an")
+    @DisplayName("GET community post comment roots has its own paginated endpoint")
+    void getPostCommentRoots_authenticated_success() throws Exception {
+        PostCommentResponse root = PostCommentResponse.builder()
+                .commentId(30L)
+                .postId(20L)
+                .content("Gốc")
+                .replyCount(2)
+                .build();
+        PageResponse<PostCommentResponse> response = PageResponse.<PostCommentResponse>builder()
+                .content(List.of(root))
+                .pageNumber(0)
+                .pageSize(20)
+                .totalElements(1)
+                .totalPages(1)
+                .last(true)
+                .build();
+        when(postService.getCommentRoots(20L, 0, 20, "traveller_an")).thenReturn(response);
+
+        mockMvc.perform(get("/api/community/posts/20/comments/roots?page=0&size=20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].commentId").value(30))
+                .andExpect(jsonPath("$.content[0].replyCount").value(2));
+    }
+
+    @Test
     @WithMockUser(username = "admin_user", roles = {"ADMIN"})
     @DisplayName("PATCH /api/admin/community/posts/{id}/moderate allows admin to moderate post")
     void moderatePost_admin_success() throws Exception {
