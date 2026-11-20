@@ -10157,3 +10157,54 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
     - No backend changes, no database schema changes, and no API alterations.
     - All local modifications preserved without commit, push, stash, or branch switch.
 
+---
+
+## 2026-11-20 - Animated Splash Screen on Every App Launch (`feature/splash`)
+
+- **Task Summary:**
+  1. Implement a brand-aligned Animated Splash Screen for Flutter Mobile shown on every app cold launch, inspired by the reference Wanderlog visual aesthetic (logo badge, slogan, intro text, custom travel vector/card graphic, subtle peach/pink gradient) without copying logos, marketing metrics, or interactive buttons.
+  2. Implement a 2400ms choreographed animation sequence conforming strictly to `docs/ai/10-animation-guidelines.md` (curves, intervals, fade, scale, slide, and stabilization window).
+  3. Support non-blocking background authentication verification (`AuthNotifier.checkAuthStatus()`) synchronized with animation completion:
+     - Navigation happens ONLY after animation finishes AND auth check resolves.
+     - Authenticated users navigate to `MainNavigationShell` via `FadeTransition`.
+     - Unauthenticated/expired sessions navigate to `LoginScreen` via `FadeTransition`.
+     - Splash screen is replaced in navigator history (`pushReplacement`), preventing it from re-appearing when popping or resuming from background.
+  4. Ensure complete accessibility: respects `MediaQuery.disableAnimations`, disables back navigation (`PopScope(canPop: false)`), responsive without overflow down to 320px width.
+
+- **Implementation Details:**
+  1. **New `SplashScreen` Widget (`lib/features/splash/presentation/screens/splash_screen.dart`):**
+     - SingleTickerProviderStateMixin with 2400ms `AnimationController`.
+     - Choreographed intervals:
+       - 0.00 – 0.35: Brand logo badge fade-in and scale up (0.75 -> 1.0) with easeOutBack curve.
+       - 0.20 – 0.55: App title & slogan fade-in and slide up (Offset(0, 0.25) -> Offset.zero).
+       - 0.40 – 0.75: Product description fade-in and slide up.
+       - 0.55 – 0.90: Custom vector travel ticket & illustration fade-in and scale up (0.85 -> 1.0).
+       - 0.90 – 1.00: 240ms stabilization window for visual rest.
+     - Safe controller lifecycle management: checks `mounted` before all operations, disposes animation controller cleanly.
+     - Dual listener synchronization on `_controller.addStatusListener` (AnimationStatus.completed) and `widget.authNotifier.addListener` (status != AuthStatus.initial). One-shot boolean guard `_hasNavigated` prevents duplicate navigation transitions.
+     - Smooth `PageRouteBuilder` with `FadeTransition` (duration: 350ms, `Curves.easeInOutCubic`).
+     - Back navigation prevention via `PopScope(canPop: false)`.
+     - Vector travel illustration featuring itinerary badge ("Đà Lạt Mộng Mơ", category tags) and floating destination pins, aircraft, and luggage icons.
+  2. **Application Entrypoint (`lib/main.dart`):**
+     - Mounted `SplashScreen(authNotifier: _authNotifier)` as root `MaterialApp.home`.
+     - Updated `ApiClient.globalOnUnauthorized` callback to navigate directly to `LoginScreen` via `pushAndRemoveUntil`.
+  3. **Platform & Native Compatibility:**
+     - Verified Android `AndroidManifest.xml` and `styles.xml`. Kept native `@style/LaunchTheme` switching to `@style/NormalTheme` intact, ensuring seamless transition into Flutter's animated splash with no flicker, jank, or blank screens.
+  4. **Automated Unit & Widget Tests (`test/splash_screen_test.dart`):**
+     - 8/8 comprehensive tests passing:
+       - UI element rendering (logo, title, slogan, description, illustration).
+       - Absence of interactive buttons (no "Tiếp tục", "Đăng nhập", or "Đăng ký").
+       - Back navigation prevention via `PopScope(canPop: false)`.
+       - Small screen responsive layout (320x568) without RenderFlex overflow.
+       - Navigation to `MainNavigationShell` when authenticated.
+       - Navigation to `LoginScreen` when unauthenticated.
+       - Synchronization when auth is slower than animation.
+       - Synchronization when auth resolves faster than animation.
+
+- **Verification Results:**
+  - Automated tests: `flutter test test/splash_screen_test.dart` passed 8/8 tests.
+  - Widget test: `flutter test test/widget_test.dart` passed 1/1 test.
+  - Itinerary test: `flutter test test/my_itineraries_test.dart` passed 12/12 tests.
+  - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified/new files.
+
+

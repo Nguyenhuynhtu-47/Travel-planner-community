@@ -4,9 +4,10 @@ import 'core/network/api_client.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/itinerary/presentation/screens/my_itineraries_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
-import 'shared/navigation/main_navigation_shell.dart';
+import 'features/splash/presentation/screens/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +36,13 @@ class _MyAppState extends State<MyApp> {
 
     ApiClient.globalOnUnauthorized = () {
       _authNotifier.handleSessionExpired();
-      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      _navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: '/login'),
+          builder: (_) => LoginScreen(authNotifier: _authNotifier),
+        ),
+        (route) => false,
+      );
     };
 
     _authNotifier.checkAuthStatus();
@@ -57,19 +64,8 @@ class _MyAppState extends State<MyApp> {
       title: 'Travel Planner',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: ListenableBuilder(
-        listenable: _authNotifier,
-        builder: (context, _) {
-          if (_authNotifier.status == AuthStatus.initial) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              ),
-            );
-          }
-
-          return MainNavigationShell(authNotifier: _authNotifier);
-        },
+      home: SplashScreen(
+        authNotifier: _authNotifier,
       ),
     );
   }
