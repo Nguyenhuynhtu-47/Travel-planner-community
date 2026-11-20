@@ -82,9 +82,19 @@ class ActivityDetailScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _launchDirections(BuildContext context, double lat, double lon) async {
+  Future<void> _launchDirections(
+    BuildContext context,
+    double lat,
+    double lon, [
+    String? label,
+  ]) async {
     final uri = NavigationLauncherHelper.buildGoogleMapsUri(
-      waypoints: [LatLng(lat, lon)],
+      stops: [
+        NavigationStop(
+          point: LatLng(lat, lon),
+          label: label,
+        ),
+      ],
     );
     if (uri != null) {
       try {
@@ -587,6 +597,7 @@ class ActivityDetailScreen extends StatelessWidget {
                                   context,
                                   act.effectiveLatitude!,
                                   act.effectiveLongitude!,
+                                  act.navigationDisplayName,
                                 ),
                               ),
                             ],

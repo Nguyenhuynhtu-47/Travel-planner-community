@@ -9,6 +9,7 @@ import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/explore/data/models/creator_summary.dart';
 import 'package:mobile/features/itinerary/data/models/activity_detail.dart';
 import 'package:mobile/features/itinerary/data/models/destination_summary.dart';
+import 'package:mobile/features/itinerary/data/models/place_summary.dart';
 import 'package:mobile/features/itinerary/data/models/itinerary_day_detail.dart';
 import 'package:mobile/features/itinerary/data/models/itinerary_detail.dart';
 import 'package:mobile/features/itinerary/data/models/route_models.dart';
@@ -341,6 +342,154 @@ void main() {
       expect(uri, isNotNull);
       final intermediateSegments = uri!.queryParameters['waypoints']!.split('|');
       expect(intermediateSegments.length, 9);
+    });
+
+    test('buildGoogleMapsUri with NavigationStop includes Vietnamese display name for single stop', () {
+      final uri = NavigationLauncherHelper.buildGoogleMapsUri(
+        stops: const [
+          NavigationStop(
+            point: LatLng(11.93988, 108.44498),
+            label: 'Hồ Xuân Hương & Quảng Trường Lâm Viên',
+          ),
+        ],
+      );
+
+      expect(uri, isNotNull);
+      expect(uri!.path, '/maps/search/');
+      expect(uri.queryParameters['api'], '1');
+      expect(
+        uri.queryParameters['query'],
+        '11.93988,108.44498(Hồ Xuân Hương & Quảng Trường Lâm Viên)',
+      );
+      // Verify raw URI is properly percent-encoded once without double-encoding
+      expect(uri.toString(), contains('11.93988%2C108.44498%28H%E1%BB%93+Xu%C3%A2n+H%C6%B0%C6%A1ng+%26+Qu%E1%BA%A3ng+Tr%C6%B0%E1%BB%9Dng+L%C3%A2m+Vi%C3%AAn%29'));
+    });
+
+    test('buildGoogleMapsUri with NavigationStop builds two stops with origin and destination labels', () {
+      final uri = NavigationLauncherHelper.buildGoogleMapsUri(
+        stops: const [
+          NavigationStop(
+            point: LatLng(11.9056, 108.5442),
+            label: 'Đồi Chè Cầu Đất',
+          ),
+          NavigationStop(
+            point: LatLng(11.93988, 108.44498),
+            label: 'Hồ Xuân Hương & Quảng Trường Lâm Viên',
+          ),
+        ],
+        mode: 'driving',
+      );
+
+      expect(uri, isNotNull);
+      expect(uri!.path, '/maps/dir/');
+      expect(uri.queryParameters['origin'], '11.9056,108.5442(Đồi Chè Cầu Đất)');
+      expect(uri.queryParameters['destination'], '11.93988,108.44498(Hồ Xuân Hương & Quảng Trường Lâm Viên)');
+      expect(uri.queryParameters['travelmode'], 'driving');
+      expect(uri.queryParameters.containsKey('waypoints'), isFalse);
+    });
+
+    test('buildGoogleMapsUri with NavigationStop builds three or more stops with waypoint labels and preserves order', () {
+      final uri = NavigationLauncherHelper.buildGoogleMapsUri(
+        stops: const [
+          NavigationStop(
+            point: LatLng(11.9056, 108.5442),
+            label: 'Điểm 1: Đồi Chè',
+          ),
+          NavigationStop(
+            point: LatLng(11.9400, 108.4400),
+            label: 'Điểm 2: Cà phê ven hồ',
+          ),
+          NavigationStop(
+            point: LatLng(11.9420, 108.4420),
+            label: 'Điểm 3: Chợ đêm Đà Lạt',
+          ),
+          NavigationStop(
+            point: LatLng(11.93988, 108.44498),
+            label: 'Điểm 4: Hồ Xuân Hương',
+          ),
+        ],
+        mode: 'walking',
+      );
+
+      expect(uri, isNotNull);
+      expect(uri!.queryParameters['origin'], '11.9056,108.5442(Điểm 1: Đồi Chè)');
+      expect(uri.queryParameters['destination'], '11.93988,108.44498(Điểm 4: Hồ Xuân Hương)');
+      expect(
+        uri.queryParameters['waypoints'],
+        '11.94,108.44(Điểm 2: Cà phê ven hồ)|11.942,108.442(Điểm 3: Chợ đêm Đà Lạt)',
+      );
+      expect(uri.queryParameters['travelmode'], 'walking');
+    });
+
+    test('buildGoogleMapsUri sanitizes nested parentheses and handles special characters', () {
+      final uri = NavigationLauncherHelper.buildGoogleMapsUri(
+        stops: const [
+          NavigationStop(
+            point: LatLng(10.7725, 106.6980),
+            label: 'Quán Cà Phê (Chi nhánh 1) & Trà / Bánh',
+          ),
+          NavigationStop(
+            point: LatLng(10.7750, 106.7000),
+            label: 'Bảo tàng (Khu A - Tầng 2)',
+          ),
+        ],
+      );
+
+      expect(uri, isNotNull);
+      // Nested parentheses normalized to brackets
+      expect(
+        uri!.queryParameters['origin'],
+        '10.7725,106.698(Quán Cà Phê [Chi nhánh 1] & Trà / Bánh)',
+      );
+      expect(
+        uri.queryParameters['destination'],
+        '10.775,106.7(Bảo tàng [Khu A - Tầng 2])',
+      );
+    });
+
+    test('buildGoogleMapsUri falls back to coordinates when labels are null or whitespace', () {
+      final uri = NavigationLauncherHelper.buildGoogleMapsUri(
+        stops: const [
+          NavigationStop(point: LatLng(11.11, 108.11), label: null),
+          NavigationStop(point: LatLng(11.22, 108.22), label: '   '),
+        ],
+      );
+
+      expect(uri, isNotNull);
+      expect(uri!.queryParameters['origin'], '11.11,108.11');
+      expect(uri.queryParameters['destination'], '11.22,108.22');
+    });
+
+    test('ActivityDetail navigationDisplayName priority: place.name > effectiveLocationName > name', () {
+      // 1. Linked place name takes highest priority
+      const actWithPlace = ActivityDetail(
+        activityId: 1,
+        name: 'Hoạt động dạo phố',
+        locationName: 'Tên vị trí tùy chỉnh',
+        displayOrder: 1,
+        place: PlaceSummary(
+          placeId: 10,
+          name: 'Hồ Xuân Hương Chuẩn Hóa',
+        ),
+      );
+      expect(actWithPlace.navigationDisplayName, 'Hồ Xuân Hương Chuẩn Hóa');
+
+      // 2. effectiveLocationName takes second priority if place is null
+      const actWithLocation = ActivityDetail(
+        activityId: 2,
+        name: 'Hoạt động ngắm cảnh',
+        locationName: 'Quảng trường Lâm Viên',
+        displayOrder: 1,
+      );
+      expect(actWithLocation.navigationDisplayName, 'Quảng trường Lâm Viên');
+
+      // 3. Fallback to activity name if locationName is null/empty
+      const actFallback = ActivityDetail(
+        activityId: 3,
+        name: 'Hoạt động ăn uống chợ đêm',
+        displayOrder: 1,
+      );
+      expect(actFallback.navigationDisplayName, 'Hoạt động ăn uống chợ đêm');
     });
 
     testWidgets('launchNavigation calls launcher with externalApplication mode', (tester) async {
@@ -680,8 +829,8 @@ void main() {
       expect(launchedUri, isNotNull);
       expect(launchedUri!.host, 'www.google.com');
       expect(launchedUri!.path, '/maps/dir/');
-      expect(launchedUri!.queryParameters['origin'], '11.9431,108.4382');
-      expect(launchedUri!.queryParameters['destination'], '11.9404,108.4385');
+      expect(launchedUri!.queryParameters['origin'], '11.9431,108.4382(Hôtel Colline)');
+      expect(launchedUri!.queryParameters['destination'], '11.9404,108.4385(Quán Cà Phê Tùng)');
     });
 
     testWidgets('Switching travel mode requests new route with updated mode', (tester) async {

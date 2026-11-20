@@ -6,6 +6,24 @@ import '../../../../core/theme/app_colors.dart';
 
 typedef UrlLauncherFn = Future<bool> Function(Uri uri, {LaunchMode mode});
 
+/// Represents a geographical point with an optional semantic display label for navigation deep links.
+class NavigationStop {
+  final LatLng point;
+  final String? label;
+
+  const NavigationStop({
+    required this.point,
+    this.label,
+  });
+
+  /// Factory helper from [LatLng] coordinate and optional [label].
+  factory NavigationStop.fromPoint(LatLng point, [String? label]) =>
+      NavigationStop(point: point, label: label);
+
+  @override
+  String toString() => 'NavigationStop(point: $point, label: $label)';
+}
+
 /// Helper utility for generating and launching free, external Google Maps navigation intents.
 ///
 /// Uses the universal Google Maps URL scheme without requiring any API keys or paid SDKs:
@@ -16,14 +34,44 @@ class NavigationLauncherHelper {
 
   static const int maxIntermediateWaypoints = 9;
 
-  /// Builds a standard, keyless Google Maps directions or search URL for the given ordered coordinates.
+  /// Formats a coordinate with an optional label for Google Maps URL parameters.
+  /// If [label] is present and non-empty, produces `lat,lon(sanitizedLabel)`.
+  /// Otherwise, returns plain `lat,lon`.
+  static String formatPointParam(LatLng point, String? label) {
+    final lat = point.latitude;
+    final lon = point.longitude;
+    final cleanLabel = _sanitizeLabel(label);
+    if (cleanLabel != null && cleanLabel.isNotEmpty) {
+      return '$lat,$lon($cleanLabel)';
+    }
+    return '$lat,$lon';
+  }
+
+  /// Sanitizes label string: trims whitespace and normalizes nested parentheses to brackets
+  /// to ensure the outer `(label)` syntax in Google Maps URLs remains balanced and unambiguous.
+  static String? _sanitizeLabel(String? label) {
+    if (label == null) return null;
+    final trimmed = label.trim();
+    if (trimmed.isEmpty) return null;
+    return trimmed.replaceAll('(', '[').replaceAll(')', ']');
+  }
+
+  /// Builds a standard, keyless Google Maps directions or search URL for the given ordered stops.
   ///
-  /// Returns `null` if [waypoints] is empty.
+  /// Accepts either rich [stops] (with coordinates and display names) or legacy [waypoints] (coordinates only).
+  /// Coordinates remain the authoritative navigation target; display labels provide human-readable names.
+  ///
+  /// Returns `null` if both [stops] and [waypoints] are empty or null.
   static Uri? buildGoogleMapsUri({
-    required List<LatLng> waypoints,
+    List<NavigationStop>? stops,
+    List<LatLng>? waypoints,
     String mode = 'driving',
   }) {
-    if (waypoints.isEmpty) return null;
+    final effectiveStops = stops ??
+        waypoints?.map((wp) => NavigationStop(point: wp)).toList() ??
+        const [];
+
+    if (effectiveStops.isEmpty) return null;
 
     final travelMode = switch (mode.toLowerCase()) {
       'walking' || 'walk' || 'foot-walking' => 'walking',
@@ -32,34 +80,34 @@ class NavigationLauncherHelper {
       _ => 'driving',
     };
 
-    // Single stop: open search / place view
-    if (waypoints.length == 1) {
-      final stop = waypoints.first;
+    // Single stop: open search / place view with label
+    if (effectiveStops.length == 1) {
+      final stop = effectiveStops.first;
       return Uri.https('www.google.com', '/maps/search/', {
         'api': '1',
-        'query': '${stop.latitude},${stop.longitude}',
+        'query': formatPointParam(stop.point, stop.label),
       });
     }
 
     // Two or more stops: construct directions route
-    final origin = waypoints.first;
-    final destination = waypoints.last;
+    final origin = effectiveStops.first;
+    final destination = effectiveStops.last;
 
     final queryParams = <String, String>{
       'api': '1',
-      'origin': '${origin.latitude},${origin.longitude}',
-      'destination': '${destination.latitude},${destination.longitude}',
+      'origin': formatPointParam(origin.point, origin.label),
+      'destination': formatPointParam(destination.point, destination.label),
       'travelmode': travelMode,
     };
 
-    if (waypoints.length > 2) {
-      final intermediate = waypoints.sublist(1, waypoints.length - 1);
+    if (effectiveStops.length > 2) {
+      final intermediate = effectiveStops.sublist(1, effectiveStops.length - 1);
       final limitedIntermediate = intermediate.length > maxIntermediateWaypoints
           ? intermediate.sublist(0, maxIntermediateWaypoints)
           : intermediate;
 
       final waypointsStr = limitedIntermediate
-          .map((wp) => '${wp.latitude},${wp.longitude}')
+          .map((wp) => formatPointParam(wp.point, wp.label))
           .join('|');
 
       queryParams['waypoints'] = waypointsStr;
@@ -73,11 +121,16 @@ class NavigationLauncherHelper {
   /// Displays a non-intrusive [SnackBar] if the intent cannot be launched.
   static Future<bool> launchNavigation({
     required BuildContext context,
-    required List<LatLng> waypoints,
+    List<NavigationStop>? stops,
+    List<LatLng>? waypoints,
     String mode = 'driving',
     UrlLauncherFn launcher = launchUrl,
   }) async {
-    final uri = buildGoogleMapsUri(waypoints: waypoints, mode: mode);
+    final effectiveStops = stops ??
+        waypoints?.map((wp) => NavigationStop(point: wp)).toList() ??
+        const [];
+
+    final uri = buildGoogleMapsUri(stops: effectiveStops, mode: mode);
     if (uri == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -90,7 +143,7 @@ class NavigationLauncherHelper {
       return false;
     }
 
-    if (waypoints.length > 2 + maxIntermediateWaypoints && context.mounted) {
+    if (effectiveStops.length > 2 + maxIntermediateWaypoints && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(

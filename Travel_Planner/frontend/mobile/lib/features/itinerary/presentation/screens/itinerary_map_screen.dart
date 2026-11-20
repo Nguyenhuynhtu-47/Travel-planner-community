@@ -952,10 +952,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                     ),
                   ),
                   onPressed: () {
-                    final wps = stops.map((s) => s.point).toList();
+                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
                     NavigationLauncherHelper.launchNavigation(
                       context: context,
-                      waypoints: wps,
+                      stops: navStops,
                       mode: _selectedTravelMode,
                       launcher: widget.navigationLauncher ?? launchUrl,
                     );
@@ -1049,10 +1049,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                     ),
                   ),
                   onPressed: () {
-                    final wps = stops.map((s) => s.point).toList();
+                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
                     NavigationLauncherHelper.launchNavigation(
                       context: context,
-                      waypoints: wps,
+                      stops: navStops,
                       mode: _selectedTravelMode,
                       launcher: widget.navigationLauncher ?? launchUrl,
                     );
@@ -1110,10 +1110,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                     ),
                   ),
                   onPressed: () {
-                    final wps = stops.map((s) => s.point).toList();
+                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
                     NavigationLauncherHelper.launchNavigation(
                       context: context,
-                      waypoints: wps,
+                      stops: navStops,
                       mode: _selectedTravelMode,
                       launcher: widget.navigationLauncher ?? launchUrl,
                     );
@@ -1278,10 +1278,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   ),
                 ),
                 onPressed: () {
-                  final wps = stops.map((s) => s.point).toList();
+                  final navStops = stops.map((s) => s.toNavigationStop()).toList();
                   NavigationLauncherHelper.launchNavigation(
                     context: context,
-                    waypoints: wps,
+                    stops: navStops,
                     mode: _selectedTravelMode,
                     launcher: widget.navigationLauncher ?? launchUrl,
                   );
@@ -1379,10 +1379,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   ),
                 ),
                 onPressed: () {
-                  final wps = stops.map((s) => s.point).toList();
+                  final navStops = stops.map((s) => s.toNavigationStop()).toList();
                   NavigationLauncherHelper.launchNavigation(
                     context: context,
-                    waypoints: wps,
+                    stops: navStops,
                     mode: _selectedTravelMode,
                     launcher: widget.navigationLauncher ?? launchUrl,
                   );
@@ -1477,10 +1477,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   ),
                 ),
                 onPressed: () {
-                  final wps = stops.map((s) => s.point).toList();
+                  final navStops = stops.map((s) => s.toNavigationStop()).toList();
                   NavigationLauncherHelper.launchNavigation(
                     context: context,
-                    waypoints: wps,
+                    stops: navStops,
                     mode: _selectedTravelMode,
                     launcher: widget.navigationLauncher ?? launchUrl,
                   );

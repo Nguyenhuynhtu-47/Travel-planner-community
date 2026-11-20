@@ -10068,3 +10068,49 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
     - `flutter analyze` completed with 0 errors and 0 warnings on modified sync modules.
   - **Git Status:**
     - Clean modifications preserved, no commits, resets, stashes, or branch changes made.
+
+## 2026-11-20 — Investigation and Fix: Google Maps Vietnamese Destination Label Preservation
+
+- **Issue & Root Cause Analysis:**
+  - **Symptom:** When clicking "Chỉ đường" (Directions) on the itinerary map to navigate to Hồ Xuân Hương in Đà Lạt, Vietnam, Google Maps displayed Chinese characters for the destination: `越南大叻春香湖 Lâm Đồng, Xuân Hương - Đà Lạt, Đ. Trần Quốc Toản, Quảng trường Lâm Viên, Hồ Tùng Mậu/góc`.
+  - **Database & Backend Verification:**
+    - MySQL database inspection confirmed that `places` (id: 13, `Hồ Xuân Hương & Quảng Trường Lâm Viên`, `Phường 1, TP. Đà Lạt, Lâm Đồng`) and `activities` contain 100% Vietnamese names and addresses.
+    - Geocoding providers (LocationIQ and HERE) are explicitly configured with `lang=vi` / `accept-language=vi`.
+    - No Chinese characters or `zh` locales existed in database records or backend responses.
+  - **Root Cause (Case D with Parameter Gap):**
+    - `NavigationLauncherHelper` and `ItineraryMapScreen` / `ActivityDetailScreen` stripped semantic place names and passed bare coordinates (`destination=11.9398800,108.4449800`) to Google Maps URL/Intent.
+    - When receiving bare coordinates without display labels, Google Maps performed reverse POI lookup against Google's internal POI index.
+    - In Google Maps' internal crowdsourced index, the POI at `11.9398800, 108.4449800` contained a user-contributed title in Chinese: `越南大叻春香湖` (Vietnam Da Lat Xuan Huong Lake).
+    - Physical Android device (`SM-A346E`, locale `vi-VN`) reproduction via `am start` confirmed:
+      - Bare coordinates -> Destination displayed as `越南大叻春香湖 Lâm Đồng, Xuâ...`.
+      - Coordinate with label (`destination=11.9398800,108.4449800(Hồ+Xuân+Hương)`) -> Destination displayed as `Hồ Xuân Hương` with 0 Chinese characters, maintaining exact GPS routing.
+
+- **Implementation Details:**
+  1. **NavigationStop Representation (`navigation_launcher_helper.dart`):**
+     - Introduced `NavigationStop` data model holding `LatLng point` and optional `String? label`.
+     - `NavigationLauncherHelper.formatPointParam(LatLng point, String? label)`: produces `'$lat,$lon($cleanLabel)'` when label is present, or `'$lat,$lon'` as coordinate fallback when missing.
+     - `_sanitizeLabel`: trims whitespace and normalizes nested parentheses to brackets (`[` and `]`) to prevent corrupting the outer Google Maps URL `(label)` syntax.
+     - `buildGoogleMapsUri`: supports rich `stops: List<NavigationStop>` as primary input with backward-compatible fallback for legacy `waypoints: List<LatLng>`. Single stop queries format `query=lat,lon(label)`. Multi-stop routes format `origin=lat,lon(label)`, `destination=lat,lon(label)`, and intermediate `waypoints=lat,lon(label)|...` capped at 9 stops.
+     - Single-pass URL encoding via `Uri.https` query parameters (no double encoding; properly encodes spaces, `&`, `/`, and Vietnamese diacritics).
+  2. **Display Name Hierarchy (`activity_detail.dart`):**
+     - Added `String get navigationDisplayName` implementing strict priority:
+       1. Linked Place catalog name (`place?.name`).
+       2. Custom / authoritative location name (`effectiveLocationName` / `customLocationName` / `locationName`).
+       3. Activity name as ultimate fallback (`name`).
+  3. **Mapped Stop Integration (`itinerary_map_helper.dart`):**
+     - Added `toNavigationStop()` on `MappedActivityStop` mapping each stop's coordinates and `activity.navigationDisplayName`.
+  4. **Screen Integration:**
+     - `ItineraryMapScreen` (`itinerary_map_screen.dart`): All 6 navigation launch points updated to pass `stops: stops.map((s) => s.toNavigationStop()).toList()`.
+     - `ActivityDetailScreen` (`activity_detail_screen.dart`): `_launchDirections` updated to pass `act.navigationDisplayName` to `NavigationStop`.
+
+- **Verification Results:**
+  - **Automated Tests:**
+    - 31/31 unit and widget tests PASSED in `test/itinerary_route_test.dart` (including multi-stop waypoint ordering, single-stop search query, Vietnamese diacritics, special character sanitization, and priority hierarchy tests).
+    - `test/activity_detail_screen_test.dart` passed 13/13 tests cleanly.
+  - **Static Analysis:**
+    - `flutter analyze lib/features/itinerary/ test/itinerary_route_test.dart` completed with 0 errors and 0 warnings.
+  - **Physical Device Verification:**
+    - Verified on Samsung Galaxy A34 5G (`SM-A346E`): Google Maps displays `Hồ Xuân Hương` as destination; Chinese characters `越南大叻春香湖` completely eliminated.
+  - **Preservation & Scope Integrity:**
+    - No backend code or database changes were made.
+    - Working tree and uncommitted changes preserved; no git commit, push, stash, or branch switch.

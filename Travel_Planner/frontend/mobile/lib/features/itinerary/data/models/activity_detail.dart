@@ -150,4 +150,20 @@ class ActivityDetail {
           : (place?.description != null && place!.description!.trim().isNotEmpty)
               ? place!.description!.trim()
               : destination?.description?.trim();
+
+  /// Display name prioritized for external navigation labels (Google Maps deep links):
+  /// 1. Linked catalog place name if present and non-empty.
+  /// 2. Custom/authoritative location name (effectiveLocationName).
+  /// 3. Activity name as ultimate fallback.
+  String get navigationDisplayName {
+    final placeName = place?.name.trim();
+    if (placeName != null && placeName.isNotEmpty) {
+      return placeName;
+    }
+    final locName = effectiveLocationName?.trim();
+    if (locName != null && locName.isNotEmpty) {
+      return locName;
+    }
+    return name.trim();
+  }
 }

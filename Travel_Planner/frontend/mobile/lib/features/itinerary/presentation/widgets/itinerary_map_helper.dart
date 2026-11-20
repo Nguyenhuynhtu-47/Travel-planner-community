@@ -9,6 +9,7 @@ import '../../../../shared/widgets/map_marker_builder.dart';
 import '../../data/models/activity_detail.dart';
 import '../../data/models/itinerary_day_detail.dart';
 import '../../data/models/itinerary_detail.dart';
+import 'navigation_launcher_helper.dart';
 
 /// Represents an activity with verified geographical coordinates mapped for display.
 class MappedActivityStop {
@@ -23,6 +24,12 @@ class MappedActivityStop {
     required this.sequence,
     required this.point,
   });
+
+  /// Converts mapped activity stop into a navigation stop with prioritized display name.
+  NavigationStop toNavigationStop() => NavigationStop(
+        point: point,
+        label: activity.navigationDisplayName,
+      );
 
   @override
   String toString() =>
