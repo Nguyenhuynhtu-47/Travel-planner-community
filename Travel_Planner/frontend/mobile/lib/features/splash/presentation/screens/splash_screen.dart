@@ -4,17 +4,24 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../../shared/navigation/main_navigation_shell.dart';
+import '../widgets/landmark_painters.dart';
 
-/// Animated Splash Screen displayed on every app cold start.
+/// Minimalist Wanderlog-inspired Animated Splash Screen for Travel Planner.
 ///
 /// Features:
-/// - Brand identity (Travel Planner logo, typography, tagline, description).
-/// - Rich visual travel illustration.
-/// - Coordinated multi-stage entrance animation (Logo -> Title -> Description -> Illustration).
-/// - Synchronized transition: proceeds ONLY when both animation and [AuthNotifier]
+/// - Minimalist aesthetic: generous white space, subtle warm gradient canvas,
+///   no cluttering cards, borders, or ticket graphics.
+/// - Staggered entrance animation:
+///   - Phase 1: Brand Logo entrance (fade + subtle scale).
+///   - Phase 2: World travel landmark silhouettes appear staggered around center
+///     (Eiffel Tower, Airplane, Leaning Tower of Pisa, Statue of Liberty, Hot Air Balloon, Location Pin).
+///   - Phase 3: Greeting and brand typography slide in sequentially
+///     ("Xin chào!" -> "Cùng khám phá thế giới" -> "Travel Planner").
+///   - Phase 4: Gentle exit fade & coordinated navigation.
+/// - Synchronized transition: proceeds ONLY when BOTH animation and [AuthNotifier]
 ///   initialization are complete.
-/// - Transitions to [MainNavigationShell] if authenticated, or [LoginScreen] if unauthenticated.
-/// - Zero interaction required; non-dismissible during splash via [PopScope].
+/// - Seamless navigation to [MainNavigationShell] if authenticated, or [LoginScreen] if unauthenticated.
+/// - Non-dismissible during splash via [PopScope(canPop: false)].
 class SplashScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final Duration animationDuration;
@@ -23,7 +30,7 @@ class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
     required this.authNotifier,
-    this.animationDuration = const Duration(milliseconds: 2400),
+    this.animationDuration = const Duration(milliseconds: 2800),
     this.onNavigate,
   });
 
@@ -35,14 +42,41 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
+  // Phase 1: Logo animations
   late final Animation<double> _logoFade;
   late final Animation<double> _logoScale;
-  late final Animation<double> _titleFade;
-  late final Animation<Offset> _titleSlide;
-  late final Animation<double> _descFade;
-  late final Animation<Offset> _descSlide;
-  late final Animation<double> _illustFade;
-  late final Animation<double> _illustScale;
+
+  // Phase 2: Landmark animations (fade + translation/scale)
+  late final Animation<double> _eiffelFade;
+  late final Animation<Offset> _eiffelSlide;
+
+  late final Animation<double> _airplaneFade;
+  late final Animation<Offset> _airplaneSlide;
+
+  late final Animation<double> _pisaFade;
+  late final Animation<Offset> _pisaSlide;
+
+  late final Animation<double> _libertyFade;
+  late final Animation<Offset> _libertySlide;
+
+  late final Animation<double> _balloonFade;
+  late final Animation<Offset> _balloonSlide;
+
+  late final Animation<double> _pinFade;
+  late final Animation<double> _pinScale;
+
+  // Phase 3: Staggered typography
+  late final Animation<double> _greetingFade;
+  late final Animation<Offset> _greetingSlide;
+
+  late final Animation<double> _sloganFade;
+  late final Animation<Offset> _sloganSlide;
+
+  late final Animation<double> _brandFade;
+  late final Animation<Offset> _brandSlide;
+
+  // Phase 4: Exit fade out
+  late final Animation<double> _exitFade;
 
   bool _animationCompleted = false;
   bool _hasNavigated = false;
@@ -56,69 +90,8 @@ class _SplashScreenState extends State<SplashScreen>
       duration: widget.animationDuration,
     );
 
-    // 1. Logo: 0.0 - 0.35 (fade + slight scale)
-    _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.35, curve: Curves.easeOutCubic),
-      ),
-    );
-    _logoScale = Tween<double>(begin: 0.75, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.40, curve: Curves.easeOutBack),
-      ),
-    );
+    _initAnimations();
 
-    // 2. Title: 0.20 - 0.50 (fade + slide up)
-    _titleFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.20, 0.50, curve: Curves.easeOut),
-      ),
-    );
-    _titleSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.35),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.20, 0.50, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    // 3. Description: 0.35 - 0.65 (fade + slide up)
-    _descFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.35, 0.65, curve: Curves.easeOut),
-      ),
-    );
-    _descSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.30),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.35, 0.65, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    // 4. Illustration: 0.45 - 0.80 (fade + scale)
-    _illustFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.45, 0.80, curve: Curves.easeOut),
-      ),
-    );
-    _illustScale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.45, 0.80, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    // 5. Completion listener (0.80 - 1.0 is stabilization window)
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         _onAnimationCompleted();
@@ -127,8 +100,191 @@ class _SplashScreenState extends State<SplashScreen>
 
     widget.authNotifier.addListener(_onAuthStatusChanged);
 
-    // Start animation
     _controller.forward();
+  }
+
+  void _initAnimations() {
+    // ----------------------------------------------------
+    // Phase 1: Logo (0.00 - 0.32)
+    // ----------------------------------------------------
+    _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.00, 0.28, curve: Curves.easeOut),
+      ),
+    );
+    _logoScale = Tween<double>(begin: 0.78, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.00, 0.32, curve: Curves.easeOutBack),
+      ),
+    );
+
+    // ----------------------------------------------------
+    // Phase 2: Staggered Landmark Silhouettes
+    // ----------------------------------------------------
+    // 1. Eiffel Tower (Top-Left): 0.20 - 0.48
+    _eiffelFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.20, 0.48, curve: Curves.easeOut),
+      ),
+    );
+    _eiffelSlide = Tween<Offset>(
+      begin: const Offset(-0.25, -0.25),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.20, 0.48, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 2. Airplane (Top-Right): 0.26 - 0.54
+    _airplaneFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.26, 0.54, curve: Curves.easeOut),
+      ),
+    );
+    _airplaneSlide = Tween<Offset>(
+      begin: const Offset(-0.35, 0.35),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.26, 0.54, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 3. Pisa Tower (Mid-Left): 0.32 - 0.60
+    _pisaFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.32, 0.60, curve: Curves.easeOut),
+      ),
+    );
+    _pisaSlide = Tween<Offset>(
+      begin: const Offset(-0.20, 0.20),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.32, 0.60, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 4. Statue of Liberty (Mid-Right): 0.38 - 0.66
+    _libertyFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.38, 0.66, curve: Curves.easeOut),
+      ),
+    );
+    _libertySlide = Tween<Offset>(
+      begin: const Offset(0.25, 0.0),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.38, 0.66, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 5. Hot Air Balloon (Bottom-Left): 0.44 - 0.72
+    _balloonFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.44, 0.72, curve: Curves.easeOut),
+      ),
+    );
+    _balloonSlide = Tween<Offset>(
+      begin: const Offset(0.0, 0.30),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.44, 0.72, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 6. Location Pin (Bottom-Right): 0.50 - 0.78
+    _pinFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.50, 0.78, curve: Curves.easeOut),
+      ),
+    );
+    _pinScale = Tween<double>(begin: 0.40, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.50, 0.78, curve: Curves.easeOutBack),
+      ),
+    );
+
+    // ----------------------------------------------------
+    // Phase 3: Staggered Typography
+    // ----------------------------------------------------
+    // Line 1: "Xin chào!" (0.32 - 0.56)
+    _greetingFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.32, 0.56, curve: Curves.easeOut),
+      ),
+    );
+    _greetingSlide = Tween<Offset>(
+      begin: const Offset(0.0, 0.45),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.32, 0.56, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Line 2: "Cùng khám phá thế giới" (0.44 - 0.68)
+    _sloganFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.44, 0.68, curve: Curves.easeOut),
+      ),
+    );
+    _sloganSlide = Tween<Offset>(
+      begin: const Offset(0.0, 0.40),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.44, 0.68, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Line 3: "Travel Planner" (0.56 - 0.80)
+    _brandFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.56, 0.80, curve: Curves.easeOut),
+      ),
+    );
+    _brandSlide = Tween<Offset>(
+      begin: const Offset(0.0, 0.35),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.56, 0.80, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // ----------------------------------------------------
+    // Phase 4: Exit Fade (0.88 - 1.00)
+    // ----------------------------------------------------
+    _exitFade = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.88, 1.00, curve: Curves.easeInCubic),
+      ),
+    );
   }
 
   @override
@@ -205,75 +361,224 @@ class _SplashScreenState extends State<SplashScreen>
               end: Alignment.bottomCenter,
               colors: [
                 Color(0xFFFFFFFF),
-                Color(0xFFFFF9F8),
-                Color(0xFFFFEFF1),
+                Color(0xFFFFFDFC),
+                Color(0xFFFFF7F5),
               ],
-              stops: [0.0, 0.55, 1.0],
+              stops: [0.0, 0.65, 1.0],
             ),
           ),
           child: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0,
-                        vertical: 20.0,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(height: 12),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _exitFade.value.clamp(0.0, 1.0),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final w = constraints.maxWidth;
+                      final h = constraints.maxHeight;
 
-                          // 1. Logo Travel Planner
-                          FadeTransition(
-                            opacity: _logoFade,
-                            child: ScaleTransition(
-                              scale: _logoScale,
-                              child: _buildLogoBadge(),
+                      // Anchor center for orbital landmarks and typography
+                      final cx = w * 0.5;
+                      final cy = h * 0.46;
+
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // ----------------------------------------------
+                          // 1. Orbital Landmark Silhouettes
+                          // ----------------------------------------------
+
+                          // Top-Left: Eiffel Tower
+                          Positioned(
+                            left: cx - (w * 0.38).clamp(90.0, 150.0),
+                            top: cy - (h * 0.28).clamp(95.0, 180.0),
+                            child: FadeTransition(
+                              opacity: _eiffelFade,
+                              child: SlideTransition(
+                                position: _eiffelSlide,
+                                child: const SizedBox(
+                                  width: 36,
+                                  height: 50,
+                                  child: CustomPaint(
+                                    painter: EiffelTowerPainter(),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
 
-                          const SizedBox(height: 20),
+                          // Top-Right: Airplane with vapor trail
+                          Positioned(
+                            left: cx + (w * 0.22).clamp(65.0, 120.0),
+                            top: cy - (h * 0.30).clamp(100.0, 190.0),
+                            child: FadeTransition(
+                              opacity: _airplaneFade,
+                              child: SlideTransition(
+                                position: _airplaneSlide,
+                                child: const SizedBox(
+                                  width: 44,
+                                  height: 40,
+                                  child: CustomPaint(
+                                    painter: AirplanePainter(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
 
-                          // 2. Title & Slogan
-                          FadeTransition(
-                            opacity: _titleFade,
-                            child: SlideTransition(
-                              position: _titleSlide,
+                          // Mid-Left: Leaning Tower of Pisa
+                          Positioned(
+                            left: cx - (w * 0.42).clamp(105.0, 160.0),
+                            top: cy + (h * 0.04).clamp(15.0, 45.0),
+                            child: FadeTransition(
+                              opacity: _pisaFade,
+                              child: SlideTransition(
+                                position: _pisaSlide,
+                                child: const SizedBox(
+                                  width: 32,
+                                  height: 48,
+                                  child: CustomPaint(
+                                    painter: PisaTowerPainter(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Mid-Right: Statue of Liberty
+                          Positioned(
+                            left: cx + (w * 0.26).clamp(75.0, 130.0),
+                            top: cy + (h * 0.02).clamp(10.0, 40.0),
+                            child: FadeTransition(
+                              opacity: _libertyFade,
+                              child: SlideTransition(
+                                position: _libertySlide,
+                                child: const SizedBox(
+                                  width: 34,
+                                  height: 50,
+                                  child: CustomPaint(
+                                    painter: StatueOfLibertyPainter(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Bottom-Left: Hot Air Balloon
+                          Positioned(
+                            left: cx - (w * 0.32).clamp(80.0, 130.0),
+                            top: cy + (h * 0.25).clamp(85.0, 170.0),
+                            child: FadeTransition(
+                              opacity: _balloonFade,
+                              child: SlideTransition(
+                                position: _balloonSlide,
+                                child: const SizedBox(
+                                  width: 34,
+                                  height: 46,
+                                  child: CustomPaint(
+                                    painter: HotAirBalloonPainter(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Bottom-Right: Location Pin
+                          Positioned(
+                            left: cx + (w * 0.24).clamp(65.0, 115.0),
+                            top: cy + (h * 0.26).clamp(90.0, 175.0),
+                            child: FadeTransition(
+                              opacity: _pinFade,
+                              child: ScaleTransition(
+                                scale: _pinScale,
+                                child: const SizedBox(
+                                  width: 32,
+                                  height: 40,
+                                  child: CustomPaint(
+                                    painter: LocationPinPainter(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // ----------------------------------------------
+                          // 2. Central Logo & Typography
+                          // ----------------------------------------------
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 28),
                               child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  const Text(
-                                    'Travel Planner',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                      letterSpacing: -0.5,
+                                  // Minimalist Logo Badge
+                                  FadeTransition(
+                                    opacity: _logoFade,
+                                    child: ScaleTransition(
+                                      scale: _logoScale,
+                                      child: _buildMinimalLogoBadge(),
                                     ),
                                   ),
+
+                                  const SizedBox(height: 24),
+
+                                  // Line 1: Friendly Greeting "Xin chào!"
+                                  FadeTransition(
+                                    opacity: _greetingFade,
+                                    child: SlideTransition(
+                                      position: _greetingSlide,
+                                      child: const Text(
+                                        'Xin chào!',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.primary,
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
                                   const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 3,
+
+                                  // Line 2: Inspiring Motto "Cùng khám phá thế giới"
+                                  FadeTransition(
+                                    opacity: _sloganFade,
+                                    child: SlideTransition(
+                                      position: _sloganSlide,
+                                      child: const Text(
+                                        'Cùng khám phá thế giới',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textPrimary,
+                                          letterSpacing: -0.3,
+                                          height: 1.25,
+                                        ),
+                                      ),
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primaryLight,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: const Text(
-                                      'Hành trình vạn dặm · Khám phá đam mê',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.primary,
-                                        letterSpacing: 0.1,
+                                  ),
+
+                                  const SizedBox(height: 6),
+
+                                  // Line 3: Brand Name "Travel Planner"
+                                  FadeTransition(
+                                    opacity: _brandFade,
+                                    child: SlideTransition(
+                                      position: _brandSlide,
+                                      child: const Text(
+                                        'Travel Planner',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.primary,
+                                          letterSpacing: 0.2,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -281,45 +586,9 @@ class _SplashScreenState extends State<SplashScreen>
                               ),
                             ),
                           ),
-
-                          const SizedBox(height: 14),
-
-                          // 3. Description
-                          FadeTransition(
-                            opacity: _descFade,
-                            child: SlideTransition(
-                              position: _descSlide,
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 320),
-                                child: const Text(
-                                  'Lập kế hoạch thông minh, quản lý lịch trình chi tiết và chia sẻ trải nghiệm du lịch tuyệt vời cùng cộng đồng.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w400,
-                                    color: AppColors.textSecondary,
-                                    height: 1.45,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 28),
-
-                          // 4. Travel Illustration Graphic
-                          FadeTransition(
-                            opacity: _illustFade,
-                            child: ScaleTransition(
-                              scale: _illustScale,
-                              child: _buildTravelIllustration(),
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
                         ],
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 );
               },
@@ -330,256 +599,33 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _buildLogoBadge() {
+  /// Clean, modern circular logo emblem without heavy shadows or borders.
+  Widget _buildMinimalLogoBadge() {
     return Container(
-      width: 90,
-      height: 90,
+      width: 76,
+      height: 76,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFF0F2),
-            Color(0xFFFFDDE2),
-          ],
+        color: AppColors.surface,
+        border: Border.all(
+          color: const Color(0xFFFFD1DA),
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color: AppColors.primary.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: const Center(
         child: Icon(
           Icons.travel_explore_rounded,
-          size: 48,
+          size: 42,
           color: AppColors.primary,
         ),
       ),
-    );
-  }
-
-  Widget _buildTravelIllustration() {
-    return SizedBox(
-      width: 290,
-      height: 180,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Background ambient halo
-          Container(
-            width: 260,
-            height: 150,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: RadialGradient(
-                colors: [
-                  AppColors.primaryLight.withValues(alpha: 0.6),
-                  Colors.transparent,
-                ],
-                radius: 0.85,
-              ),
-            ),
-          ),
-
-          // Central Itinerary Ticket Card
-          Container(
-            width: 250,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.hairlineSoft,
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.map_outlined,
-                              size: 18,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Đà Lạt Mộng Mơ',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                Text(
-                                  '3 ngày 2 đêm · 8 địa điểm',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.star_rounded,
-                      size: 20,
-                      color: Color(0xFFF59E0B),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                const Divider(height: 1, color: AppColors.hairlineSoft),
-                const SizedBox(height: 8),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildMiniBadge(Icons.hotel_outlined, 'Nghỉ dưỡng'),
-                      const SizedBox(width: 10),
-                      _buildMiniBadge(Icons.restaurant_outlined, 'Ẩm thực'),
-                      const SizedBox(width: 10),
-                      _buildMiniBadge(Icons.photo_camera_outlined, 'Check-in'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Floating Accent: Airplane (Top-Right)
-          Positioned(
-            top: 6,
-            right: 12,
-            child: Transform.rotate(
-              angle: -0.22,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.flight_takeoff_rounded,
-                  size: 20,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-          ),
-
-          // Floating Accent: Pin (Top-Left)
-          Positioned(
-            top: 14,
-            left: 10,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.location_on_rounded,
-                size: 16,
-                color: Color(0xFFF59E0B),
-              ),
-            ),
-          ),
-
-          // Floating Accent: Luggage (Bottom-Right)
-          Positioned(
-            bottom: 6,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.luggage_outlined,
-                size: 16,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniBadge(IconData icon, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: AppColors.primary),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
     );
   }
 }

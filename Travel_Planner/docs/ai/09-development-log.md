@@ -10207,4 +10207,51 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
   - Itinerary test: `flutter test test/my_itineraries_test.dart` passed 12/12 tests.
   - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified/new files.
 
+---
+
+## 2026-11-20 - Redesign Animated Splash Screen: Minimalist Wanderlog-Inspired Aesthetic (`feature/splash`)
+
+- **Task Summary:**
+  1. Redesigned the Animated Splash Screen for Flutter Mobile on `feature/splash`, replacing the previous heavy layout with a minimalist, elegant aesthetic inspired by Wanderlog.
+  2. Removed cluttered UI elements:
+     - Oversized background glow behind logo.
+     - Slogan enclosed in an isolated pill/container.
+     - Long multi-line descriptive text paragraph.
+     - Large central itinerary ticket illustration card and borders.
+     - Decorative complex icons and heavy drop shadows.
+  3. Built a clean, modern canvas featuring:
+     - Ultra-soft, warm vertical gradient canvas (`#FFFFFF` -> `#FFFDFC` -> `#FFF7F5`).
+     - Centered minimalist Travel Planner circular logo emblem (`Icons.travel_explore_rounded` in delicate 1.5px border).
+     - Staggered typography sequence ("Xin chào!" -> "Cùng khám phá thế giới" -> "Travel Planner").
+     - 6 custom vector travel landmarks & symbols painted with `CustomPainter` (Eiffel Tower, Airplane with flight trail, Leaning Tower of Pisa, Statue of Liberty, Hot Air Balloon, Location Pin) positioned responsively in orbit around the center using `LayoutBuilder`.
+  4. Choreographed multi-stage animation sequence (2800ms total duration):
+     - Phase 1 (0.00 – 0.32): Logo entrance (fade-in + subtle scale up with `Curves.easeOutBack`).
+     - Phase 2 (0.20 – 0.78): Staggered entrance for all 6 orbital landmark silhouettes (slide in from periphery + gentle rotation/scale + fade-in with `Curves.easeOutCubic`).
+     - Phase 3 (0.32 – 0.80): Staggered entrance for greeting typography (slide up + fade-in).
+     - Phase 4 (0.88 – 1.00): Gentle exit fade out of the splash elements prior to route transition.
+  5. Preserved all cold-start vs resume and background auth synchronization logic:
+     - Transitions only when both animation has completed and `AuthNotifier.checkAuthStatus()` has resolved.
+     - Disposed animation controller cleanly; handles `disableAnimations` for accessibility.
+
+- **Implementation Details:**
+  1. **New Landmark Painters (`lib/features/splash/presentation/widgets/landmark_painters.dart`):**
+     - `EiffelTowerPainter`: Vector path with needle spire, dual platforms, flared curved legs, and inner arch.
+     - `PisaTowerPainter`: Tilted cylindrical column with 6 gallery tiers and belfry.
+     - `StatueOfLibertyPainter`: Silhouette featuring torch arm, radiate 7-spike crown, robe drape, and tablet.
+     - `AirplanePainter`: Swept-wing aircraft with vapor flight trail.
+     - `LocationPinPainter`: Teardrop map marker with inner cutout and ground pulse ring.
+     - `HotAirBalloonPainter`: Spherical balloon with contour ribs, burner lines, and wicker basket.
+  2. **Redesigned `SplashScreen` (`lib/features/splash/presentation/screens/splash_screen.dart`):**
+     - Single `AnimationController` (2800ms).
+     - Responsive orbital layout using `LayoutBuilder` with clamped fractional offsets, preventing clipping or overflow across screen widths (including 320px).
+     - Exit fade tween (`_exitFade`) applied to main content stack.
+  3. **Updated Tests (`test/splash_screen_test.dart`):**
+     - 8/8 comprehensive automated unit and widget tests covering UI elements, absence of old cards/buttons, back key prevention (`PopScope`), 320x568 responsiveness, and all auth synchronization permutations.
+
+- **Verification Results:**
+  - Automated tests: `flutter test test/splash_screen_test.dart` passed 8/8 tests.
+  - Integration tests: `flutter test test/widget_test.dart test/my_itineraries_test.dart` passed 13/13 tests.
+  - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified/new files.
+
+
 

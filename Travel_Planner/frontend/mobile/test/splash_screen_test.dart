@@ -30,8 +30,8 @@ class MockAuthNotifier extends AuthNotifier {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('SplashScreen UI & Layout Tests', () {
-    testWidgets('Renders brand logo, title, slogan, description and travel illustration', (tester) async {
+  group('Minimalist SplashScreen UI & Wanderlog Style Tests', () {
+    testWidgets('Renders brand logo, greeting lines and travel landmark vector graphics', (tester) async {
       final auth = MockAuthNotifier(
         status: AuthStatus.initial,
         isAuthenticated: false,
@@ -47,21 +47,22 @@ void main() {
         ),
       );
 
-      // Fast-forward animation to completion
-      await tester.pump(const Duration(milliseconds: 200));
+      // Fast-forward animation to middle to see all elements rendered
+      await tester.pump(const Duration(milliseconds: 150));
 
-      expect(find.text('Travel Planner'), findsOneWidget);
-      expect(find.text('Hành trình vạn dặm · Khám phá đam mê'), findsOneWidget);
-      expect(
-        find.textContaining('Lập kế hoạch thông minh, quản lý lịch trình chi tiết'),
-        findsOneWidget,
-      );
+      // Brand Logo & Icon
       expect(find.byIcon(Icons.travel_explore_rounded), findsOneWidget);
-      expect(find.text('Đà Lạt Mộng Mơ'), findsOneWidget);
-      expect(find.byIcon(Icons.flight_takeoff_rounded), findsOneWidget);
+
+      // Minimalist greeting & brand typography
+      expect(find.text('Xin chào!'), findsOneWidget);
+      expect(find.text('Cùng khám phá thế giới'), findsOneWidget);
+      expect(find.text('Travel Planner'), findsOneWidget);
+
+      // Landmark CustomPaint widgets (Eiffel, Airplane, Pisa, Liberty, Balloon, Pin)
+      expect(find.byType(CustomPaint), findsWidgets);
     });
 
-    testWidgets('Does NOT contain Continue, Login, or Register buttons', (tester) async {
+    testWidgets('Does NOT contain old ticket cards, long paragraph, or interactive buttons', (tester) async {
       final auth = MockAuthNotifier(
         status: AuthStatus.initial,
         isAuthenticated: false,
@@ -76,8 +77,15 @@ void main() {
           ),
         ),
       );
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 80));
 
+      // Removed legacy elements
+      expect(find.text('Đà Lạt Mộng Mơ'), findsNothing);
+      expect(find.text('3 ngày 2 đêm · 8 địa điểm'), findsNothing);
+      expect(find.text('Hành trình vạn dặm · Khám phá đam mê'), findsNothing);
+      expect(find.textContaining('Lập kế hoạch thông minh'), findsNothing);
+
+      // No interactive buttons
       expect(find.text('Tiếp tục'), findsNothing);
       expect(find.text('Đăng nhập'), findsNothing);
       expect(find.text('Đăng ký'), findsNothing);
@@ -129,7 +137,7 @@ void main() {
           ),
         ),
       );
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 80));
 
       expect(find.text('Travel Planner'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -217,7 +225,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
       expect(navigatedTarget, isNull);
 
-      // Now Auth resolves at 500ms
+      // Now Auth resolves
       auth.setMockStatus(AuthStatus.authenticated, true);
       await tester.pump();
 
