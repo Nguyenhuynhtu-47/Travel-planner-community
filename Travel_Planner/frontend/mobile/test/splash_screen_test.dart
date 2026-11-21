@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/presentation/auth_notifier.dart';
 import 'package:mobile/features/splash/presentation/screens/splash_screen.dart';
+import 'package:mobile/features/splash/presentation/widgets/landmark_painters.dart';
 
 class MockAuthNotifier extends AuthNotifier {
   AuthStatus _mockStatus;
@@ -31,7 +32,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Minimalist SplashScreen UI & Wanderlog Style Tests', () {
-    testWidgets('Renders brand logo, greeting lines and travel landmark vector graphics', (tester) async {
+    testWidgets('Renders brand logo, greeting lines and enlarged travel landmark vector graphics', (tester) async {
       final auth = MockAuthNotifier(
         status: AuthStatus.initial,
         isAuthenticated: false,
@@ -42,13 +43,13 @@ void main() {
           theme: AppTheme.lightTheme,
           home: SplashScreen(
             authNotifier: auth,
-            animationDuration: const Duration(milliseconds: 200),
+            animationDuration: const Duration(milliseconds: 4800),
           ),
         ),
       );
 
-      // Fast-forward animation to middle to see all elements rendered
-      await tester.pump(const Duration(milliseconds: 150));
+      // Fast-forward animation partially
+      await tester.pump(const Duration(milliseconds: 2500));
 
       // Brand Logo & Icon
       expect(find.byIcon(Icons.travel_explore_rounded), findsOneWidget);
@@ -60,6 +61,74 @@ void main() {
 
       // Landmark CustomPaint widgets (Eiffel, Airplane, Pisa, Liberty, Balloon, Pin)
       expect(find.byType(CustomPaint), findsWidgets);
+
+      // Check enlarged sizes (25-30% enlarged from previous dimensions)
+      expect(find.byWidgetPredicate((w) => w is SizedBox && w.width == 54 && w.height == 74), findsOneWidget); // Eiffel
+      expect(find.byWidgetPredicate((w) => w is SizedBox && w.width == 66 && w.height == 58), findsOneWidget); // Airplane
+      expect(find.byWidgetPredicate((w) => w is SizedBox && w.width == 48 && w.height == 72), findsOneWidget); // Pisa
+      expect(find.byWidgetPredicate((w) => w is SizedBox && w.width == 52 && w.height == 74), findsOneWidget); // Liberty
+      expect(find.byWidgetPredicate((w) => w is SizedBox && w.width == 52 && w.height == 70), findsOneWidget); // Balloon
+      expect(find.byWidgetPredicate((w) => w is SizedBox && w.width == 48 && w.height == 62), findsOneWidget); // Pin
+    });
+
+    testWidgets('Landmark icons never overlap the logo or greeting text throughout animation', (tester) async {
+      final auth = MockAuthNotifier(
+        status: AuthStatus.initial,
+        isAuthenticated: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: SplashScreen(
+            authNotifier: auth,
+            animationDuration: const Duration(milliseconds: 4800),
+          ),
+        ),
+      );
+
+      // Check at multiple key frames of the animation (2.5s, 3.5s, 4.2s)
+      for (final ms in [2500, 3500, 4200]) {
+        await tester.pump(Duration(milliseconds: ms == 2500 ? 2500 : 1000));
+
+        final greetingRect = tester.getRect(find.text('Xin chào!'));
+        final mottoRect = tester.getRect(find.text('Cùng khám phá thế giới'));
+        final brandRect = tester.getRect(find.text('Travel Planner'));
+        final logoRect = tester.getRect(find.byIcon(Icons.travel_explore_rounded));
+
+        final landmarkFinders = [
+          find.byWidgetPredicate((w) => w is CustomPaint && w.painter is EiffelTowerPainter),
+          find.byWidgetPredicate((w) => w is CustomPaint && w.painter is AirplanePainter),
+          find.byWidgetPredicate((w) => w is CustomPaint && w.painter is PisaTowerPainter),
+          find.byWidgetPredicate((w) => w is CustomPaint && w.painter is StatueOfLibertyPainter),
+          find.byWidgetPredicate((w) => w is CustomPaint && w.painter is HotAirBalloonPainter),
+          find.byWidgetPredicate((w) => w is CustomPaint && w.painter is LocationPinPainter),
+        ];
+
+        for (final finder in landmarkFinders) {
+          final element = finder.evaluate().first;
+          final box = element.renderObject as RenderBox?;
+          if (box == null || !box.hasSize) continue;
+          final position = box.localToGlobal(Offset.zero);
+          final landmarkRect = Rect.fromLTWH(position.dx, position.dy, box.size.width, box.size.height);
+
+          // Verify zero intersection with text and logo
+          expect(landmarkRect.overlaps(greetingRect), isFalse, reason: 'Landmark at $position overlaps "Xin chào!"');
+          expect(landmarkRect.overlaps(mottoRect), isFalse, reason: 'Landmark at $position overlaps "Cùng khám phá thế giới"');
+          expect(landmarkRect.overlaps(brandRect), isFalse, reason: 'Landmark at $position overlaps "Travel Planner"');
+          expect(landmarkRect.overlaps(logoRect), isFalse, reason: 'Landmark at $position overlaps Logo');
+        }
+      }
+    });
+
+    testWidgets('Default animationDuration is 4800ms (+2.0s increase over previous 2800ms)', (tester) async {
+      final auth = MockAuthNotifier(
+        status: AuthStatus.initial,
+        isAuthenticated: false,
+      );
+
+      final splash = SplashScreen(authNotifier: auth);
+      expect(splash.animationDuration, const Duration(milliseconds: 4800));
     });
 
     testWidgets('Does NOT contain old ticket cards, long paragraph, or interactive buttons', (tester) async {

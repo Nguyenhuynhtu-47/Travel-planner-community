@@ -11,13 +11,20 @@ import '../widgets/landmark_painters.dart';
 /// Features:
 /// - Minimalist aesthetic: generous white space, subtle warm gradient canvas,
 ///   no cluttering cards, borders, or ticket graphics.
-/// - Staggered entrance animation:
-///   - Phase 1: Brand Logo entrance (fade + subtle scale).
-///   - Phase 2: World travel landmark silhouettes appear staggered around center
-///     (Eiffel Tower, Airplane, Leaning Tower of Pisa, Statue of Liberty, Hot Air Balloon, Location Pin).
-///   - Phase 3: Greeting and brand typography slide in sequentially
+/// - Clearly partitioned 4-zone responsive layout:
+///   - Top Zone: Eiffel Tower (Left) & Airplane (Right) well above central logo.
+///   - Center Zone: Travel Planner circular logo and 3 greeting typography lines
 ///     ("Xin chào!" -> "Cùng khám phá thế giới" -> "Travel Planner").
-///   - Phase 4: Gentle exit fade & coordinated navigation.
+///   - Flanking Zone: Leaning Tower of Pisa (Far Left) & Statue of Liberty (Far Right)
+///     hugging the screen edges, completely separated from text lines.
+///   - Bottom Zone: Hot Air Balloon (Left) & Location Pin (Right) well below text.
+/// - Coordinated 4800ms animation sequence:
+///   - Phase 1 (0.0s - 2.4s): Staggered entrance for Logo, landmark silhouettes,
+///     and typography lines.
+///   - Phase 2 (2.4s - 4.3s): Continuous natural secondary movement (logo breathing pulse,
+///     airplane soaring climb, balloon swaying float, gentle landmark drift),
+///     preventing any frozen or static delay.
+///   - Phase 3 (4.3s - 4.8s): Soft exit fade out and synchronized screen navigation.
 /// - Synchronized transition: proceeds ONLY when BOTH animation and [AuthNotifier]
 ///   initialization are complete.
 /// - Seamless navigation to [MainNavigationShell] if authenticated, or [LoginScreen] if unauthenticated.
@@ -30,7 +37,7 @@ class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
     required this.authNotifier,
-    this.animationDuration = const Duration(milliseconds: 2800),
+    this.animationDuration = const Duration(milliseconds: 4800),
     this.onNavigate,
   });
 
@@ -42,30 +49,35 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  // Phase 1: Logo animations
+  // Phase 1 & 2: Logo entrance & continuous breathing pulse
   late final Animation<double> _logoFade;
   late final Animation<double> _logoScale;
 
-  // Phase 2: Landmark animations (fade + translation/scale)
+  // Phase 1 & 2: Landmark silhouettes with entrance + continuous dynamic motion
   late final Animation<double> _eiffelFade;
   late final Animation<Offset> _eiffelSlide;
+  late final Animation<double> _eiffelRotate;
 
   late final Animation<double> _airplaneFade;
   late final Animation<Offset> _airplaneSlide;
+  late final Animation<double> _airplaneRotate;
 
   late final Animation<double> _pisaFade;
   late final Animation<Offset> _pisaSlide;
+  late final Animation<double> _pisaRotate;
 
   late final Animation<double> _libertyFade;
   late final Animation<Offset> _libertySlide;
 
   late final Animation<double> _balloonFade;
   late final Animation<Offset> _balloonSlide;
+  late final Animation<double> _balloonRotate;
 
   late final Animation<double> _pinFade;
+  late final Animation<Offset> _pinSlide;
   late final Animation<double> _pinScale;
 
-  // Phase 3: Staggered typography
+  // Phase 1: Staggered typography
   late final Animation<double> _greetingFade;
   late final Animation<Offset> _greetingSlide;
 
@@ -75,7 +87,7 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _brandFade;
   late final Animation<Offset> _brandSlide;
 
-  // Phase 4: Exit fade out
+  // Phase 3: Exit fade out
   late final Animation<double> _exitFade;
 
   bool _animationCompleted = false;
@@ -104,185 +116,456 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _initAnimations() {
-    // ----------------------------------------------------
-    // Phase 1: Logo (0.00 - 0.32)
-    // ----------------------------------------------------
+    // -----------------------------------------------------------------
+    // 1. Logo: Entrance (0.00 - 0.25) & Continuous Breathing Pulse (0.25 - 0.88)
+    // -----------------------------------------------------------------
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.00, 0.28, curve: Curves.easeOut),
-      ),
-    );
-    _logoScale = Tween<double>(begin: 0.78, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.00, 0.32, curve: Curves.easeOutBack),
+        curve: const Interval(0.00, 0.18, curve: Curves.easeOut),
       ),
     );
 
-    // ----------------------------------------------------
-    // Phase 2: Staggered Landmark Silhouettes
-    // ----------------------------------------------------
-    // 1. Eiffel Tower (Top-Left): 0.20 - 0.48
+    _logoScale = TweenSequence<double>([
+      // Entrance: scale up with gentle bounce
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.68, end: 1.06)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.06, end: 1.00)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 7,
+      ),
+      // Continuous breathing pulse cycle 1
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.00, end: 1.045)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 15,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.045, end: 1.00)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 15,
+      ),
+      // Continuous breathing pulse cycle 2
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.00, end: 1.035)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 17,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.035, end: 1.00)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 16,
+      ),
+      // Stabilize before exit
+      TweenSequenceItem(
+        tween: ConstantTween<double>(1.00),
+        weight: 12,
+      ),
+    ]).animate(_controller);
+
+    // -----------------------------------------------------------------
+    // 2. Orbital Landmark Silhouettes: Staggered Entrance & Dynamic Cruise
+    // -----------------------------------------------------------------
+
+    // 2.1 Eiffel Tower (Top-Left): entrance (0.08 - 0.28) + subtle floating sway (0.28 - 0.88)
     _eiffelFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.20, 0.48, curve: Curves.easeOut),
+        curve: const Interval(0.08, 0.24, curve: Curves.easeOut),
       ),
     );
-    _eiffelSlide = Tween<Offset>(
-      begin: const Offset(-0.25, -0.25),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.20, 0.48, curve: Curves.easeOutCubic),
+    _eiffelSlide = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(-0.40, -0.40)),
+        weight: 8,
       ),
-    );
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(-0.40, -0.40),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(-0.03, -0.05),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(-0.03, -0.05),
+          end: const Offset(0.02, 0.02),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(0.02, 0.02)),
+        weight: 12,
+      ),
+    ]).animate(_controller);
 
-    // 2. Airplane (Top-Right): 0.26 - 0.54
+    _eiffelRotate = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(-0.06), weight: 8),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.06, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: -0.025)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.025, end: 0.02)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 30,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 12),
+    ]).animate(_controller);
+
+    // 2.2 Airplane (Top-Right): entrance (0.12 - 0.32) + soaring flight climb outward (0.32 - 0.88)
     _airplaneFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.26, 0.54, curve: Curves.easeOut),
+        curve: const Interval(0.12, 0.28, curve: Curves.easeOut),
       ),
     );
-    _airplaneSlide = Tween<Offset>(
-      begin: const Offset(-0.35, 0.35),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.26, 0.54, curve: Curves.easeOutCubic),
+    _airplaneSlide = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(-0.35, 0.35)),
+        weight: 12,
       ),
-    );
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(-0.35, 0.35),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(0.16, -0.18),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 56,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(0.16, -0.18)),
+        weight: 12,
+      ),
+    ]).animate(_controller);
 
-    // 3. Pisa Tower (Mid-Left): 0.32 - 0.60
+    _airplaneRotate = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 12),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: -0.04)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.04, end: -0.09)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 56,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(-0.09), weight: 12),
+    ]).animate(_controller);
+
+    // 2.3 Pisa Tower (Mid-Left, Far Left): entrance from left (0.16 - 0.35) + leaning oscillation (0.35 - 0.88)
     _pisaFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.32, 0.60, curve: Curves.easeOut),
+        curve: const Interval(0.16, 0.32, curve: Curves.easeOut),
       ),
     );
-    _pisaSlide = Tween<Offset>(
-      begin: const Offset(-0.20, 0.20),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.32, 0.60, curve: Curves.easeOutCubic),
+    _pisaSlide = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(-0.60, 0.0)),
+        weight: 16,
       ),
-    );
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(-0.60, 0.0),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 19,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(0.03, -0.04),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 26,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.03, -0.04),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 27,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(Offset.zero),
+        weight: 12,
+      ),
+    ]).animate(_controller);
 
-    // 4. Statue of Liberty (Mid-Right): 0.38 - 0.66
+    _pisaRotate = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(-0.05), weight: 16),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.05, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 19,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: -0.03)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 26,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.03, end: 0.02)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 27,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 12),
+    ]).animate(_controller);
+
+    // 2.4 Statue of Liberty (Mid-Right, Far Right): entrance from right (0.20 - 0.38) + gentle drift (0.38 - 0.88)
     _libertyFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.38, 0.66, curve: Curves.easeOut),
+        curve: const Interval(0.20, 0.36, curve: Curves.easeOut),
       ),
     );
-    _libertySlide = Tween<Offset>(
-      begin: const Offset(0.25, 0.0),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.38, 0.66, curve: Curves.easeOutCubic),
+    _libertySlide = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(0.60, 0.0)),
+        weight: 20,
       ),
-    );
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.60, 0.0),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(-0.03, -0.04),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(-0.03, -0.04),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(Offset.zero),
+        weight: 12,
+      ),
+    ]).animate(_controller);
 
-    // 5. Hot Air Balloon (Bottom-Left): 0.44 - 0.72
+    // 2.5 Hot Air Balloon (Bottom-Left): entrance from bottom (0.24 - 0.42) + floating sway (0.42 - 0.88)
     _balloonFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.44, 0.72, curve: Curves.easeOut),
+        curve: const Interval(0.24, 0.40, curve: Curves.easeOut),
       ),
     );
-    _balloonSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.30),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.44, 0.72, curve: Curves.easeOutCubic),
+    _balloonSlide = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(0.0, 0.55)),
+        weight: 24,
       ),
-    );
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.0, 0.55),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(-0.04, -0.12),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 16,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(-0.04, -0.12),
+          end: const Offset(0.03, 0.05),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 16,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.03, 0.05),
+          end: const Offset(-0.02, -0.06),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 14,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(-0.02, -0.06)),
+        weight: 12,
+      ),
+    ]).animate(_controller);
 
-    // 6. Location Pin (Bottom-Right): 0.50 - 0.78
+    _balloonRotate = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 36),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: -0.05)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 16,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.05, end: 0.05)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.05, end: -0.02)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 18,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 12),
+    ]).animate(_controller);
+
+    // 2.6 Location Pin (Bottom-Right): entrance drop (0.28 - 0.46) + pulse bounce (0.46 - 0.88)
     _pinFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.50, 0.78, curve: Curves.easeOut),
+        curve: const Interval(0.28, 0.44, curve: Curves.easeOut),
       ),
     );
-    _pinScale = Tween<double>(begin: 0.40, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.50, 0.78, curve: Curves.easeOutBack),
+    _pinSlide = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(0.0, -0.45)),
+        weight: 28,
       ),
-    );
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.0, -0.45),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(0.0, -0.06),
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 21,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.0, -0.06),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 21,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(Offset.zero),
+        weight: 12,
+      ),
+    ]).animate(_controller);
 
-    // ----------------------------------------------------
-    // Phase 3: Staggered Typography
-    // ----------------------------------------------------
-    // Line 1: "Xin chào!" (0.32 - 0.56)
+    _pinScale = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(0.30), weight: 28),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.30, end: 1.15)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 14,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.15, end: 1.00)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 4,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.00, end: 1.08)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 21,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.08, end: 1.00)
+            .chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 21,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(1.00), weight: 12),
+    ]).animate(_controller);
+
+    // -----------------------------------------------------------------
+    // 3. Staggered Typography: Clear, Crisp & High Legibility
+    // -----------------------------------------------------------------
+    // Line 1: "Xin chào!" (0.18 - 0.34)
     _greetingFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.32, 0.56, curve: Curves.easeOut),
+        curve: const Interval(0.18, 0.34, curve: Curves.easeOut),
       ),
     );
     _greetingSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.45),
+      begin: const Offset(0.0, 0.65),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.32, 0.56, curve: Curves.easeOutCubic),
+        curve: const Interval(0.18, 0.34, curve: Curves.easeOutCubic),
       ),
     );
 
-    // Line 2: "Cùng khám phá thế giới" (0.44 - 0.68)
+    // Line 2: "Cùng khám phá thế giới" (0.26 - 0.42)
     _sloganFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.44, 0.68, curve: Curves.easeOut),
+        curve: const Interval(0.26, 0.42, curve: Curves.easeOut),
       ),
     );
     _sloganSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.40),
+      begin: const Offset(0.0, 0.55),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.44, 0.68, curve: Curves.easeOutCubic),
+        curve: const Interval(0.26, 0.42, curve: Curves.easeOutCubic),
       ),
     );
 
-    // Line 3: "Travel Planner" (0.56 - 0.80)
+    // Line 3: "Travel Planner" (0.34 - 0.50)
     _brandFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.56, 0.80, curve: Curves.easeOut),
+        curve: const Interval(0.34, 0.50, curve: Curves.easeOut),
       ),
     );
     _brandSlide = Tween<Offset>(
-      begin: const Offset(0.0, 0.35),
+      begin: const Offset(0.0, 0.50),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.56, 0.80, curve: Curves.easeOutCubic),
+        curve: const Interval(0.34, 0.50, curve: Curves.easeOutCubic),
       ),
     );
 
-    // ----------------------------------------------------
-    // Phase 4: Exit Fade (0.88 - 1.00)
-    // ----------------------------------------------------
+    // -----------------------------------------------------------------
+    // 4. Phase 3: Exit Fade Out (0.90 - 1.00)
+    // -----------------------------------------------------------------
     _exitFade = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.88, 1.00, curve: Curves.easeInCubic),
+        curve: const Interval(0.90, 1.00, curve: Curves.easeInCubic),
       ),
     );
   }
@@ -378,85 +661,98 @@ class _SplashScreenState extends State<SplashScreen>
                       final w = constraints.maxWidth;
                       final h = constraints.maxHeight;
 
-                      // Anchor center for orbital landmarks and typography
-                      final cx = w * 0.5;
-                      final cy = h * 0.46;
+                      // Vertical anchor: 0.45 of screen height
+                      final cy = h * 0.45;
 
                       return Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          // ----------------------------------------------
-                          // 1. Orbital Landmark Silhouettes
-                          // ----------------------------------------------
+                          // ==============================================
+                          // 1. TOP ZONE: Above Logo & Central Content
+                          // ==============================================
 
-                          // Top-Left: Eiffel Tower
+                          // Top-Left: Eiffel Tower (54x74 dp)
                           Positioned(
-                            left: cx - (w * 0.38).clamp(90.0, 150.0),
-                            top: cy - (h * 0.28).clamp(95.0, 180.0),
+                            left: (w * 0.08).clamp(16.0, 42.0),
+                            top: (cy - 170.0).clamp(20.0, 180.0),
                             child: FadeTransition(
                               opacity: _eiffelFade,
                               child: SlideTransition(
                                 position: _eiffelSlide,
-                                child: const SizedBox(
-                                  width: 36,
-                                  height: 50,
-                                  child: CustomPaint(
-                                    painter: EiffelTowerPainter(),
+                                child: Transform.rotate(
+                                  angle: _eiffelRotate.value,
+                                  child: const SizedBox(
+                                    width: 54,
+                                    height: 74,
+                                    child: CustomPaint(
+                                      painter: EiffelTowerPainter(),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
 
-                          // Top-Right: Airplane with vapor trail
+                          // Top-Right: Airplane with vapor trail (66x58 dp)
                           Positioned(
-                            left: cx + (w * 0.22).clamp(65.0, 120.0),
-                            top: cy - (h * 0.30).clamp(100.0, 190.0),
+                            right: (w * 0.06).clamp(16.0, 38.0),
+                            top: (cy - 175.0).clamp(18.0, 175.0),
                             child: FadeTransition(
                               opacity: _airplaneFade,
                               child: SlideTransition(
                                 position: _airplaneSlide,
-                                child: const SizedBox(
-                                  width: 44,
-                                  height: 40,
-                                  child: CustomPaint(
-                                    painter: AirplanePainter(),
+                                child: Transform.rotate(
+                                  angle: _airplaneRotate.value,
+                                  child: const SizedBox(
+                                    width: 66,
+                                    height: 58,
+                                    child: CustomPaint(
+                                      painter: AirplanePainter(),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
 
-                          // Mid-Left: Leaning Tower of Pisa
+                          // ==============================================
+                          // 2. FLANKING ZONE: Hugging the screen edges,
+                          //    completely avoiding the central text lines!
+                          // ==============================================
+
+                          // Mid-Left: Leaning Tower of Pisa (48x72 dp)
                           Positioned(
-                            left: cx - (w * 0.42).clamp(105.0, 160.0),
-                            top: cy + (h * 0.04).clamp(15.0, 45.0),
+                            left: (w * 0.03).clamp(8.0, 20.0),
+                            top: (cy - 30.0).clamp(170.0, 360.0),
                             child: FadeTransition(
                               opacity: _pisaFade,
                               child: SlideTransition(
                                 position: _pisaSlide,
-                                child: const SizedBox(
-                                  width: 32,
-                                  height: 48,
-                                  child: CustomPaint(
-                                    painter: PisaTowerPainter(),
+                                child: Transform.rotate(
+                                  angle: _pisaRotate.value,
+                                  child: const SizedBox(
+                                    width: 48,
+                                    height: 72,
+                                    child: CustomPaint(
+                                      painter: PisaTowerPainter(),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
 
-                          // Mid-Right: Statue of Liberty
+                          // Mid-Right: Statue of Liberty (52x74 dp)
                           Positioned(
-                            left: cx + (w * 0.26).clamp(75.0, 130.0),
-                            top: cy + (h * 0.02).clamp(10.0, 40.0),
+                            right: (w * 0.03).clamp(8.0, 20.0),
+                            top: (cy - 35.0).clamp(165.0, 355.0),
                             child: FadeTransition(
                               opacity: _libertyFade,
                               child: SlideTransition(
                                 position: _libertySlide,
                                 child: const SizedBox(
-                                  width: 34,
-                                  height: 50,
+                                  width: 52,
+                                  height: 74,
                                   child: CustomPaint(
                                     painter: StatueOfLibertyPainter(),
                                   ),
@@ -465,55 +761,66 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           ),
 
-                          // Bottom-Left: Hot Air Balloon
+                          // ==============================================
+                          // 3. BOTTOM ZONE: Below the bottom of text lines
+                          // ==============================================
+
+                          // Bottom-Left: Hot Air Balloon (52x70 dp)
                           Positioned(
-                            left: cx - (w * 0.32).clamp(80.0, 130.0),
-                            top: cy + (h * 0.25).clamp(85.0, 170.0),
+                            left: (w * 0.09).clamp(16.0, 42.0),
+                            top: (cy + 120.0).clamp(320.0, 570.0),
                             child: FadeTransition(
                               opacity: _balloonFade,
                               child: SlideTransition(
                                 position: _balloonSlide,
-                                child: const SizedBox(
-                                  width: 34,
-                                  height: 46,
-                                  child: CustomPaint(
-                                    painter: HotAirBalloonPainter(),
+                                child: Transform.rotate(
+                                  angle: _balloonRotate.value,
+                                  child: const SizedBox(
+                                    width: 52,
+                                    height: 70,
+                                    child: CustomPaint(
+                                      painter: HotAirBalloonPainter(),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
 
-                          // Bottom-Right: Location Pin
+                          // Bottom-Right: Location Pin (48x62 dp)
                           Positioned(
-                            left: cx + (w * 0.24).clamp(65.0, 115.0),
-                            top: cy + (h * 0.26).clamp(90.0, 175.0),
+                            right: (w * 0.09).clamp(16.0, 42.0),
+                            top: (cy + 125.0).clamp(325.0, 575.0),
                             child: FadeTransition(
                               opacity: _pinFade,
-                              child: ScaleTransition(
-                                scale: _pinScale,
-                                child: const SizedBox(
-                                  width: 32,
-                                  height: 40,
-                                  child: CustomPaint(
-                                    painter: LocationPinPainter(),
+                              child: SlideTransition(
+                                position: _pinSlide,
+                                child: ScaleTransition(
+                                  scale: _pinScale,
+                                  child: const SizedBox(
+                                    width: 48,
+                                    height: 62,
+                                    child: CustomPaint(
+                                      painter: LocationPinPainter(),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
 
-                          // ----------------------------------------------
-                          // 2. Central Logo & Typography
-                          // ----------------------------------------------
+                          // ==============================================
+                          // 4. CENTER ZONE: Logo & Greeting Typography
+                          //    100% exclusive uninterrupted space
+                          // ==============================================
                           Center(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 28),
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  // Minimalist Logo Badge
+                                  // Minimalist Logo Badge with continuous subtle breathing pulse
                                   FadeTransition(
                                     opacity: _logoFade,
                                     child: ScaleTransition(
@@ -550,7 +857,7 @@ class _SplashScreenState extends State<SplashScreen>
                                     child: SlideTransition(
                                       position: _sloganSlide,
                                       child: const Text(
-                                        'Cùng khám phá thế giới',
+                                        'Cùng khám phá thế giới với',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           fontSize: 22,

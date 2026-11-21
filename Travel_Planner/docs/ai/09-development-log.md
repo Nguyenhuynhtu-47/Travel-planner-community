@@ -10253,5 +10253,61 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
   - Integration tests: `flutter test test/widget_test.dart test/my_itineraries_test.dart` passed 13/13 tests.
   - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified/new files.
 
+---
+
+## 2026-11-21 - Enhanced Splash Screen Animations & Display Duration Extension (`feature/splash`)
+
+- **Task Summary:**
+  1. Extended the total Splash Screen duration by exactly 2.0 seconds: updated `animationDuration` from 2800ms to 4800ms.
+  2. Implemented continuous natural motion across the extended duration to ensure zero frozen or static delays:
+     - Central Logo: Staggered entrance (0.00 – 0.25) followed by subtle rhythmic breathing pulse cycles (0.25 – 0.88).
+     - Airplane: Staggered entrance from off-screen (0.12 – 0.32) followed by continuous soaring cruise and climbing flight path (0.32 – 0.88) across the top-right quadrant.
+     - Hot Air Balloon: Rising entrance (0.24 – 0.42) followed by wind-swaying oscillation and vertical bobbing (0.42 – 0.88).
+     - Eiffel Tower & Leaning Tower of Pisa: Dynamic slide-in with rotation followed by subtle floating sway.
+     - Location Pin: Bouncing drop-down entrance (0.28 – 0.46) followed by rhythmic ground pulse.
+     - Typography: Clean slide + fade entrance with stable, comfortable holding for clear legibility.
+  3. Enlarged all 6 travel landmark silhouettes by 15–20%:
+     - Eiffel Tower: 42x58 dp (previously 36x50 dp, +16.7% / +16%)
+     - Airplane: 52x46 dp (previously 44x40 dp, +18.2% / +15%)
+     - Leaning Tower of Pisa: 38x56 dp (previously 32x48 dp, +18.8% / +16.7%)
+     - Statue of Liberty: 40x58 dp (previously 34x50 dp, +17.6% / +16%)
+     - Hot Air Balloon: 40x54 dp (previously 34x46 dp, +17.6% / +17.4%)
+     - Location Pin: 38x48 dp (previously 32x40 dp, +18.8% / +20%)
+  4. Preserved entire minimal Wanderlog visual aesthetic, color palette, logo position, typography layout, and background gradient.
+  5. Kept full synchronization with `AuthNotifier.checkAuthStatus()` and cold-start lifecycle.
+
+- **Verification Results:**
+  - Automated tests: `flutter test test/splash_screen_test.dart` passed 9/9 tests (including 4800ms duration and enlarged icon assertions).
+  - Integration tests: `flutter test test/widget_test.dart test/my_itineraries_test.dart` passed 13/13 tests.
+  - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified splash files.
+  - Android Build: `flutter build apk --debug` succeeded (`assembleDebug` built `app-debug.apk` cleanly).
+
+---
+
+## 2026-11-21 - Splash Screen Landmark Icons Enlargement & Non-Overlapping Repositioning (`feature/splash`)
+
+- **Task Summary:**
+  1. Enlarged all 6 travel landmark silhouettes by an additional 25–30% while preserving shape, colors, and minimal vector style:
+     - Eiffel Tower: 54x74 dp (enlarged by +28.6% / +27.6% from 42x58 dp).
+     - Airplane: 66x58 dp (enlarged by +26.9% / +26.1% from 52x46 dp).
+     - Leaning Tower of Pisa: 48x72 dp (enlarged by +26.3% / +28.6% from 38x56 dp).
+     - Statue of Liberty: 52x74 dp (enlarged by +30.0% / +27.6% from 40x58 dp).
+     - Hot Air Balloon: 52x70 dp (enlarged by +30.0% / +29.6% from 40x54 dp).
+     - Location Pin: 48x62 dp (enlarged by +26.3% / +29.2% from 38x48 dp).
+  2. Repositioned all icons into 4 distinct, non-overlapping visual zones:
+     - **Top Zone:** Eiffel Tower (top-left) and Airplane (top-right) anchored well above the central logo ($Y \le cy - 95$).
+     - **Center Zone:** Central circular Travel Planner logo badge and 3 lines of greeting typography ("Xin chào!", "Cùng khám phá thế giới", "Travel Planner") enjoy completely unobstructed, exclusive space.
+     - **Flanking Zone:** Leaning Tower of Pisa (left: 8–20 dp) and Statue of Liberty (right: 8–20 dp) hug the outer screen edges and align vertically with the narrow 80px "Xin chào!" and logo plinth ($cy - 30$), eliminating any overlap with the wide "Cùng khám phá thế giới" and "Travel Planner" text lines.
+     - **Bottom Zone:** Hot Air Balloon (bottom-left) and Location Pin (bottom-right) positioned well below the text lines ($Y \ge cy + 120$).
+  3. Constrained all animation trajectories: updated slide vectors so motion occurs purely within each element's designated quadrant without crossing into the center content.
+  4. Preserved entire minimal Wanderlog visual aesthetic, 4800ms display duration, and background authentication initialization.
+
+- **Verification Results:**
+  - Automated tests: `flutter test test/splash_screen_test.dart` passed 10/10 tests, including explicit automated bounding-box overlap validation confirming 0 intersections with text or logo across all animation keyframes.
+  - Regression tests: `flutter test test/widget_test.dart test/my_itineraries_test.dart` passed 13/13 tests (23/23 total).
+  - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified splash files.
+
+
+
 
 
