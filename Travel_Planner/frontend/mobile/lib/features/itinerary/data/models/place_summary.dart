@@ -1,3 +1,5 @@
+import '../../../../core/utils/place_category_helper.dart';
+
 class PlaceSummary {
   final int placeId;
   final String name;
@@ -8,6 +10,8 @@ class PlaceSummary {
   final double? longitude;
   final String? imageUrl;
   final String? status;
+
+  String get localizedCategory => PlaceCategoryHelper.localize(category);
 
   const PlaceSummary({
     required this.placeId,
