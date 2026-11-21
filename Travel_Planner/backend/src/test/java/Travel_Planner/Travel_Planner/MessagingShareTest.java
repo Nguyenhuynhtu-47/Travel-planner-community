@@ -666,4 +666,205 @@ public class MessagingShareTest {
 
         assertThrows(ResourceNotFoundException.class, () -> messagingService.shareContent(request, "owner"));
     }
+
+    // 19. Chia sẻ thành công cho 1 người -> tăng shareCount đúng 1
+    @Test
+    @DisplayName("Case 19: Share post to 1 recipient successfully -> increments shareCount by 1")
+    void test19_sharePostToOneRecipient_incrementsShareCountByOne() {
+        when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+        when(chatRateLimiter.allow(owner.getUserId())).thenReturn(true);
+        when(postRepository.findById(300L)).thenReturn(Optional.of(publicPost));
+        when(postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(300L)).thenReturn(Collections.emptyList());
+
+        when(userRepository.findById(2)).thenReturn(Optional.of(recipient1));
+        when(friendshipService.canContinueConversation(1, 2)).thenReturn(true);
+        when(userRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(owner));
+        when(userRepository.findByUserIdForUpdate(2)).thenReturn(Optional.of(recipient1));
+        when(conversationRepository.findByUserLow_UserIdAndUserHigh_UserId(1, 2)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(conversation));
+
+        when(messageRepository.saveAndFlush(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShareBatchRequest request = ShareBatchRequest.builder()
+                .targetType(ShareTargetType.POST)
+                .targetId(300L)
+                .recipientUserIds(List.of(2))
+                .shareBatchId("batch-single")
+                .build();
+
+        ShareBatchResponse response = messagingService.shareContent(request, "owner");
+
+        assertEquals(1, response.getSuccessCount());
+        verify(postRepository, times(1)).incrementShareCount(300L, 1);
+    }
+
+    // 20. Chia sẻ cho nhiều người cùng lúc -> chỉ tăng shareCount đúng 1 (không phụ thuộc số người nhận)
+    @Test
+    @DisplayName("Case 20: Share post to multiple recipients at once -> increments shareCount by only 1")
+    void test20_sharePostToMultipleRecipients_incrementsShareCountByOnlyOne() {
+        when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+        when(chatRateLimiter.allow(owner.getUserId())).thenReturn(true);
+        when(postRepository.findById(300L)).thenReturn(Optional.of(publicPost));
+        when(postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(300L)).thenReturn(Collections.emptyList());
+
+        when(userRepository.findById(2)).thenReturn(Optional.of(recipient1));
+        when(userRepository.findById(3)).thenReturn(Optional.of(recipient2));
+        when(friendshipService.canContinueConversation(eq(1), anyInt())).thenReturn(true);
+        when(userRepository.findByUserIdForUpdate(anyInt())).thenAnswer(i -> {
+            int id = i.getArgument(0);
+            if (id == 1) return Optional.of(owner);
+            if (id == 2) return Optional.of(recipient1);
+            if (id == 3) return Optional.of(recipient2);
+            return Optional.empty();
+        });
+
+        Conversation conv2 = new Conversation();
+        conv2.setConversationId(20L);
+        conv2.setUserLow(owner);
+        conv2.setUserHigh(recipient2);
+        conv2.setStatus(ConversationStatus.ACCEPTED);
+        conv2.setLastMessageSequence(0L);
+
+        when(conversationRepository.findByUserLow_UserIdAndUserHigh_UserId(1, 2)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.findByUserLow_UserIdAndUserHigh_UserId(1, 3)).thenReturn(Optional.of(conv2));
+        when(conversationRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(conv2));
+
+        when(messageRepository.saveAndFlush(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShareBatchRequest request = ShareBatchRequest.builder()
+                .targetType(ShareTargetType.POST)
+                .targetId(300L)
+                .recipientUserIds(List.of(2, 3))
+                .shareBatchId("batch-multi")
+                .build();
+
+        ShareBatchResponse response = messagingService.shareContent(request, "owner");
+
+        assertEquals(2, response.getSuccessCount());
+        // Crucial requirement: only increments by 1 even though 2 recipients received
+        verify(postRepository, times(1)).incrementShareCount(300L, 1);
+    }
+
+    // 21. Chia sẻ thành công 1 phần -> vẫn tính 1 lượt chia sẻ
+    @Test
+    @DisplayName("Case 21: Partial success share (1 success, 1 self failure) -> increments shareCount by 1")
+    void test21_sharePostPartialSuccess_incrementsShareCountByOne() {
+        when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+        when(chatRateLimiter.allow(owner.getUserId())).thenReturn(true);
+        when(postRepository.findById(300L)).thenReturn(Optional.of(publicPost));
+        when(postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(300L)).thenReturn(Collections.emptyList());
+
+        when(userRepository.findById(2)).thenReturn(Optional.of(recipient1));
+        when(friendshipService.canContinueConversation(1, 2)).thenReturn(true);
+        when(userRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(owner));
+        when(userRepository.findByUserIdForUpdate(2)).thenReturn(Optional.of(recipient1));
+        when(conversationRepository.findByUserLow_UserIdAndUserHigh_UserId(1, 2)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(conversation));
+
+        when(messageRepository.saveAndFlush(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Recipient 1 is valid, recipient 1 is self (fails)
+        ShareBatchRequest request = ShareBatchRequest.builder()
+                .targetType(ShareTargetType.POST)
+                .targetId(300L)
+                .recipientUserIds(List.of(2, 1))
+                .shareBatchId("batch-partial")
+                .build();
+
+        ShareBatchResponse response = messagingService.shareContent(request, "owner");
+
+        assertEquals(1, response.getSuccessCount());
+        assertEquals(1, response.getFailedCount());
+        verify(postRepository, times(1)).incrementShareCount(300L, 1);
+    }
+
+    // 22. Toàn bộ người nhận thất bại -> không tăng shareCount
+    @Test
+    @DisplayName("Case 22: All recipients fail -> never increments shareCount")
+    void test22_sharePostAllRecipientsFail_neverIncrementsShareCount() {
+        when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+        when(chatRateLimiter.allow(owner.getUserId())).thenReturn(true);
+        when(postRepository.findById(300L)).thenReturn(Optional.of(publicPost));
+        when(postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(300L)).thenReturn(Collections.emptyList());
+
+        // Self recipient fails
+        ShareBatchRequest request = ShareBatchRequest.builder()
+                .targetType(ShareTargetType.POST)
+                .targetId(300L)
+                .recipientUserIds(List.of(1))
+                .shareBatchId("batch-fail")
+                .build();
+
+        ShareBatchResponse response = messagingService.shareContent(request, "owner");
+
+        assertEquals(0, response.getSuccessCount());
+        assertEquals(1, response.getFailedCount());
+        verify(postRepository, never()).incrementShareCount(anyLong(), anyInt());
+    }
+
+    // 23. Retry sau partial success -> không tính trùng
+    @Test
+    @DisplayName("Case 23: Retry after partial success with same shareBatchId -> does NOT double count")
+    void test23_retryAfterPartialSuccess_doesNotDoubleCount() {
+        when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+        when(chatRateLimiter.allow(owner.getUserId())).thenReturn(true);
+        when(postRepository.findById(300L)).thenReturn(Optional.of(publicPost));
+        when(postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(300L)).thenReturn(Collections.emptyList());
+
+        when(userRepository.findById(2)).thenReturn(Optional.of(recipient1));
+        when(friendshipService.canContinueConversation(1, 2)).thenReturn(true);
+        when(userRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(owner));
+        when(userRepository.findByUserIdForUpdate(2)).thenReturn(Optional.of(recipient1));
+        when(conversationRepository.findByUserLow_UserIdAndUserHigh_UserId(1, 2)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(conversation));
+
+        when(messageRepository.saveAndFlush(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Mock that batch-retry was already delivered and counted in a previous attempt
+        when(messageRepository.existsByShareBatchIdAndShareTargetTypeAndShareTargetId(
+                "batch-retry", ShareTargetType.POST, 300L)).thenReturn(true);
+
+        ShareBatchRequest request = ShareBatchRequest.builder()
+                .targetType(ShareTargetType.POST)
+                .targetId(300L)
+                .recipientUserIds(List.of(2))
+                .shareBatchId("batch-retry")
+                .build();
+
+        ShareBatchResponse response = messagingService.shareContent(request, "owner");
+
+        assertEquals(1, response.getSuccessCount());
+        // Verify post shareCount is NOT incremented again on retry!
+        verify(postRepository, never()).incrementShareCount(anyLong(), anyInt());
+    }
+
+    // 24. Chia sẻ ITINERARY -> không ảnh hưởng đến shareCount của Post
+    @Test
+    @DisplayName("Case 24: Share ITINERARY -> never touches post shareCount")
+    void test24_shareItinerary_neverTouchesPostShareCount() {
+        when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+        when(chatRateLimiter.allow(owner.getUserId())).thenReturn(true);
+        when(itineraryRepository.findById(100)).thenReturn(Optional.of(publicItinerary));
+
+        when(userRepository.findById(2)).thenReturn(Optional.of(recipient1));
+        when(friendshipService.canContinueConversation(1, 2)).thenReturn(true);
+        when(userRepository.findByUserIdForUpdate(1)).thenReturn(Optional.of(owner));
+        when(userRepository.findByUserIdForUpdate(2)).thenReturn(Optional.of(recipient1));
+        when(conversationRepository.findByUserLow_UserIdAndUserHigh_UserId(1, 2)).thenReturn(Optional.of(conversation));
+        when(conversationRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(conversation));
+
+        when(messageRepository.saveAndFlush(any(Message.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShareBatchRequest request = ShareBatchRequest.builder()
+                .targetType(ShareTargetType.ITINERARY)
+                .targetId(100L)
+                .recipientUserIds(List.of(2))
+                .build();
+
+        ShareBatchResponse response = messagingService.shareContent(request, "owner");
+
+        assertEquals(1, response.getSuccessCount());
+        verify(postRepository, never()).incrementShareCount(anyLong(), anyInt());
+    }
 }

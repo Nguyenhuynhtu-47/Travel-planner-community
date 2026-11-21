@@ -55,6 +55,10 @@ public class Post {
     @Builder.Default
     private Integer commentCount = 0;
 
+    @Column(name = "share_count", nullable = false)
+    @Builder.Default
+    private Integer shareCount = 0;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -81,6 +85,7 @@ public class Post {
         if (updatedAt == null) updatedAt = now;
         if (likeCount == null) likeCount = 0;
         if (commentCount == null) commentCount = 0;
+        if (shareCount == null) shareCount = 0;
         if (visibility == null) visibility = PostVisibility.PUBLIC;
         if (status == null) status = PostStatus.ACTIVE;
     }

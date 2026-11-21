@@ -529,6 +529,7 @@ public class MessagingServiceImpl implements MessagingService {
 
         Itinerary targetItinerary = null;
         boolean isPrivateItinerary = false;
+        Post targetPost = null;
         ShareMetadataDto metadata;
 
         if (request.getTargetType() == ShareTargetType.ITINERARY) {
@@ -580,6 +581,7 @@ public class MessagingServiceImpl implements MessagingService {
             if (friendships.isBlockedBetween(actor.getUserId(), post.getAuthor().getUserId())) {
                 throw new ForbiddenException("Không thể chia sẻ bài viết này");
             }
+            targetPost = post;
 
             String postCover = null;
             List<PostMedia> postMedias = postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(postId);
@@ -615,6 +617,16 @@ public class MessagingServiceImpl implements MessagingService {
             metadataJson = "{}";
         }
 
+        String effectiveBatchId = (request.getShareBatchId() != null && !request.getShareBatchId().isBlank())
+                ? request.getShareBatchId().trim()
+                : UUID.randomUUID().toString();
+
+        boolean alreadyCounted = false;
+        if (request.getTargetType() == ShareTargetType.POST && targetPost != null) {
+            alreadyCounted = messages.existsByShareBatchIdAndShareTargetTypeAndShareTargetId(
+                    effectiveBatchId, ShareTargetType.POST, targetPost.getPostId());
+        }
+
         List<ShareBatchItemResponse> items = new ArrayList<>();
         int successCount = 0;
         int failedCount = 0;
@@ -624,7 +636,7 @@ public class MessagingServiceImpl implements MessagingService {
                     .recipientUserId(recipientUserId)
                     .build();
             try {
-                processSingleShare(actor, recipientUserId, request, metadataJson, targetItinerary, isPrivateItinerary, item);
+                processSingleShare(actor, recipientUserId, request, effectiveBatchId, metadataJson, targetItinerary, isPrivateItinerary, targetPost, item);
                 if (item.isSuccess()) {
                     successCount++;
                 } else {
@@ -638,6 +650,10 @@ public class MessagingServiceImpl implements MessagingService {
             items.add(item);
         }
 
+        if (request.getTargetType() == ShareTargetType.POST && targetPost != null && successCount > 0 && !alreadyCounted) {
+            postRepository.incrementShareCount(targetPost.getPostId(), 1);
+        }
+
         return ShareBatchResponse.builder()
                 .targetType(request.getTargetType())
                 .targetId(request.getTargetId())
@@ -649,8 +665,9 @@ public class MessagingServiceImpl implements MessagingService {
     }
 
     private void processSingleShare(User actor, Integer recipientUserId, ShareBatchRequest request,
+                                    String effectiveBatchId,
                                     String metadataJson, Itinerary targetItinerary, boolean isPrivateItinerary,
-                                    ShareBatchItemResponse item) {
+                                    Post targetPost, ShareBatchItemResponse item) {
         if (recipientUserId == null || recipientUserId.equals(actor.getUserId())) {
             item.setSuccess(false);
             item.setErrorMessage("Không thể chia sẻ cho chính mình");
@@ -671,6 +688,34 @@ public class MessagingServiceImpl implements MessagingService {
             item.setSuccess(false);
             item.setErrorMessage("Không thể gửi tin nhắn cho người dùng này");
             return;
+        }
+
+        if (request.getTargetType() == ShareTargetType.POST && targetPost != null) {
+            if (targetPost.getStatus() != PostStatus.ACTIVE || targetPost.getAuthor() == null || targetPost.getAuthor().getStatus() != UserStatus.ACTIVE) {
+                item.setSuccess(false);
+                item.setErrorMessage("Bài viết không còn khả dụng");
+                return;
+            }
+            if (targetPost.getVisibility() == PostVisibility.PRIVATE) {
+                if (!recipient.getUserId().equals(targetPost.getAuthor().getUserId())) {
+                    item.setSuccess(false);
+                    item.setErrorMessage("Người nhận không có quyền xem bài viết riêng tư này");
+                    return;
+                }
+            } else if (targetPost.getVisibility() == PostVisibility.FRIENDS) {
+                if (!recipient.getUserId().equals(targetPost.getAuthor().getUserId())) {
+                    if (!friendships.areAcceptedFriends(recipient.getUserId(), targetPost.getAuthor().getUserId())) {
+                        item.setSuccess(false);
+                        item.setErrorMessage("Người nhận không có quyền xem bài viết này (chỉ dành cho bạn bè của tác giả)");
+                        return;
+                    }
+                }
+            }
+            if (friendships.isBlockedBetween(recipient.getUserId(), targetPost.getAuthor().getUserId())) {
+                item.setSuccess(false);
+                item.setErrorMessage("Không thể chia sẻ bài viết này cho người nhận do giới hạn liên hệ");
+                return;
+            }
         }
 
         User low = lockActiveUser(Math.min(actor.getUserId(), recipient.getUserId()));
@@ -749,6 +794,7 @@ public class MessagingServiceImpl implements MessagingService {
         message.setMessageType(MessageType.SHARE);
         message.setShareTargetType(request.getTargetType());
         message.setShareTargetId(request.getTargetId());
+        message.setShareBatchId(effectiveBatchId);
         message.setShareMetadata(metadataJson);
         message.setCreatedAt(LocalDateTime.now());
 

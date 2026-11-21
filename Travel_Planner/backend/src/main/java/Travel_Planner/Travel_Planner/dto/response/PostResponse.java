@@ -28,6 +28,7 @@ public class PostResponse {
     private PostStatus status;
     private int likeCount;
     private int commentCount;
+    private int shareCount;
 
     @JsonProperty("isLikedByMe")
     private boolean isLikedByMe;

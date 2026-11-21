@@ -27,4 +27,7 @@ public class ShareBatchRequest {
 
     @Size(max = 4000, message = "Lời nhắn không được vượt quá 4.000 ký tự")
     private String note;
+
+    @Size(max = 64, message = "Mã phiên chia sẻ không hợp lệ")
+    private String shareBatchId;
 }

@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
 }, indexes = {
     @Index(name = "idx_messages_conversation_sequence", columnList = "conversation_id,sequence_number"),
     @Index(name = "idx_messages_sender_created", columnList = "sender_user_id,created_at"),
-    @Index(name = "idx_messages_share_target", columnList = "share_target_type,share_target_id")
+    @Index(name = "idx_messages_share_target", columnList = "share_target_type,share_target_id"),
+    @Index(name = "idx_messages_share_batch", columnList = "share_batch_id,share_target_type,share_target_id")
 })
 @Getter @Setter @NoArgsConstructor
 public class Message {
@@ -36,6 +37,9 @@ public class Message {
 
     @Column(name = "client_message_id", nullable = false, length = 36)
     private String clientMessageId;
+
+    @Column(name = "share_batch_id", length = 64)
+    private String shareBatchId;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;

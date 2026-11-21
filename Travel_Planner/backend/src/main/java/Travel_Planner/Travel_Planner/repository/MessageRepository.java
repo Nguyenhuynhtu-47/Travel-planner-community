@@ -99,6 +99,26 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             + "and m.sender.userId = :requesterId and (m.recipientVisible is null or m.recipientVisible = true)")
     Long findLastVisibleRequestSequence(@Param("conversationId") Long conversationId,
             @Param("requesterId") Integer requesterId);
+
+    boolean existsByShareBatchIdAndShareTargetTypeAndShareTargetId(
+            String shareBatchId,
+            Travel_Planner.Travel_Planner.model.enums.ShareTargetType shareTargetType,
+            Long shareTargetId);
+
+    @Query("select count(distinct coalesce(m.shareBatchId, cast(m.messageId as string))) "
+            + "from Message m "
+            + "where m.messageType = Travel_Planner.Travel_Planner.model.enums.MessageType.SHARE "
+            + "and m.shareTargetType = Travel_Planner.Travel_Planner.model.enums.ShareTargetType.POST "
+            + "and m.shareTargetId = :postId")
+    long countSharesByPostId(@Param("postId") Long postId);
+
+    @Query("select m.shareTargetId, count(distinct coalesce(m.shareBatchId, cast(m.messageId as string))) "
+            + "from Message m "
+            + "where m.messageType = Travel_Planner.Travel_Planner.model.enums.MessageType.SHARE "
+            + "and m.shareTargetType = Travel_Planner.Travel_Planner.model.enums.ShareTargetType.POST "
+            + "and m.shareTargetId in :postIds "
+            + "group by m.shareTargetId")
+    List<Object[]> countSharesByPostIds(@Param("postIds") List<Long> postIds);
 }
 
 
