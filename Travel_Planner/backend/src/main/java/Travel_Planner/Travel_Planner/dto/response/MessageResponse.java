@@ -21,4 +21,8 @@ public class MessageResponse {
     private LocalDateTime createdAt;
     private String conversationStatus;
     private Boolean recipientVisible;
+    private String messageType;
+    private String shareTargetType;
+    private Long shareTargetId;
+    private String shareMetadata;
 }

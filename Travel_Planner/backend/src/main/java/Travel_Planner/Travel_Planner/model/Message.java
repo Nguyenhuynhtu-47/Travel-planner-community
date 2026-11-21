@@ -1,5 +1,7 @@
 package Travel_Planner.Travel_Planner.model;
 
+import Travel_Planner.Travel_Planner.model.enums.MessageType;
+import Travel_Planner.Travel_Planner.model.enums.ShareTargetType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,7 +14,8 @@ import java.time.LocalDateTime;
     @UniqueConstraint(name = "uk_messages_sender_client_id", columnNames = {"sender_user_id", "client_message_id"})
 }, indexes = {
     @Index(name = "idx_messages_conversation_sequence", columnList = "conversation_id,sequence_number"),
-    @Index(name = "idx_messages_sender_created", columnList = "sender_user_id,created_at")
+    @Index(name = "idx_messages_sender_created", columnList = "sender_user_id,created_at"),
+    @Index(name = "idx_messages_share_target", columnList = "share_target_type,share_target_id")
 })
 @Getter @Setter @NoArgsConstructor
 public class Message {
@@ -37,6 +40,20 @@ public class Message {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "message_type", nullable = false, length = 16)
+    private MessageType messageType = MessageType.TEXT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "share_target_type", length = 16)
+    private ShareTargetType shareTargetType;
+
+    @Column(name = "share_target_id")
+    private Long shareTargetId;
+
+    @Column(name = "share_metadata", columnDefinition = "TEXT")
+    private String shareMetadata;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -45,5 +62,13 @@ public class Message {
     private Boolean recipientVisible = true;
 
     @PrePersist
-    protected void onCreate() { if (createdAt == null) createdAt = LocalDateTime.now(); }
+    protected void onCreate() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (messageType == null) messageType = MessageType.TEXT;
+    }
+
+    public boolean isShare() {
+        return MessageType.SHARE.equals(messageType);
+    }
 }
+

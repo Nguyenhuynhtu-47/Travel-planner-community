@@ -42,6 +42,12 @@ public class ItineraryPlaceServiceImpl implements ItineraryPlaceService {
     private final ItineraryPlaceRepository itineraryPlaceRepository;
     private final ActivityRepository activityRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private Travel_Planner.Travel_Planner.repository.UserRepository userRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private Travel_Planner.Travel_Planner.service.ItineraryAccessGrantService accessGrantService;
+
     public ItineraryPlaceServiceImpl(
             ItineraryRepository itineraryRepository,
             PlaceRepository placeRepository,
@@ -200,7 +206,15 @@ public class ItineraryPlaceServiceImpl implements ItineraryPlaceService {
             }
             boolean isOwner = currentUsernameOrEmail.equalsIgnoreCase(itinerary.getUser().getUsername())
                     || currentUsernameOrEmail.equalsIgnoreCase(itinerary.getUser().getEmail());
-            if (!isOwner) {
+            Integer viewerUserId = (userRepository != null)
+                    ? userRepository.findByUsername(currentUsernameOrEmail)
+                            .or(() -> userRepository.findByEmail(currentUsernameOrEmail))
+                            .map(Travel_Planner.Travel_Planner.model.User::getUserId)
+                            .orElse(null)
+                    : null;
+            boolean hasGrant = viewerUserId != null && accessGrantService != null
+                    && accessGrantService.hasActiveGrant(itinerary.getItineraryId(), viewerUserId);
+            if (!isOwner && !hasGrant) {
                 throw new ForbiddenException("Lịch trình này ở chế độ riêng tư");
             }
         }

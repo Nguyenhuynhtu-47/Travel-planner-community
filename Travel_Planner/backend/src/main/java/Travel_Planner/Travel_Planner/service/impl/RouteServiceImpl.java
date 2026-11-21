@@ -51,6 +51,12 @@ public class RouteServiceImpl implements RouteService {
     private final RoutingProvider routingProvider;
     private final MapProperties mapProperties;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private Travel_Planner.Travel_Planner.repository.UserRepository userRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private Travel_Planner.Travel_Planner.service.ItineraryAccessGrantService accessGrantService;
+
     // Caffeine in-memory cache: max 500 entries, 12-hour TTL.
     // Strictly caches normalized provider calculation output (CachedRouteResult), NEVER domain entities.
     private final Cache<String, CachedRouteResult> routeCache;
@@ -106,7 +112,12 @@ public class RouteServiceImpl implements RouteService {
             throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
         }
 
-        if (itinerary.getVisibility() != Visibility.PUBLIC && !isOwner) {
+        Integer viewerUserId = (currentUsername != null && !currentUsername.isBlank() && userRepository != null)
+                ? userRepository.findByUsername(currentUsername).map(Travel_Planner.Travel_Planner.model.User::getUserId).orElse(null)
+                : null;
+        boolean hasGrant = viewerUserId != null && accessGrantService != null && accessGrantService.hasActiveGrant(itineraryId, viewerUserId);
+
+        if (itinerary.getVisibility() != Visibility.PUBLIC && !isOwner && !hasGrant) {
             throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
         }
 

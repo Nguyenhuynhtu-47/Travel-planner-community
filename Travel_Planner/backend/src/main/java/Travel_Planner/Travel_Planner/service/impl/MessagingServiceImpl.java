@@ -1,6 +1,7 @@
 package Travel_Planner.Travel_Planner.service.impl;
 
 import Travel_Planner.Travel_Planner.dto.request.SendMessageRequest;
+import Travel_Planner.Travel_Planner.dto.request.ShareBatchRequest;
 import Travel_Planner.Travel_Planner.dto.response.*;
 import Travel_Planner.Travel_Planner.exception.BadRequestException;
 import Travel_Planner.Travel_Planner.exception.ConflictException;
@@ -8,11 +9,10 @@ import Travel_Planner.Travel_Planner.exception.ForbiddenException;
 import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
 import Travel_Planner.Travel_Planner.exception.UnauthorizedException;
 import Travel_Planner.Travel_Planner.model.*;
-import Travel_Planner.Travel_Planner.model.enums.UserStatus;
-import Travel_Planner.Travel_Planner.model.enums.ConversationStatus;
-import Travel_Planner.Travel_Planner.model.enums.InboundMessagePolicy;
+import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
@@ -36,10 +36,26 @@ public class MessagingServiceImpl implements MessagingService {
     private final ChatRateLimiter rateLimiter;
     private final ApplicationEventPublisher events;
     private final int maxMessageLength;
+    private final ItineraryRepository itineraryRepository;
+    private final PostRepository postRepository;
+    private final PostMediaRepository postMediaRepository;
+    private final ItineraryAccessGrantService accessGrantService;
+    private final ObjectMapper objectMapper;
 
     public MessagingServiceImpl(UserRepository users, ConversationRepository conversations, MessageRepository messages,
             ConversationReadStateRepository readStates, FriendshipService friendships, ChatRateLimiter rateLimiter,
             ApplicationEventPublisher events, @Value("${chat.message.max-length:4000}") int maxMessageLength) {
+        this(users, conversations, messages, readStates, friendships, rateLimiter, events, maxMessageLength,
+                null, null, null, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MessagingServiceImpl(UserRepository users, ConversationRepository conversations, MessageRepository messages,
+            ConversationReadStateRepository readStates, FriendshipService friendships, ChatRateLimiter rateLimiter,
+            ApplicationEventPublisher events, @Value("${chat.message.max-length:4000}") int maxMessageLength,
+            ItineraryRepository itineraryRepository, PostRepository postRepository,
+            PostMediaRepository postMediaRepository, ItineraryAccessGrantService accessGrantService,
+            ObjectMapper objectMapper) {
         this.users = users;
         this.conversations = conversations;
         this.messages = messages;
@@ -48,6 +64,11 @@ public class MessagingServiceImpl implements MessagingService {
         this.rateLimiter = rateLimiter;
         this.events = events;
         this.maxMessageLength = Math.min(4000, Math.max(1, maxMessageLength));
+        this.itineraryRepository = itineraryRepository;
+        this.postRepository = postRepository;
+        this.postMediaRepository = postMediaRepository;
+        this.accessGrantService = accessGrantService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -341,6 +362,7 @@ public class MessagingServiceImpl implements MessagingService {
         message.setSender(actor);
         message.setClientMessageId(clientMessageId);
         message.setContent(content);
+        message.setMessageType(MessageType.TEXT);
         message.setCreatedAt(LocalDateTime.now());
         boolean recipientVisible = conversation.getStatus() != ConversationStatus.PENDING
                 || friendships.canMessage(actor.getUserId(), recipient.getUserId());
@@ -482,6 +504,282 @@ public class MessagingServiceImpl implements MessagingService {
                 peer.getUsername(), peer.getUserId(), event));
     }
 
+    @Override
+    @Transactional
+    public ShareBatchResponse shareContent(ShareBatchRequest request, String actorUsername) {
+        User actor = activeUser(actorUsername);
+        if (request == null) {
+            throw new BadRequestException("Yêu cầu không hợp lệ");
+        }
+        if (request.getTargetType() == null || request.getTargetId() == null) {
+            throw new BadRequestException("Nội dung chia sẻ không hợp lệ");
+        }
+        if (request.getRecipientUserIds() == null || request.getRecipientUserIds().isEmpty()) {
+            throw new BadRequestException("Danh sách người nhận không được để trống");
+        }
+        if (request.getRecipientUserIds().size() > 10) {
+            throw new BadRequestException("Chỉ được chia sẻ tối đa 10 người nhận mỗi lần");
+        }
+        if (request.getNote() != null && request.getNote().length() > maxMessageLength) {
+            throw new BadRequestException("Lời nhắn không được vượt quá " + maxMessageLength + " ký tự");
+        }
+        if (!rateLimiter.allow(actor.getUserId())) {
+            throw new Travel_Planner.Travel_Planner.exception.RateLimitExceededException("Bạn gửi tin nhắn quá nhanh. Vui lòng thử lại sau.");
+        }
+
+        Itinerary targetItinerary = null;
+        boolean isPrivateItinerary = false;
+        ShareMetadataDto metadata;
+
+        if (request.getTargetType() == ShareTargetType.ITINERARY) {
+            int itinId = request.getTargetId().intValue();
+            targetItinerary = itineraryRepository.findById(itinId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch trình cần chia sẻ"));
+            if (targetItinerary.getStatus() != ItineraryStatus.ACTIVE) {
+                throw new ResourceNotFoundException("Không tìm thấy lịch trình cần chia sẻ");
+            }
+            isPrivateItinerary = targetItinerary.getVisibility() == Visibility.PRIVATE;
+            if (isPrivateItinerary) {
+                if (targetItinerary.getUser() == null || !targetItinerary.getUser().getUserId().equals(actor.getUserId())) {
+                    throw new ForbiddenException("Bạn không có quyền chia sẻ lịch trình riêng tư này");
+                }
+            }
+            String authorDisplay = targetItinerary.getUser() != null
+                    ? (targetItinerary.getUser().getFullName() != null && !targetItinerary.getUser().getFullName().isBlank()
+                            ? targetItinerary.getUser().getFullName()
+                            : targetItinerary.getUser().getHandle())
+                    : null;
+            metadata = ShareMetadataDto.builder()
+                    .title(targetItinerary.getTitle())
+                    .coverImage(targetItinerary.getCoverImage())
+                    .subtitle(targetItinerary.getLocation() != null ? targetItinerary.getLocation()
+                            : ("Lịch trình " + (targetItinerary.getTotalDays() != null ? targetItinerary.getTotalDays() + " ngày" : "")))
+                    .authorName(authorDisplay)
+                    .authorAvatar(targetItinerary.getUser() != null ? targetItinerary.getUser().getAvatar() : null)
+                    .visibility(targetItinerary.getVisibility() != null ? targetItinerary.getVisibility().name() : null)
+                    .status(targetItinerary.getStatus() != null ? targetItinerary.getStatus().name() : null)
+                    .build();
+        } else if (request.getTargetType() == ShareTargetType.POST) {
+            Long postId = request.getTargetId();
+            Post post = postRepository.findById(postId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bài viết cần chia sẻ"));
+            if (post.getStatus() != PostStatus.ACTIVE || post.getAuthor() == null || post.getAuthor().getStatus() != UserStatus.ACTIVE) {
+                throw new ResourceNotFoundException("Không tìm thấy bài viết cần chia sẻ");
+            }
+            if (post.getVisibility() == PostVisibility.PRIVATE) {
+                if (!post.getAuthor().getUserId().equals(actor.getUserId())) {
+                    throw new ForbiddenException("Bạn không có quyền chia sẻ bài viết riêng tư này");
+                }
+            } else if (post.getVisibility() == PostVisibility.FRIENDS) {
+                if (!post.getAuthor().getUserId().equals(actor.getUserId())) {
+                    if (!friendships.areAcceptedFriends(actor.getUserId(), post.getAuthor().getUserId())) {
+                        throw new ForbiddenException("Bạn không có quyền chia sẻ bài viết này");
+                    }
+                }
+            }
+            if (friendships.isBlockedBetween(actor.getUserId(), post.getAuthor().getUserId())) {
+                throw new ForbiddenException("Không thể chia sẻ bài viết này");
+            }
+
+            String postCover = null;
+            List<PostMedia> postMedias = postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(postId);
+            if (postMedias != null && !postMedias.isEmpty() && postMedias.get(0).getMediaAsset() != null) {
+                postCover = postMedias.get(0).getMediaAsset().getSecureUrl();
+            }
+
+            String authorDisplay = post.getAuthor().getFullName() != null && !post.getAuthor().getFullName().isBlank()
+                    ? post.getAuthor().getFullName()
+                    : post.getAuthor().getHandle();
+            String subtitle = post.getContent() != null
+                    ? (post.getContent().length() > 100 ? post.getContent().substring(0, 100) + "..." : post.getContent())
+                    : "";
+
+            metadata = ShareMetadataDto.builder()
+                    .title("Bài viết của " + authorDisplay)
+                    .coverImage(postCover)
+                    .subtitle(subtitle)
+                    .authorName(authorDisplay)
+                    .authorAvatar(post.getAuthor().getAvatar())
+                    .visibility(post.getVisibility() != null ? post.getVisibility().name() : null)
+                    .status(post.getStatus() != null ? post.getStatus().name() : null)
+                    .build();
+        } else {
+            throw new BadRequestException("Loại nội dung chia sẻ không được hỗ trợ");
+        }
+
+        ObjectMapper mapper = this.objectMapper != null ? this.objectMapper : new ObjectMapper();
+        String metadataJson;
+        try {
+            metadataJson = mapper.writeValueAsString(metadata);
+        } catch (Exception e) {
+            metadataJson = "{}";
+        }
+
+        List<ShareBatchItemResponse> items = new ArrayList<>();
+        int successCount = 0;
+        int failedCount = 0;
+
+        for (Integer recipientUserId : request.getRecipientUserIds()) {
+            ShareBatchItemResponse item = ShareBatchItemResponse.builder()
+                    .recipientUserId(recipientUserId)
+                    .build();
+            try {
+                processSingleShare(actor, recipientUserId, request, metadataJson, targetItinerary, isPrivateItinerary, item);
+                if (item.isSuccess()) {
+                    successCount++;
+                } else {
+                    failedCount++;
+                }
+            } catch (Exception e) {
+                item.setSuccess(false);
+                item.setErrorMessage(e.getMessage() != null ? e.getMessage() : "Có lỗi xảy ra khi chia sẻ");
+                failedCount++;
+            }
+            items.add(item);
+        }
+
+        return ShareBatchResponse.builder()
+                .targetType(request.getTargetType())
+                .targetId(request.getTargetId())
+                .totalRequested(request.getRecipientUserIds().size())
+                .successCount(successCount)
+                .failedCount(failedCount)
+                .results(items)
+                .build();
+    }
+
+    private void processSingleShare(User actor, Integer recipientUserId, ShareBatchRequest request,
+                                    String metadataJson, Itinerary targetItinerary, boolean isPrivateItinerary,
+                                    ShareBatchItemResponse item) {
+        if (recipientUserId == null || recipientUserId.equals(actor.getUserId())) {
+            item.setSuccess(false);
+            item.setErrorMessage("Không thể chia sẻ cho chính mình");
+            return;
+        }
+
+        User recipient = users.findById(recipientUserId).orElse(null);
+        if (recipient == null || recipient.getStatus() != UserStatus.ACTIVE) {
+            item.setSuccess(false);
+            item.setErrorMessage("Người nhận không tồn tại hoặc tài khoản không hoạt động");
+            return;
+        }
+        item.setRecipientUsername(recipient.getUsername());
+        item.setRecipientFullName(recipient.getFullName() != null && !recipient.getFullName().isBlank()
+                ? recipient.getFullName() : recipient.getHandle());
+
+        if (!friendships.canContinueConversation(actor.getUserId(), recipient.getUserId())) {
+            item.setSuccess(false);
+            item.setErrorMessage("Không thể gửi tin nhắn cho người dùng này");
+            return;
+        }
+
+        User low = lockActiveUser(Math.min(actor.getUserId(), recipient.getUserId()));
+        User high = lockActiveUser(Math.max(actor.getUserId(), recipient.getUserId()));
+        User lockedActor = low.getUserId().equals(actor.getUserId()) ? low : high;
+        User lockedRecipient = low.getUserId().equals(recipient.getUserId()) ? low : high;
+
+        Conversation conversation = conversations.findByUserLow_UserIdAndUserHigh_UserId(low.getUserId(), high.getUserId()).orElse(null);
+        if (conversation == null) {
+            if (!friendships.canContinueConversation(lockedActor.getUserId(), lockedRecipient.getUserId())) {
+                item.setSuccess(false);
+                item.setErrorMessage("Không thể gửi tin nhắn cho người dùng này");
+                return;
+            }
+            conversation = new Conversation();
+            conversation.setUserLow(low);
+            conversation.setUserHigh(high);
+            conversation.setLastMessageSequence(0L);
+            if (friendships.areAcceptedFriends(lockedActor.getUserId(), lockedRecipient.getUserId())) {
+                conversation.setStatus(ConversationStatus.ACCEPTED);
+            } else {
+                conversation.setStatus(ConversationStatus.PENDING);
+                conversation.setRequester(lockedActor);
+                conversation.setRequestRecipient(lockedRecipient);
+                conversation.setRequestCreatedAt(LocalDateTime.now());
+            }
+            conversation = conversations.saveAndFlush(conversation);
+            readStates.save(new ConversationReadState(conversation, low));
+            readStates.save(new ConversationReadState(conversation, high));
+        } else {
+            conversation = conversations.findByIdForUpdate(conversation.getConversationId()).orElse(conversation);
+            if (conversation.getStatus() == ConversationStatus.DECLINED) {
+                if (requestCanBeRetried(conversation)) {
+                    if (!friendships.canContinueConversation(lockedActor.getUserId(), lockedRecipient.getUserId())) {
+                        item.setSuccess(false);
+                        item.setErrorMessage("Không thể gửi tin nhắn cho người dùng này");
+                        return;
+                    }
+                    if (friendships.areAcceptedFriends(lockedActor.getUserId(), lockedRecipient.getUserId())) {
+                        conversation.setStatus(ConversationStatus.ACCEPTED);
+                        conversation.setRequester(null);
+                        conversation.setRequestRecipient(null);
+                    } else {
+                        conversation.setStatus(ConversationStatus.PENDING);
+                        conversation.setRequester(lockedActor);
+                        conversation.setRequestRecipient(lockedRecipient);
+                        conversation.setRequestCreatedAt(LocalDateTime.now());
+                    }
+                    conversation.setRequestDeclinedAt(null);
+                } else {
+                    item.setSuccess(false);
+                    item.setErrorMessage("Yêu cầu tin nhắn trước đó đã bị từ chối");
+                    return;
+                }
+            }
+        }
+
+        if (!canSend(conversation, lockedActor, lockedRecipient)) {
+            item.setSuccess(false);
+            item.setErrorMessage("Không thể gửi tin nhắn vào cuộc trò chuyện này");
+            return;
+        }
+
+        if (request.getTargetType() == ShareTargetType.ITINERARY && isPrivateItinerary && targetItinerary != null) {
+            accessGrantService.grantAccess(targetItinerary, lockedRecipient, lockedActor);
+        }
+
+        long nextSequence = conversation.getLastMessageSequence() + 1;
+        Message message = new Message();
+        message.setConversation(conversation);
+        message.setSequenceNumber(nextSequence);
+        message.setSender(lockedActor);
+        message.setClientMessageId(UUID.randomUUID().toString());
+        String content = (request.getNote() != null && !request.getNote().isBlank()) ? request.getNote().trim() : "";
+        message.setContent(content);
+        message.setMessageType(MessageType.SHARE);
+        message.setShareTargetType(request.getTargetType());
+        message.setShareTargetId(request.getTargetId());
+        message.setShareMetadata(metadataJson);
+        message.setCreatedAt(LocalDateTime.now());
+
+        boolean recipientVisible = conversation.getStatus() != ConversationStatus.PENDING
+                || friendships.canMessage(lockedActor.getUserId(), lockedRecipient.getUserId());
+        message.setRecipientVisible(recipientVisible);
+        message = messages.saveAndFlush(message);
+
+        conversation.setLastMessageSequence(nextSequence);
+        conversation.setLastMessage(message);
+        conversation.setLastMessageAt(message.getCreatedAt());
+        conversations.saveAndFlush(conversation);
+
+        MessageResponse response = messageResponse(message);
+        ChatEventResponse event = ChatEventResponse.builder()
+                .eventId(UUID.randomUUID().toString())
+                .type("MESSAGE_CREATED")
+                .occurredAt(message.getCreatedAt())
+                .conversationId(conversation.getConversationId())
+                .sequenceNumber(nextSequence)
+                .message(response)
+                .build();
+        events.publishEvent(new CommittedChatEvent(lockedActor.getUsername(), lockedActor.getUserId(),
+                lockedRecipient.getUsername(), lockedRecipient.getUserId(), event, recipientVisible));
+
+        item.setSuccess(true);
+        item.setConversationId(conversation.getConversationId());
+        item.setMessageId(message.getMessageId());
+        item.setSequenceNumber(nextSequence);
+    }
+
     private MessageResponse messageResponse(Message message) {
         User sender = message.getSender();
         return MessageResponse.builder().messageId(message.getMessageId()).conversationId(message.getConversation().getConversationId())
@@ -489,6 +787,10 @@ public class MessagingServiceImpl implements MessagingService {
                 .senderName(sender.getFullName() == null || sender.getFullName().isBlank() ? sender.getHandle() : sender.getFullName())
                 .senderAvatar(sender.getAvatar()).clientMessageId(message.getClientMessageId()).content(message.getContent())
                 .createdAt(message.getCreatedAt())
+                .messageType(message.getMessageType() == null ? MessageType.TEXT.name() : message.getMessageType().name())
+                .shareTargetType(message.getShareTargetType() == null ? null : message.getShareTargetType().name())
+                .shareTargetId(message.getShareTargetId())
+                .shareMetadata(message.getShareMetadata())
                 .conversationStatus(message.getConversation().getStatus() == null
                         ? ConversationStatus.ACCEPTED.name() : message.getConversation().getStatus().name())
                 .recipientVisible(!Boolean.FALSE.equals(message.getRecipientVisible())).build();

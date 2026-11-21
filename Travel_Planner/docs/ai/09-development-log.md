@@ -4335,10 +4335,39 @@ To prevent Git merge conflicts between Member 1 and Member 2:
 1. `SecurityConfig.java`: Sole Owner: Member 1. Member 2 touches 0 lines.
 2. `ItineraryRepository.java`: Owner: Member 1. Member 1 commits rating atomic queries on `feature/rating-api` and merges to `develop` FIRST. Member 2 rebases `feature/favorite-saved-api` onto `origin/develop` before adding favorite atomic queries.
 3. `ItineraryDetailResponse.java` & `ItineraryServiceImpl.java`: FROZEN during individual phases. Handled exclusively on `feature/social-integration` during Phase 9 led by Member 2.
-4. `ProfileScreen.dart` & `CommunityScreen.dart`: FROZEN. Untouched by both members.
+4. `ProfileScreen.dart` & `CommunityScreen.dart`: FROZEN. Untouched by both members.---
 
+## 2026-11-21 - Phase 1: In-App Content Sharing via Messaging (`feature/message-sharing`)
 
-
+- **Task Summary:**
+  1. **Message Data Model Extension:**
+     - Extended JPA entity `Message` and table `messages` with:
+       - `message_type`: Enum `MessageType` (`TEXT`, `SHARE`), defaulting to `TEXT`, indexed.
+       - `share_target_type`: Enum `ShareTargetType` (`ITINERARY`, `POST`), nullable, indexed with composite `idx_messages_share_target`.
+       - `share_target_id`: `Long`, nullable.
+       - `share_metadata`: `TEXT` storing an immutable JSON snapshot (`ShareMetadataDto`) containing `title`, `coverImage`, `subtitle`, `authorName`, `authorAvatar`, `visibility`, and `status`.
+     - Preserved backward compatibility: all existing messages default to `TEXT` with null share targets.
+     - Updated `MessageResponse` DTO with `messageType`, `shareTargetType`, `shareTargetId`, and `shareMetadata`.
+  2. **Itinerary Access Grant Subsystem:**
+     - Created `ItineraryAccessGrant` entity, repository, and service interface/implementation.
+     - Schema includes `grant_id` (PK), `itinerary_id` (FK), `grantee_user_id` (FK), `granted_by_user_id` (FK), `status` (`GrantStatus`: `ACTIVE`, `REVOKED`), `created_at`, and `revoked_at`.
+     - Added database unique constraint `uk_itinerary_access_grant` on `(itinerary_id, grantee_user_id)` to guarantee idempotency and prevent duplicate grants.
+     - Grant revocation endpoint: `DELETE /api/itineraries/{id}/access-grants/{granteeUserId}` restricted strictly to itinerary owner.
+  3. **Private Itinerary Access Control & Authorization Hardening:**
+     - Updated `ItineraryServiceImpl.getItineraryDetail`: recipients with an `ACTIVE` grant are granted read-only access to view `PRIVATE` itinerary details and days/activities.
+     - Updated `ItineraryServiceImpl.cloneItinerary`: recipients with an `ACTIVE` grant can clone `PRIVATE` itineraries; access is denied with 403 once the grant is `REVOKED`.
+     - Updated `ItineraryServiceImpl.updateItinerary` and `deleteItinerary`: strictly guarded to owner only (grantees receive 403 Forbidden).
+     - Updated `RouteServiceImpl` and `ItineraryPlaceServiceImpl`: route calculation and place listing validate `ACTIVE` grants for `PRIVATE` itineraries.
+  4. **Batch Content Sharing API (`POST /api/conversations/shares`):**
+     - Implemented `ShareBatchRequest` supporting `targetType`, `targetId`, 1–10 `recipientUserIds`, and optional `note`.
+     - Validates content existence and permissions upfront:
+       - `ITINERARY`: Validates active status; `PRIVATE` itineraries can only be shared by their owner.
+       - `POST`: Validates active status and author visibility; verifies friendship or public status.
+     - Per-recipient isolation: locks conversation and user pairs deterministically, evaluates block and privacy policies, generates server-controlled snapshot metadata, atomically creates `Message` + `ItineraryAccessGrant` (for private itineraries), updates sequence numbers and unread count, and publishes WebSocket realtime `CommittedChatEvent`.
+     - Partial batch failure resilience: individual recipient errors (self-share, blocked, privacy restricted) fail cleanly per item without rolling back the entire batch.
+  5. **Verification & Testing:**
+     - Created `MessagingShareTest.java` containing 18 comprehensive unit tests covering all required functional, authorization, security, and concurrency scenarios.
+     - Executed full messaging regression suite: 36/36 tests passing (100% green).
 ### 84.6. Five Final Technical Decisions Formalized
 
 Following the final review round, five key technical specifications were codified across all three plans:
@@ -6773,10 +6802,39 @@ Implemented `AdministrativeAreaResolverImpl` enforcing:
 
 ### 6. Git & Branch Status
 - Branch: `develop` (HEAD: `9902ccd`).
-- Git Policy: Strictly 0 commits, 0 pushes. Working tree preserved cleanly.
+- Git Policy: Strictly 0 commits, 0 pushes. Working tree preserved cleanly.---
 
+## 2026-11-21 - Phase 1: In-App Content Sharing via Messaging (`feature/message-sharing`)
 
-
+- **Task Summary:**
+  1. **Message Data Model Extension:**
+     - Extended JPA entity `Message` and table `messages` with:
+       - `message_type`: Enum `MessageType` (`TEXT`, `SHARE`), defaulting to `TEXT`, indexed.
+       - `share_target_type`: Enum `ShareTargetType` (`ITINERARY`, `POST`), nullable, indexed with composite `idx_messages_share_target`.
+       - `share_target_id`: `Long`, nullable.
+       - `share_metadata`: `TEXT` storing an immutable JSON snapshot (`ShareMetadataDto`) containing `title`, `coverImage`, `subtitle`, `authorName`, `authorAvatar`, `visibility`, and `status`.
+     - Preserved backward compatibility: all existing messages default to `TEXT` with null share targets.
+     - Updated `MessageResponse` DTO with `messageType`, `shareTargetType`, `shareTargetId`, and `shareMetadata`.
+  2. **Itinerary Access Grant Subsystem:**
+     - Created `ItineraryAccessGrant` entity, repository, and service interface/implementation.
+     - Schema includes `grant_id` (PK), `itinerary_id` (FK), `grantee_user_id` (FK), `granted_by_user_id` (FK), `status` (`GrantStatus`: `ACTIVE`, `REVOKED`), `created_at`, and `revoked_at`.
+     - Added database unique constraint `uk_itinerary_access_grant` on `(itinerary_id, grantee_user_id)` to guarantee idempotency and prevent duplicate grants.
+     - Grant revocation endpoint: `DELETE /api/itineraries/{id}/access-grants/{granteeUserId}` restricted strictly to itinerary owner.
+  3. **Private Itinerary Access Control & Authorization Hardening:**
+     - Updated `ItineraryServiceImpl.getItineraryDetail`: recipients with an `ACTIVE` grant are granted read-only access to view `PRIVATE` itinerary details and days/activities.
+     - Updated `ItineraryServiceImpl.cloneItinerary`: recipients with an `ACTIVE` grant can clone `PRIVATE` itineraries; access is denied with 403 once the grant is `REVOKED`.
+     - Updated `ItineraryServiceImpl.updateItinerary` and `deleteItinerary`: strictly guarded to owner only (grantees receive 403 Forbidden).
+     - Updated `RouteServiceImpl` and `ItineraryPlaceServiceImpl`: route calculation and place listing validate `ACTIVE` grants for `PRIVATE` itineraries.
+  4. **Batch Content Sharing API (`POST /api/conversations/shares`):**
+     - Implemented `ShareBatchRequest` supporting `targetType`, `targetId`, 1–10 `recipientUserIds`, and optional `note`.
+     - Validates content existence and permissions upfront:
+       - `ITINERARY`: Validates active status; `PRIVATE` itineraries can only be shared by their owner.
+       - `POST`: Validates active status and author visibility; verifies friendship or public status.
+     - Per-recipient isolation: locks conversation and user pairs deterministically, evaluates block and privacy policies, generates server-controlled snapshot metadata, atomically creates `Message` + `ItineraryAccessGrant` (for private itineraries), updates sequence numbers and unread count, and publishes WebSocket realtime `CommittedChatEvent`.
+     - Partial batch failure resilience: individual recipient errors (self-share, blocked, privacy restricted) fail cleanly per item without rolling back the entire batch.
+  5. **Verification & Testing:**
+     - Created `MessagingShareTest.java` containing 18 comprehensive unit tests covering all required functional, authorization, security, and concurrency scenarios.
+     - Executed full messaging regression suite: 36/36 tests passing (100% green).
 ---
 
 ## Session 51 — Phase 3.2.1: Post-Acceptance Integrity Review & Remediation
@@ -9315,14 +9373,72 @@ Conducted deep live investigation on the running Travel Planner backend (port 80
 ### 97.5. Automated Verification & Git Safety
 - Ran `EmailVerificationDeliveryTest`: **7 passed / 7 tests** (100% PASS).
 - Running backend PID `5000` preserved without premature restart.
-- Branch: `auth`. Zero commits, zero pushes, zero branch switches, working tree preserved.
+- Branch: `auth`. Zero commits, zero pushes, zero branch switches, working tree preserved.---
 
+## 2026-11-21 - Phase 1: In-App Content Sharing via Messaging (`feature/message-sharing`)
 
+- **Task Summary:**
+  1. **Message Data Model Extension:**
+     - Extended JPA entity `Message` and table `messages` with:
+       - `message_type`: Enum `MessageType` (`TEXT`, `SHARE`), defaulting to `TEXT`, indexed.
+       - `share_target_type`: Enum `ShareTargetType` (`ITINERARY`, `POST`), nullable, indexed with composite `idx_messages_share_target`.
+       - `share_target_id`: `Long`, nullable.
+       - `share_metadata`: `TEXT` storing an immutable JSON snapshot (`ShareMetadataDto`) containing `title`, `coverImage`, `subtitle`, `authorName`, `authorAvatar`, `visibility`, and `status`.
+     - Preserved backward compatibility: all existing messages default to `TEXT` with null share targets.
+     - Updated `MessageResponse` DTO with `messageType`, `shareTargetType`, `shareTargetId`, and `shareMetadata`.
+  2. **Itinerary Access Grant Subsystem:**
+     - Created `ItineraryAccessGrant` entity, repository, and service interface/implementation.
+     - Schema includes `grant_id` (PK), `itinerary_id` (FK), `grantee_user_id` (FK), `granted_by_user_id` (FK), `status` (`GrantStatus`: `ACTIVE`, `REVOKED`), `created_at`, and `revoked_at`.
+     - Added database unique constraint `uk_itinerary_access_grant` on `(itinerary_id, grantee_user_id)` to guarantee idempotency and prevent duplicate grants.
+     - Grant revocation endpoint: `DELETE /api/itineraries/{id}/access-grants/{granteeUserId}` restricted strictly to itinerary owner.
+  3. **Private Itinerary Access Control & Authorization Hardening:**
+     - Updated `ItineraryServiceImpl.getItineraryDetail`: recipients with an `ACTIVE` grant are granted read-only access to view `PRIVATE` itinerary details and days/activities.
+     - Updated `ItineraryServiceImpl.cloneItinerary`: recipients with an `ACTIVE` grant can clone `PRIVATE` itineraries; access is denied with 403 once the grant is `REVOKED`.
+     - Updated `ItineraryServiceImpl.updateItinerary` and `deleteItinerary`: strictly guarded to owner only (grantees receive 403 Forbidden).
+     - Updated `RouteServiceImpl` and `ItineraryPlaceServiceImpl`: route calculation and place listing validate `ACTIVE` grants for `PRIVATE` itineraries.
+  4. **Batch Content Sharing API (`POST /api/conversations/shares`):**
+     - Implemented `ShareBatchRequest` supporting `targetType`, `targetId`, 1–10 `recipientUserIds`, and optional `note`.
+     - Validates content existence and permissions upfront:
+       - `ITINERARY`: Validates active status; `PRIVATE` itineraries can only be shared by their owner.
+       - `POST`: Validates active status and author visibility; verifies friendship or public status.
+     - Per-recipient isolation: locks conversation and user pairs deterministically, evaluates block and privacy policies, generates server-controlled snapshot metadata, atomically creates `Message` + `ItineraryAccessGrant` (for private itineraries), updates sequence numbers and unread count, and publishes WebSocket realtime `CommittedChatEvent`.
+     - Partial batch failure resilience: individual recipient errors (self-share, blocked, privacy restricted) fail cleanly per item without rolling back the entire batch.
+  5. **Verification & Testing:**
+     - Created `MessagingShareTest.java` containing 18 comprehensive unit tests covering all required functional, authorization, security, and concurrency scenarios.
+     - Executed full messaging regression suite: 36/36 tests passing (100% green).
+---
 
+## 2026-11-21 - Phase 1: In-App Content Sharing via Messaging (`feature/message-sharing`)
 
-
-
-
+- **Task Summary:**
+  1. **Message Data Model Extension:**
+     - Extended JPA entity `Message` and table `messages` with:
+       - `message_type`: Enum `MessageType` (`TEXT`, `SHARE`), defaulting to `TEXT`, indexed.
+       - `share_target_type`: Enum `ShareTargetType` (`ITINERARY`, `POST`), nullable, indexed with composite `idx_messages_share_target`.
+       - `share_target_id`: `Long`, nullable.
+       - `share_metadata`: `TEXT` storing an immutable JSON snapshot (`ShareMetadataDto`) containing `title`, `coverImage`, `subtitle`, `authorName`, `authorAvatar`, `visibility`, and `status`.
+     - Preserved backward compatibility: all existing messages default to `TEXT` with null share targets.
+     - Updated `MessageResponse` DTO with `messageType`, `shareTargetType`, `shareTargetId`, and `shareMetadata`.
+  2. **Itinerary Access Grant Subsystem:**
+     - Created `ItineraryAccessGrant` entity, repository, and service interface/implementation.
+     - Schema includes `grant_id` (PK), `itinerary_id` (FK), `grantee_user_id` (FK), `granted_by_user_id` (FK), `status` (`GrantStatus`: `ACTIVE`, `REVOKED`), `created_at`, and `revoked_at`.
+     - Added database unique constraint `uk_itinerary_access_grant` on `(itinerary_id, grantee_user_id)` to guarantee idempotency and prevent duplicate grants.
+     - Grant revocation endpoint: `DELETE /api/itineraries/{id}/access-grants/{granteeUserId}` restricted strictly to itinerary owner.
+  3. **Private Itinerary Access Control & Authorization Hardening:**
+     - Updated `ItineraryServiceImpl.getItineraryDetail`: recipients with an `ACTIVE` grant are granted read-only access to view `PRIVATE` itinerary details and days/activities.
+     - Updated `ItineraryServiceImpl.cloneItinerary`: recipients with an `ACTIVE` grant can clone `PRIVATE` itineraries; access is denied with 403 once the grant is `REVOKED`.
+     - Updated `ItineraryServiceImpl.updateItinerary` and `deleteItinerary`: strictly guarded to owner only (grantees receive 403 Forbidden).
+     - Updated `RouteServiceImpl` and `ItineraryPlaceServiceImpl`: route calculation and place listing validate `ACTIVE` grants for `PRIVATE` itineraries.
+  4. **Batch Content Sharing API (`POST /api/conversations/shares`):**
+     - Implemented `ShareBatchRequest` supporting `targetType`, `targetId`, 1–10 `recipientUserIds`, and optional `note`.
+     - Validates content existence and permissions upfront:
+       - `ITINERARY`: Validates active status; `PRIVATE` itineraries can only be shared by their owner.
+       - `POST`: Validates active status and author visibility; verifies friendship or public status.
+     - Per-recipient isolation: locks conversation and user pairs deterministically, evaluates block and privacy policies, generates server-controlled snapshot metadata, atomically creates `Message` + `ItineraryAccessGrant` (for private itineraries), updates sequence numbers and unread count, and publishes WebSocket realtime `CommittedChatEvent`.
+     - Partial batch failure resilience: individual recipient errors (self-share, blocked, privacy restricted) fail cleanly per item without rolling back the entire batch.
+  5. **Verification & Testing:**
+     - Created `MessagingShareTest.java` containing 18 comprehensive unit tests covering all required functional, authorization, security, and concurrency scenarios.
+     - Executed full messaging regression suite: 36/36 tests passing (100% green).
 ---
 
 ## 98. Session 98 — UI/UX Refactor: 6-Box OTP Input & Step-by-Step Password Reset Flow (2026-11-17)
@@ -9797,10 +9913,39 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 2. **Test Execution Results:**
    - `flutter test test/password_reset_test.dart`: 16/16 tests PASSED (100%).
    - `flutter test test/session_and_email_change_test.dart test/auth_401_test.dart test/email_verification_test.dart`: 20/20 tests PASSED (100%).
-   - `flutter analyze`: 0 errors/warnings in modified code (`change_password_screen.dart`, `login_screen.dart`, `password_reset_test.dart`).
+   - `flutter analyze`: 0 errors/warnings in modified code (`change_password_screen.dart`, `login_screen.dart`, `password_reset_test.dart`).---
 
+## 2026-11-21 - Phase 1: In-App Content Sharing via Messaging (`feature/message-sharing`)
 
-
+- **Task Summary:**
+  1. **Message Data Model Extension:**
+     - Extended JPA entity `Message` and table `messages` with:
+       - `message_type`: Enum `MessageType` (`TEXT`, `SHARE`), defaulting to `TEXT`, indexed.
+       - `share_target_type`: Enum `ShareTargetType` (`ITINERARY`, `POST`), nullable, indexed with composite `idx_messages_share_target`.
+       - `share_target_id`: `Long`, nullable.
+       - `share_metadata`: `TEXT` storing an immutable JSON snapshot (`ShareMetadataDto`) containing `title`, `coverImage`, `subtitle`, `authorName`, `authorAvatar`, `visibility`, and `status`.
+     - Preserved backward compatibility: all existing messages default to `TEXT` with null share targets.
+     - Updated `MessageResponse` DTO with `messageType`, `shareTargetType`, `shareTargetId`, and `shareMetadata`.
+  2. **Itinerary Access Grant Subsystem:**
+     - Created `ItineraryAccessGrant` entity, repository, and service interface/implementation.
+     - Schema includes `grant_id` (PK), `itinerary_id` (FK), `grantee_user_id` (FK), `granted_by_user_id` (FK), `status` (`GrantStatus`: `ACTIVE`, `REVOKED`), `created_at`, and `revoked_at`.
+     - Added database unique constraint `uk_itinerary_access_grant` on `(itinerary_id, grantee_user_id)` to guarantee idempotency and prevent duplicate grants.
+     - Grant revocation endpoint: `DELETE /api/itineraries/{id}/access-grants/{granteeUserId}` restricted strictly to itinerary owner.
+  3. **Private Itinerary Access Control & Authorization Hardening:**
+     - Updated `ItineraryServiceImpl.getItineraryDetail`: recipients with an `ACTIVE` grant are granted read-only access to view `PRIVATE` itinerary details and days/activities.
+     - Updated `ItineraryServiceImpl.cloneItinerary`: recipients with an `ACTIVE` grant can clone `PRIVATE` itineraries; access is denied with 403 once the grant is `REVOKED`.
+     - Updated `ItineraryServiceImpl.updateItinerary` and `deleteItinerary`: strictly guarded to owner only (grantees receive 403 Forbidden).
+     - Updated `RouteServiceImpl` and `ItineraryPlaceServiceImpl`: route calculation and place listing validate `ACTIVE` grants for `PRIVATE` itineraries.
+  4. **Batch Content Sharing API (`POST /api/conversations/shares`):**
+     - Implemented `ShareBatchRequest` supporting `targetType`, `targetId`, 1–10 `recipientUserIds`, and optional `note`.
+     - Validates content existence and permissions upfront:
+       - `ITINERARY`: Validates active status; `PRIVATE` itineraries can only be shared by their owner.
+       - `POST`: Validates active status and author visibility; verifies friendship or public status.
+     - Per-recipient isolation: locks conversation and user pairs deterministically, evaluates block and privacy policies, generates server-controlled snapshot metadata, atomically creates `Message` + `ItineraryAccessGrant` (for private itineraries), updates sequence numbers and unread count, and publishes WebSocket realtime `CommittedChatEvent`.
+     - Partial batch failure resilience: individual recipient errors (self-share, blocked, privacy restricted) fail cleanly per item without rolling back the entire batch.
+  5. **Verification & Testing:**
+     - Created `MessagingShareTest.java` containing 18 comprehensive unit tests covering all required functional, authorization, security, and concurrency scenarios.
+     - Executed full messaging regression suite: 36/36 tests passing (100% green).
 
 
 ## 2026-11-16 — CODEBASE_GUIDE alignment
@@ -10305,9 +10450,38 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 - **Verification Results:**
   - Automated tests: `flutter test test/splash_screen_test.dart` passed 10/10 tests, including explicit automated bounding-box overlap validation confirming 0 intersections with text or logo across all animation keyframes.
   - Regression tests: `flutter test test/widget_test.dart test/my_itineraries_test.dart` passed 13/13 tests (23/23 total).
-  - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified splash files.
+  - Static analysis: `flutter analyze --no-pub` verified 0 errors or warnings in modified splash files.---
 
+## 2026-11-21 - Phase 1: In-App Content Sharing via Messaging (`feature/message-sharing`)
 
-
+- **Task Summary:**
+  1. **Message Data Model Extension:**
+     - Extended JPA entity `Message` and table `messages` with:
+       - `message_type`: Enum `MessageType` (`TEXT`, `SHARE`), defaulting to `TEXT`, indexed.
+       - `share_target_type`: Enum `ShareTargetType` (`ITINERARY`, `POST`), nullable, indexed with composite `idx_messages_share_target`.
+       - `share_target_id`: `Long`, nullable.
+       - `share_metadata`: `TEXT` storing an immutable JSON snapshot (`ShareMetadataDto`) containing `title`, `coverImage`, `subtitle`, `authorName`, `authorAvatar`, `visibility`, and `status`.
+     - Preserved backward compatibility: all existing messages default to `TEXT` with null share targets.
+     - Updated `MessageResponse` DTO with `messageType`, `shareTargetType`, `shareTargetId`, and `shareMetadata`.
+  2. **Itinerary Access Grant Subsystem:**
+     - Created `ItineraryAccessGrant` entity, repository, and service interface/implementation.
+     - Schema includes `grant_id` (PK), `itinerary_id` (FK), `grantee_user_id` (FK), `granted_by_user_id` (FK), `status` (`GrantStatus`: `ACTIVE`, `REVOKED`), `created_at`, and `revoked_at`.
+     - Added database unique constraint `uk_itinerary_access_grant` on `(itinerary_id, grantee_user_id)` to guarantee idempotency and prevent duplicate grants.
+     - Grant revocation endpoint: `DELETE /api/itineraries/{id}/access-grants/{granteeUserId}` restricted strictly to itinerary owner.
+  3. **Private Itinerary Access Control & Authorization Hardening:**
+     - Updated `ItineraryServiceImpl.getItineraryDetail`: recipients with an `ACTIVE` grant are granted read-only access to view `PRIVATE` itinerary details and days/activities.
+     - Updated `ItineraryServiceImpl.cloneItinerary`: recipients with an `ACTIVE` grant can clone `PRIVATE` itineraries; access is denied with 403 once the grant is `REVOKED`.
+     - Updated `ItineraryServiceImpl.updateItinerary` and `deleteItinerary`: strictly guarded to owner only (grantees receive 403 Forbidden).
+     - Updated `RouteServiceImpl` and `ItineraryPlaceServiceImpl`: route calculation and place listing validate `ACTIVE` grants for `PRIVATE` itineraries.
+  4. **Batch Content Sharing API (`POST /api/conversations/shares`):**
+     - Implemented `ShareBatchRequest` supporting `targetType`, `targetId`, 1–10 `recipientUserIds`, and optional `note`.
+     - Validates content existence and permissions upfront:
+       - `ITINERARY`: Validates active status; `PRIVATE` itineraries can only be shared by their owner.
+       - `POST`: Validates active status and author visibility; verifies friendship or public status.
+     - Per-recipient isolation: locks conversation and user pairs deterministically, evaluates block and privacy policies, generates server-controlled snapshot metadata, atomically creates `Message` + `ItineraryAccessGrant` (for private itineraries), updates sequence numbers and unread count, and publishes WebSocket realtime `CommittedChatEvent`.
+     - Partial batch failure resilience: individual recipient errors (self-share, blocked, privacy restricted) fail cleanly per item without rolling back the entire batch.
+  5. **Verification & Testing:**
+     - Created `MessagingShareTest.java` containing 18 comprehensive unit tests covering all required functional, authorization, security, and concurrency scenarios.
+     - Executed full messaging regression suite: 36/36 tests passing (100% green).
 
 

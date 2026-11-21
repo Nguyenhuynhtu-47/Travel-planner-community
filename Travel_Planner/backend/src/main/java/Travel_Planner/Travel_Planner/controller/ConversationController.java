@@ -3,10 +3,12 @@ package Travel_Planner.Travel_Planner.controller;
 import Travel_Planner.Travel_Planner.dto.request.MarkConversationReadRequest;
 import Travel_Planner.Travel_Planner.dto.request.OpenConversationRequest;
 import Travel_Planner.Travel_Planner.dto.request.SendMessageRequest;
+import Travel_Planner.Travel_Planner.dto.request.ShareBatchRequest;
 import Travel_Planner.Travel_Planner.dto.response.ConversationSummaryResponse;
 import Travel_Planner.Travel_Planner.dto.response.MessagePageResponse;
 import Travel_Planner.Travel_Planner.dto.response.MessageResponse;
 import Travel_Planner.Travel_Planner.dto.response.PageResponse;
+import Travel_Planner.Travel_Planner.dto.response.ShareBatchResponse;
 import Travel_Planner.Travel_Planner.service.MessagingService;
 import Travel_Planner.Travel_Planner.dto.response.TotalUnreadResponse;
 import Travel_Planner.Travel_Planner.dto.response.MessageRequestCountResponse;
@@ -73,6 +75,13 @@ public class ConversationController {
     public ResponseEntity<MessageResponse> send(@PathVariable Long conversationId,
             @Valid @RequestBody SendMessageRequest request, @AuthenticationPrincipal UserDetails actor) {
         return ResponseEntity.status(HttpStatus.CREATED).body(messaging.send(conversationId, request, actorName(actor)));
+    }
+
+    @PostMapping("/shares")
+    public ResponseEntity<ShareBatchResponse> shareContent(
+            @Valid @RequestBody ShareBatchRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(messaging.shareContent(request, actorName(actor)));
     }
 
     @PostMapping("/{conversationId}/read")

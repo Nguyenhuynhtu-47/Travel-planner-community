@@ -14,6 +14,7 @@ import Travel_Planner.Travel_Planner.model.enums.Visibility;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.repository.specification.ItinerarySpecification;
 import Travel_Planner.Travel_Planner.service.ItineraryService;
+import Travel_Planner.Travel_Planner.service.ItineraryAccessGrantService;
 import Travel_Planner.Travel_Planner.service.FriendshipService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -45,6 +46,7 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final CommentRepository commentRepository;
     private final ItineraryPlaceRepository itineraryPlaceRepository;
     private final FriendshipService blockAccess;
+    private final ItineraryAccessGrantService accessGrantService;
 
     private static final ThreadLocal<Runnable> testFaultInjector = new ThreadLocal<>();
 
@@ -71,7 +73,6 @@ public class ItineraryServiceImpl implements ItineraryService {
                 placeRepository, favoriteRepository, savedItineraryRepository, commentRepository, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
     public ItineraryServiceImpl(
             ItineraryRepository itineraryRepository,
             RatingRepository ratingRepository,
@@ -85,6 +86,26 @@ public class ItineraryServiceImpl implements ItineraryService {
             ItineraryPlaceRepository itineraryPlaceRepository,
             FriendshipService blockAccess
     ) {
+        this(itineraryRepository, ratingRepository, itineraryDayRepository, activityRepository, userRepository,
+                placeRepository, favoriteRepository, savedItineraryRepository, commentRepository,
+                itineraryPlaceRepository, blockAccess, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ItineraryServiceImpl(
+            ItineraryRepository itineraryRepository,
+            RatingRepository ratingRepository,
+            ItineraryDayRepository itineraryDayRepository,
+            ActivityRepository activityRepository,
+            UserRepository userRepository,
+            PlaceRepository placeRepository,
+            FavoriteRepository favoriteRepository,
+            SavedItineraryRepository savedItineraryRepository,
+            CommentRepository commentRepository,
+            ItineraryPlaceRepository itineraryPlaceRepository,
+            FriendshipService blockAccess,
+            ItineraryAccessGrantService accessGrantService
+    ) {
         this.itineraryRepository = itineraryRepository;
         this.ratingRepository = ratingRepository;
         this.itineraryDayRepository = itineraryDayRepository;
@@ -96,6 +117,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         this.commentRepository = commentRepository;
         this.itineraryPlaceRepository = itineraryPlaceRepository;
         this.blockAccess = blockAccess;
+        this.accessGrantService = accessGrantService;
     }
 
     public ItineraryServiceImpl(ItineraryRepository itineraryRepository, RatingRepository ratingRepository,
@@ -415,7 +437,12 @@ public class ItineraryServiceImpl implements ItineraryService {
             throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
         }
 
-        if (itinerary.getVisibility() != Visibility.PUBLIC && !isOwner) {
+        Integer viewerUserId = (currentUsername != null && !currentUsername.isBlank())
+                ? userRepository.findByUsername(currentUsername).map(User::getUserId).orElse(null)
+                : null;
+        boolean hasAccessGrant = viewerUserId != null && accessGrantService != null && accessGrantService.hasActiveGrant(id, viewerUserId);
+
+        if (itinerary.getVisibility() != Visibility.PUBLIC && !isOwner && !hasAccessGrant) {
             throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
         }
 
@@ -717,7 +744,8 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         boolean isOwner = source.getUser() != null && currentUsername.equals(source.getUser().getUsername());
-        if (source.getVisibility() != Visibility.PUBLIC && !isOwner) {
+        boolean hasAccessGrant = accessGrantService != null && accessGrantService.hasActiveGrant(id, currentUser.getUserId());
+        if (source.getVisibility() != Visibility.PUBLIC && !isOwner && !hasAccessGrant) {
             throw new ForbiddenException("Bạn không có quyền sao chép lịch trình riêng tư này");
         }
 
