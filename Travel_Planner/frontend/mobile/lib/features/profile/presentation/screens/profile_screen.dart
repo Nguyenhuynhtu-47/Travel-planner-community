@@ -26,6 +26,7 @@ import '../../data/profile_repository.dart';
 import '../../data/public_profile_repository.dart';
 import '../../../social/data/community_post_repository.dart';
 import '../../../social/data/models/post_model.dart';
+import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import '../../../social/presentation/screens/create_post_screen.dart';
 import '../../../social/presentation/widgets/post_card_widget.dart';
 import '../../../social/presentation/widgets/post_comments_sheet.dart';
@@ -1128,6 +1129,23 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  void _openSharePost(PostModel post) {
+    final coverImage = post.mediaUrls.isNotEmpty ? post.mediaUrls.first : null;
+    ShareBottomSheet.show(
+      context,
+      targetType: 'POST',
+      targetId: post.postId,
+      title: 'Bài viết của ${post.author.displayName}',
+      subtitle: post.content.isNotEmpty ? post.content : null,
+      coverImage: coverImage,
+      authNotifier: widget.authNotifier,
+    ).then((shared) {
+      if (shared == true && mounted) {
+        _loadMyPosts(refresh: true);
+      }
+    });
+  }
+
   Future<void> _openEditMyPost(PostModel post) async {
     final updated = await Navigator.of(context).push<PostModel>(
       MaterialPageRoute(
@@ -1306,6 +1324,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             onLike: () => _likeMyPost(post),
             onComment: () => _openPostComments(post),
+            onShare: () => _openSharePost(post),
             onEdit: () => _openEditMyPost(post),
             onDelete: () => _deleteMyPost(post),
             onItineraryTap: (itineraryId) {

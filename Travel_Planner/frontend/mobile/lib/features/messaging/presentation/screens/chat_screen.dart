@@ -12,6 +12,7 @@ import '../../data/messaging_realtime_client.dart';
 import '../../data/models/chat_event.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/conversation_summary.dart';
+import '../widgets/share_message_card.dart';
 
 class ChatScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
@@ -488,40 +489,51 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       rowWidth - avatarSize - avatarGap,
     ).clamp(0.0, rowWidth).toDouble();
 
-    final bubble = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-      constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-      decoration: BoxDecoration(
-        color: own ? AppColors.primaryLight : AppColors.surfaceStrong,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(message.content),
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              MessagingDateTime.format(message.createdAt),
-              style: const TextStyle(fontSize: 11, color: AppColors.muted),
+    final Widget bubbleContent;
+    if (message.isShare) {
+      bubbleContent = ShareMessageCard(
+        message: message,
+        isOwn: own,
+        authNotifier: widget.authNotifier,
+        peerReadSequence: _peerReadSequence,
+        onRetry: () => _send(retryId: message.clientMessageId),
+      );
+    } else {
+      bubbleContent = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+        decoration: BoxDecoration(
+          color: own ? AppColors.primaryLight : AppColors.surfaceStrong,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(message.displayContent),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                MessagingDateTime.format(message.createdAt),
+                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+              ),
             ),
-          ),
-          if (message.failed)
-            TextButton(
-              onPressed: () => _send(retryId: message.clientMessageId),
-              child: const Text('Thử gửi lại'),
-            )
-          else if (message.sending)
-            const Text('Đang gửi…', style: TextStyle(fontSize: 10))
-          else if (own &&
-              message.recipientVisible &&
-              message.sequenceNumber <= _peerReadSequence)
-            const Text('Đã đọc', style: TextStyle(fontSize: 10))
-          else if (own && message.recipientVisible && message.messageId != null)
-            const Text('Đã gửi', style: TextStyle(fontSize: 10)),
-        ],
-      ),
-    );
+            if (message.failed)
+              TextButton(
+                onPressed: () => _send(retryId: message.clientMessageId),
+                child: const Text('Thử gửi lại'),
+              )
+            else if (message.sending)
+              const Text('Đang gửi…', style: TextStyle(fontSize: 10))
+            else if (own &&
+                message.recipientVisible &&
+                message.sequenceNumber <= _peerReadSequence)
+              const Text('Đã đọc', style: TextStyle(fontSize: 10))
+            else if (own && message.recipientVisible && message.messageId != null)
+              const Text('Đã gửi', style: TextStyle(fontSize: 10)),
+          ],
+        ),
+      );
+    }
 
     final avatarSlot = SizedBox(
       width: avatarSize,
@@ -530,14 +542,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
     final children = own
         ? <Widget>[
-            Flexible(child: bubble),
+            Flexible(child: bubbleContent),
             const SizedBox(width: avatarGap),
             avatarSlot,
           ]
         : <Widget>[
             avatarSlot,
             const SizedBox(width: avatarGap),
-            Flexible(child: bubble),
+            Flexible(child: bubbleContent),
           ];
 
     return Padding(

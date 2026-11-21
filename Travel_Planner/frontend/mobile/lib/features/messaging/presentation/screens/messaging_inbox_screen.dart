@@ -119,7 +119,7 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
     final filtered = _items
         .where(
           (item) =>
-              '${_name(item)} ${item.peer.effectiveHandle} ${item.lastMessage?.content ?? ''}'
+              '${_name(item)} ${item.peer.effectiveHandle} ${item.lastMessage?.displayContent ?? ''}'
                   .toLowerCase()
                   .contains(_filter.toLowerCase()),
         )
@@ -210,7 +210,9 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
                           leading: _avatar(item.peer.avatar),
                           title: Text(_name(item)),
                           subtitle: Text(
-                            item.lastMessage?.content ?? 'Bắt đầu trò chuyện',
+                            (item.lastMessage?.displayContent.isNotEmpty == true)
+                                ? item.lastMessage!.displayContent
+                                : (item.lastMessage?.content ?? 'Bắt đầu trò chuyện'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

@@ -1,4 +1,5 @@
 import '../messaging_date_time.dart';
+import 'share_metadata.dart';
 
 class ChatMessage {
   final int? messageId;
@@ -15,6 +16,10 @@ class ChatMessage {
   final bool failed;
   final String? conversationStatus;
   final bool recipientVisible;
+  final String messageType;
+  final String? shareTargetType;
+  final int? shareTargetId;
+  final ShareMetadata? shareMetadata;
 
   const ChatMessage({
     required this.messageId,
@@ -31,7 +36,30 @@ class ChatMessage {
     this.failed = false,
     this.conversationStatus,
     this.recipientVisible = true,
+    this.messageType = 'TEXT',
+    this.shareTargetType,
+    this.shareTargetId,
+    this.shareMetadata,
   });
+
+  bool get isShare => messageType.toUpperCase() == 'SHARE';
+  bool get isText => !isShare;
+  bool get isItineraryShare =>
+      isShare && shareTargetType?.toUpperCase() == 'ITINERARY';
+  bool get isPostShare => isShare && shareTargetType?.toUpperCase() == 'POST';
+
+  /// Human-friendly display content for preview and fallback rendering.
+  String get displayContent {
+    if (content.trim().isNotEmpty) return content;
+    if (isShare) {
+      final title = shareMetadata?.title;
+      if (title != null && title.trim().isNotEmpty) {
+        return '[Chia sẻ] $title';
+      }
+      return isItineraryShare ? '[Chia sẻ lịch trình]' : '[Chia sẻ bài viết]';
+    }
+    return '';
+  }
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
     messageId: (json['messageId'] as num?)?.toInt(),
@@ -51,6 +79,10 @@ class ChatMessage {
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
     conversationStatus: json['conversationStatus']?.toString().toUpperCase(),
     recipientVisible: json['recipientVisible'] != false,
+    messageType: json['messageType']?.toString().toUpperCase() ?? 'TEXT',
+    shareTargetType: json['shareTargetType']?.toString().toUpperCase(),
+    shareTargetId: (json['shareTargetId'] as num?)?.toInt(),
+    shareMetadata: ShareMetadata.tryParse(json['shareMetadata']),
   );
 
   ChatMessage copyWith({
@@ -60,6 +92,10 @@ class ChatMessage {
     bool? failed,
     String? conversationStatus,
     bool? recipientVisible,
+    String? messageType,
+    String? shareTargetType,
+    int? shareTargetId,
+    ShareMetadata? shareMetadata,
   }) => ChatMessage(
     messageId: messageId ?? this.messageId,
     conversationId: conversationId,
@@ -75,5 +111,9 @@ class ChatMessage {
     failed: failed ?? this.failed,
     conversationStatus: conversationStatus ?? this.conversationStatus,
     recipientVisible: recipientVisible ?? this.recipientVisible,
+    messageType: messageType ?? this.messageType,
+    shareTargetType: shareTargetType ?? this.shareTargetType,
+    shareTargetId: shareTargetId ?? this.shareTargetId,
+    shareMetadata: shareMetadata ?? this.shareMetadata,
   );
 }

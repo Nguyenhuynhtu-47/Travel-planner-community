@@ -5,6 +5,7 @@ import 'models/chat_message.dart';
 import 'models/conversation_summary.dart';
 import 'models/friend_request.dart';
 import 'models/messaging_settings.dart';
+import 'models/share_batch_models.dart';
 import 'models/user_search_result.dart';
 
 class MessagingRepository {
@@ -145,6 +146,19 @@ class MessagingRepository {
         '/api/conversations/$conversationId/messages',
         token: token,
         body: {'clientMessageId': clientMessageId, 'content': content},
+      ) as Map,
+    ),
+  );
+
+  Future<ShareBatchResponse> shareContent(
+    ShareBatchRequest request,
+    String token,
+  ) async => ShareBatchResponse.fromJson(
+    Map<String, dynamic>.from(
+      await _api.post(
+        '/api/conversations/shares',
+        token: token,
+        body: request.toJson(),
       ) as Map,
     ),
   );

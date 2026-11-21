@@ -16,6 +16,7 @@ import '../../data/public_profile_repository.dart';
 import '../../../messaging/data/messaging_repository.dart';
 import '../../../messaging/data/messaging_realtime_client.dart';
 import '../../../messaging/presentation/screens/chat_screen.dart';
+import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import '../../../messaging/data/models/conversation_summary.dart';
 import '../../../social/data/community_post_repository.dart';
 import '../../../social/data/models/post_model.dart';
@@ -226,6 +227,23 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         },
       ),
     );
+  }
+
+  void _openSharePost(PostModel post) {
+    final coverImage = post.mediaUrls.isNotEmpty ? post.mediaUrls.first : null;
+    ShareBottomSheet.show(
+      context,
+      targetType: 'POST',
+      targetId: post.postId,
+      title: 'Bài viết của ${post.author.displayName}',
+      subtitle: post.content.isNotEmpty ? post.content : null,
+      coverImage: coverImage,
+      authNotifier: widget.authNotifier,
+    ).then((shared) {
+      if (shared == true && mounted) {
+        _loadPosts(refresh: true);
+      }
+    });
   }
 
   void _openReport(PostModel post) {
@@ -1226,6 +1244,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             onLike: () => _likePost(post),
             onComment: () => _openPostComments(post),
+            onShare: () => _openSharePost(post),
             onEdit: null,
             onDelete: null,
             onReport: () => _openReport(post),
