@@ -10720,3 +10720,101 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 4. **Verification & Tests:**
    - Added widget tests in `share_bottom_sheet_widget_test.dart` verifying all 8 required in-app messaging elements, selection state management, and the absolute absence of OS share shortcuts.
    - Executed full test suite: 32 tests passed (7 category localization, 16 phase-2 messaging share, 6 post share count, 3 widget tests).
+
+
+---
+
+## [2026-11-22] Project Audit: Admin Module Implementation Status
+
+### 1. Scope & Objectives
+- Conducted a comprehensive, code-grounded audit of the Admin module across the Spring Boot backend (`backend`), Flutter Web Admin client (`frontend/web`), MySQL database schema, and project specifications (`Travel_Planner_Function_Specification.md`, `docs/ai/`).
+- Identified completed features, backend-only capabilities, disconnected UI components, missing specifications, and architectural gaps.
+- Strictly maintained audit-only principles: zero modifications to application source code or database schemas; zero git commits or branch operations.
+
+### 2. Audit Findings Summary
+- **Completed & Verified:**
+  - Administrative authentication and server-side RBAC (`SecurityConfig` with `hasRole('ADMIN')`, `@PreAuthorize`, and client-side `auth_notifier` gatekeeper).
+  - Canonical Places Management (`AdminPlaceController` and `AdminPlacesScreen` with split-view, category/status filters, Leaflet `WebMapView`, and CRUD dialogs; verified by 20 unit/widget tests).
+  - Admin personal profile viewing and editing (`ProfileScreen`).
+- **Backend-Only Capabilities:**
+  - Administrative Areas & Place Linking (`AdminPlaceAdministrativeAreaController` with preview, auto-resolve, manual linking, and batch resolution) is 100% implemented on backend but has zero UI in Flutter Web.
+- **Contract Mismatches & Broken Integrations:**
+  - Moderation module (`AdminModerationScreen` and `ModerationRepository`) suffers from critical URL and payload mismatches:
+    - Post moderation: Web calls `PATCH /api/admin/community/posts/{id}` (`reason`) vs. Backend `@PatchMapping("/community/posts/{id}/moderate")` (`moderationReason`).
+    - Report resolution: Web calls `PATCH /api/admin/community/reports/{id}` with JSON body vs. Backend `@PatchMapping("/community/reports/{id}/resolve")` with `@RequestParam resolution`.
+    - Media assets: Web prepends `/community` (`/api/admin/community/media-assets`) vs. Backend `/api/admin/media-assets`.
+- **Not Started / Specification Gaps:**
+  - Dashboard & statistics: Backend `/api/admin/stats` and Web dashboard UI are not started (`features/dashboard/` contains only `.gitkeep`).
+  - User management: Ban/unban and admin user listing APIs and UI are not started (`features/users/` contains only `.gitkeep`).
+  - Itinerary moderation: Admin itinerary management API and UI are not started (`features/itineraries/` contains only `.gitkeep`).
+  - System notifications: Admin notification drafting and dispatch are not started (`features/notifications/` contains only `.gitkeep`).
+- **Overall Completion:** Estimated at 38.5% across 10 functional specification groups.
+
+### 3. Deliverables Produced
+- Created comprehensive audit report: `docs/plan/14-admin-module-implementation-audit.md`.
+
+---
+
+## [2026-11-22] Implementation Phase 1: Admin Moderation & API Integration
+
+### 1. Scope & Objectives
+- Executed Phase 1 of the Admin Module implementation plan based on the findings from `docs/plan/14-admin-module-implementation-audit.md`.
+- Target branch: `feature/admin-moderation-integration`.
+- Focused strictly on integrating and correcting existing moderation functions with the live Backend and database without mock-only fallbacks:
+  1. Post Moderation: Admin post inspection, search/filter, detail view, hiding with reasons, restoration, and hard purge.
+  2. Reports Management: Violation reports list, filtering, detailed view, reported post inspection, and resolution.
+  3. Media Asset Management: Asset list, dead-letter filtering, asset details, thumbnail/full preview, and retry trigger.
+- Explicitly maintained scope boundary: Zero modifications or additions to Dashboard, User Management, Itinerary Management, or Notification modules.
+
+### 2. API Contract Corrections & Backend Enhancements
+- **Post Moderation:**
+  - Standardized URL and payload: Web now calls `PATCH /api/admin/community/posts/{id}/moderate` with `ModeratePostRequest` (`status` and `moderationReason`).
+  - Added `GET /api/admin/community/posts/{id}` in `AdminCommunityController` and `PostServiceImpl.getAdminPostById` so admins can inspect full post details even if previously hidden or author deactivated.
+  - Added `moderatedAt` and `moderationReason` fields to `PostResponse` and mapped them from `Post` entity in `toPostResponse`.
+  - Added `@PreAuthorize("hasRole('ADMIN')")` at class level on `AdminCommunityController`.
+- **Reports Management:**
+  - Corrected resolution endpoint: Web calls `PATCH /api/admin/community/reports/{id}/resolve`.
+  - Upgraded `AdminCommunityController.resolveReport` to accept both `@RequestParam(required = false) ReportStatus resolution` and `@RequestBody(required = false) ResolveReportRequest request`, ensuring dual compatibility with query parameters and JSON body payloads.
+  - Added `ResolveReportRequest` DTO in `dto/request/ResolveReportRequest.java`.
+  - Added `GET /api/admin/community/reports/{id}` in `AdminCommunityController` and `PostServiceImpl.getAdminReportById`.
+- **Media Asset Management:**
+  - Standardized endpoints: Replaced incorrect `/api/admin/community/media-assets` with `/api/admin/media-assets` in `ApiConstants.dart` and `ModerationRepository.dart`.
+  - Added polymorphic routing `@GetMapping({"/media-assets", "/community/media-assets"})` and `@PostMapping({"/media-assets/{id}/retry", "/community/media-assets/{id}/retry"})` in `AdminCommunityController` for backward compatibility.
+  - Updated `retryMediaAsset` in `ModerationRepository` to handle empty 200 OK responses gracefully.
+
+### 3. Frontend Web Implementation & UI Improvements
+- **Models & Repository (`frontend/web`):**
+  - Updated `AdminPostModel.fromJson` to parse standard backend DTO arrays `mediaUrls` and `mediaAssetIds` alongside legacy `media` object format.
+  - Added `moderatedAt` and `moderationReason` to `AdminPostModel`.
+  - Updated `ModerationRepository` with `getPostById`, `moderatePost`, `purgePost`, `getReports`, `getReportById`, `resolveReport`, `getMediaAssets`, and `retryMediaAsset`.
+- **Admin Moderation Screen (`admin_moderation_screen.dart`):**
+  - Implemented `_resolveImageUrl` utility handling both absolute Cloudinary HTTPS URLs and relative paths.
+  - Implemented `PostDetailDialog`: Shows full post content, author profile, like/comment counts, status badge, moderation history, and attached image gallery with tap-to-enlarge.
+  - Implemented `ReportDetailDialog`: Shows reporter information, violation reason, detailed explanation, reported post link with one-click preview, and resolution actions (`RESOLVED` / `DISMISSED`).
+  - Implemented `MediaDetailDialog`: Shows full-size image preview, Cloudinary public ID, secure URL, uploader info, retry count, dead-letter flag, and last error message.
+  - Upgraded table layouts with adjusted `columnSpacing` (20) and `horizontalMargin` (12).
+  - Modernized theme styling by replacing deprecated `.withOpacity()` with `.withValues()`.
+  - Replaced generic error snackbars with specific API error messages from `ApiException`.
+
+### 4. Verification & Testing
+- **Backend Test Suite:**
+  - Added comprehensive integration test suite `AdminCommunityControllerTest.java` verifying RBAC (admin 200 OK vs. user 403 Forbidden), post listing, detail viewing, moderation, purge, report listing, resolution (query param & body), media listing, and retry.
+  - Executed Maven tests:
+    ```powershell
+    .\mvnw.cmd test -Dtest="AdminCommunityControllerTest,CommunityControllerIntegrationTest,CommunityPostServiceTest"
+    ```
+    Result: **51 tests run, 0 failures, 0 errors (BUILD SUCCESS)**.
+- **Frontend Web Test Suite:**
+  - Updated `admin_moderation_test.dart` to match the exact backend contracts (URL paths, DTO fields, query params).
+  - Added widget tests for post detail dialog, report detail dialog, report resolution, and media retry.
+  - Executed Flutter analysis and tests:
+    ```powershell
+    flutter analyze; flutter test
+    ```
+    Result: **No issues found (0 warnings/errors); 52 tests passed (100% PASS)**.
+- **Flutter Web Build Check:**
+  - Executed: `flutter build web` -> **BUILD SUCCESS** (`√ Built build\web`).
+
+### 5. Deliverables & Documentation
+- Implementation Report: `docs/plan/15-admin-moderation-integration-report.md`.
+- No git commits or pushes executed; working directory prepared for review.
