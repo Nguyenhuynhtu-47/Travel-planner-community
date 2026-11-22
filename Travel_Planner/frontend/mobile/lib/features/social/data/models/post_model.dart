@@ -105,6 +105,7 @@ class PostModel {
   final String status;
   final int likeCount;
   final int commentCount;
+  final int shareCount;
   final bool isLikedByMe;
   final bool isOwner;
   final DateTime createdAt;
@@ -123,6 +124,7 @@ class PostModel {
     this.status = 'ACTIVE',
     this.likeCount = 0,
     this.commentCount = 0,
+    this.shareCount = 0,
     this.isLikedByMe = false,
     this.isOwner = false,
     required this.createdAt,
@@ -142,6 +144,7 @@ class PostModel {
     String? status,
     int? likeCount,
     int? commentCount,
+    int? shareCount,
     bool? isLikedByMe,
     bool? isOwner,
     DateTime? createdAt,
@@ -161,6 +164,7 @@ class PostModel {
       status: status ?? this.status,
       likeCount: likeCount ?? this.likeCount,
       commentCount: commentCount ?? this.commentCount,
+      shareCount: shareCount ?? this.shareCount,
       isLikedByMe: isLikedByMe ?? this.isLikedByMe,
       isOwner: isOwner ?? this.isOwner,
       createdAt: createdAt ?? this.createdAt,
@@ -199,6 +203,9 @@ class PostModel {
       commentCount: json['commentCount'] is int
           ? json['commentCount'] as int
           : int.tryParse('${json['commentCount']}') ?? 0,
+      shareCount: json['shareCount'] is int
+          ? json['shareCount'] as int
+          : int.tryParse('${json['shareCount']}') ?? 0,
       isLikedByMe: json['isLikedByMe'] == true || json['likedByMe'] == true,
       isOwner: json['isOwner'] == true || json['owner'] == true,
       createdAt: json['createdAt'] != null
@@ -223,6 +230,7 @@ class PostModel {
     'status': status,
     'likeCount': likeCount,
     'commentCount': commentCount,
+    'shareCount': shareCount,
     'isLikedByMe': isLikedByMe,
     'isOwner': isOwner,
     'createdAt': createdAt.toIso8601String(),

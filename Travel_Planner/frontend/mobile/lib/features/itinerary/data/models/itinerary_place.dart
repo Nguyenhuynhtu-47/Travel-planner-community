@@ -6,6 +6,8 @@ class ItineraryPlace {
   final PlaceSummary place;
   final DateTime? savedAt;
 
+  String get localizedCategory => place.localizedCategory;
+
   const ItineraryPlace({
     required this.id,
     required this.itineraryId,

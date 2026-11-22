@@ -37,6 +37,7 @@ import 'edit_itinerary_screen.dart';
 import 'itinerary_map_screen.dart';
 import '../../../social/data/social_repository.dart';
 import '../../../social/data/models/social_state_update.dart';
+import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 
 class ItineraryDetailScreen extends StatefulWidget {
   final int itineraryId;
@@ -373,6 +374,39 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         setState(() => _isCloning = false);
       }
     }
+  }
+
+  void _handleShare(ItineraryDetail itinerary) {
+    final isAuthenticated = widget.authNotifier?.isAuthenticated ?? false;
+    if (!isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đăng nhập để chia sẻ lịch trình'),
+        ),
+      );
+      return;
+    }
+
+    ShareBottomSheet.show(
+      context,
+      targetType: 'ITINERARY',
+      targetId: itinerary.itineraryId,
+      title: itinerary.title,
+      coverImage: itinerary.coverImage,
+      subtitle: itinerary.location.isNotEmpty
+          ? itinerary.location
+          : '${itinerary.totalDays} ngày',
+      authNotifier: widget.authNotifier,
+    ).then((shared) {
+      if (shared == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã chia sẻ lịch trình thành công!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    });
   }
 
   Future<void> _handleAddDay(ItineraryDetail itinerary) async {
@@ -1238,6 +1272,20 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                       tooltip: 'Sao chép lịch trình',
                       onPressed: () => _handleClone(itinerary),
                     ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 38,
+                      minHeight: 38,
+                    ),
+                    padding: const EdgeInsets.all(6),
+                    icon: Transform.flip(
+                      flipX: true,
+                      child: const Icon(Icons.share),
+                    ),
+                    tooltip: 'Chia sẻ lịch trình',
+                    onPressed: () => _handleShare(itinerary),
+                  ),
                 ],
                 if (isOwner && itinerary != null) ...[
                   if (_isDeleting)
@@ -2707,7 +2755,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    p.category!.trim(),
+                    p.localizedCategory,
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -2832,7 +2880,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                       ),
                     ),
                   ),
-                  if (p.category != null)
+                  if (p.category != null && p.category!.trim().isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -2843,7 +2891,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        p.category!,
+                        p.localizedCategory,
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,

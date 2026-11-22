@@ -22,6 +22,7 @@ import '../../data/models/post_model.dart';
 import '../widgets/post_card_widget.dart';
 import '../widgets/post_comments_sheet.dart';
 import '../widgets/report_post_dialog.dart';
+import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import 'create_post_screen.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
@@ -293,6 +294,34 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     );
   }
 
+  void _openSharePost(PostModel post) {
+    if (!_isAuthenticated || _token == null) {
+      _showLoginRequiredPrompt('chia sẻ bài viết');
+      return;
+    }
+    final coverImage =
+        post.mediaUrls.isNotEmpty ? post.mediaUrls.first : null;
+    ShareBottomSheet.show(
+      context,
+      targetType: 'POST',
+      targetId: post.postId,
+      title: 'Bài viết của ${post.author.displayName}',
+      subtitle: post.content.isNotEmpty ? post.content : null,
+      coverImage: coverImage,
+      authNotifier: widget.authNotifier,
+    ).then((shared) {
+      if (shared == true && mounted) {
+        _notifier.refresh(_token);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã chia sẻ bài viết thành công!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    });
+  }
+
   void _openReport(PostModel post) {
     if (!_isAuthenticated || _token == null) {
       _showLoginRequiredPrompt('báo cáo bài viết');
@@ -539,6 +568,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               _notifier.toggleLike(post.postId, _token!);
             },
             onComment: () => _openComments(post),
+            onShare: () => _openSharePost(post),
             onEdit: () => _openEditPost(post),
             onDelete: () => _confirmDeletePost(post),
             onReport: () => _openReport(post),

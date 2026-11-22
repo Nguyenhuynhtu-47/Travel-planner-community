@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/place_category_helper.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../data/itinerary_crud_repository.dart';
@@ -311,7 +312,7 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (widget.category != null) ...[
+                        if (widget.category != null && widget.category!.trim().isNotEmpty) ...[
                           const SizedBox(height: 3),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -323,7 +324,7 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              widget.category!,
+                              PlaceCategoryHelper.localize(widget.category),
                               style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,

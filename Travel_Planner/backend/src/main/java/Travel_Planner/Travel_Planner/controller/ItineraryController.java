@@ -2,6 +2,7 @@ package Travel_Planner.Travel_Planner.controller;
 
 import Travel_Planner.Travel_Planner.dto.request.*;
 import Travel_Planner.Travel_Planner.dto.response.*;
+import Travel_Planner.Travel_Planner.service.ItineraryAccessGrantService;
 import Travel_Planner.Travel_Planner.service.ItineraryService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -19,9 +20,11 @@ import java.util.Map;
 public class ItineraryController {
 
     private final ItineraryService itineraryService;
+    private final ItineraryAccessGrantService accessGrantService;
 
-    public ItineraryController(ItineraryService itineraryService) {
+    public ItineraryController(ItineraryService itineraryService, ItineraryAccessGrantService accessGrantService) {
         this.itineraryService = itineraryService;
+        this.accessGrantService = accessGrantService;
     }
 
     @GetMapping
@@ -189,5 +192,16 @@ public class ItineraryController {
         String currentUsername = userDetails != null ? userDetails.getUsername() : null;
         List<ActivityResponse> response = itineraryService.reorderActivities(id, dayId, items, currentUsername);
         return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}/access-grants/{granteeUserId}")
+    public ResponseEntity<Void> revokeAccess(
+            @PathVariable Integer id,
+            @PathVariable Integer granteeUserId,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String currentUsername = userDetails != null ? userDetails.getUsername() : null;
+        accessGrantService.revokeAccess(id, granteeUserId, currentUsername);
+        return ResponseEntity.noContent().build();
     }
 }

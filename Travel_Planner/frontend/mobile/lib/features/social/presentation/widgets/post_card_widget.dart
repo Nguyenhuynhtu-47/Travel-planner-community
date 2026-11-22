@@ -7,6 +7,7 @@ class PostCardWidget extends StatelessWidget {
   final PostModel post;
   final VoidCallback? onLike;
   final VoidCallback? onComment;
+  final VoidCallback? onShare;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
@@ -19,6 +20,7 @@ class PostCardWidget extends StatelessWidget {
     required this.post,
     this.onLike,
     this.onComment,
+    this.onShare,
     this.onEdit,
     this.onDelete,
     this.onReport,
@@ -306,6 +308,39 @@ class PostCardWidget extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             post.commentCount > 0 ? '${post.commentCount}' : 'Bình luận',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Share Button
+                Expanded(
+                  child: InkWell(
+                    onTap: onShare,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Transform.flip(
+                            flipX: true,
+                            child: const Icon(
+                              Icons.reply,
+                              color: AppColors.muted,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            post.shareCount > 0 ? '${post.shareCount}' : 'Chia sẻ',
                             style: const TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w600,

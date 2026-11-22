@@ -41,6 +41,9 @@ public class PostServiceImpl implements PostService {
     private final FriendshipRepository friendshipRepository;
     private final FriendshipService blockAccess;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private MessageRepository messageRepository;
+
     @org.springframework.beans.factory.annotation.Autowired
     public PostServiceImpl(
             PostRepository postRepository,
@@ -63,6 +66,41 @@ public class PostServiceImpl implements PostService {
         this.itineraryRepository = itineraryRepository;
         this.friendshipRepository = friendshipRepository;
         this.blockAccess = blockAccess;
+    }
+
+    public void setMessageRepository(MessageRepository messageRepository) {
+        this.messageRepository = messageRepository;
+    }
+
+    private Map<Long, Integer> getShareCountsForPosts(List<Long> postIds) {
+        Map<Long, Integer> counts = new HashMap<>();
+        if (messageRepository != null && postIds != null && !postIds.isEmpty()) {
+            try {
+                for (Object[] row : messageRepository.countSharesByPostIds(postIds)) {
+                    if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                        counts.put(((Number) row[0]).longValue(), ((Number) row[1]).intValue());
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Could not query share counts from messages: {}", e.getMessage());
+            }
+        }
+        return counts;
+    }
+
+    private int resolveShareCount(Post post, Map<Long, Integer> batchCounts) {
+        int entityCount = post.getShareCount() != null ? post.getShareCount() : 0;
+        int msgCount = 0;
+        if (batchCounts != null && batchCounts.containsKey(post.getPostId())) {
+            msgCount = batchCounts.get(post.getPostId());
+        } else if (messageRepository != null) {
+            try {
+                msgCount = (int) messageRepository.countSharesByPostId(post.getPostId());
+            } catch (Exception e) {
+                logger.warn("Could not query share count for post {}: {}", post.getPostId(), e.getMessage());
+            }
+        }
+        return Math.max(entityCount, msgCount);
     }
 
     public PostServiceImpl(PostRepository postRepository, MediaAssetRepository mediaAssetRepository,
@@ -114,11 +152,13 @@ public class PostServiceImpl implements PostService {
         }
 
         Set<Long> finalLikedPostIds = likedPostIds;
+        Map<Long, Integer> shareCountsByPost = getShareCountsForPosts(postIds);
         List<PostResponse> responseList = posts.stream().map(post -> {
             List<String> urls = mediaUrlsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
             List<Long> assetIds = mediaAssetIdsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
             boolean liked = finalLikedPostIds.contains(post.getPostId());
-            return toPostResponse(post, urls, assetIds, liked, viewerId);
+            int shareCount = resolveShareCount(post, shareCountsByPost);
+            return toPostResponse(post, urls, assetIds, liked, viewerId, shareCount);
         }).toList();
 
         return PageResponse.<PostResponse>builder()
@@ -162,11 +202,13 @@ public class PostServiceImpl implements PostService {
 
         Set<Long> likedPostIds = new HashSet<>(postLikeRepository.findLikedPostIds(postIds, viewer.getUserId()));
 
+        Map<Long, Integer> shareCountsByPost = getShareCountsForPosts(postIds);
         List<PostResponse> responseList = posts.stream().map(post -> {
             List<String> urls = mediaUrlsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
             List<Long> assetIds = mediaAssetIdsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
             boolean liked = likedPostIds.contains(post.getPostId());
-            return toPostResponse(post, urls, assetIds, liked, viewer.getUserId());
+            int shareCount = resolveShareCount(post, shareCountsByPost);
+            return toPostResponse(post, urls, assetIds, liked, viewer.getUserId(), shareCount);
         }).toList();
 
         return PageResponse.<PostResponse>builder()
@@ -246,11 +288,13 @@ public class PostServiceImpl implements PostService {
         }
 
         Set<Long> finalLikedPostIds = likedPostIds;
+        Map<Long, Integer> shareCountsByPost = getShareCountsForPosts(postIds);
         List<PostResponse> responseList = posts.stream().map(post -> {
             List<String> urls = mediaUrlsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
             List<Long> assetIds = mediaAssetIdsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
             boolean liked = finalLikedPostIds.contains(post.getPostId());
-            return toPostResponse(post, urls, assetIds, liked, viewerId);
+            int shareCount = resolveShareCount(post, shareCountsByPost);
+            return toPostResponse(post, urls, assetIds, liked, viewerId, shareCount);
         }).toList();
 
         return PageResponse.<PostResponse>builder()
@@ -890,10 +934,12 @@ public class PostServiceImpl implements PostService {
             mediaAssetIdsByPost.computeIfAbsent(postId, k -> new ArrayList<>()).add(pm.getMediaAsset().getMediaAssetId());
         }
 
+        Map<Long, Integer> shareCountsByPost = getShareCountsForPosts(postIds);
         List<PostResponse> content = posts.stream().map(post -> {
             List<String> urls = mediaUrlsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
             List<Long> assetIds = mediaAssetIdsByPost.getOrDefault(post.getPostId(), Collections.emptyList());
-            return toPostResponse(post, urls, assetIds, false, null);
+            int shareCount = resolveShareCount(post, shareCountsByPost);
+            return toPostResponse(post, urls, assetIds, false, null, shareCount);
         }).toList();
 
         return PageResponse.<PostResponse>builder()
@@ -1184,6 +1230,10 @@ public class PostServiceImpl implements PostService {
     }
 
     private PostResponse toPostResponse(Post post, List<String> mediaUrls, List<Long> mediaAssetIds, boolean isLikedByMe, Integer viewerUserId) {
+        return toPostResponse(post, mediaUrls, mediaAssetIds, isLikedByMe, viewerUserId, null);
+    }
+
+    private PostResponse toPostResponse(Post post, List<String> mediaUrls, List<Long> mediaAssetIds, boolean isLikedByMe, Integer viewerUserId, Integer explicitShareCount) {
         PostAuthorResponse authorResponse = PostAuthorResponse.builder()
                 .userId(post.getAuthor().getUserId())
                 .handle(post.getAuthor().getHandle())
@@ -1194,6 +1244,8 @@ public class PostServiceImpl implements PostService {
 
         PostItineraryAttachmentResult itineraryResult = resolveItineraryAttachment(post.getItinerary());
         boolean isOwner = viewerUserId != null && viewerUserId.equals(post.getAuthor().getUserId());
+
+        int shareCount = explicitShareCount != null ? explicitShareCount : resolveShareCount(post, null);
 
         return PostResponse.builder()
                 .postId(post.getPostId())
@@ -1208,6 +1260,7 @@ public class PostServiceImpl implements PostService {
                 .status(post.getStatus())
                 .likeCount(post.getLikeCount() != null ? post.getLikeCount() : 0)
                 .commentCount(post.getCommentCount() != null ? post.getCommentCount() : 0)
+                .shareCount(shareCount)
                 .isLikedByMe(isLikedByMe)
                 .isOwner(isOwner)
                 .createdAt(post.getCreatedAt())

@@ -93,6 +93,10 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query("UPDATE Post p SET p.commentCount = CASE WHEN p.commentCount > 0 THEN p.commentCount - 1 ELSE 0 END WHERE p.postId = :postId")
     int decrementCommentCount(@Param("postId") Long postId);
 
+    @Modifying
+    @Query("UPDATE Post p SET p.shareCount = COALESCE(p.shareCount, 0) + :delta WHERE p.postId = :postId")
+    int incrementShareCount(@Param("postId") Long postId, @Param("delta") int delta);
+
     @Query(value = "SELECT p FROM Post p " +
             "JOIN FETCH p.author a " +
             "LEFT JOIN FETCH p.itinerary i " +
