@@ -42,7 +42,7 @@ public class User {
         this.emailVerified = emailVerified != null ? emailVerified : false;
         this.role = role;
         this.status = status;
-        this.tokenVersion = tokenVersion != null ? tokenVersion : 1;
+        this.tokenVersion = (tokenVersion != null && tokenVersion > 0) ? tokenVersion : 1;
         this.avatar = avatar;
         this.fullName = fullName;
         this.phone = phone;
@@ -121,7 +121,7 @@ public class User {
         if (this.emailVerified == null) {
             this.emailVerified = false;
         }
-        if (this.tokenVersion == null) {
+        if (this.tokenVersion == null || this.tokenVersion < 1) {
             this.tokenVersion = 1;
         }
         if (this.handle == null || this.handle.trim().isEmpty()) {

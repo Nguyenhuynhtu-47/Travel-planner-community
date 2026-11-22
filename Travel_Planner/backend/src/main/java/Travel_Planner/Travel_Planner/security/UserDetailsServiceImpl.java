@@ -30,12 +30,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         boolean isVerified = Boolean.TRUE.equals(user.getEmailVerified());
         boolean isEnabled = isActive && isVerified;
 
+        int effectiveTokenVersion = (user.getTokenVersion() != null && user.getTokenVersion() > 0)
+                ? user.getTokenVersion()
+                : 1;
+
         return new CustomUserDetails(
                 user.getUserId(),
                 user.getUsername(),
                 user.getPassword(),
                 user.getEmail(),
-                user.getTokenVersion() != null ? user.getTokenVersion() : 1,
+                effectiveTokenVersion,
                 isEnabled,
                 isNotBanned,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
