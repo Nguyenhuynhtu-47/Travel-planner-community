@@ -57,22 +57,26 @@ class PostServiceJpaIntegrationTest {
                 .build();
     }
 
-    @Test
-    @DisplayName("Create post via HTTP POST /api/community/posts with real service and DB")
-    @WithMockUser(username = "http_author")
-    void testCreatePostHttp() throws Exception {
-        User user = userRepository.findByUsername("http_author").orElseGet(() -> {
+    private User getOrCreateUser(String username) {
+        return userRepository.findByUsername(username).orElseGet(() -> {
             User u = User.builder()
-                    .username("http_author")
-                    .email("http_author@example.com")
+                    .username(username)
+                    .email(username + "@example.com")
                     .password("secret123")
-                    .handle("http_author")
+                    .handle(username)
                     .fullName("HTTP Author")
                     .status(UserStatus.ACTIVE)
                     .role(Role.USER)
                     .build();
             return userRepository.save(u);
         });
+    }
+
+    @Test
+    @DisplayName("Create post via HTTP POST /api/community/posts with real service and DB")
+    @WithMockUser(username = "http_author")
+    void testCreatePostHttp() throws Exception {
+        User user = getOrCreateUser("http_author");
 
         MediaAsset asset = MediaAsset.builder()
                 .uploadedBy(user)
@@ -106,7 +110,7 @@ class PostServiceJpaIntegrationTest {
     @DisplayName("Update post via HTTP PATCH /api/community/posts/{id} keeping old media and adding new media")
     @WithMockUser(username = "http_author")
     void testUpdatePostKeepOldAndAddNewMedia() throws Exception {
-        User user = userRepository.findByUsername("http_author").orElseThrow();
+        User user = getOrCreateUser("http_author");
 
         // 1. Create asset 1
         MediaAsset asset1 = MediaAsset.builder()

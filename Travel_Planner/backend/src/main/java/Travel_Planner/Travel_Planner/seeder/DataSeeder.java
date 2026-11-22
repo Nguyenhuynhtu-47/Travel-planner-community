@@ -11,13 +11,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
+
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
-
-import org.springframework.beans.factory.annotation.Value;
+import java.util.stream.Collectors;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
@@ -44,6 +50,8 @@ public class DataSeeder implements CommandLineRunner {
     private final ItineraryShareRepository itineraryShareRepository;
     private final OfflineDownloadRepository offlineDownloadRepository;
     private final ItineraryPlaceRepository itineraryPlaceRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private Connection lockConnection = null;
 
     public DataSeeder(PasswordEncoder passwordEncoder,
                       UserRepository userRepository,
@@ -60,6 +68,29 @@ public class DataSeeder implements CommandLineRunner {
                       ItineraryShareRepository itineraryShareRepository,
                       OfflineDownloadRepository offlineDownloadRepository,
                       ItineraryPlaceRepository itineraryPlaceRepository) {
+        this(passwordEncoder, userRepository, placeRepository, placeProviderMappingRepository,
+                itineraryRepository, itineraryDayRepository, activityRepository, ratingRepository,
+                commentRepository, favoriteRepository, savedItineraryRepository, followRepository,
+                itineraryShareRepository, offlineDownloadRepository, itineraryPlaceRepository, null);
+    }
+
+    @Autowired
+    public DataSeeder(PasswordEncoder passwordEncoder,
+                      UserRepository userRepository,
+                      PlaceRepository placeRepository,
+                      PlaceProviderMappingRepository placeProviderMappingRepository,
+                      ItineraryRepository itineraryRepository,
+                      ItineraryDayRepository itineraryDayRepository,
+                      ActivityRepository activityRepository,
+                      RatingRepository ratingRepository,
+                      CommentRepository commentRepository,
+                      FavoriteRepository favoriteRepository,
+                      SavedItineraryRepository savedItineraryRepository,
+                      FollowRepository followRepository,
+                      ItineraryShareRepository itineraryShareRepository,
+                      OfflineDownloadRepository offlineDownloadRepository,
+                      ItineraryPlaceRepository itineraryPlaceRepository,
+                      @Autowired(required = false) JdbcTemplate jdbcTemplate) {
         this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
         this.placeRepository = placeRepository;
@@ -75,6 +106,50 @@ public class DataSeeder implements CommandLineRunner {
         this.itineraryShareRepository = itineraryShareRepository;
         this.offlineDownloadRepository = offlineDownloadRepository;
         this.itineraryPlaceRepository = itineraryPlaceRepository;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    private synchronized boolean acquireDistributedLock() {
+        if (jdbcTemplate == null || jdbcTemplate.getDataSource() == null) {
+            return true;
+        }
+        try {
+            Connection conn = jdbcTemplate.getDataSource().getConnection();
+            String sql = "SELECT GET_LOCK(?, 15)";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, "travel_planner_data_seed_lock");
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) == 1) {
+                        this.lockConnection = conn;
+                        return true;
+                    }
+                }
+            }
+            conn.close();
+        } catch (Exception e) {
+            log.debug("--- [DataSeeder] Distributed lock check note (dialect may not support GET_LOCK): {} ---", e.getMessage());
+            return true;
+        }
+        return false;
+    }
+
+    private synchronized void releaseDistributedLock() {
+        if (lockConnection != null) {
+            try {
+                String sql = "SELECT RELEASE_LOCK(?)";
+                try (PreparedStatement ps = lockConnection.prepareStatement(sql)) {
+                    ps.setString(1, "travel_planner_data_seed_lock");
+                    ps.executeQuery();
+                }
+            } catch (Exception e) {
+                log.debug("--- [DataSeeder] Release lock note: {} ---", e.getMessage());
+            } finally {
+                try {
+                    lockConnection.close();
+                } catch (Exception ignored) {}
+                lockConnection = null;
+            }
+        }
     }
 
     @Override
@@ -84,9 +159,20 @@ public class DataSeeder implements CommandLineRunner {
             log.info("--- [DataSeeder] Automatic startup seeding is disabled (app.seed.enabled=false). Skipping. ---");
             return;
         }
-        log.info("--- [DataSeeder] Initializing realistic development seed data ---");
-        SeedResult result = seedData();
-        log.info("--- [DataSeeder] Completed successfully. Summary: {} ---", result);
+
+        boolean lockAcquired = acquireDistributedLock();
+        if (!lockAcquired) {
+            log.warn("--- [DataSeeder] Distributed seed lock held by another instance. Skipping concurrent seeding. ---");
+            return;
+        }
+
+        try {
+            log.info("--- [DataSeeder] Initializing realistic development seed data ---");
+            SeedResult result = seedData();
+            log.info("--- [DataSeeder] Completed successfully. Summary: {} ---", result);
+        } finally {
+            releaseDistributedLock();
+        }
     }
 
 
@@ -256,21 +342,67 @@ public class DataSeeder implements CommandLineRunner {
         );
 
         for (User def : userDefinitions) {
-            User existing = userRepository.findByUsername(def.getUsername())
-                    .orElseGet(() -> userRepository.findByEmail(def.getEmail())
-                            .orElse(null));
-            if (existing != null) {
-                map.put(def.getUsername(), existing);
-            } else {
-                User saved = userRepository.save(def);
-                map.put(def.getUsername(), saved);
+            User resolved = resolveOrCreateSeedUser(def);
+            map.put(def.getUsername(), resolved);
+            if (resolved.getUsername() != null && !resolved.getUsername().equals(def.getUsername())) {
+                map.put(resolved.getUsername(), resolved);
             }
         }
 
-        // Also index existing user if present in local DB (e.g. minhdanh)
+        // Also index existing user if present in local DB (e.g. minhdanh, admin)
         userRepository.findByUsername("minhdanh").ifPresent(u -> map.put("minhdanh", u));
+        userRepository.findByUsername("admin").ifPresent(u -> map.put("admin", u));
 
         return map;
+    }
+
+    private User resolveOrCreateSeedUser(User def) {
+        // Step 1: Pre-query existing candidates by all 3 unique constraints
+        Optional<User> byUsername = userRepository.findByUsername(def.getUsername());
+        Optional<User> byEmail = userRepository.findByEmail(def.getEmail());
+        Optional<User> byHandle = (def.getHandle() != null && !def.getHandle().isBlank())
+                ? userRepository.findByHandle(def.getHandle())
+                : Optional.empty();
+
+        // Step 2: Special check for admin seed: if def is ADMIN, check if an existing admin account exists in DB
+        final Optional<User> byAdminAlias = (def.getRole() == Role.ADMIN)
+                ? ("admin_master".equals(def.getUsername())
+                        ? userRepository.findByUsername("admin")
+                        : ("admin".equals(def.getUsername())
+                                ? userRepository.findByUsername("admin_master")
+                                : Optional.empty()))
+                : Optional.empty();
+
+        // Collect all distinct matched existing users deduplicated by userId
+        Map<Integer, User> matchedUsers = new LinkedHashMap<>();
+        byUsername.ifPresent(u -> matchedUsers.put(u.getUserId(), u));
+        byEmail.ifPresent(u -> matchedUsers.put(u.getUserId(), u));
+        byHandle.ifPresent(u -> matchedUsers.put(u.getUserId(), u));
+        byAdminAlias.ifPresent(u -> matchedUsers.put(u.getUserId(), u));
+
+        // Case 1: Fresh database - no existing record found across any unique constraint
+        if (matchedUsers.isEmpty()) {
+            log.info("--- [DataSeeder] Creating seed user: username='{}', handle='{}', role={} ---",
+                    def.getUsername(), def.getHandle(), def.getRole());
+            return userRepository.save(def);
+        }
+
+        // Case 2: Exactly one existing user matched across unique constraints
+        if (matchedUsers.size() == 1) {
+            User existing = matchedUsers.values().iterator().next();
+            log.info("--- [DataSeeder] Seed user '{}' already exists as user ID {} (username='{}', handle='{}', role={}). Preserving existing record without modification. ---",
+                    def.getUsername(), existing.getUserId(), existing.getUsername(), existing.getHandle(), existing.getRole());
+            return existing;
+        }
+
+        // Case 3: Inconsistent state (multiple distinct users matched username, email, or handle)
+        log.warn("--- [DataSeeder] Inconsistency detected for seed user '{}': matched {} distinct existing users (IDs: {}). Skipping creation to avoid constraint violation and preserving existing data. ---",
+                def.getUsername(),
+                matchedUsers.size(),
+                matchedUsers.keySet().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+
+        // Prefer the user matching username, then handle, then email, then admin alias
+        return byUsername.orElseGet(() -> byHandle.orElseGet(() -> byEmail.orElseGet(() -> byAdminAlias.orElse(null))));
     }
 
     private Map<String, Place> seedPlaces() {
