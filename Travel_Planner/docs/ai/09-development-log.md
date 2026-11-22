@@ -10818,3 +10818,250 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 ### 5. Deliverables & Documentation
 - Implementation Report: `docs/plan/15-admin-moderation-integration-report.md`.
 - No git commits or pushes executed; working directory prepared for review.
+
+
+---
+
+## [2026-11-23] Fix Admin Web Navigation & Refactor Admin Portal Layout
+
+### 1. Scope & Objectives
+- Investigated and resolved the root cause of post-login navigation unresponsiveness on Flutter Web Admin where authenticated `ADMIN` users could not click or navigate to administrative features.
+- Refactored the post-login Admin Portal UI into a cohesive single-page application (SPA) layout comprising:
+  1. Collapsible Left **Sidebar** organized into logical functional groups.
+  2. Persistent Top **Header** featuring breadcrumbs, current page title, live backend health badge, admin profile chip, and logout action.
+  3. Responsive **Main Content Area** hosting active feature modules and informative "Coming Soon" placeholders for unreleased modules.
+- Implemented a production-ready **Admin Dashboard** landing page with live real-time metrics fetched from actual backend endpoints with zero mock or fabricated data.
+- Maintained strict RBAC guards (`ADMIN` role requirement) across the entire layout and sub-screens.
+
+### 2. Root-Cause Analysis of Navigation Failure
+- **Toolbar Clipping in `WebPlaceholderScreen`:** The previous implementation placed multiple action buttons (`TextButton.icon('Kiểm duyệt')`, `TextButton.icon('Địa điểm')`, and a wide `PopupMenuButton` with text `Xin chào, $fullName ($role)`) directly in the `AppBar.actions` row. On typical browser viewports or window resizing, `NavigationToolbar` clipped the actions or placed them outside pointer hit-test boundaries, causing click events to be ignored.
+- **Navigator Push Lock-In:** Sub-screens (`AdminModerationScreen` and `AdminPlacesScreen`) were pushed via full-screen `Navigator.push`. Both screens instantiated standalone `Scaffold` widgets with independent AppBars, completely isolating the user from other admin sections and leaving no persistent navigation menu. Popping back landed the user on an empty placeholder card.
+- **Missing Unified Shell Architecture:** There was no persistent shell managing stateful view switching between moderation sub-tabs, places management, profile, and future admin features.
+
+### 3. Architecture & Implementation Deliverables
+- **Domain & Navigation State (`lib/features/layout/domain/admin_tab.dart`):**
+  - Defined `AdminTab` and `AdminTabGroup` enums categorizing all administration functions:
+    - `TỔNG QUAN`: Dashboard (`AdminTab.dashboard`)
+    - `QUẢN LÝ CỘNG ĐỒNG`: Post Moderation (`posts`), Reports (`reports`), Users (`users` — Coming Soon)
+    - `QUẢN LÝ DU LỊCH`: Places Management (`places`), Itinerary Management (`itineraries` — Coming Soon)
+    - `QUẢN LÝ NỘI DUNG`: Media Assets (`media`), Administrative Areas (`administrativeAreas` — Coming Soon)
+    - `HỆ THỐNG`: Audit Logs (`auditLogs` — Coming Soon), Settings (`settings` — Coming Soon), Profile (`profile`)
+  - Configured status rules: `isImplemented` flags cleanly differentiating active features from planned features.
+- **Navigation Components (`lib/features/layout/presentation/widgets/`):**
+  - `AdminSidebar`: Supports smooth animated collapsing (width 260px expanded ↔ 72px collapsed) with icon-only tooltips in collapsed mode, category headers, active item highlighting, badge indicators (e.g. pending report count), admin profile footer, and collapse toggle.
+  - `AdminHeader`: Displays dynamic breadcrumb hierarchy, current module title, live system connectivity indicator, admin user avatar/name chip, and logout action.
+  - `PlaceholderFeatureView`: Beautiful placeholder UI for unreleased features displaying the category icon, "Chưa triển khai" pill badge, detailed business roadmap checklist, backend dependency notes, and a direct "Quay lại Dashboard" button.
+- **Unified Portal Shell (`lib/features/layout/presentation/screens/admin_shell.dart`):**
+  - Serves as the primary authenticated shell for `ADMIN` users in `main.dart`.
+  - Enforces role verification: Non-admin users are strictly rejected with an "Access Denied" screen and logout CTA.
+  - Dynamically routes between modules while preserving state:
+    - `dashboard` -> `AdminDashboardScreen`
+    - `posts` -> `AdminModerationScreen(initialTabIndex: 0, embedded: true)`
+    - `reports` -> `AdminModerationScreen(initialTabIndex: 1, embedded: true)`
+    - `media` -> `AdminModerationScreen(initialTabIndex: 2, embedded: true)`
+    - `places` -> `AdminPlacesScreen(embedded: true)`
+    - `profile` -> `ProfileScreen(embedded: true)`
+    - Unreleased tabs -> `PlaceholderFeatureView`
+- **Dashboard Implementation (`lib/features/dashboard/`):**
+  - `DashboardRepository`: Fetches live, verified metrics concurrently using `Future.wait`:
+    - Canonical places count via `GET /api/admin/places?page=0&size=1` (`totalElements`)
+    - Community posts count via `GET /api/admin/community/posts?page=0&size=5` (`totalElements` + recent posts)
+    - Pending violation reports count via `GET /api/admin/community/reports?status=PENDING&page=0&size=5` (`totalElements` + recent reports)
+    - Media assets count via `GET /api/admin/media-assets?page=0&size=1` (`totalElements`)
+    - Backend health & service status via `GET /api/health` (`status: UP`, service name, server timestamp)
+  - `AdminDashboardScreen`: Renders a welcome banner, 4 interactive stat cards with deep-link navigation, a quick-action shortcut bar, side-by-side pending reports and recent posts queues, and an infrastructure status card. Zero mock or hardcoded statistics.
+- **Embedded Mode Adaptations:**
+  - `AdminPlacesScreen`: Added `embedded` parameter. When embedded, omits duplicate top AppBar and renders an integrated action toolbar (Refresh + Add Place). Full standalone mode preserved for backward compatibility.
+  - `AdminModerationScreen`: Added `initialTabIndex` and `embedded` parameters. When embedded, renders its 3 sub-tabs (`Bài viết`, `Báo cáo vi phạm`, `Tài nguyên Media`) in a clean top tab strip beneath the shell header.
+  - `ProfileScreen`: Added `embedded` parameter. Omits duplicate AppBar when hosted in the shell.
+- **Backend Test Fix:**
+  - `PostServiceJpaIntegrationTest`: Fixed non-deterministic test method execution failure where `testUpdatePostKeepOldAndAddNewMedia` threw `NoSuchElementException` when executed before `testCreatePostHttp` by implementing `getOrCreateUser("http_author")`.
+
+### 4. Verification & Testing
+- **Flutter Web Analysis:**
+  - Executed: `flutter analyze` in `frontend/web`.
+  - Result: **No issues found (0 warnings, 0 errors, 0 lints)**.
+- **Flutter Web Test Suite:**
+  - Added `admin_portal_layout_test.dart` covering domain groupings, `DashboardRepository` network handling, `PlaceholderFeatureView` roadmap & navigation, `AdminSidebar` rendering & collapse, `AdminHeader` breadcrumbs & status, `AdminDashboardScreen` metric cards & actions, and `AdminShell` RBAC & tab switching.
+  - Executed: `flutter test` across all 7 test files (`admin_portal_layout_test.dart`, `admin_moderation_test.dart`, `admin_place_test.dart`, `auth_401_test.dart`, `username_validation_test.dart`, `web_map_api_key_test.dart`, `widget_test.dart`).
+  - Result: **62 tests passed, 0 failures (100% PASS)**.
+- **Flutter Web Production Build:**
+  - Executed: `flutter build web`.
+  - Result: **BUILD SUCCESS** (`√ Built build\web`).
+- **Backend Integration Test Suite:**
+  - Executed: `.\mvnw.cmd test -Dtest=PostServiceJpaIntegrationTest`.
+  - Result: **BUILD SUCCESS (2 tests run, 0 failures, 0 errors)**.
+
+### 5. Git & Deliverables
+- Detailed refactoring report generated: `docs/plan/16-admin-portal-ui-refactor-report.md`.
+- No git commits or pushes performed, preserving the working tree for user review.
+
+---
+
+## [2026-11-23] Investigate and Fix Admin Web Login Regression After Admin Portal Refactor
+
+### 1. Scope & Incident Summary
+- Investigated a regression reported after the Admin Portal UI refactor where accessing or authenticating via the Flutter Web Admin login page resulted in UI freezing, framework assertion failures, or blank rendering.
+- Diagnosed the issue using live runtime inspection (Chrome DevTools Protocol WebSocket on port 50587, backend process at PID 8212, MySQL database queries) rather than source speculation.
+- Pinpointed the root cause to unbounded horizontal layout constraints introduced by global button themes in `app_theme.dart`.
+- Fixed the theme definitions, added clean test dependency injection in `AdminShell` and `main.dart`, verified role-based access control (RBAC), and wrote comprehensive integration tests.
+
+### 2. Root Cause Analysis
+- **Fatal Rendering Assertion:**
+  Chrome DevTools logs captured:
+  `BoxConstraints forces an infinite width. The offending constraints were: BoxConstraints(w=Infinity, 48.0<=h<=Infinity)`
+  Originating widget: `OutlinedButton:file:///.../admin_dashboard_screen.dart:202:26` inside `Row` in `_buildWelcomeHeader()`.
+- **Flawed Theme Definition:**
+  In `lib/core/theme/app_theme.dart`, both `elevatedButtonTheme` and `outlinedButtonTheme` defined:
+  `minimumSize: const Size.fromHeight(48)` (or `WidgetStatePropertyAll(Size.fromHeight(48))`).
+  In Flutter, `Size.fromHeight(h)` is defined as `Size(double.infinity, h)`.
+  When any button using this theme was laid out inside an unconstrained horizontal axis (such as a `Row` or `Wrap`), the button forced its internal child to take `minWidth = double.infinity`. This triggered Flutter's strict assertion `BoxConstraints forces an infinite width`, crashing the render tree.
+- **Why It Triggered Upon Login / Startup:**
+  When an admin user authenticated (or when a valid stored session was restored upon launch), `main.dart` transitioned from `LoginScreen` to `AdminShell`. `AdminShell` immediately mounted `AdminDashboardScreen`, whose header contained an `OutlinedButton.icon('Làm mới')` inside a `Row`, causing an instant fatal crash.
+
+### 3. Changes Implemented
+- **Global Button Themes (`lib/core/theme/app_theme.dart`):**
+  - Replaced `Size.fromHeight(48)` with `Size(64, 48)` in both `elevatedButtonTheme` and `outlinedButtonTheme`.
+  - Ensures a standard 48px height and Material-compliant 64px minimum width, allowing buttons inside `Row` or `Wrap` to size dynamically without unbounded constraints. Form submit buttons continue to expand properly via `Column(crossAxisAlignment: CrossAxisAlignment.stretch)`.
+- **Dependency Injection for Testing (`lib/features/layout/presentation/screens/admin_shell.dart`, `lib/main.dart`):**
+  - Added optional `ApiClient? apiClient` parameters to `AdminShell` and `MyApp` to cleanly decouple mock HTTP clients in automated widget/integration tests.
+- **RBAC Verification:**
+  - Verified that `AuthNotifier.login()` strictly rejects accounts with `role != 'ADMIN'`, displaying a clear security warning snackbar and preventing unauthorized session creation.
+
+### 4. Verification & Testing
+- **Integration Test Suite (`test/login_flow_integration_test.dart`):**
+  - Test 1: Empty submission triggers field validation errors.
+  - Test 2: Invalid credentials display error snackbar without crashing.
+  - Test 3: Valid `ADMIN` login transitions cleanly to `AdminShell` and displays the dashboard with active sidebar.
+  - Test 4: Non-admin (`USER`) login is rejected with an authorization error.
+  - Test 5: Cold-start session restoration preserves authenticated `ADMIN` status and loads `AdminShell`.
+  - Result: **5/5 tests passed**.
+- **Full Flutter Web Test Suite:**
+  - Executed: `flutter test` across all 7 test files in `frontend/web`.
+  - Result: **67/67 tests passed (100% PASS)**.
+- **Static Analysis:**
+  - Executed: `flutter analyze` in `frontend/web`.
+  - Result: **No issues found (0 warnings, 0 errors, 0 lints)**.
+- **Production Web Build:**
+  - Executed: `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`.
+  - Result: **BUILD SUCCESS** (`√ Built build\web`).
+- **Backend Health Check:**
+  - `GET http://localhost:8080/api/health` verified UP; live backend process remained uninterrupted.
+
+### 5. Git Status
+- Report written: `docs/plan/17-admin-login-regression-fix-report.md`.
+- No commits or pushes performed; working tree clean and ready for user review.
+
+---
+
+## [2026-11-23] Fix Backend Admin Seed Duplicate Handle Startup Failure
+
+### 1. Scope & Incident Summary
+- Investigated and resolved a fatal backend startup crash caused by:
+  `DataIntegrityViolationException: Duplicate entry 'nam.admin' for key 'users.uk_users_handle'`
+- Identified root cause in `DataSeeder.java` where account pre-existence checks only inspected `username` and `email`, completely ignoring `handle` and existing admin account aliases (`username: "admin"` vs `"admin_master"`).
+- Re-architected `DataSeeder.java` to make user seeding strictly idempotent across all three unique constraints (`username`, `email`, `handle`), safe against overwriting existing admin accounts, and resilient against race conditions in multi-instance startup environments.
+- Created `AdminSeedIdempotencyTest.java` with 4 comprehensive test scenarios, fixed test DB cleanup in `DataSeederTest.java`, and verified successful startup on the live MySQL `travel_planner` database without modifying pre-existing user data.
+
+### 2. Root Cause Analysis
+- **Database State:**
+  - Table `travel_planner.users` has 3 unique constraints: `uk_users_username`, `uk_users_email`, `uk_users_handle`.
+  - Existing Admin user: `user_id = 578`, `username = "admin"`, `handle = "nam.admin"`, `email = "admin@gmail.com"`, `role = ADMIN`.
+- **Seeder Definition:**
+  - `DataSeeder.java` defines seed admin user: `username = "admin_master"`, `handle = "nam.admin"`, `email = "admin@travelplanner.local"`.
+- **Flawed Lookup:**
+  - The lookup previously checked `findByUsername(def.getUsername()).orElseGet(() -> findByEmail(def.getEmail()))`.
+  - Neither matched User 578 (`admin` != `admin_master`, `admin@gmail.com` != `admin@travelplanner.local`).
+  - Because `handle` was ignored, the seeder executed `userRepository.save(def)` with `handle: "nam.admin"`, triggering the MySQL constraint collision.
+
+### 3. Changes Implemented
+- **Idempotent User Resolution (`DataSeeder.java`):**
+  - Implemented `resolveOrCreateSeedUser(User def)`:
+    - Pre-checks all 3 unique constraints: `findByUsername`, `findByEmail`, `findByHandle`.
+    - Cross-checks admin alias: maps `admin_master` ↔ `admin` when seeding administrative accounts.
+    - Deduplicates candidates across fields by `userId`.
+    - If 0 matches: creates user.
+    - If 1 match: reuses existing user without mutating password, role, profile, or status.
+    - If >1 matches: detects inconsistent state across users, logs warning, and skips insertion safely.
+  - Bidirectionally indexes both seed username (`admin_master`) and resolved username (`admin`) in the seeder's memory map for downstream place/itinerary associations.
+- **Distributed Concurrency Lock:**
+  - Implemented MySQL advisory lock `GET_LOCK('travel_planner_data_seed_lock', 15)` in `DataSeeder.run()` with `RELEASE_LOCK` in a `try ... finally` block on a dedicated connection.
+- **Test Database Cleanup (`DataSeederTest.java`, `AdminSeedIdempotencyTest.java`):**
+  - Handled foreign key constraints in test teardown using `SET FOREIGN_KEY_CHECKS = 0` / `1` when cleaning child tables (`post_reports`, `post_media`, `post_comments`, `post_likes`, `posts`, `media_assets`).
+
+### 4. Verification & Testing
+- **New Test Suite (`AdminSeedIdempotencyTest.java`):**
+  - Scenario 1 (Fresh database creates admin): PASS
+  - Scenario 2 (Existing `nam.admin` / `admin` preserved without duplicate): PASS
+  - Scenario 3 (Repeated runs produce 0 duplicates): PASS
+  - Scenario 4 (Inconsistent state handled gracefully): PASS
+- **Seeder & Integration Tests:**
+  - `mvn test -Dtest="AdminSeedIdempotencyTest,DataSeederTest"`: **12/12 tests PASS (BUILD SUCCESS)**
+  - `mvn test -Dtest="PostServiceJpaIntegrationTest"`: **2/2 tests PASS (BUILD SUCCESS)**
+- **Live Backend Verification:**
+  - Booted Spring Boot against `travel_planner` DB with `app.seed.enabled=true`.
+  - Verified seeder log:
+    `--- [DataSeeder] Seed user 'admin_master' already exists as user ID 578 (username='admin', handle='nam.admin', role=ADMIN). Preserving existing record without modification. ---`
+  - Health check `GET /api/health` returned HTTP 200 `UP`.
+  - Admin login `POST /api/auth/login` for User 578 succeeded and returned valid JWT token with `ADMIN` role.
+  - Database row for User 578 remained 100% intact.
+
+### 5. Git Status
+- Report written: `docs/plan/18-admin-seed-startup-fix-report.md`.
+- No commits or pushes performed; working tree clean and ready for user review.
+
+---
+
+## [2026-11-23] Fix Admin Login Session Immediately Redirecting Back to Login
+
+### 1. Scope & Incident Summary
+- Investigated and resolved an issue where logging into Flutter Web Admin with valid `ADMIN` credentials briefly rendered the Admin Portal for 1–2 seconds before automatically redirecting back to `LoginScreen`.
+- Traced the exact HTTP request chain using Chrome DevTools Protocol (CDP) WebSocket inspection and backend network logging.
+- Identified the root cause in backend JWT revocation verification where pre-existing database accounts with `token_version = 0` caused issued tokens to carry `"tokenVersion": 0`, which was strictly rejected as invalid by `getTokenVersionFromToken(token)`.
+- Re-architected backend `tokenVersion` handling to enforce positive default normalization (`> 0 ? version : 1`) across claim generation, `CustomUserDetails`, and `JwtAuthenticationFilter`.
+- Verified live in Chrome that the admin session remains stable beyond 30 seconds, tabs navigate smoothly, browser reload restores session state from `localStorage`, logout cleanly ends the session, and unauthorized users remain strictly barred.
+
+### 2. Root Cause Analysis
+- **Token Generation:**
+  - Table `travel_planner.users` contained legacy rows with `token_version = 0`.
+  - In `JwtTokenProvider.java`, `user.getTokenVersion() != null ? user.getTokenVersion() : 1` evaluated to `0` because `0 != null`.
+  - The generated JWT token contained claim `"tokenVersion": 0`.
+- **Validation Failure:**
+  - In `JwtTokenProvider.getTokenVersionFromToken(token)`:
+    `if (longVal <= 0) { throw new JwtException("Invalid tokenVersion claim value: " + longVal + ". Must be a positive integer."); }`
+  - Threw `JwtException`, causing `validateToken()` to return `false`.
+- **Cascade to Frontend:**
+  - `JwtAuthenticationFilter` failed to set authentication in `SecurityContextHolder`.
+  - Initial dashboard queries (`/api/admin/places`, `/api/admin/community/reports`) returned `HTTP 401 Unauthorized`.
+  - Flutter Web's `ApiClient` intercepted the 401 via `_notifyUnauthorized()`, which fired `ApiClient.globalOnUnauthorized` registered in `main.dart`.
+  - This invoked `AuthNotifier.handleSessionExpired()` -> `AuthNotifier.logout()`, clearing `localStorage` and resetting status to `unauthenticated`, snapping the UI back to `LoginScreen`.
+
+### 3. Changes Implemented
+- **Backend Defensive Normalization:**
+  - `JwtTokenProvider.java`: Guaranteed `(user.getTokenVersion() != null && user.getTokenVersion() > 0) ? user.getTokenVersion() : 1` when creating JWT claims.
+  - `UserDetailsServiceImpl.java`: Ensured `effectiveTokenVersion = (user.getTokenVersion() != null && user.getTokenVersion() > 0) ? user.getTokenVersion() : 1` for `CustomUserDetails`.
+  - `JwtAuthenticationFilter.java`: Ensured `currentDbVersion = (customUser.getTokenVersion() != null && customUser.getTokenVersion() > 0) ? customUser.getTokenVersion() : 1`.
+  - `User.java`: Updated entity constructor and `@PrePersist` to default `tokenVersion` to `1` whenever `<= 0` or `null`.
+  - Database: Updated legacy records `UPDATE travel_planner.users SET token_version = 1 WHERE token_version <= 0;`.
+- **Frontend UI Adjustment:**
+  - `admin_moderation_screen.dart`: Adjusted embedded top tab strip height from `Size.fromHeight(48)` to `Size.fromHeight(56)` to eliminate a 1px vertical render overflow on tabs with both icons and text labels.
+
+### 4. Verification & Testing
+- **Chrome CDP Live Browser Verification:**
+  - Unauthenticated access renders `LoginScreen`.
+  - Admin login transitions to `AdminShell` and displays `AdminDashboardScreen` with live statistics (24 places, 4 posts, 0 pending reports, 18 media assets).
+  - 30-second live observation test verified zero 401 errors and unbroken session persistence.
+  - Sidebar tab switching works smoothly with zero redirects.
+  - Browser reload (`window.location.reload()`) successfully restores the session from `localStorage`.
+  - Header and sidebar logout buttons cleanly purge `localStorage` and transition back to `LoginScreen`.
+  - Non-admin (`ROLE_USER`) authentication is strictly blocked at `AuthNotifier` and `AdminShell` RBAC guards.
+- **Backend Test Suites:**
+  - `mvn test -Dtest="JwtTokenProviderTest,AuthControllerTest,AuthSecurityUnitTest,AdminSeedIdempotencyTest"`: **68/68 passed (BUILD SUCCESS)**.
+- **Flutter Web Suites:**
+  - `flutter test`: **67/67 passed (100% PASS)**.
+  - `flutter analyze`: **No issues found (0 warnings, 0 errors)**.
+  - `flutter build web`: **BUILD SUCCESS**.
+
+### 5. Git Status
+- Report written: `docs/plan/19-admin-auth-session-redirect-fix-report.md`.
+- No commits or pushes performed; working tree clean and ready for user review.
