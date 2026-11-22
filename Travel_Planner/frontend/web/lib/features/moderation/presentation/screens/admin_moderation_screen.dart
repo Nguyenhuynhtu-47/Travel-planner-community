@@ -11,11 +11,15 @@ import '../../data/moderation_repository.dart';
 class AdminModerationScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ModerationRepository? repository;
+  final int initialTabIndex;
+  final bool embedded;
 
   const AdminModerationScreen({
     super.key,
     required this.authNotifier,
     this.repository,
+    this.initialTabIndex = 0,
+    this.embedded = false,
   });
 
   @override
@@ -52,13 +56,27 @@ class _AdminModerationScreenState extends State<AdminModerationScreen>
   void initState() {
     super.initState();
     _repository = widget.repository ?? ModerationRepository();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+    );
     _token = widget.authNotifier.token;
 
     if (isAdmin) {
       _loadPosts();
       _loadReports();
       _loadMediaAssets();
+    }
+  }
+
+  @override
+  void didUpdateWidget(AdminModerationScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTabIndex != widget.initialTabIndex &&
+        widget.initialTabIndex >= 0 &&
+        widget.initialTabIndex < 3) {
+      _tabController.animateTo(widget.initialTabIndex);
     }
   }
 
@@ -876,23 +894,44 @@ class _AdminModerationScreenState extends State<AdminModerationScreen>
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Quản trị & Kiểm duyệt Cộng đồng',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.muted,
-          indicatorColor: AppColors.primary,
-          tabs: const [
-            Tab(icon: Icon(Icons.article_outlined), text: 'Bài viết'),
-            Tab(icon: Icon(Icons.report_outlined), text: 'Báo cáo vi phạm'),
-            Tab(icon: Icon(Icons.perm_media_outlined), text: 'Tài nguyên Media'),
-          ],
-        ),
-      ),
+      appBar: widget.embedded
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(56),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(bottom: BorderSide(color: AppColors.border)),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: AppColors.primary,
+                  unselectedLabelColor: AppColors.muted,
+                  indicatorColor: AppColors.primary,
+                  tabs: const [
+                    Tab(icon: Icon(Icons.article_outlined), text: 'Bài viết'),
+                    Tab(icon: Icon(Icons.report_outlined), text: 'Báo cáo vi phạm'),
+                    Tab(icon: Icon(Icons.perm_media_outlined), text: 'Tài nguyên Media'),
+                  ],
+                ),
+              ),
+            )
+          : AppBar(
+              title: const Text(
+                'Quản trị & Kiểm duyệt Cộng đồng',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              bottom: TabBar(
+                controller: _tabController,
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.muted,
+                indicatorColor: AppColors.primary,
+                tabs: const [
+                  Tab(icon: Icon(Icons.article_outlined), text: 'Bài viết'),
+                  Tab(icon: Icon(Icons.report_outlined), text: 'Báo cáo vi phạm'),
+                  Tab(icon: Icon(Icons.perm_media_outlined), text: 'Tài nguyên Media'),
+                ],
+              ),
+            ),
       body: TabBarView(
         controller: _tabController,
         children: [

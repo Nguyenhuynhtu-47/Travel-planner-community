@@ -14,11 +14,13 @@ import 'package:travel_planner_web/shared/widgets/web_map_view.dart';
 class AdminPlacesScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final PlaceRepository? repository;
+  final bool embedded;
 
   const AdminPlacesScreen({
     super.key,
     required this.authNotifier,
     this.repository,
+    this.embedded = false,
   });
 
   @override
@@ -280,35 +282,38 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quản lý Địa điểm Chuẩn hóa (Places)'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Làm mới',
-            onPressed: () => _loadPlaces(showLoading: true),
-          ),
-          const SizedBox(width: 8),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-              label: const Text('Thêm địa điểm'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
-              onPressed: _handleCreatePlace,
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text('Quản lý Địa điểm Chuẩn hóa (Places)'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Làm mới',
+                  onPressed: () => _loadPlaces(showLoading: true),
+                ),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                    label: const Text('Thêm địa điểm'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    onPressed: _handleCreatePlace,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 960;
           return Column(
             children: [
+              if (widget.embedded) _buildEmbeddedToolbar(),
               _buildFilterBar(),
               const Divider(height: 1, color: AppColors.border),
               Expanded(
@@ -323,6 +328,47 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmbeddedToolbar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.place_outlined, size: 20, color: AppColors.primary),
+          const SizedBox(width: 8),
+          const Text(
+            'Danh sách Địa điểm Chuẩn hóa (Places)',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 20),
+            tooltip: 'Làm mới',
+            onPressed: () => _loadPlaces(showLoading: true),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add_location_alt_outlined, size: 16),
+            label: const Text('Thêm địa điểm'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            onPressed: _handleCreatePlace,
+          ),
+        ],
       ),
     );
   }
