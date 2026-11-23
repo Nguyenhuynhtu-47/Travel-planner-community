@@ -29,7 +29,9 @@ public final class TestDatabaseCleaner {
         try { jdbcTemplate.execute("DELETE FROM post_reports"); } catch (Exception ignored) {}
         try { jdbcTemplate.execute("DELETE FROM posts"); } catch (Exception ignored) {}
         try { jdbcTemplate.execute("DELETE FROM comments"); } catch (Exception ignored) {}
+        try { jdbcTemplate.execute("DELETE FROM activity_visits"); } catch (Exception ignored) {}
         try { jdbcTemplate.execute("DELETE FROM ratings"); } catch (Exception ignored) {}
+        try { jdbcTemplate.execute("DELETE FROM itinerary_access_grants"); } catch (Exception ignored) {}
         try { jdbcTemplate.execute("DELETE FROM favorites"); } catch (Exception ignored) {}
         try { jdbcTemplate.execute("DELETE FROM saved_itineraries"); } catch (Exception ignored) {}
         try { jdbcTemplate.execute("DELETE FROM itinerary_shares"); } catch (Exception ignored) {}

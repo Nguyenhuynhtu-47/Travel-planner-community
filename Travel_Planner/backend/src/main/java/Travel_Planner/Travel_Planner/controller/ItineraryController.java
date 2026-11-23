@@ -170,6 +170,20 @@ public class ItineraryController {
         return ResponseEntity.ok(response);
     }
 
+    @PutMapping("/{id}/days/{dayId}/activities/{activityId}/visit-status")
+    public ResponseEntity<ActivityVisitResponse> updateActivityVisitStatus(
+            @PathVariable Integer id,
+            @PathVariable Integer dayId,
+            @PathVariable Integer activityId,
+            @Valid @RequestBody UpdateActivityVisitRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String currentUsername = userDetails == null ? null : userDetails.getUsername();
+        ActivityVisitResponse response = itineraryService.updateActivityVisitStatus(
+                id, dayId, activityId, request.getVisited(), currentUsername);
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/{id}/days/{dayId}/activities/{activityId}")
     public ResponseEntity<Map<String, String>> deleteActivity(
             @PathVariable Integer id,
