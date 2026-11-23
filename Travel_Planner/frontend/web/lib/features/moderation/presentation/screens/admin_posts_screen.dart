@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/admin_data_table.dart';
+import '../../../../shared/widgets/admin_dialog.dart';
 import '../../../../shared/widgets/admin_page_header.dart';
 import '../../../../shared/widgets/admin_status_badge.dart';
 import '../../../../shared/widgets/admin_toolbar.dart';
+import '../../../../shared/widgets/hover_movement.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/models/admin_post_model.dart';
 import '../../data/moderation_repository.dart';
 
+/// Professional Enterprise Post Moderation screen for Travel Planner Web Admin.
+/// Aligned with docs/plan/admin-design-system.md (Minimalism & Swiss Style).
 class AdminPostsScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final ModerationRepository? repository;
@@ -29,10 +34,15 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
   late final ModerationRepository _repository;
   bool _loading = false;
   List<AdminPostModel> _posts = [];
+  int _page = 0;
+  final int _pageSize = 20;
+  int _totalPages = 0;
+  int _totalElements = 0;
   String _statusFilter = 'ALL';
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _token;
+  String? _errorMessage;
 
   bool get isAdmin {
     final role =
@@ -68,7 +78,16 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
     return '${ApiConstants.baseUrl}/$trimmed';
   }
 
-  String _errorMessage(dynamic error, String fallback) {
+  String _formatDateTime(DateTime dt) {
+    final day = dt.day.toString().padLeft(2, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final year = dt.year.toString();
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year $hour:$min';
+  }
+
+  String _parseErrorMessage(dynamic error, String fallback) {
     if (error is ApiException) {
       return error.message.isNotEmpty ? error.message : fallback;
     }
@@ -77,19 +96,35 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
 
   Future<void> _loadPosts() async {
     if (_token == null) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+
     try {
       final statusParam = _statusFilter == 'ALL' ? null : _statusFilter;
-      final res = await _repository.getPosts(
+      final res = await _repository.getPostsPaged(
         status: statusParam,
+        page: _page,
+        size: _pageSize,
         token: _token!,
       );
-      if (mounted) setState(() => _posts = res);
-    } catch (e) {
       if (mounted) {
+        setState(() {
+          _posts = res.content;
+          _totalPages = res.totalPages;
+          _totalElements = res.totalElements;
+          _page = res.page;
+        });
+      }
+    } catch (e) {
+      final msg = _parseErrorMessage(e, 'Không thể tải danh sách bài viết');
+      if (mounted) {
+        setState(() => _errorMessage = msg);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_errorMessage(e, 'Không thể tải danh sách bài viết')),
+            content: Text(msg),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -98,49 +133,78 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
     }
   }
 
+  void _onPageChanged(int newPage) {
+    if (newPage != _page && newPage >= 0) {
+      setState(() => _page = newPage);
+      _loadPosts();
+    }
+  }
+
   Future<void> _moderatePost(int postId, String status) async {
     if (_token == null) return;
     final reasonController = TextEditingController();
-    final confirmed = await showDialog<bool>(
+
+    final isHide = status == 'HIDDEN';
+    final confirmed = await AdminDialog.show<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(status == 'HIDDEN' ? 'Ẩn bài viết vi phạm' : 'Khôi phục bài viết'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(status == 'HIDDEN'
+      width: 480,
+      title: isHide ? 'Ẩn bài viết vi phạm' : 'Khôi phục bài viết',
+      titleBadge: AdminStatusBadge(status: status),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isHide
                 ? 'Nhập lý do kiểm duyệt để thông báo cho người dùng hoặc lưu audit log:'
-                : 'Bạn có chắc muốn khôi phục hiển thị cho bài viết này?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Lý do kiểm duyệt',
-                hintText: 'VD: Vi phạm tiêu chuẩn cộng đồng, spam...',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
+                : 'Bạn có chắc muốn khôi phục hiển thị cho bài viết này?',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.4,
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: status == 'HIDDEN' ? Colors.orange : Colors.green,
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: reasonController,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              labelText: 'Lý do kiểm duyệt',
+              hintText: 'VD: Vi phạm tiêu chuẩn cộng đồng, spam...',
+              hintStyle: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+              ),
             ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              status == 'HIDDEN' ? 'Xác nhận ẩn' : 'Xác nhận khôi phục',
-              style: const TextStyle(color: Colors.white),
-            ),
+            maxLines: 3,
           ),
         ],
       ),
+      actions: [
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AppColors.borderStrong),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          child: const Text('Hủy'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isHide ? AppColors.accentDark : AppColors.success,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(isHide ? 'Xác nhận ẩn' : 'Xác nhận khôi phục'),
+        ),
+      ],
     );
 
     if (confirmed != true) return;
@@ -157,7 +221,7 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(status == 'HIDDEN'
+            content: Text(isHide
                 ? 'Đã ẩn bài viết thành công.'
                 : 'Đã khôi phục bài viết.'),
           ),
@@ -168,7 +232,8 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_errorMessage(e, 'Không thể cập nhật trạng thái bài viết')),
+            content: Text(_parseErrorMessage(e, 'Không thể cập nhật trạng thái bài viết')),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -177,25 +242,41 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
 
   Future<void> _purgePost(int postId) async {
     if (_token == null) return;
-    final confirmed = await showDialog<bool>(
+
+    final confirmed = await AdminDialog.show<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('CẢNH BÁO: XÓA VĨNH VIỄN'),
-        content: const Text(
-          'Hành động này sẽ xóa vĩnh viễn bài viết khỏi hệ thống và đưa tất cả ảnh đính kèm vào hàng đợi dọn dẹp Cloudinary. Không thể hoàn tác!',
+      width: 480,
+      title: 'CẢNH BÁO: XÓA VĨNH VIỄN',
+      titleBadge: const AdminStatusBadge(status: 'DELETED'),
+      content: const Text(
+        'Hành động này sẽ xóa vĩnh viễn bài viết khỏi hệ thống và đưa tất cả ảnh đính kèm vào hàng đợi dọn dẹp Cloudinary. Không thể hoàn tác!',
+        style: TextStyle(
+          fontSize: 13,
+          color: AppColors.error,
+          height: 1.4,
+          fontWeight: FontWeight.w500,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xóa vĩnh viễn', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
+      actions: [
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AppColors.borderStrong),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          child: const Text('Hủy'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.error,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Xóa vĩnh viễn'),
+        ),
+      ],
     );
 
     if (confirmed != true) return;
@@ -212,7 +293,8 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_errorMessage(e, 'Không thể xóa vĩnh viễn bài viết')),
+            content: Text(_parseErrorMessage(e, 'Không thể xóa vĩnh viễn bài viết')),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -220,218 +302,233 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
   }
 
   void _showPostDetailDialog(AdminPostModel post) {
-    showDialog<void>(
+    AdminDialog.show<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Text('Chi tiết bài viết #${post.postId}'),
-            const Spacer(),
-            AdminStatusBadge(status: post.status),
-          ],
-        ),
-        content: SizedBox(
-          width: 600,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Author Info
-                Row(
+      width: 640,
+      title: 'Chi tiết bài viết #${post.postId}',
+      titleBadge: AdminStatusBadge(status: post.status),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Author Header Bar
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.primaryLight,
+                backgroundImage: post.author.avatar != null && post.author.avatar!.isNotEmpty
+                    ? NetworkImage(_resolveImageUrl(post.author.avatar!))
+                    : null,
+                child: post.author.avatar == null || post.author.avatar!.isEmpty
+                    ? Text(
+                        post.author.displayName.isNotEmpty
+                            ? post.author.displayName[0].toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.grey.shade300,
-                      backgroundImage: post.author.avatar != null &&
-                              post.author.avatar!.isNotEmpty
-                          ? NetworkImage(_resolveImageUrl(post.author.avatar!))
-                          : null,
-                      child: post.author.avatar == null ||
-                              post.author.avatar!.isEmpty
-                          ? const Icon(Icons.person, color: Colors.grey)
-                          : null,
+                    Text(
+                      post.author.displayName,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            post.author.displayName,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          Text(
-                            '@${post.author.handle} (ID: ${post.author.userId})',
-                            style: const TextStyle(
-                                color: AppColors.muted, fontSize: 12),
-                          ),
-                        ],
-                      ),
+                    Text(
+                      '@${post.author.handle} (ID: ${post.author.userId})',
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
 
-                // Content
-                const Text('Nội dung:',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 4),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSoft,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: SelectableText(
-                    post.content.isNotEmpty ? post.content : '(Không có nội dung văn bản)',
-                    style: const TextStyle(fontSize: 13, height: 1.4),
-                  ),
-                ),
-                const SizedBox(height: 16),
+          // Content body
+          const Text(
+            'Nội dung:',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSubtle,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(color: AppColors.border, width: 1),
+            ),
+            child: SelectableText(
+              post.content.isNotEmpty ? post.content : '(Không có nội dung văn bản)',
+              style: const TextStyle(fontSize: 13, height: 1.45, color: AppColors.textPrimary),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
 
-                // Attached Media
-                if (post.mediaUrls.isNotEmpty) ...[
-                  const Text('Ảnh đính kèm:',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: post.mediaUrls.map((url) {
-                      final fullUrl = _resolveImageUrl(url);
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: InkWell(
-                          onTap: () {
-                            showDialog<void>(
-                              context: ctx,
-                              builder: (_) => Dialog(
-                                child: Image.network(
-                                  fullUrl,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Padding(
-                                    padding: EdgeInsets.all(32),
-                                    child: Icon(Icons.broken_image, size: 60),
-                                  ),
+          // Attached Media Gallery
+          if (post.mediaUrls.isNotEmpty) ...[
+            Text(
+              'Ảnh đính kèm (${post.mediaUrls.length}):',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: post.mediaUrls.map((url) {
+                final fullUrl = _resolveImageUrl(url);
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  child: InkWell(
+                    onTap: () {
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          child: Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              Image.network(
+                                fullUrl,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  padding: const EdgeInsets.all(32),
+                                  color: AppColors.surface,
+                                  child: const Icon(Icons.broken_image, size: 48, color: AppColors.textMuted),
                                 ),
                               ),
-                            );
-                          },
-                          child: Image.network(
-                            fullUrl,
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (c, child, progress) {
-                              if (progress == null) return child;
-                              return Container(
-                                width: 100,
-                                height: 100,
-                                color: Colors.grey.shade100,
-                                child: const Center(
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2)),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              width: 100,
-                              height: 100,
-                              color: Colors.grey.shade200,
-                              child: const Icon(Icons.broken_image,
-                                  color: Colors.grey),
-                            ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.white, size: 24),
+                                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                              ),
+                            ],
                           ),
                         ),
                       );
-                    }).toList(),
+                    },
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.border, width: 1),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Image.network(
+                        fullUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (_, child, progress) {
+                          if (progress == null) return child;
+                          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                        },
+                        errorBuilder: (context, error, stackTrace) => const Center(
+                          child: Icon(Icons.broken_image, color: AppColors.textMuted, size: 24),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                ],
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
 
-                // Metadata & Stats
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 8,
-                  children: [
-                    Text('Lượt thích: ${post.likeCount}',
-                        style: const TextStyle(fontSize: 13)),
-                    Text('Bình luận: ${post.commentCount}',
-                        style: const TextStyle(fontSize: 13)),
-                    Text(
-                        'Ngày tạo: ${post.createdAt.day}/${post.createdAt.month}/${post.createdAt.year} ${post.createdAt.hour}:${post.createdAt.minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.muted)),
-                  ],
+          // Metadata & Stats
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
+            children: [
+              Text('Lượt thích: ${post.likeCount}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text('Bình luận: ${post.commentCount}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text('Ngày tạo: ${_formatDateTime(post.createdAt)}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            ],
+          ),
+
+          // Moderation Reason (if any)
+          if (post.moderationReason != null && post.moderationReason!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.warningLight,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.warningBorder, width: 1),
+              ),
+              child: Text(
+                'Lý do kiểm duyệt: ${post.moderationReason}',
+                style: const TextStyle(
+                  color: AppColors.warning,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
-
-                // Moderation Reason (if any)
-                if (post.moderationReason != null &&
-                    post.moderationReason!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
-                    child: Text(
-                      'Lý do kiểm duyệt: ${post.moderationReason}',
-                      style: TextStyle(
-                          color: Colors.orange.shade900, fontSize: 13),
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-        ),
-        actions: [
-          if (post.status == 'ACTIVE')
-            ElevatedButton(
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              onPressed: () {
-                Navigator.pop(ctx);
-                _moderatePost(post.postId, 'HIDDEN');
-              },
-              child: const Text('Ẩn bài viết',
-                  style: TextStyle(color: Colors.white)),
-            )
-          else if (post.status == 'HIDDEN')
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              onPressed: () {
-                Navigator.pop(ctx);
-                _moderatePost(post.postId, 'ACTIVE');
-              },
-              child: const Text('Khôi phục bài viết',
-                  style: TextStyle(color: Colors.white)),
-            ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-                Navigator.pop(ctx);
-              _purgePost(post.postId);
-            },
-            child: const Text('Xóa vĩnh viễn',
-                style: TextStyle(color: Colors.white)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng'),
-          ),
+          ],
         ],
       ),
+      actions: [
+        if (post.status == 'ACTIVE')
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accentDark,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _moderatePost(post.postId, 'HIDDEN');
+            },
+            child: const Text('Ẩn bài viết'),
+          )
+        else if (post.status == 'HIDDEN')
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _moderatePost(post.postId, 'ACTIVE');
+            },
+            child: const Text('Khôi phục bài viết'),
+          ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.error,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          onPressed: () {
+            Navigator.of(context).pop();
+            _purgePost(post.postId);
+          },
+          child: const Text('Xóa vĩnh viễn'),
+        ),
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AppColors.borderStrong),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          child: const Text('Đóng'),
+        ),
+      ],
     );
   }
 
@@ -443,7 +540,7 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
         body: const Center(
           child: Text(
             'Quyền truy cập bị từ chối: Chỉ tài khoản Quản trị viên (ADMIN) mới có quyền truy cập.',
-            style: TextStyle(color: Colors.red, fontSize: 16),
+            style: TextStyle(color: AppColors.error, fontSize: 16),
           ),
         ),
       );
@@ -469,11 +566,29 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Standalone Page Header
-          const AdminPageHeader(
+          // Standalone Enterprise Page Header
+          AdminPageHeader(
             title: 'Kiểm duyệt bài viết',
             subtitle:
                 'Quản lý, rà soát và kiểm duyệt nội dung bài đăng cộng đồng vi phạm tiêu chuẩn.',
+            actions: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadius.input),
+                  border: Border.all(color: AppColors.border, width: 1),
+                ),
+                child: Text(
+                  'Tổng: $_totalElements bài viết',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           // Standard Admin Toolbar (Filters & Search)
@@ -481,27 +596,38 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
             filters: [
               // Search input
               SizedBox(
-                width: 240,
+                width: 260,
                 height: 32,
                 child: TextField(
                   controller: _searchController,
                   style: const TextStyle(fontSize: 12.5),
                   decoration: InputDecoration(
                     hintText: 'Tìm kiếm nội dung, tác giả, ID...',
-                    hintStyle: const TextStyle(fontSize: 12, color: AppColors.muted),
-                    prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.muted),
+                    hintStyle: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.textMuted),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 14),
+                            splashRadius: 14,
+                            padding: EdgeInsets.zero,
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
                     contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AppRadius.input),
                       borderSide: const BorderSide(color: AppColors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AppRadius.input),
                       borderSide: const BorderSide(color: AppColors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: AppColors.primary),
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      borderSide: const BorderSide(color: AppColors.primaryAccessible),
                     ),
                   ),
                   onChanged: (val) {
@@ -524,7 +650,7 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AppRadius.input),
                       border: Border.all(color: AppColors.border),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -536,10 +662,14 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
                           DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
                           DropdownMenuItem(value: 'ACTIVE', child: Text('Hoạt động (ACTIVE)')),
                           DropdownMenuItem(value: 'HIDDEN', child: Text('Đã ẩn (HIDDEN)')),
+                          DropdownMenuItem(value: 'DELETED', child: Text('Đã xóa (DELETED)')),
                         ],
                         onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _statusFilter = val);
+                          if (val != null && val != _statusFilter) {
+                            setState(() {
+                              _statusFilter = val;
+                              _page = 0;
+                            });
                             _loadPosts();
                           }
                         },
@@ -555,138 +685,201 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
                 label: const Text('Làm mới', style: TextStyle(fontSize: 12)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.border),
+                  side: const BorderSide(color: AppColors.borderStrong),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                 ),
                 onPressed: _loadPosts,
               ),
             ],
           ),
 
-          // Data Table Workspace
+          // Error Banner if network/server failed
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.errorBorder, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.error, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _loadPosts,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: AppColors.error,
+                      ),
+                      child: const Text('Thử lại', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Data Table Workspace using AdminDataTable
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                : filteredPosts.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Không có bài viết nào.',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                        ),
-                      )
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: AppColors.border),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final dynamicContentWidth =
+                      (constraints.maxWidth - 720).clamp(280.0, 1000.0);
+
+                  return AdminDataTable(
+                    isLoading: _loading,
+                    minWidth: constraints.maxWidth.isFinite
+                        ? constraints.maxWidth
+                        : 800.0,
+                    emptyMessage: _searchQuery.isNotEmpty
+                        ? 'Không tìm thấy bài viết nào khớp với từ khóa "$_searchQuery".'
+                        : 'Không có bài viết nào.',
+                    currentPage: _page,
+                    totalPages: _totalPages,
+                    totalElements: _totalElements,
+                    pageSize: _pageSize,
+                    onPageChanged: _onPageChanged,
+                    columns: [
+                      AdminDataColumn.text('ID', numeric: true),
+                      AdminDataColumn.text('Tác giả'),
+                      AdminDataColumn.text('Nội dung'),
+                      AdminDataColumn.text('Ảnh đính kèm'),
+                      AdminDataColumn.text('Trạng thái'),
+                      AdminDataColumn.text('Ngày tạo'),
+                      AdminDataColumn.text('Thao tác'),
+                    ],
+                    rows: filteredPosts.map((post) {
+                      return AdminDataRow(
+                        onTap: () => _showPostDetailDialog(post),
+                        cells: [
+                          Text(
+                            '#${post.postId}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 12.5),
                           ),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              columnSpacing: 24,
-                              horizontalMargin: 16,
-                              headingRowHeight: 38,
-                              dataRowMinHeight: 44,
-                              dataRowMaxHeight: 52,
-                              headingRowColor: WidgetStateProperty.all(AppColors.surfaceSoft),
-                              headingTextStyle: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.muted,
-                                letterSpacing: 0.3,
+                          Text(
+                            post.author.displayName,
+                            style: const TextStyle(
+                                fontSize: 12.5, fontWeight: FontWeight.w500),
+                          ),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                                minWidth: 260, maxWidth: dynamicContentWidth),
+                            child: Tooltip(
+                              message: post.content.isNotEmpty
+                                  ? post.content
+                                  : '(Chỉ có ảnh)',
+                              waitDuration: const Duration(milliseconds: 400),
+                              child: Text(
+                                post.content.isNotEmpty
+                                    ? post.content
+                                    : '(Chỉ có ảnh)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12.5),
                               ),
-                              columns: const [
-                                DataColumn(label: Text('ID')),
-                                DataColumn(label: Text('TÁC GIẢ')),
-                                DataColumn(label: Text('NỘI DUNG')),
-                                DataColumn(label: Text('ẢNH ĐÍNH KÈM')),
-                                DataColumn(label: Text('TRẠNG THÁI')),
-                                DataColumn(label: Text('NGÀY TẠO')),
-                                DataColumn(label: Text('THAO TÁC')),
-                              ],
-                              rows: filteredPosts.map((post) {
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      Text('#${post.postId}',
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
-                                      onTap: () => _showPostDetailDialog(post),
-                                    ),
-                                    DataCell(
-                                      Text(post.author.displayName, style: const TextStyle(fontSize: 12.5)),
-                                      onTap: () => _showPostDetailDialog(post),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 260,
-                                        child: Text(
-                                          post.content.isNotEmpty ? post.content : '(Chỉ có ảnh)',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontSize: 12.5),
-                                        ),
-                                      ),
-                                      onTap: () => _showPostDetailDialog(post),
-                                    ),
-                                    DataCell(
-                                      post.mediaUrls.isNotEmpty
-                                          ? Text('${post.mediaUrls.length} ảnh',
-                                              style: const TextStyle(fontSize: 12, color: AppColors.primary))
-                                          : const Text('-', style: TextStyle(color: AppColors.muted)),
-                                    ),
-                                    DataCell(AdminStatusBadge(status: post.status)),
-                                    DataCell(Text(
-                                      '${post.createdAt.day.toString().padLeft(2, '0')}/${post.createdAt.month.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                    )),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () => _showPostDetailDialog(post),
-                                            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                                            child: const Text('Chi tiết', style: TextStyle(fontSize: 12)),
-                                          ),
-                                          if (post.status == 'ACTIVE')
-                                            TextButton(
-                                              onPressed: () => _moderatePost(post.postId, 'HIDDEN'),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor: Colors.orange.shade800,
-                                                visualDensity: VisualDensity.compact,
-                                              ),
-                                              child: const Text('Ẩn', style: TextStyle(fontSize: 12)),
-                                            )
-                                          else if (post.status == 'HIDDEN')
-                                            TextButton(
-                                              onPressed: () => _moderatePost(post.postId, 'ACTIVE'),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor: Colors.green.shade800,
-                                                visualDensity: VisualDensity.compact,
-                                              ),
-                                              child: const Text('Khôi phục', style: TextStyle(fontSize: 12)),
-                                            ),
-                                          TextButton(
-                                            onPressed: () => _purgePost(post.postId),
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: AppColors.error,
-                                              visualDensity: VisualDensity.compact,
-                                            ),
-                                            child: const Text('Hard Purge', style: TextStyle(fontSize: 12)),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
                             ),
                           ),
-                        ),
-                      ),
+                          post.mediaUrls.isNotEmpty
+                              ? Text(
+                                  '${post.mediaUrls.length} ảnh',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600),
+                                )
+                              : const Text('-',
+                                  style:
+                                      TextStyle(color: AppColors.textMuted)),
+                          AdminStatusBadge(status: post.status),
+                          Text(
+                            '${post.createdAt.day.toString().padLeft(2, '0')}/${post.createdAt.month.toString().padLeft(2, '0')}',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              HoverMovement.button(
+                                child: Tooltip(
+                                  message: 'Xem chi tiết bài viết',
+                                  child: TextButton(
+                                    onPressed: () => _showPostDetailDialog(post),
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      foregroundColor: AppColors.textSecondary,
+                                    ),
+                                    child: const Text('Chi tiết',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                                ),
+                              ),
+                              if (post.status == 'ACTIVE')
+                                HoverMovement.button(
+                                  child: Tooltip(
+                                    message: 'Ẩn bài viết khỏi cộng đồng',
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          _moderatePost(post.postId, 'HIDDEN'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: AppColors.warning,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      child: const Text('Ẩn',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
+                                )
+                              else if (post.status == 'HIDDEN')
+                                HoverMovement.button(
+                                  child: Tooltip(
+                                    message: 'Khôi phục hiển thị bài viết',
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          _moderatePost(post.postId, 'ACTIVE'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: AppColors.success,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      child: const Text('Khôi phục',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
+                                ),
+                              HoverMovement.button(
+                                child: Tooltip(
+                                  message: 'Xóa vĩnh viễn bài viết khỏi hệ thống',
+                                  child: TextButton(
+                                    onPressed: () => _purgePost(post.postId),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.error,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: const Text('Xóa vĩnh viễn',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:travel_planner_web/core/theme/app_colors.dart';
 
 /// Semantic status badge for Admin tables and detail views.
-/// Uses soft background tints and 1px borders with readable semantic typography.
+/// Uses soft background tints, 1px hairline borders, and accessible typography.
+/// Follows Swiss Minimalist 4px micro-radius geometry without pill shapes.
 class AdminStatusBadge extends StatelessWidget {
   final String status;
   final String? customLabel;
@@ -21,16 +23,13 @@ class AdminStatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadius.badge),
         border: Border.all(color: borderColor, width: 1),
       ),
       child: Text(
         customLabel ?? label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+        style: AppTypography.badgeMicro.copyWith(
           color: textColor,
-          letterSpacing: 0.1,
         ),
       ),
     );
@@ -42,25 +41,25 @@ class AdminStatusBadge extends StatelessWidget {
       case 'RESOLVED':
       case 'UP':
         return (
-          const Color(0xFFECFDF5),
-          const Color(0xFFA7F3D0),
-          const Color(0xFF047857),
+          AppColors.successLight,
+          AppColors.successBorder,
+          AppColors.success,
           s == 'ACTIVE' ? 'Hoạt động' : s == 'RESOLVED' ? 'Đã xử lý' : 'Trực tuyến',
+        );
+      case 'PENDING':
+        return (
+          AppColors.warningLight,
+          AppColors.warningBorder,
+          AppColors.warning,
+          'Chờ xử lý',
         );
       case 'HIDDEN':
       case 'WARNING':
         return (
-          const Color(0xFFFFFBEB),
-          const Color(0xFFFDE68A),
-          const Color(0xFFB45309),
+          AppColors.warningLight,
+          AppColors.warningBorder,
+          AppColors.warning,
           s == 'HIDDEN' ? 'Đã ẩn' : 'Cảnh báo',
-        );
-      case 'PENDING':
-        return (
-          const Color(0xFFFEF3C7),
-          const Color(0xFFFCD34D),
-          const Color(0xFF92400E),
-          'Chờ xử lý',
         );
       case 'DELETED':
       case 'BANNED':
@@ -68,51 +67,53 @@ class AdminStatusBadge extends StatelessWidget {
       case 'DEAD_LETTER':
       case 'ERROR':
         return (
-          const Color(0xFFFEF2F2),
-          const Color(0xFFFECACA),
-          const Color(0xFFB91C1C),
+          AppColors.errorLight,
+          AppColors.errorBorder,
+          AppColors.error,
           s == 'DELETED'
               ? 'Đã xóa'
               : s == 'BANNED'
                   ? 'Đã khóa'
-                  : s == 'DEAD_LETTER'
-                      ? 'Dead-Letter'
-                      : s,
+                  : s == 'PURGED'
+                      ? 'Đã xóa vĩnh viễn'
+                      : s == 'DEAD_LETTER'
+                          ? 'Lỗi đình trệ'
+                          : s,
         );
       case 'DISMISSED':
       case 'INACTIVE':
         return (
-          const Color(0xFFF3F4F6),
-          const Color(0xFFE5E7EB),
-          const Color(0xFF4B5563),
+          AppColors.surfaceHover,
+          AppColors.borderStrong,
+          AppColors.textSecondary,
           s == 'DISMISSED' ? 'Đã bỏ qua' : 'Vô hiệu hóa',
         );
       case 'ATTACHED':
         return (
-          const Color(0xFFF0FDF4),
-          const Color(0xFFBBF7D0),
-          const Color(0xFF15803D),
+          AppColors.successLight,
+          AppColors.successBorder,
+          AppColors.success,
           'Đã gắn bài',
         );
       case 'UNATTACHED':
         return (
-          const Color(0xFFEFF6FF),
-          const Color(0xFFBFDBFE),
-          const Color(0xFF1D4ED8),
+          AppColors.infoLight,
+          AppColors.infoBorder,
+          AppColors.info,
           'Chưa gán',
         );
       case 'DELETING':
         return (
-          const Color(0xFFFFF1F2),
-          const Color(0xFFFECDD3),
-          const Color(0xFFBE123C),
-          'Đang xóa',
+          AppColors.accentLight,
+          AppColors.accentBorder,
+          AppColors.accentDark,
+          'Đang xóa...',
         );
       default:
         return (
-          const Color(0xFFF9FAFB),
-          const Color(0xFFE5E7EB),
-          const Color(0xFF374151),
+          AppColors.surfaceHover,
+          AppColors.border,
+          AppColors.textSecondary,
           s,
         );
     }

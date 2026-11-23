@@ -40,6 +40,9 @@ class PlaceModel {
   final String category; // ATTRACTION, RESTAURANT, CAFE, HOTEL, ENTERTAINMENT, SHOPPING, OTHER
   final String status; // ACTIVE, HIDDEN
   final List<PlaceProviderMappingItem> providerMappings;
+  final String? administrativeAreaName;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   int get id => placeId;
 
@@ -55,6 +58,9 @@ class PlaceModel {
     required this.category,
     required this.status,
     this.providerMappings = const [],
+    this.administrativeAreaName,
+    this.createdAt,
+    this.updatedAt,
   });
 
   bool get isActive => status.toUpperCase() == 'ACTIVE';
@@ -98,6 +104,23 @@ class PlaceModel {
           .toList();
     }
 
+    String? adminAreaName;
+    if (json['administrativeArea'] is Map<String, dynamic>) {
+      adminAreaName = json['administrativeArea']['name']?.toString();
+    } else if (json['administrativeAreaName'] != null) {
+      adminAreaName = json['administrativeAreaName']?.toString();
+    }
+
+    DateTime? createdAt;
+    if (json['createdAt'] != null) {
+      createdAt = DateTime.tryParse(json['createdAt'].toString());
+    }
+
+    DateTime? updatedAt;
+    if (json['updatedAt'] != null) {
+      updatedAt = DateTime.tryParse(json['updatedAt'].toString());
+    }
+
     return PlaceModel(
       placeId: (json['placeId'] as num).toInt(),
       name: json['name'] as String? ?? '',
@@ -110,6 +133,9 @@ class PlaceModel {
       category: json['category'] as String? ?? 'ATTRACTION',
       status: json['status'] as String? ?? 'ACTIVE',
       providerMappings: mappings,
+      administrativeAreaName: adminAreaName,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 
@@ -125,6 +151,9 @@ class PlaceModel {
       if (longitude != null) 'longitude': longitude,
       'category': category,
       'status': status,
+      if (administrativeAreaName != null) 'administrativeAreaName': administrativeAreaName,
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
     };
   }
 
@@ -140,6 +169,9 @@ class PlaceModel {
     String? category,
     String? status,
     List<PlaceProviderMappingItem>? providerMappings,
+    String? administrativeAreaName,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return PlaceModel(
       placeId: placeId ?? this.placeId,
@@ -153,6 +185,9 @@ class PlaceModel {
       category: category ?? this.category,
       status: status ?? this.status,
       providerMappings: providerMappings ?? this.providerMappings,
+      administrativeAreaName: administrativeAreaName ?? this.administrativeAreaName,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }
@@ -166,6 +201,10 @@ class CreatePlaceRequest {
   final double latitude;
   final double longitude;
   final String category;
+  final String? provider;
+  final String? providerPlaceId;
+  final String? providerType;
+  final String? metadataJson;
 
   const CreatePlaceRequest({
     required this.name,
@@ -175,6 +214,10 @@ class CreatePlaceRequest {
     required this.latitude,
     required this.longitude,
     required this.category,
+    this.provider,
+    this.providerPlaceId,
+    this.providerType,
+    this.metadataJson,
   });
 
   Map<String, dynamic> toJson() {
@@ -188,6 +231,14 @@ class CreatePlaceRequest {
       'latitude': latitude,
       'longitude': longitude,
       'category': category,
+      if (provider != null && provider!.trim().isNotEmpty)
+        'provider': provider!.trim(),
+      if (providerPlaceId != null && providerPlaceId!.trim().isNotEmpty)
+        'providerPlaceId': providerPlaceId!.trim(),
+      if (providerType != null && providerType!.trim().isNotEmpty)
+        'providerType': providerType!.trim(),
+      if (metadataJson != null && metadataJson!.trim().isNotEmpty)
+        'metadataJson': metadataJson!.trim(),
     };
   }
 }

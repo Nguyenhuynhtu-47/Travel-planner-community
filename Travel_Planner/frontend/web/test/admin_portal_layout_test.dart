@@ -189,9 +189,9 @@ void main() {
       expect(find.text('Chưa triển khai'), findsOneWidget);
       expect(find.textContaining('Nhóm: QUẢN LÝ CỘNG ĐỒNG'), findsOneWidget);
       expect(find.textContaining('Lộ trình chức năng dự kiến:'), findsOneWidget);
-      expect(find.text('Quay lại Dashboard'), findsOneWidget);
+      expect(find.text('Quay lại trang Tổng quan'), findsOneWidget);
 
-      await tester.tap(find.text('Quay lại Dashboard'));
+      await tester.tap(find.text('Quay lại trang Tổng quan'));
       await tester.pump();
       expect(wentBack, isTrue);
     });
@@ -223,7 +223,7 @@ void main() {
       );
 
       expect(find.text('Travel Planner'), findsOneWidget);
-      expect(find.text('Admin Portal'), findsOneWidget);
+      expect(find.text('Cổng quản trị'), findsOneWidget);
       expect(find.text('TỔNG QUAN'), findsOneWidget);
       expect(find.text('QUẢN LÝ CỘNG ĐỒNG'), findsOneWidget);
       expect(find.text('QUẢN LÝ DU LỊCH'), findsOneWidget);
@@ -325,7 +325,7 @@ void main() {
 
       expect(find.text('Admin'), findsOneWidget);
       expect(find.text('QUẢN LÝ CỘNG ĐỒNG'), findsOneWidget);
-      expect(find.text('Kiểm duyệt bài viết'), findsNWidgets(2)); // breadcrumb + title
+      expect(find.text('Kiểm duyệt bài viết'), findsOneWidget); // Breadcrumb only (page title moved to PageHeader)
       expect(find.text('Hệ thống: Trực tuyến'), findsOneWidget);
       expect(find.text('Admin User'), findsOneWidget);
 
@@ -491,13 +491,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // Dashboard is default
-      expect(find.text('Tổng quan Dashboard'), findsWidgets);
+      expect(find.text('Tổng quan'), findsWidgets);
       expect(find.text('Xin chào, admin_root!'), findsOneWidget);
 
       // Switch to Places
       await tester.tap(find.text('Quản lý địa điểm'));
       await tester.pumpAndSettle();
-      expect(find.text('Quản lý địa điểm chuẩn hóa'), findsWidgets);
+      expect(find.text('Quản lý Địa điểm Chuẩn hóa (Places)'), findsWidgets);
 
       // Switch to Standalone Post Moderation Screen
       await tester.tap(find.text('Kiểm duyệt bài viết'));

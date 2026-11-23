@@ -27,7 +27,7 @@ enum AdminTab {
   String get title {
     switch (this) {
       case AdminTab.dashboard:
-        return 'Tổng quan Dashboard';
+        return 'Tổng quan';
       case AdminTab.posts:
         return 'Kiểm duyệt bài viết';
       case AdminTab.reports:
@@ -35,15 +35,15 @@ enum AdminTab {
       case AdminTab.users:
         return 'Quản lý người dùng';
       case AdminTab.places:
-        return 'Quản lý địa điểm chuẩn hóa';
+        return 'Quản lý Địa điểm Chuẩn hóa (Places)';
       case AdminTab.itineraries:
         return 'Quản lý lịch trình';
       case AdminTab.media:
-        return 'Quản lý Media Assets';
+        return 'Quản lý tài nguyên đa phương tiện';
       case AdminTab.administrativeAreas:
         return 'Quản lý khu vực hành chính';
       case AdminTab.auditLogs:
-        return 'Nhật ký hoạt động (Audit Logs)';
+        return 'Nhật ký hoạt động';
       case AdminTab.settings:
         return 'Cài đặt hệ thống';
       case AdminTab.profile:
@@ -54,7 +54,7 @@ enum AdminTab {
   String get shortTitle {
     switch (this) {
       case AdminTab.dashboard:
-        return 'Dashboard';
+        return 'Tổng quan';
       case AdminTab.posts:
         return 'Kiểm duyệt bài viết';
       case AdminTab.reports:
@@ -66,7 +66,7 @@ enum AdminTab {
       case AdminTab.itineraries:
         return 'Quản lý lịch trình';
       case AdminTab.media:
-        return 'Quản lý Media';
+        return 'Quản lý hình ảnh';
       case AdminTab.administrativeAreas:
         return 'Khu vực hành chính';
       case AdminTab.auditLogs:

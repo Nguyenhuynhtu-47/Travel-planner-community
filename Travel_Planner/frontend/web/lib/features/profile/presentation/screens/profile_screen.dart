@@ -10,11 +10,13 @@ import '../../data/profile_repository.dart';
 class ProfileScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final bool embedded;
+  final ProfileRepository? repository;
 
   const ProfileScreen({
     super.key,
     required this.authNotifier,
     this.embedded = false,
+    this.repository,
   });
 
   @override
@@ -29,7 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _bioController = TextEditingController();
-  final _repository = ProfileRepository();
+  late final ProfileRepository _repository;
 
   Map<String, dynamic>? _profile;
   Map<String, String>? _validationErrors;
@@ -48,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? ProfileRepository();
     _loadProfile();
   }
 
@@ -288,19 +291,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final statusStr = rawStatus?.toString();
     final (bgColor, borderColor, textColor) = switch (statusStr) {
       'ACTIVE' => (
-        const Color(0xFFECFDF5),
-        const Color(0xFFA7F3D0),
-        const Color(0xFF047857),
+        AppColors.successLight,
+        AppColors.successBorder,
+        AppColors.success,
       ),
       'BANNED' => (
-        const Color(0xFFFEF2F2),
-        const Color(0xFFFECACA),
+        AppColors.errorLight,
+        AppColors.errorBorder,
         AppColors.error,
       ),
       'INACTIVE' => (
-        const Color(0xFFFFFBEB),
-        const Color(0xFFFDE68A),
-        const Color(0xFFB45309),
+        AppColors.warningLight,
+        AppColors.warningBorder,
+        AppColors.warning,
       ),
       _ => (AppColors.surfaceSoft, AppColors.border, AppColors.textSecondary),
     };
@@ -309,8 +312,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: Text(
         statusText,
@@ -333,15 +336,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720),
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xl),
           children: [
             Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.border, width: 1),
               ),
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(AppSpacing.xxl),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -398,8 +401,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceSoft,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                            border: Border.all(color: AppColors.border, width: 1),
                           ),
                           child: Text(
                             role,
@@ -471,8 +474,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceSoft,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.hairlineSoft),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.hairlineSoft, width: 1),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Column(
@@ -527,10 +530,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.border, width: 1),
                 ),
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(AppSpacing.xxl),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -633,7 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.border),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                       ),
                       onPressed: _saving
                           ? null

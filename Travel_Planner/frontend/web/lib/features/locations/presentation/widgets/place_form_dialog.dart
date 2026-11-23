@@ -5,11 +5,14 @@ import 'package:travel_planner_web/core/constants/map_constants.dart';
 import 'package:travel_planner_web/core/network/api_exception.dart';
 import 'package:travel_planner_web/core/theme/app_colors.dart';
 import 'package:travel_planner_web/features/locations/data/models/place_model.dart';
+import 'package:travel_planner_web/shared/widgets/admin_dialog.dart';
+import 'package:travel_planner_web/shared/widgets/admin_status_badge.dart';
 import 'package:travel_planner_web/shared/widgets/app_primary_button.dart';
 import 'package:travel_planner_web/shared/widgets/app_text_field.dart';
 import 'package:travel_planner_web/shared/widgets/web_map_view.dart';
 
 /// Modal dialog for creating or editing a canonical Place.
+/// Aligned with docs/plan/admin-design-system.md (Minimalism & Swiss Style).
 class PlaceFormDialog extends StatefulWidget {
   final PlaceModel? initialPlace;
   final Future<void> Function({
@@ -208,70 +211,36 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: 860,
-        height: 680,
-        padding: const EdgeInsets.all(24),
+    return AdminDialog(
+      width: 860,
+      title: isEditing
+          ? 'Chỉnh sửa địa điểm #${widget.initialPlace!.id}'
+          : 'Thêm địa điểm chuẩn hóa mới',
+      titleBadge: isEditing ? AdminStatusBadge(status: _status) : null,
+      onClose: _isSubmitting ? null : () => Navigator.of(context).pop(false),
+      content: SizedBox(
+        height: 520,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        isEditing ? Icons.edit_location_alt : Icons.add_location_alt,
-                        color: AppColors.primary,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      isEditing ? 'Chỉnh sửa địa điểm chuẩn hóa' : 'Thêm địa điểm chuẩn hóa mới',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(false),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-
             // General error banner
             if (_generalError != null) ...[
               Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.errorBorder, width: 1),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, color: AppColors.error, size: 20),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.error_outline, color: AppColors.error, size: 16),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         _generalError!,
-                        style: const TextStyle(color: AppColors.error, fontSize: 13),
+                        style: const TextStyle(color: AppColors.error, fontSize: 12.5),
                       ),
                     ),
                   ],
@@ -290,7 +259,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                     Expanded(
                       flex: 5,
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.only(right: 16),
+                        padding: const EdgeInsets.only(right: AppSpacing.md),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -310,7 +279,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppSpacing.sm),
 
                             // Category & Status
                             Row(
@@ -322,20 +291,25 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                       const Text(
                                         'Danh mục *',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 12.5,
                                           fontWeight: FontWeight.w600,
                                           color: AppColors.textPrimary,
                                         ),
                                       ),
-                                      const SizedBox(height: 6),
+                                      const SizedBox(height: 4),
                                       DropdownButtonFormField<String>(
                                         initialValue: _category,
+                                        style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
                                         decoration: InputDecoration(
                                           border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(AppRadius.sm),
                                             borderSide: const BorderSide(color: AppColors.border),
                                           ),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                                            borderSide: const BorderSide(color: AppColors.border),
+                                          ),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                         ),
                                         items: _categories.map((c) {
                                           return DropdownMenuItem<String>(
@@ -351,7 +325,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                   ),
                                 ),
                                 if (isEditing) ...[
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: AppSpacing.sm),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,24 +333,29 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                         const Text(
                                           'Trạng thái',
                                           style: TextStyle(
-                                            fontSize: 13,
+                                            fontSize: 12.5,
                                             fontWeight: FontWeight.w600,
                                             color: AppColors.textPrimary,
                                           ),
                                         ),
-                                        const SizedBox(height: 6),
+                                        const SizedBox(height: 4),
                                         DropdownButtonFormField<String>(
                                           initialValue: _status,
+                                          style: const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
                                           decoration: InputDecoration(
                                             border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(AppRadius.sm),
                                               borderSide: const BorderSide(color: AppColors.border),
                                             ),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                                              borderSide: const BorderSide(color: AppColors.border),
+                                            ),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                           ),
                                           items: const [
-                                            DropdownMenuItem(value: 'ACTIVE', child: Text('Hoạt động (ACTIVE)')),
-                                            DropdownMenuItem(value: 'HIDDEN', child: Text('Đang ẩn (HIDDEN)')),
+                                            DropdownMenuItem(value: 'ACTIVE', child: Text('Đang hoạt động')),
+                                            DropdownMenuItem(value: 'HIDDEN', child: Text('Đã ẩn')),
                                           ],
                                           onChanged: (val) {
                                             if (val != null) setState(() => _status = val);
@@ -388,7 +367,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                 ],
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppSpacing.sm),
 
                             // Address
                             AppTextField(
@@ -406,7 +385,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppSpacing.sm),
 
                             // Coordinates
                             Row(
@@ -431,7 +410,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                     },
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: AppSpacing.sm),
                                 Expanded(
                                   child: AppTextField(
                                     label: 'Kinh độ (Longitude) *',
@@ -454,17 +433,17 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppSpacing.sm),
 
                             // Description
                             AppTextField(
                               label: 'Mô tả',
                               hint: 'Giới thiệu về địa điểm, nét đặc sắc, lưu ý khi ghé thăm...',
                               controller: _descriptionController,
-                              maxLines: 3,
+                              maxLines: 2,
                               errorText: _fieldErrors?['description'],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppSpacing.sm),
 
                             // Image URL
                             AppTextField(
@@ -484,24 +463,27 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                       flex: 4,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceSoft,
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.surfaceSubtle,
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                           border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: const BoxDecoration(
                                 border: Border(bottom: BorderSide(color: AppColors.border)),
                               ),
                               child: const Row(
                                 children: [
-                                  Icon(Icons.touch_app_outlined, size: 16, color: AppColors.primary),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Bấm lên bản đồ để chọn tọa độ chính xác',
-                                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  Icon(Icons.touch_app_outlined, size: 14, color: AppColors.primary),
+                                  SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      'Bấm lên bản đồ để chọn tọa độ',
+                                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -509,7 +491,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                             Expanded(
                               flex: 3,
                               child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppRadius.sm - 1)),
                                 child: WebMapView(
                                   mapController: _mapController,
                                   initialCenter: _selectedPoint ?? MapConstants.fallbackCoordinates,
@@ -519,12 +501,12 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                       ? [
                                           Marker(
                                             point: _selectedPoint!,
-                                            width: 40,
-                                            height: 40,
+                                            width: 36,
+                                            height: 36,
                                             child: const Icon(
                                               Icons.location_on,
                                               color: AppColors.primary,
-                                              size: 36,
+                                              size: 32,
                                             ),
                                           ),
                                         ]
@@ -536,7 +518,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                             // Image Preview if available
                             if (_imageUrlController.text.trim().isNotEmpty) ...[
                               Container(
-                                height: 110,
+                                height: 90,
                                 width: double.infinity,
                                 decoration: const BoxDecoration(
                                   border: Border(top: BorderSide(color: AppColors.border)),
@@ -544,10 +526,10 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                 child: Image.network(
                                   _imageUrlController.text.trim(),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => const Center(
+                                  errorBuilder: (context, error, stackTrace) => const Center(
                                     child: Text(
                                       'Không thể tải ảnh từ URL',
-                                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                     ),
                                   ),
                                 ),
@@ -561,27 +543,25 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                 ),
               ),
             ),
-            const Divider(height: 24),
-
-            // Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton(
-                  onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(false),
-                  child: const Text('Hủy'),
-                ),
-                const SizedBox(width: 12),
-                AppPrimaryButton(
-                  text: isEditing ? 'Lưu thay đổi' : 'Thêm địa điểm',
-                  isLoading: _isSubmitting,
-                  onPressed: _handleSubmit,
-                ),
-              ],
-            ),
           ],
         ),
       ),
+      actions: [
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AppColors.borderStrong),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Hủy', style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary)),
+        ),
+        AppPrimaryButton(
+          text: isEditing ? 'Lưu thay đổi' : 'Thêm địa điểm',
+          isLoading: _isSubmitting,
+          onPressed: _handleSubmit,
+        ),
+      ],
     );
   }
 }

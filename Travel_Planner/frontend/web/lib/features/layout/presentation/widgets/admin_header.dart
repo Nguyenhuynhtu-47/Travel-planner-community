@@ -21,7 +21,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(52);
+  Size get preferredSize => const Size.fromHeight(AppHeights.header);
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +30,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
     final isOnline = healthStatus == 'UP';
 
     return Container(
-      height: 52,
+      height: AppHeights.header,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(
@@ -47,71 +47,62 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
             splashRadius: 20,
             onPressed: onToggleSidebar,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.sm),
 
-          // Breadcrumbs & Title
+          // Breadcrumbs & Title with horizontal scrolling protection for compact viewports
           Expanded(
-            child: Row(
-              children: [
-                const Text(
-                  'Admin',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.muted,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
-                ),
-                Text(
-                  currentTab.group.label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.muted,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
-                ),
-                Text(
-                  currentTab.shortTitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(width: 1, height: 16, color: AppColors.border),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    currentTab.title,
-                    style: const TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Admin',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w500,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
+                  ),
+                  Text(
+                    currentTab.group.label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
+                  ),
+                  Text(
+                    currentTab.shortTitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primaryAccessible,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
           // Backend Health indicator
           if (healthStatus != null) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
               decoration: BoxDecoration(
-                color: isOnline ? const Color(0xFFECFDF5) : Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(12),
+                color: isOnline ? AppColors.successLight : AppColors.warningLight,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
                 border: Border.all(
-                  color: isOnline ? const Color(0xFFA7F3D0) : Colors.amber.shade300,
+                  color: isOnline ? AppColors.successBorder : AppColors.warningBorder,
                   width: 1,
                 ),
               ),
@@ -123,7 +114,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
                     height: 6,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isOnline ? AppColors.success : Colors.amber.shade800,
+                      color: isOnline ? AppColors.success : AppColors.warning,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -132,19 +123,20 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
-                      color: isOnline ? const Color(0xFF047857) : Colors.amber.shade900,
+                      color: isOnline ? AppColors.success : AppColors.warning,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.md),
           ],
 
           // Profile chip button
           InkWell(
             onTap: onGoToProfile,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            hoverColor: AppColors.surfaceHover,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
@@ -163,30 +155,38 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 140),
-                    child: Text(
-                      fullName,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fullName,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const Text(
+                        'Quản trị viên',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-
           const SizedBox(width: 4),
 
-          // Logout button
+          // Logout Icon button
           IconButton(
-            icon: const Icon(Icons.logout, size: 18, color: AppColors.textSecondary),
+            icon: const Icon(Icons.logout, size: 18, color: AppColors.textMuted),
             tooltip: 'Đăng xuất',
-            splashRadius: 20,
+            splashRadius: 18,
             onPressed: onLogout,
           ),
         ],

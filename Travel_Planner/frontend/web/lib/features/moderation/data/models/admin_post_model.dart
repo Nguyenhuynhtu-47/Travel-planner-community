@@ -24,7 +24,7 @@ class AdminPostAuthorModel {
           : int.tryParse('${json['userId']}') ?? 0,
       handle: json['handle']?.toString() ?? '',
       username: json['username']?.toString(),
-      fullName: json['fullName']?.toString(),
+      fullName: json['fullName']?.toString() ?? json['displayName']?.toString(),
       avatar: json['avatar']?.toString(),
     );
   }

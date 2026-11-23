@@ -1,7 +1,10 @@
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_storage.dart';
+import '../../moderation/data/moderation_repository.dart' show AdminPageResponse;
 import 'models/place_model.dart';
+
+export '../../moderation/data/moderation_repository.dart' show AdminPageResponse;
 
 /// Repository for Admin Place CRUD operations on Flutter Web.
 class PlaceRepository {
@@ -18,19 +21,21 @@ class PlaceRepository {
     return token ?? await _authStorage.getToken();
   }
 
-  /// Retrieves list of places for admin, optionally filtered by keyword, category, and status.
-  Future<List<PlaceModel>> getAdminPlaces({
+  /// Retrieves paginated list of places for admin with server-side [totalElements] and [totalPages].
+  Future<AdminPageResponse<PlaceModel>> getAdminPlacesPaged({
     String? keyword,
     String? category,
     String? status,
     int page = 0,
-    int size = 50,
+    int size = 20,
+    String sort = 'createdAt,desc',
     String? token,
   }) async {
     final effectiveToken = await _resolveToken(token);
     final queryParams = <String, String>{
       'page': page.toString(),
       'size': size.toString(),
+      'sort': sort,
     };
     if (keyword != null && keyword.trim().isNotEmpty) {
       queryParams['keyword'] = keyword.trim();
@@ -52,18 +57,66 @@ class PlaceRepository {
 
     if (response is Map<String, dynamic>) {
       final content = response['content'];
-      if (content is List) {
-        return content
-            .map((item) => PlaceModel.fromJson(item as Map<String, dynamic>))
-            .toList();
-      }
+      final List<PlaceModel> list = (content is List)
+          ? content
+              .map((item) => PlaceModel.fromJson(item as Map<String, dynamic>))
+              .toList()
+          : [];
+      final totalElements = response['totalElements'] is num
+          ? (response['totalElements'] as num).toInt()
+          : list.length;
+      final totalPages = response['totalPages'] is num
+          ? (response['totalPages'] as num).toInt()
+          : (totalElements > 0
+              ? (totalElements / size).ceil()
+              : (list.isNotEmpty ? 1 : 0));
+      final pageNumber = response['pageNumber'] is num
+          ? (response['pageNumber'] as num).toInt()
+          : (response['number'] is num
+              ? (response['number'] as num).toInt()
+              : page);
+
+      return AdminPageResponse<PlaceModel>(
+        content: list,
+        totalElements: totalElements,
+        totalPages: totalPages,
+        page: pageNumber,
+        size: size,
+      );
     } else if (response is List) {
-      return response
+      final list = response
           .map((item) => PlaceModel.fromJson(item as Map<String, dynamic>))
           .toList();
+      return AdminPageResponse<PlaceModel>(
+        content: list,
+        totalElements: list.length,
+        totalPages: list.isNotEmpty ? 1 : 0,
+        page: page,
+        size: size,
+      );
     }
 
-    return [];
+    return AdminPageResponse.empty(page: page, size: size);
+  }
+
+  /// Backward-compatible list fetcher.
+  Future<List<PlaceModel>> getAdminPlaces({
+    String? keyword,
+    String? category,
+    String? status,
+    int page = 0,
+    int size = 50,
+    String? token,
+  }) async {
+    final res = await getAdminPlacesPaged(
+      keyword: keyword,
+      category: category,
+      status: status,
+      page: page,
+      size: size,
+      token: token,
+    );
+    return res.content;
   }
 
   /// Retrieves single place detail by its ID.

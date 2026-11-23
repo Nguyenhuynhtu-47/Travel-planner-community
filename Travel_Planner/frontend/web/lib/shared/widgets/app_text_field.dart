@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_colors.dart';
 
+/// Standard enterprise text input field for Admin screens.
+/// Features stacked labels, 4px micro-radius, and clear focus/error states.
 class AppTextField extends StatefulWidget {
   final String label;
   final String? hint;
@@ -49,16 +50,15 @@ class _AppTextFieldState extends State<AppTextField> {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           widget.label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+          style: AppTypography.labelControl.copyWith(
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextFormField(
           controller: widget.controller,
           keyboardType: widget.keyboardType,
@@ -69,9 +69,7 @@ class _AppTextFieldState extends State<AppTextField> {
           onChanged: widget.onChanged,
           onFieldSubmitted: widget.onFieldSubmitted,
           validator: widget.validator,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
+          style: AppTypography.bodyData.copyWith(
             color: AppColors.textPrimary,
           ),
           decoration: InputDecoration(
@@ -79,22 +77,13 @@ class _AppTextFieldState extends State<AppTextField> {
             errorText: widget.errorText,
             suffixIcon: widget.isPassword
                 ? IconButton(
-                    icon: AnimatedSwitcher(
-                      duration:
-                          MediaQuery.maybeOf(context)?.disableAnimations ??
-                              false
-                          ? Duration.zero
-                          : const Duration(milliseconds: 150),
-                      transitionBuilder: (child, animation) =>
-                          FadeTransition(opacity: animation, child: child),
-                      child: Icon(
-                        _obscureText
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        key: ValueKey(_obscureText),
-                        color: AppColors.textSecondary,
-                        size: 20,
-                      ),
+                    icon: Icon(
+                      _obscureText
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      key: ValueKey(_obscureText),
+                      color: AppColors.textMuted,
+                      size: 18,
                     ),
                     tooltip: _obscureText ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
                     onPressed: () {
