@@ -10771,3 +10771,40 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 - Backend: `.\mvnw.cmd test -Dtest=ActivityLocationTest` passed (24 tests).
 - Flutter: `flutter analyze` on the five changed model/UI/test files passed with no issues.
 - Flutter tests: `activity_detail_screen_test.dart` and `activity_location_model_test.dart` passed (25 tests total).
+
+---
+
+## [2026-11-22] Activity Visit Tracking and Current-Location Google Maps Directions
+
+### 1. Scope and Behavior
+- Added per-viewer activity visit state in `activity_visits`, keyed uniquely by user and activity. The backend returns only the authenticated viewer's own `visited` state; anonymous/legacy records default to false. Updates are idempotent and validate itinerary/day/activity access and parent-child IDs.
+- Added an authenticated right-swipe reveal action to the normal activity timeline. A tap sends the update; the UI updates optimistically and restores the prior state on failure. Reorder mode remains unchanged. Shared itinerary map markers render a check for visited stops and retain sequence numbers for unvisited stops.
+- Activity Detail now requests a foreground GPS fix and opens a free Google Maps directions URL to that activity's coordinate snapshot, falling back to its address/name when coordinates are absent. No Google Maps SDK or API key is used. Android/iOS foreground permission descriptions were added.
+- Selected `geolocator` 14.0.2 because 14.1.x requires `win32` 6.x, which conflicts with the project's existing secure-storage Windows dependency. Dependency resolution succeeded.
+
+### 2. Files Changed
+- Backend: `ActivityVisit.java`, `ActivityVisitRepository.java`, `UpdateActivityVisitRequest.java`, `ActivityVisitResponse.java`, `ActivityResponse.java`, `ItineraryService.java`, `ItineraryServiceImpl.java`, `ItineraryController.java`, `ActivityLocationTest.java`, `TestDatabaseCleaner.java`.
+- Flutter: `activity_detail.dart`, `itinerary_day_detail.dart`, `itinerary_crud_repository.dart`, `itinerary_detail_notifier.dart`, `activity_visit_swipe_action.dart`, `itinerary_day_card.dart`, `activity_timeline_item.dart`, `itinerary_detail_screen.dart`, `activity_detail_screen.dart`, `navigation_launcher_helper.dart`, `itinerary_map_helper.dart`, `map_marker_builder.dart`, `device_location_service.dart`, visit-tracking/map/activity tests, Android Manifest, iOS Info.plist, `pubspec.yaml` and `pubspec.lock`.
+- Documentation: visit tracking/Google Maps implementation plan, API contract, itinerary/map CODEBASE_GUIDE entry.
+
+### 3. Verification
+- Backend: `backend/.\mvnw.cmd -Dtest=ActivityLocationTest test` passed (27 tests, 0 failures/errors), including private access grant and revocation checks.
+- Flutter: focused visit, activity detail/model, map, route and activity management regression selection passed (120 tests).
+- Scoped `flutter analyze` over changed Dart source and tests passed with no issues. Whole-project `flutter analyze` reports only two existing deprecation infos in `report_post_dialog.dart` (`Radio.groupValue` and `Radio.onChanged`).
+- `flutter build apk --debug` succeeded. The build reports a Kotlin Gradle Plugin compatibility advisory from the `package_info_plus` plugin.
+- Physical Android/iOS device permission prompts, live GPS and Google Maps/browser handoff were not tested.
+
+## [2026-11-23] Visit Tracking Ownership Review
+
+- Revised visit progress after the project owner clarified that only the itinerary owner may mark/unmark activities. Shared itinerary viewers retain read-only map, activity detail and Google Maps navigation access.
+- Backend now rejects non-owner visit writes and returns `visited=false` for every non-owner, including historical viewer rows. Flutter only exposes the swipe callback to the owner. The existing `(user_id, activity_id)` table and API shape remain unchanged.
+- Confirmed the existing clone flow gives the copied itinerary to the cloner and creates fresh activity IDs; saved `ItineraryPlace` rows are catalog links, while creating an activity from a saved place creates it under the destination itinerary. No database migration or saved-place behavior change was needed.
+- Added regression coverage for owner mark/unmark, public/granted viewer denial and hidden legacy rows, non-owner activity add/update/delete denial, plus independent progress in a cloned itinerary and an activity created from a saved Place.
+- Verification: `backend/.\mvnw.cmd -Dtest=ActivityLocationTest test` passed (30 tests); `flutter test test/itinerary_activity_management_test.dart` passed (32 tests); `flutter test test/features/itinerary/activity_visit_tracking_test.dart` passed (9 tests); scoped `flutter analyze` for the modified screen and management test passed with no issues.
+
+## [2026-11-23] Activity Visit Swipe UI/UX Fix
+
+- Fixed the reveal foreground leaking the action behind timeline content: the moving activity row now has an opaque surface, while the action is rendered in a branded surface behind it.
+- Unvisited activities reveal `Đã ghé thăm` on a right swipe; visited activities reveal `Chưa ghé thăm` on a left swipe. Drag distance is measured across the full gesture, short swipes snap back, and successful updates close the action. Failed updates preserve the existing rollback behavior and leave the action available for retry.
+- Added a compact `Đã ghé` badge to the existing metadata row for visited activities; no second large status button or new package was added.
+- Verification: `flutter test test/features/itinerary/activity_visit_tracking_test.dart test/itinerary_activity_management_test.dart` passed (43 tests), including 320×640 layout, short-swipe snap-back, hidden action tap protection, and both swipe directions; scoped `flutter analyze` over the changed swipe, timeline and test files passed with no issues. Physical-device/emulator visual review remains a manual check.
