@@ -8,6 +8,9 @@ import 'package:travel_planner_web/features/locations/data/models/place_model.da
 import 'package:travel_planner_web/features/locations/data/place_repository.dart';
 import 'package:travel_planner_web/features/locations/presentation/widgets/hide_place_dialog.dart';
 import 'package:travel_planner_web/features/locations/presentation/widgets/place_form_dialog.dart';
+import 'package:travel_planner_web/shared/widgets/admin_page_header.dart';
+import 'package:travel_planner_web/shared/widgets/admin_status_badge.dart';
+import 'package:travel_planner_web/shared/widgets/admin_toolbar.dart';
 import 'package:travel_planner_web/shared/widgets/web_map_view.dart';
 
 /// Screen for administering canonical Places (ADMIN role only).
@@ -282,40 +285,42 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
     }
 
     return Scaffold(
-      appBar: widget.embedded
-          ? null
-          : AppBar(
-              title: const Text('Quản lý Địa điểm Chuẩn hóa (Places)'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Làm mới',
-                  onPressed: () => _loadPlaces(showLoading: true),
-                ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-                    label: const Text('Thêm địa điểm'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    ),
-                    onPressed: _handleCreatePlace,
-                  ),
-                ),
-              ],
-            ),
+      backgroundColor: AppColors.background,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 960;
           return Column(
             children: [
-              if (widget.embedded) _buildEmbeddedToolbar(),
+              AdminPageHeader(
+                title: 'Quản lý Địa điểm Chuẩn hóa (Places)',
+                subtitle: 'Cơ sở dữ liệu địa điểm du lịch, ẩm thực, lưu trú đã được định danh và tọa độ hóa.',
+                actions: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.refresh, size: 14),
+                    label: const Text('Làm mới', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                    onPressed: () => _loadPlaces(showLoading: true),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add_location_alt_outlined, size: 15),
+                    label: const Text('Thêm địa điểm', style: TextStyle(fontSize: 12.5)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                    onPressed: _handleCreatePlace,
+                  ),
+                ],
+              ),
               _buildFilterBar(),
-              const Divider(height: 1, color: AppColors.border),
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
@@ -332,59 +337,19 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
     );
   }
 
-  Widget _buildEmbeddedToolbar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.place_outlined, size: 20, color: AppColors.primary),
-          const SizedBox(width: 8),
-          const Text(
-            'Danh sách Địa điểm Chuẩn hóa (Places)',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.refresh, size: 20),
-            tooltip: 'Làm mới',
-            onPressed: () => _loadPlaces(showLoading: true),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.add_location_alt_outlined, size: 16),
-            label: const Text('Thêm địa điểm'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            ),
-            onPressed: _handleCreatePlace,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCategoryDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSoft,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(color: AppColors.border),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _categoryFilter,
-          icon: const Icon(Icons.category_outlined, size: 20, color: AppColors.textSecondary),
+          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
           items: _categories.map((c) {
             return DropdownMenuItem(value: c['value'], child: Text(c['label']!));
           }).toList(),
@@ -401,20 +366,21 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
 
   Widget _buildStatusDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSoft,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(color: AppColors.border),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _statusFilter,
-          icon: const Icon(Icons.filter_list, size: 20, color: AppColors.textSecondary),
+          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
           items: const [
             DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
-            DropdownMenuItem(value: 'ACTIVE', child: Text('Đang hoạt động')),
-            DropdownMenuItem(value: 'HIDDEN', child: Text('Đã ẩn')),
+            DropdownMenuItem(value: 'ACTIVE', child: Text('Đang hoạt động (ACTIVE)')),
+            DropdownMenuItem(value: 'HIDDEN', child: Text('Đã ẩn (HIDDEN)')),
           ],
           onChanged: (val) {
             if (val != null && val != _statusFilter) {
@@ -428,77 +394,48 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
   }
 
   Widget _buildFilterBar() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 850;
-
-        final searchField = TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          decoration: InputDecoration(
-            hintText: 'Tìm kiếm theo tên hoặc địa chỉ địa điểm...',
-            prefixIcon: const Icon(Icons.search, color: AppColors.muted),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 18),
-                    onPressed: () {
-                      _searchController.clear();
-                      _loadPlaces(showLoading: false);
-                    },
-                  )
-                : null,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSoft,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
+    final searchInput = SizedBox(
+      height: 34,
+      child: TextField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        style: const TextStyle(fontSize: 12.5),
+        decoration: InputDecoration(
+          hintText: 'Tìm kiếm theo tên hoặc địa chỉ...',
+          hintStyle: const TextStyle(fontSize: 12, color: AppColors.muted),
+          prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.muted),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, size: 14),
+                  splashRadius: 14,
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    _searchController.clear();
+                    _loadPlaces(showLoading: false);
+                  },
+                )
+              : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+          filled: true,
+          fillColor: AppColors.surfaceSoft,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: AppColors.border),
           ),
-        );
-
-        if (isNarrow) {
-          return Container(
-            color: AppColors.surface,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                searchField,
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(child: _buildCategoryDropdown()),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildStatusDropdown()),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: searchField,
-              ),
-              const SizedBox(width: 12),
-              _buildCategoryDropdown(),
-              const SizedBox(width: 12),
-              _buildStatusDropdown(),
-            ],
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: AppColors.border),
           ),
-        );
-      },
+        ),
+      ),
+    );
+
+    return AdminToolbar(
+      searchField: searchInput,
+      filters: [
+        _buildCategoryDropdown(),
+        _buildStatusDropdown(),
+      ],
     );
   }
 
@@ -846,21 +783,6 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
   }
 
   Widget _buildStatusBadge(String status) {
-    final isActive = status.toUpperCase() == 'ACTIVE';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: isActive ? AppColors.success.withValues(alpha: 0.1) : AppColors.warning.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        isActive ? 'ACTIVE' : 'HIDDEN',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: isActive ? AppColors.success : AppColors.warning,
-        ),
-      ),
-    );
+    return AdminStatusBadge(status: status);
   }
 }

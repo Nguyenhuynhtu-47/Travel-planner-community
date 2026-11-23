@@ -205,7 +205,6 @@ void main() {
 
       AdminTab selected = AdminTab.dashboard;
       bool collapsed = false;
-      bool loggedOut = false;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -216,7 +215,7 @@ void main() {
               isCollapsed: false,
               onToggleCollapse: () => collapsed = true,
               currentUser: const {'username': 'admin_john', 'role': 'ADMIN'},
-              onLogout: () => loggedOut = true,
+              onLogout: () {},
               pendingReportsCount: 5,
             ),
           ),
@@ -237,20 +236,65 @@ void main() {
       expect(find.text('Quản lý địa điểm'), findsOneWidget);
       expect(find.text('Quản lý Media'), findsOneWidget);
 
+      // Verify SaaS icons are rendered next to items
+      expect(find.byIcon(AdminTab.dashboard.activeIcon), findsOneWidget);
+      expect(find.byIcon(AdminTab.posts.icon), findsOneWidget);
+      expect(find.byIcon(AdminTab.places.icon), findsOneWidget);
+
       // Tap on a tab
       await tester.tap(find.text('Quản lý địa điểm'));
       await tester.pump();
       expect(selected, AdminTab.places);
 
       // Tap on Collapse
-      await tester.tap(find.text('Thu gọn'));
+      await tester.tap(find.text('Thu gọn menu'));
       await tester.pump();
       expect(collapsed, isTrue);
+    });
 
-      // Tap on Logout
-      await tester.tap(find.byIcon(Icons.logout));
-      await tester.pump();
-      expect(loggedOut, isTrue);
+    testWidgets('Sidebar in collapsed mode renders centered icons with tooltips and badge', (tester) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AdminSidebar(
+              currentTab: AdminTab.dashboard,
+              onSelectTab: (_) {},
+              isCollapsed: true,
+              onToggleCollapse: () {},
+              currentUser: const {'username': 'admin_john', 'role': 'ADMIN'},
+              onLogout: () {},
+              pendingReportsCount: 2,
+            ),
+          ),
+        ),
+      );
+
+      // Collapsed icons
+      expect(find.byIcon(AdminTab.dashboard.activeIcon), findsOneWidget);
+      expect(find.byIcon(AdminTab.posts.icon), findsOneWidget);
+      expect(find.byIcon(AdminTab.places.icon), findsOneWidget);
+      expect(find.text('2'), findsOneWidget); // Pending reports badge
+    });
+
+    test('AdminTab routePath and fromRoute resolution', () {
+      expect(AdminTab.fromRoute('/reports'), AdminTab.reports);
+      expect(AdminTab.fromRoute('/posts'), AdminTab.posts);
+      expect(AdminTab.fromRoute('/places'), AdminTab.places);
+      expect(AdminTab.fromRoute('/media'), AdminTab.media);
+      expect(AdminTab.fromRoute('/dashboard'), AdminTab.dashboard);
+      expect(AdminTab.fromRoute('/'), AdminTab.dashboard);
+      expect(AdminTab.fromRoute(null), AdminTab.dashboard);
+      expect(AdminTab.fromRoute('#/reports'), AdminTab.reports);
+      expect(AdminTab.fromRoute('#/places'), AdminTab.places);
+
+      expect(AdminTab.reports.routePath, '/reports');
+      expect(AdminTab.posts.routePath, '/posts');
+      expect(AdminTab.places.routePath, '/places');
+      expect(AdminTab.media.routePath, '/media');
     });
   });
 
@@ -365,8 +409,8 @@ void main() {
       expect(find.text('Tài nguyên Media'), findsOneWidget);
       expect(find.text('12'), findsOneWidget);
 
-      // Quick action chip
-      await tester.tap(find.widgetWithText(ActionChip, 'Kiểm duyệt bài viết'));
+      // Metric card navigation
+      await tester.tap(find.text('Bài viết cộng đồng'));
       await tester.pump();
       expect(targetTab, AdminTab.posts);
     });
@@ -454,6 +498,21 @@ void main() {
       await tester.tap(find.text('Quản lý địa điểm'));
       await tester.pumpAndSettle();
       expect(find.text('Quản lý địa điểm chuẩn hóa'), findsWidgets);
+
+      // Switch to Standalone Post Moderation Screen
+      await tester.tap(find.text('Kiểm duyệt bài viết'));
+      await tester.pumpAndSettle();
+      expect(find.text('Quản lý, rà soát và kiểm duyệt nội dung bài đăng cộng đồng vi phạm tiêu chuẩn.'), findsOneWidget);
+
+      // Switch to Standalone Reports Screen
+      await tester.tap(find.text('Quản lý báo cáo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Xử lý, phân giải và rà soát các báo cáo vi phạm tiêu chuẩn từ cộng đồng người dùng.'), findsOneWidget);
+
+      // Switch to Standalone Media Screen
+      await tester.tap(find.text('Quản lý Media'));
+      await tester.pumpAndSettle();
+      expect(find.text('Giám sát tài nguyên tải lên Cloudinary, xử lý dead-letter và retry dọn dẹp file rác.'), findsOneWidget);
 
       // Switch to Coming Soon tab: Users
       await tester.tap(find.text('Quản lý người dùng'));

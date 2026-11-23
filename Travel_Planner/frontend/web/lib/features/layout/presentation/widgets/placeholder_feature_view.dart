@@ -63,158 +63,158 @@ class PlaceholderFeatureView extends StatelessWidget {
 
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680),
-          child: Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: AppColors.border),
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(36),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withAlpha(25),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(tab.icon, size: 32, color: AppColors.primary),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tab.title,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Nhóm: ${tab.group.label}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.amber.shade300),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.hourglass_top_outlined, size: 14, color: Colors.amber.shade900),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Chưa triển khai',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.amber.shade900,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 36, color: AppColors.border),
-                  const Text(
-                    'Lộ trình chức năng dự kiến:',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      child: Icon(tab.icon, size: 22, color: AppColors.primary),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  ...planned.map((item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2),
-                              child: Icon(Icons.check_circle_outline, size: 16, color: AppColors.primary),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                item,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.textBody,
-                                  height: 1.45,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )),
-                  const SizedBox(height: 20),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceSoft,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.hairlineSoft),
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.info_outline, size: 18, color: AppColors.textSecondary),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Module này đang chờ bổ sung các endpoint API chuyên biệt tại Backend. Khi API hoàn tất, giao diện sẽ được tích hợp trực tiếp, không sử dụng dữ liệu giả lập.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textSecondary,
-                              height: 1.4,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tab.title,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            'Nhóm: ${tab.group.label}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.amber.shade300, width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.hourglass_top_outlined, size: 12, color: Colors.amber.shade900),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Chưa triển khai',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.amber.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 28, color: AppColors.border),
+                const Text(
+                  'Lộ trình chức năng dự kiến:',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
                   ),
-                  const SizedBox(height: 28),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                ),
+                const SizedBox(height: 10),
+                ...planned.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Icon(Icons.check_circle_outline, size: 15, color: AppColors.primary),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textBody,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSoft,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.hairlineSoft),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.dashboard_outlined, size: 18),
-                        label: const Text('Quay lại Dashboard'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      Icon(Icons.info_outline, size: 16, color: AppColors.textSecondary),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Module này đang chờ bổ sung các endpoint API chuyên biệt tại Backend. Khi API hoàn tất, giao diện sẽ được tích hợp trực tiếp, không sử dụng dữ liệu giả lập.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            height: 1.4,
+                          ),
                         ),
-                        onPressed: onGoToDashboard,
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.dashboard_outlined, size: 16),
+                      label: const Text('Quay lại Dashboard', style: TextStyle(fontSize: 13)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      onPressed: onGoToDashboard,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),

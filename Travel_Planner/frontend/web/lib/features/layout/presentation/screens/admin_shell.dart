@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:travel_planner_web/core/constants/api_constants.dart';
 import 'package:travel_planner_web/core/network/api_client.dart';
 import 'package:travel_planner_web/core/theme/app_colors.dart';
@@ -44,9 +45,47 @@ class _AdminShellState extends State<AdminShell> {
   @override
   void initState() {
     super.initState();
-    _currentTab = widget.initialTab;
+    final urlTab = _resolveTabFromBrowserUrl();
+    _currentTab = widget.initialTab != AdminTab.dashboard
+        ? widget.initialTab
+        : (urlTab ?? widget.initialTab);
     _apiClient = widget.apiClient ?? ApiClient();
     _fetchSystemStatus();
+    _syncBrowserUrl(_currentTab);
+  }
+
+  @override
+  void didUpdateWidget(AdminShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTab != widget.initialTab &&
+        _currentTab != widget.initialTab) {
+      setState(() {
+        _currentTab = widget.initialTab;
+      });
+      _syncBrowserUrl(widget.initialTab);
+    }
+  }
+
+  AdminTab? _resolveTabFromBrowserUrl() {
+    try {
+      final fragment = Uri.base.fragment;
+      if (fragment.isNotEmpty) {
+        return AdminTab.fromRoute(fragment);
+      }
+      final path = Uri.base.path;
+      if (path.isNotEmpty && path != '/') {
+        return AdminTab.fromRoute(path);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void _syncBrowserUrl(AdminTab tab) {
+    try {
+      SystemNavigator.routeInformationUpdated(
+        uri: Uri.parse(tab.routePath),
+      );
+    } catch (_) {}
   }
 
   Future<void> _fetchSystemStatus() async {
@@ -93,6 +132,7 @@ class _AdminShellState extends State<AdminShell> {
       setState(() {
         _currentTab = tab;
       });
+      _syncBrowserUrl(tab);
     }
   }
 
@@ -213,21 +253,21 @@ class _AdminShellState extends State<AdminShell> {
           onNavigateTab: _onSelectTab,
         );
       case AdminTab.posts:
-        return AdminModerationScreen(
+        return AdminPostsScreen(
+          key: const ValueKey(AdminTab.posts),
           authNotifier: widget.authNotifier,
-          initialTabIndex: 0,
           embedded: true,
         );
       case AdminTab.reports:
-        return AdminModerationScreen(
+        return AdminReportsScreen(
+          key: const ValueKey(AdminTab.reports),
           authNotifier: widget.authNotifier,
-          initialTabIndex: 1,
           embedded: true,
         );
       case AdminTab.media:
-        return AdminModerationScreen(
+        return AdminMediaScreen(
+          key: const ValueKey(AdminTab.media),
           authNotifier: widget.authNotifier,
-          initialTabIndex: 2,
           embedded: true,
         );
       case AdminTab.places:

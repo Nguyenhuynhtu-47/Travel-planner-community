@@ -331,24 +331,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
+        constraints: const BoxConstraints(maxWidth: 720),
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           children: [
             Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.border),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0A000000),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
               ),
-              padding: const EdgeInsets.all(32),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -357,41 +350,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: avatar.startsWith('http')
                           ? Image.network(
                               avatar,
-                              width: 96,
-                              height: 96,
+                              width: 80,
+                              height: 80,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => _defaultAvatar(),
                             )
                           : _defaultAvatar(),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Center(
                     child: Text(
                       _value(profile['fullName']),
                       textAlign: TextAlign.center,
                       softWrap: true,
                       style: const TextStyle(
-                        fontSize: 24,
+                        fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
-                        letterSpacing: -0.4,
+                        letterSpacing: -0.3,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Center(
                     child: Text(
                       profile['handle'] != null && profile['handle'].toString().isNotEmpty
                           ? '@${profile['handle']}'
                           : '',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: AppColors.textSecondary,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Center(
                     child: Wrap(
                       spacing: 8,
@@ -400,18 +393,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
+                            horizontal: 8,
+                            vertical: 3,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceSoft,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(4),
                             border: Border.all(color: AppColors.border),
                           ),
                           child: Text(
                             role,
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w500,
                               color: AppColors.textPrimary,
                             ),
@@ -421,18 +414,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   _sectionHeader('Thông tin cá nhân'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _infoCard([
                     _detailRow('Họ và tên', profile['fullName']),
                     _detailRow('Số điện thoại', profile['phone']),
                     _detailRow('Địa chỉ', profile['address']),
                     _detailRow('Giới thiệu', profile['bio']),
                   ]),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   _sectionHeader('Thông tin tài khoản'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _infoCard([
                     _detailRow(
                       'Định danh (@handle)',
@@ -449,7 +442,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _formatDate(profile['createdAt']),
                     ),
                   ]),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   AppPrimaryButton(
                     text: 'Chỉnh sửa hồ sơ',
                     onPressed: () => setState(() => _editing = true),
@@ -478,10 +471,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceSoft,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.hairlineSoft),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: children,
@@ -525,47 +518,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _editor() {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
+        constraints: const BoxConstraints(maxWidth: 600),
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             children: [
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.border),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x0A000000),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
                 ),
-                padding: const EdgeInsets.all(32),
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
                       'Chỉnh sửa hồ sơ',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                         letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     const Text(
                       'Cập nhật thông tin cá nhân và liên hệ của bạn',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     AppTextField(
                       label: 'Họ và tên',
                       hint: 'Nhập họ và tên đầy đủ',
@@ -577,7 +563,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? 'Vui lòng nhập họ và tên'
                           : null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     AppTextField(
                       label: 'Định danh công khai (@handle)',
                       hint: 'Ví dụ: minhdanh.travel',
@@ -601,7 +587,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     AppTextField(
                       label: 'Ảnh đại diện (URL)',
                       hint: 'https://example.com/avatar.jpg',
@@ -610,7 +596,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       textInputAction: TextInputAction.next,
                       errorText: _validationErrors?['avatar'],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     AppTextField(
                       label: 'Số điện thoại',
                       hint: 'Ví dụ: 0912345678',
@@ -619,7 +605,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       textInputAction: TextInputAction.next,
                       errorText: _validationErrors?['phone'],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     AppTextField(
                       label: 'Địa chỉ',
                       hint: 'Ví dụ: TP. Hồ Chí Minh, Việt Nam',
@@ -627,7 +613,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       textInputAction: TextInputAction.next,
                       errorText: _validationErrors?['address'],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     AppTextField(
                       label: 'Giới thiệu',
                       hint: 'Chia sẻ ngắn về sở thích du lịch của bạn...',
@@ -637,14 +623,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       textInputAction: TextInputAction.newline,
                       errorText: _validationErrors?['bio'],
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
                     AppPrimaryButton(
                       text: 'Lưu thay đổi',
                       isLoading: _saving,
                       onPressed: _saveProfile,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
                       onPressed: _saving
                           ? null
                           : () {
