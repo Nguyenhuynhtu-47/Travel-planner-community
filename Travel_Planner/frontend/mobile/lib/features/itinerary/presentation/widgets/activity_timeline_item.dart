@@ -36,7 +36,8 @@ class ActivityTimelineItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final timeFormatted = activity.timeRangeFormatted;
     final activityImageUrl = activity.effectiveImageUrl;
-    final hasCatalogRef = activity.place != null || activity.destination != null;
+    final hasCatalogRef =
+        activity.place != null || activity.destination != null;
 
     return IntrinsicHeight(
       child: Row(
@@ -157,11 +158,44 @@ class ActivityTimelineItem extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                if (activity.visited)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryLight,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.check_rounded,
+                                          size: 12,
+                                          color: AppColors.primary,
+                                        ),
+                                        SizedBox(width: 3),
+                                        Text(
+                                          'Đã ghé',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
                         ),
-                        if (onEdit != null || onDelete != null || onTap != null || onSavePlace != null)
+                        if (onEdit != null ||
+                            onDelete != null ||
+                            onTap != null ||
+                            onSavePlace != null)
                           SizedBox(
                             width: 24,
                             height: 24,
@@ -191,7 +225,10 @@ class ActivityTimelineItem extends StatelessWidget {
                                     value: 'view',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.visibility_outlined, size: 16),
+                                        Icon(
+                                          Icons.visibility_outlined,
+                                          size: 16,
+                                        ),
                                         SizedBox(width: 8),
                                         Text('Xem chi tiết'),
                                       ],
@@ -208,7 +245,13 @@ class ActivityTimelineItem extends StatelessWidget {
                                           color: AppColors.primary,
                                         ),
                                         SizedBox(width: 8),
-                                        Text('Lưu địa điểm vào lịch trình'),
+                                        Expanded(
+                                          child: Text(
+                                            'Lưu địa điểm vào lịch trình',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -286,7 +329,9 @@ class ActivityTimelineItem extends StatelessWidget {
 
                           // Unified Location card (authoritative snapshot + catalog destination info)
                           if ((activity.effectiveLocationName != null &&
-                                  activity.effectiveLocationName!.trim().isNotEmpty) ||
+                                  activity.effectiveLocationName!
+                                      .trim()
+                                      .isNotEmpty) ||
                               activity.hasCoordinates) ...[
                             const SizedBox(height: 8),
                             Container(
@@ -294,7 +339,9 @@ class ActivityTimelineItem extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceSoft,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.hairlineSoft),
+                                border: Border.all(
+                                  color: AppColors.hairlineSoft,
+                                ),
                               ),
                               child: Row(
                                 children: [
@@ -307,10 +354,9 @@ class ActivityTimelineItem extends StatelessWidget {
                                         width: 48,
                                         height: 48,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) =>
-                                            hasCatalogRef
-                                                ? _destinationPlaceholder()
-                                                : _customLocationPlaceholder(),
+                                        errorBuilder: (_, _, _) => hasCatalogRef
+                                            ? _destinationPlaceholder()
+                                            : _customLocationPlaceholder(),
                                       ),
                                     ),
                                     const SizedBox(width: 10),
@@ -322,7 +368,8 @@ class ActivityTimelineItem extends StatelessWidget {
                                   ],
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           activity.effectiveLocationName ??
@@ -349,8 +396,10 @@ class ActivityTimelineItem extends StatelessWidget {
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
-                                        ] else if (activity.effectiveLatitude != null &&
-                                            activity.effectiveLongitude != null) ...[
+                                        ] else if (activity.effectiveLatitude !=
+                                                null &&
+                                            activity.effectiveLongitude !=
+                                                null) ...[
                                           const SizedBox(height: 2),
                                           Text(
                                             '${activity.effectiveLatitude!.toStringAsFixed(4)}, ${activity.effectiveLongitude!.toStringAsFixed(4)}',
@@ -360,13 +409,26 @@ class ActivityTimelineItem extends StatelessWidget {
                                             ),
                                           ),
                                         ],
-                                        if ((activity.place?.description?.trim().isNotEmpty == true) ||
-                                            (activity.destination?.description?.trim().isNotEmpty == true)) ...[
+                                        if ((activity.place?.description
+                                                    ?.trim()
+                                                    .isNotEmpty ==
+                                                true) ||
+                                            (activity.destination?.description
+                                                    ?.trim()
+                                                    .isNotEmpty ==
+                                                true)) ...[
                                           const SizedBox(height: 3),
                                           Text(
-                                            (activity.place?.description?.trim().isNotEmpty == true)
-                                                ? activity.place!.description!.trim()
-                                                : activity.destination!.description!.trim(),
+                                            (activity.place?.description
+                                                        ?.trim()
+                                                        .isNotEmpty ==
+                                                    true)
+                                                ? activity.place!.description!
+                                                      .trim()
+                                                : activity
+                                                      .destination!
+                                                      .description!
+                                                      .trim(),
                                             style: const TextStyle(
                                               fontSize: 11,
                                               color: AppColors.textBody,
@@ -409,8 +471,12 @@ class ActivityTimelineItem extends StatelessWidget {
                       child: TextButton.icon(
                         onPressed: onComments,
                         icon: const Icon(Icons.mode_comment_outlined, size: 17),
-                        label: const Text('Bình luận hoạt động'),
-                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                        label: Text(
+                          'Bình luận hoạt động (${activity.commentCount})',
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
                       ),
                     ),
                 ],

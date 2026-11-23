@@ -26,10 +26,8 @@ class MappedActivityStop {
   });
 
   /// Converts mapped activity stop into a navigation stop with prioritized display name.
-  NavigationStop toNavigationStop() => NavigationStop(
-        point: point,
-        label: activity.navigationDisplayName,
-      );
+  NavigationStop toNavigationStop() =>
+      NavigationStop(point: point, label: activity.navigationDisplayName);
 
   @override
   String toString() =>
@@ -63,7 +61,9 @@ class ItineraryMapHelper {
   /// Validates whether a latitude and longitude pair is non-null, finite, and within legal Earth bounds.
   static bool isValidCoordinate(double? lat, double? lng) {
     if (lat == null || lng == null) return false;
-    if (lat.isNaN || lat.isInfinite || lng.isNaN || lng.isInfinite) return false;
+    if (lat.isNaN || lat.isInfinite || lng.isNaN || lng.isInfinite) {
+      return false;
+    }
     return lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0;
   }
 
@@ -79,7 +79,9 @@ class ItineraryMapHelper {
 
     final daysToProcess = selectedDayNumber == null
         ? itinerary.days
-        : itinerary.days.where((d) => d.dayNumber == selectedDayNumber).toList();
+        : itinerary.days
+              .where((d) => d.dayNumber == selectedDayNumber)
+              .toList();
 
     for (final day in daysToProcess) {
       for (var i = 0; i < day.activities.length; i++) {
@@ -113,7 +115,9 @@ class ItineraryMapHelper {
 
     final daysToProcess = selectedDayNumber == null
         ? itinerary.days
-        : itinerary.days.where((d) => d.dayNumber == selectedDayNumber).toList();
+        : itinerary.days
+              .where((d) => d.dayNumber == selectedDayNumber)
+              .toList();
 
     for (final day in daysToProcess) {
       for (final activity in day.activities) {
@@ -136,7 +140,9 @@ class ItineraryMapHelper {
   }) {
     final daysToProcess = selectedDayNumber == null
         ? itinerary.days
-        : itinerary.days.where((d) => d.dayNumber == selectedDayNumber).toList();
+        : itinerary.days
+              .where((d) => d.dayNumber == selectedDayNumber)
+              .toList();
 
     var total = 0;
     for (final day in daysToProcess) {
@@ -166,7 +172,8 @@ class ItineraryMapHelper {
     }
 
     return stops.map((stop) {
-      final isSelected = selectedActivity?.activityId == stop.activity.activityId;
+      final isSelected =
+          selectedActivity?.activityId == stop.activity.activityId;
       final pinColor = isMultiDay
           ? getDayColor(stop.day.dayNumber)
           : AppColors.primary;
@@ -192,11 +199,13 @@ class ItineraryMapHelper {
       return MapMarkerBuilder.buildStopMarker(
         point: markerPoint,
         sequence: stop.sequence,
+        visited: stop.activity.visited,
         dayBadge: isMultiDay ? 'D${stop.day.dayNumber}' : null,
         pinColor: isSelected ? const Color(0xFF1E293B) : pinColor,
         textColor: Colors.white,
-        semanticLabel:
-            '${stop.activity.name} - Ngày ${stop.day.dayNumber}, điểm số ${stop.sequence}',
+        semanticLabel: stop.activity.visited
+            ? '${stop.activity.name} - Ngày ${stop.day.dayNumber}, đã ghé'
+            : '${stop.activity.name} - Ngày ${stop.day.dayNumber}, điểm số ${stop.sequence}',
         onTap: onStopTapped != null ? () => onStopTapped(stop) : null,
       );
     }).toList();
@@ -209,7 +218,10 @@ class ItineraryMapHelper {
     ItineraryDetail itinerary, {
     int? selectedDayNumber,
   }) {
-    final total = countTotalActivities(itinerary, selectedDayNumber: selectedDayNumber);
+    final total = countTotalActivities(
+      itinerary,
+      selectedDayNumber: selectedDayNumber,
+    );
     if (total == 0) return null;
 
     final missing = countMissingCoordinates(
@@ -226,4 +238,3 @@ class ItineraryMapHelper {
     return '$missing hoạt động chưa có vị trí trên bản đồ';
   }
 }
-

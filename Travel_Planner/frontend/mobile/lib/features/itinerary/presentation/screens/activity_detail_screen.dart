@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_map_view.dart';
+import '../../../../shared/services/device_location_service.dart';
 import '../../data/models/activity_detail.dart';
 import '../widgets/navigation_launcher_helper.dart';
 
@@ -19,6 +21,8 @@ class ActivityDetailScreen extends StatelessWidget {
   final int? dayNumber;
   final String? dayTitle;
   final String? itineraryTitle;
+  final DeviceLocationService? locationService;
+  final UrlLauncherFn? urlLauncher;
 
   const ActivityDetailScreen({
     super.key,
@@ -26,6 +30,8 @@ class ActivityDetailScreen extends StatelessWidget {
     this.dayNumber,
     this.dayTitle,
     this.itineraryTitle,
+    this.locationService,
+    this.urlLauncher,
   });
 
   /// Formats cost as Vietnamese Dong or 'Miễn phí'.
@@ -56,7 +62,10 @@ class ActivityDetailScreen extends StatelessWidget {
     final endHour = int.tryParse(endMatch.group(1)!);
     final endMin = int.tryParse(endMatch.group(2)!);
 
-    if (startHour == null || startMin == null || endHour == null || endMin == null) {
+    if (startHour == null ||
+        startMin == null ||
+        endHour == null ||
+        endMin == null) {
       return null;
     }
 
@@ -79,42 +88,6 @@ class ActivityDetailScreen extends StatelessWidget {
       return '$hours giờ';
     } else {
       return '$mins phút';
-    }
-  }
-
-  Future<void> _launchDirections(
-    BuildContext context,
-    double lat,
-    double lon, [
-    String? label,
-  ]) async {
-    final uri = NavigationLauncherHelper.buildGoogleMapsUri(
-      stops: [
-        NavigationStop(
-          point: LatLng(lat, lon),
-          label: label,
-        ),
-      ],
-    );
-    if (uri != null) {
-      try {
-        final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (!launched && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Không thể mở ứng dụng bản đồ bên ngoài.'),
-            ),
-          );
-        }
-      } catch (_) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Không thể mở liên kết bản đồ.'),
-            ),
-          );
-        }
-      }
     }
   }
 
@@ -147,18 +120,20 @@ class ActivityDetailScreen extends StatelessWidget {
 
     final locationName = act.effectiveLocationName?.trim();
     final address = act.effectiveAddress?.trim();
-    final hasLocation = (locationName != null && locationName.isNotEmpty) ||
+    final hasLocation =
+        (locationName != null && locationName.isNotEmpty) ||
         (address != null && address.isNotEmpty);
     final hasCoords = act.hasCoordinates;
     final duration = calculateDuration(act.startTime, act.endTime);
     final timeFormatted = act.timeRangeFormatted;
-    final hasDescription = act.description != null && act.description!.trim().isNotEmpty;
+    final hasDescription =
+        act.description != null && act.description!.trim().isNotEmpty;
     final hasCost = act.estimatedCost != null;
     final catalogDescription = act.place?.description?.trim().isNotEmpty == true
         ? act.place!.description!.trim()
         : (act.destination?.description?.trim().isNotEmpty == true
-            ? act.destination!.description!.trim()
-            : null);
+              ? act.destination!.description!.trim()
+              : null);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -207,7 +182,8 @@ class ActivityDetailScreen extends StatelessWidget {
                       ),
                     );
                   },
-                  errorBuilder: (context, error, stackTrace) => _buildImagePlaceholder(),
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildImagePlaceholder(),
                 ),
               ),
               const SizedBox(height: 16),
@@ -221,7 +197,10 @@ class ActivityDetailScreen extends StatelessWidget {
               children: [
                 if (dayNumber != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceSoft,
                       borderRadius: BorderRadius.circular(16),
@@ -251,7 +230,10 @@ class ActivityDetailScreen extends StatelessWidget {
                   ),
                 if (act.displayOrder > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceSoft,
                       borderRadius: BorderRadius.circular(16),
@@ -266,9 +248,13 @@ class ActivityDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (act.activityType != null && act.activityType!.trim().isNotEmpty)
+                if (act.activityType != null &&
+                    act.activityType!.trim().isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(16),
@@ -367,7 +353,10 @@ class ActivityDetailScreen extends StatelessWidget {
                     if (timeFormatted != null && hasCost)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),
-                        child: Divider(height: 1, color: AppColors.hairlineSoft),
+                        child: Divider(
+                          height: 1,
+                          color: AppColors.hairlineSoft,
+                        ),
                       ),
                     if (hasCost)
                       Row(
@@ -493,7 +482,8 @@ class ActivityDetailScreen extends StatelessWidget {
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (locationName != null && locationName.isNotEmpty) ...[
+                        if (locationName != null &&
+                            locationName.isNotEmpty) ...[
                           Text(
                             locationName,
                             style: const TextStyle(
@@ -531,74 +521,49 @@ class ActivityDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                         ],
-                        if (hasCoords) ...[
+                        if (hasCoords || hasLocation) ...[
                           Wrap(
                             spacing: 8,
                             runSpacing: 6,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: AppColors.hairline),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.gps_fixed,
-                                      size: 12,
-                                      color: AppColors.primary,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${act.effectiveLatitude!.toStringAsFixed(5)}, ${act.effectiveLongitude!.toStringAsFixed(5)}',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
+                              if (hasCoords)
+                                Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
+                                    horizontal: 8,
                                     vertical: 4,
                                   ),
-                                  visualDensity: VisualDensity.compact,
-                                  side: const BorderSide(color: AppColors.hairline),
-                                  backgroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: AppColors.hairline,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.gps_fixed,
+                                        size: 12,
+                                        color: AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${act.effectiveLatitude!.toStringAsFixed(5)}, ${act.effectiveLongitude!.toStringAsFixed(5)}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                icon: const Icon(
-                                  Icons.directions_outlined,
-                                  size: 14,
-                                  color: AppColors.primary,
-                                ),
-                                label: const Text(
-                                  'Chỉ đường',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                onPressed: () => _launchDirections(
-                                  context,
-                                  act.effectiveLatitude!,
-                                  act.effectiveLongitude!,
-                                  act.navigationDisplayName,
-                                ),
+                              ActivityDirectionsButton(
+                                activity: act,
+                                locationService: locationService,
+                                launcher: urlLauncher,
                               ),
                             ],
                           ),
@@ -700,7 +665,8 @@ class ActivityDetailScreen extends StatelessWidget {
             ],
 
             // 8. Catalog Place / Destination Extra Information (if place/destination catalog object exists)
-            if (catalogDescription != null && catalogDescription.isNotEmpty) ...[
+            if (catalogDescription != null &&
+                catalogDescription.isNotEmpty) ...[
               const Row(
                 children: [
                   Icon(
@@ -749,17 +715,10 @@ class ActivityDetailScreen extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: 4,
                   children: [
-                    Icon(
-                      Icons.lock_outline,
-                      size: 14,
-                      color: AppColors.muted,
-                    ),
+                    Icon(Icons.lock_outline, size: 14, color: AppColors.muted),
                     Text(
                       'Chế độ xem chi tiết (chỉ đọc)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.muted,
-                      ),
+                      style: TextStyle(fontSize: 12, color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -772,30 +731,142 @@ class ActivityDetailScreen extends StatelessWidget {
   }
 
   Widget _buildImagePlaceholder() => Container(
-        height: 220,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceSoft,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.hairlineSoft),
+    height: 220,
+    decoration: BoxDecoration(
+      color: AppColors.surfaceSoft,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.hairlineSoft),
+    ),
+    alignment: Alignment.center,
+    child: const Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.image_not_supported_outlined,
+          size: 32,
+          color: AppColors.muted,
         ),
-        alignment: Alignment.center,
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.image_not_supported_outlined,
-              size: 32,
-              color: AppColors.muted,
-            ),
-            SizedBox(height: 6),
-            Text(
-              'Không thể tải hình ảnh hoạt động',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
+        SizedBox(height: 6),
+        Text(
+          'Không thể tải hình ảnh hoạt động',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
+      ],
+    ),
+  );
+}
+
+class ActivityDirectionsButton extends StatefulWidget {
+  final ActivityDetail activity;
+  final DeviceLocationService? locationService;
+  final UrlLauncherFn? launcher;
+
+  const ActivityDirectionsButton({
+    super.key,
+    required this.activity,
+    this.locationService,
+    this.launcher,
+  });
+
+  @override
+  State<ActivityDirectionsButton> createState() =>
+      _ActivityDirectionsButtonState();
+}
+
+class _ActivityDirectionsButtonState extends State<ActivityDirectionsButton> {
+  bool _isLoading = false;
+
+  Future<void> _openDirections() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final origin =
+          await (widget.locationService ?? const DeviceLocationService())
+              .getCurrentLocation();
+      final activity = widget.activity;
+      final destinationPoint = activity.hasCoordinates
+          ? LatLng(activity.effectiveLatitude!, activity.effectiveLongitude!)
+          : null;
+      final uri = NavigationLauncherHelper.buildCurrentLocationDirectionsUri(
+        origin: origin,
+        destinationPoint: destinationPoint,
+        destinationAddress: activity.effectiveAddress,
+        destinationName:
+            activity.effectiveLocationName ?? activity.navigationDisplayName,
       );
+      if (uri == null) {
+        _showMessage('Hoạt động chưa có đủ thông tin địa điểm để chỉ đường.');
+        return;
+      }
+      final launched = await (widget.launcher ?? launchUrl)(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        _showMessage('Không thể mở Google Maps trên thiết bị này.');
+      }
+    } on DeviceLocationException catch (error) {
+      _showLocationError(error);
+    } catch (_) {
+      _showMessage('Không thể bắt đầu chỉ đường. Vui lòng thử lại.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showLocationError(DeviceLocationException error) {
+    if (!mounted) return;
+    final settingsAction = error.canOpenAppSettings
+        ? Geolocator.openAppSettings
+        : error.canOpenLocationSettings
+        ? Geolocator.openLocationSettings
+        : null;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error.message),
+        action: settingsAction == null
+            ? null
+            : SnackBarAction(
+                label: 'Cài đặt',
+                onPressed: () => settingsAction(),
+              ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    style: OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      visualDensity: VisualDensity.compact,
+      side: const BorderSide(color: AppColors.hairline),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    ),
+    icon: _isLoading
+        ? const SizedBox.square(
+            dimension: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(
+            Icons.directions_outlined,
+            size: 14,
+            color: AppColors.primary,
+          ),
+    label: const Text(
+      'Chỉ đường',
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: AppColors.primary,
+      ),
+    ),
+    onPressed: _isLoading ? null : _openDirections,
+  );
 }

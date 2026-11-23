@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -558,13 +556,7 @@ class _CommentThreadState extends State<_CommentThread> {
   bool _expanded = false;
 
   void _startReply(ItineraryComment comment) {
-    if (!_expanded) setState(() => _expanded = true);
     widget.onReply(comment);
-
-    if (!widget.notifier.replies.containsKey(widget.comment.commentId) &&
-        !widget.notifier.loadingReplies.contains(widget.comment.commentId)) {
-      unawaited(widget.notifier.loadReplies(widget.comment.commentId));
-    }
   }
 
   @override
@@ -575,6 +567,9 @@ class _CommentThreadState extends State<_CommentThread> {
     final replies =
         widget.notifier.replies[comment.commentId] ??
         const <ItineraryComment>[];
+    final preview = widget.notifier.collapsedReplyPreviews[comment.commentId];
+    final collapsedReplyCount = (comment.replyCount - (preview == null ? 0 : 1))
+        .clamp(0, comment.replyCount);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -591,7 +586,30 @@ class _CommentThreadState extends State<_CommentThread> {
           onDelete: () =>
               widget.notifier.deleteComment(comment.commentId, widget.token),
         ),
-        if (comment.replyCount > 0 || replies.isNotEmpty)
+        if (!_expanded && preview != null)
+          Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.xl),
+            child: _CommentTile(
+              comment: preview,
+              canManage:
+                  widget.currentUserId != null &&
+                  widget.currentUserId == preview.userId,
+              onReply: () => _startReply(preview),
+              onCreatorTap: () => widget.onCreatorTap(preview.userId),
+              onEdit: (text) => widget.notifier.updateComment(
+                preview.commentId,
+                text,
+                widget.token,
+              ),
+              onDelete: () => widget.notifier.deleteComment(
+                preview.commentId,
+                widget.token,
+              ),
+            ),
+          ),
+        if (_expanded
+            ? comment.replyCount > 0 || replies.isNotEmpty
+            : collapsedReplyCount > 0)
           Padding(
             padding: const EdgeInsets.only(left: AppSpacing.xxl),
             child: TextButton.icon(
@@ -600,7 +618,7 @@ class _CommentThreadState extends State<_CommentThread> {
                   setState(() => _expanded = false);
                 } else {
                   setState(() => _expanded = true);
-                  if (replies.isEmpty) {
+                  if (!widget.notifier.hasLoadedReplies(comment.commentId)) {
                     await widget.notifier.loadReplies(comment.commentId);
                   }
                 }
@@ -612,7 +630,9 @@ class _CommentThreadState extends State<_CommentThread> {
               label: Text(
                 _expanded
                     ? 'Thu gọn câu trả lời'
-                    : 'Xem ${comment.replyCount} câu trả lời',
+                    : preview == null
+                    ? 'Xem ${comment.replyCount} câu trả lời'
+                    : 'Xem $collapsedReplyCount câu trả lời khác',
               ),
             ),
           ),

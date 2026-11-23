@@ -45,6 +45,7 @@ public class ItineraryServiceImpl implements ItineraryService {
     private final SavedItineraryRepository savedItineraryRepository;
     private final CommentRepository commentRepository;
     private final ItineraryPlaceRepository itineraryPlaceRepository;
+    private final ActivityVisitRepository activityVisitRepository;
     private final FriendshipService blockAccess;
     private final ItineraryAccessGrantService accessGrantService;
 
@@ -104,7 +105,8 @@ public class ItineraryServiceImpl implements ItineraryService {
             CommentRepository commentRepository,
             ItineraryPlaceRepository itineraryPlaceRepository,
             FriendshipService blockAccess,
-            ItineraryAccessGrantService accessGrantService
+            ItineraryAccessGrantService accessGrantService,
+            ActivityVisitRepository activityVisitRepository
     ) {
         this.itineraryRepository = itineraryRepository;
         this.ratingRepository = ratingRepository;
@@ -116,8 +118,28 @@ public class ItineraryServiceImpl implements ItineraryService {
         this.savedItineraryRepository = savedItineraryRepository;
         this.commentRepository = commentRepository;
         this.itineraryPlaceRepository = itineraryPlaceRepository;
+        this.activityVisitRepository = activityVisitRepository;
         this.blockAccess = blockAccess;
         this.accessGrantService = accessGrantService;
+    }
+
+    public ItineraryServiceImpl(
+            ItineraryRepository itineraryRepository,
+            RatingRepository ratingRepository,
+            ItineraryDayRepository itineraryDayRepository,
+            ActivityRepository activityRepository,
+            UserRepository userRepository,
+            PlaceRepository placeRepository,
+            FavoriteRepository favoriteRepository,
+            SavedItineraryRepository savedItineraryRepository,
+            CommentRepository commentRepository,
+            ItineraryPlaceRepository itineraryPlaceRepository,
+            FriendshipService blockAccess,
+            ItineraryAccessGrantService accessGrantService
+    ) {
+        this(itineraryRepository, ratingRepository, itineraryDayRepository, activityRepository, userRepository,
+                placeRepository, favoriteRepository, savedItineraryRepository, commentRepository,
+                itineraryPlaceRepository, blockAccess, accessGrantService, null);
     }
 
     public ItineraryServiceImpl(ItineraryRepository itineraryRepository, RatingRepository ratingRepository,
@@ -459,10 +481,22 @@ public class ItineraryServiceImpl implements ItineraryService {
                 activityMap.computeIfAbsent(activity.getItineraryDay().getDayId(), k -> new ArrayList<>()).add(activity);
             }
         }
+        List<Activity> allActivities = activityMap.values().stream()
+                .flatMap(Collection::stream)
+                .toList();
+        Map<Integer, Integer> activityCommentCounts = fetchActivityCommentCounts(allActivities);
+        // Visit progress belongs to the itinerary owner. Never expose legacy or other-user
+        // visit rows while someone is viewing a shared itinerary.
+        Set<Integer> visitedActivityIds = fetchVisitedActivityIds(
+                allActivities, isOwner ? viewerUserId : null);
 
         List<ItineraryDayResponse> dayResponses = days.stream().map(day -> {
             List<Activity> dayActivities = activityMap.getOrDefault(day.getDayId(), Collections.emptyList());
-            List<ActivityResponse> activityResponses = dayActivities.stream().map(this::mapToActivityResponse).toList();
+            List<ActivityResponse> activityResponses = dayActivities.stream()
+                    .map(activity -> mapToActivityResponse(activity,
+                            activityCommentCounts.getOrDefault(activity.getActivityId(), 0),
+                            visitedActivityIds.contains(activity.getActivityId())))
+                    .toList();
             return ItineraryDayResponse.builder()
                     .dayId(day.getDayId())
                     .dayNumber(day.getDayNumber())
@@ -895,7 +929,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         day = itineraryDayRepository.save(day);
 
         List<Activity> activities = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(dayId);
-        List<ActivityResponse> activityResponses = activities.stream().map(this::mapToActivityResponse).toList();
+        List<ActivityResponse> activityResponses = mapToActivityResponses(activities, currentUsername);
 
         return ItineraryDayResponse.builder()
                 .dayId(day.getDayId())
@@ -937,6 +971,11 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         // 1. Delete all activities belonging to this day first to respect foreign key constraint
+        if (activityVisitRepository != null) {
+            for (Integer activityId : activityIds) {
+                activityVisitRepository.deleteByActivityId(activityId);
+            }
+        }
         activityRepository.deleteByItineraryDay_DayId(dayId);
 
         // 2. Delete the day itself
@@ -999,7 +1038,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                         .build());
             }
         }
-        return mapToActivityResponse(activity);
+        return mapToActivityResponses(List.of(activity), currentUsername).get(0);
     }
 
     @Override
@@ -1043,7 +1082,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                         .build());
             }
         }
-        return mapToActivityResponse(activity);
+        return mapToActivityResponses(List.of(activity), currentUsername).get(0);
     }
 
     @Override
@@ -1069,6 +1108,9 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
 
         int deletedOrder = activity.getDisplayOrder();
+        if (activityVisitRepository != null) {
+            activityVisitRepository.deleteByActivityId(activityId);
+        }
         activityRepository.delete(activity);
         activityRepository.flush();
 
@@ -1142,7 +1184,60 @@ public class ItineraryServiceImpl implements ItineraryService {
         activityRepository.flush();
 
         List<Activity> updated = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(dayId);
-        return updated.stream().map(this::mapToActivityResponse).toList();
+        return mapToActivityResponses(updated, currentUsername);
+    }
+
+    @Override
+    @Transactional
+    public ActivityVisitResponse updateActivityVisitStatus(Integer itineraryId, Integer dayId,
+                                                           Integer activityId, boolean visited,
+                                                           String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Bạn cần đăng nhập để cập nhật trạng thái địa điểm");
+        }
+        if (itineraryId == null || dayId == null || activityId == null) {
+            throw new BadRequestException("Mã lịch trình, ngày hoặc hoạt động không hợp lệ");
+        }
+
+        Itinerary itinerary = itineraryRepository.findById(itineraryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa"));
+        User viewer = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new UnauthorizedException("Tài khoản không tồn tại"));
+        if (viewer.getStatus() != UserStatus.ACTIVE) {
+            throw new ForbiddenException("Tài khoản của bạn không hoạt động");
+        }
+        boolean isOwner = itinerary.getUser() != null
+                && viewer.getUserId().equals(itinerary.getUser().getUserId());
+        if (itinerary.getStatus() == ItineraryStatus.DELETED
+                || itinerary.getUser() == null
+                || itinerary.getUser().getStatus() != UserStatus.ACTIVE
+                || (itinerary.getStatus() != ItineraryStatus.ACTIVE && !isOwner)
+                || (itinerary.getVisibility() != Visibility.PUBLIC && !isOwner
+                    && (accessGrantService == null
+                        || !accessGrantService.hasActiveGrant(itineraryId, viewer.getUserId())))
+                || (blockAccess != null
+                    && blockAccess.isBlockedBetween(viewer.getUserId(), itinerary.getUser().getUserId()))) {
+            throw new ResourceNotFoundException("Lịch trình không tồn tại hoặc đã bị xóa");
+        }
+
+        itineraryDayRepository.findByDayIdAndItinerary_ItineraryId(dayId, itineraryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ngày không tồn tại hoặc không thuộc lịch trình này"));
+        Activity activity = activityRepository.findByActivityIdAndItineraryDay_DayId(activityId, dayId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hoạt động không tồn tại hoặc không thuộc ngày này"));
+
+        if (!isOwner) {
+            throw new ForbiddenException("Chỉ chủ sở hữu mới có thể cập nhật trạng thái đã ghé thăm");
+        }
+
+        activityVisitRepository.upsertVisitStatus(viewer.getUserId(), activityId, visited);
+        ActivityVisit visit = activityVisitRepository
+                .findByUser_UserIdAndActivity_ActivityId(viewer.getUserId(), activityId)
+                .orElseThrow(() -> new IllegalStateException("Không thể lưu trạng thái đã ghé thăm"));
+        return ActivityVisitResponse.builder()
+                .activityId(activity.getActivityId())
+                .visited(Boolean.TRUE.equals(visit.getVisited()))
+                .updatedAt(visit.getUpdatedAt())
+                .build();
     }
 
     private Itinerary findOwnedItinerary(Integer itineraryId, String currentUsername, String action) {
@@ -1171,7 +1266,48 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
     }
 
-    private ActivityResponse mapToActivityResponse(Activity activity) {
+    private List<ActivityResponse> mapToActivityResponses(List<Activity> activities, String currentUsername) {
+        Map<Integer, Integer> commentCounts = fetchActivityCommentCounts(activities);
+        Integer viewerId = currentUsername == null || currentUsername.isBlank()
+                ? null
+                : userRepository.findByUsername(currentUsername).map(User::getUserId).orElse(null);
+        Set<Integer> visitedActivityIds = fetchVisitedActivityIds(activities, viewerId);
+        return activities.stream()
+                .map(activity -> mapToActivityResponse(activity,
+                        commentCounts.getOrDefault(activity.getActivityId(), 0),
+                        visitedActivityIds.contains(activity.getActivityId())))
+                .toList();
+    }
+
+    private Set<Integer> fetchVisitedActivityIds(List<Activity> activities, Integer viewerId) {
+        if (viewerId == null || activityVisitRepository == null || activities == null || activities.isEmpty()) {
+            return Set.of();
+        }
+        List<Integer> activityIds = activities.stream()
+                .map(Activity::getActivityId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (activityIds.isEmpty()) return Set.of();
+        return new HashSet<>(activityVisitRepository.findVisitedActivityIds(viewerId, activityIds));
+    }
+
+    private Map<Integer, Integer> fetchActivityCommentCounts(List<Activity> activities) {
+        List<Integer> activityIds = activities.stream()
+                .map(Activity::getActivityId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (activityIds.isEmpty()) {
+            return Map.of();
+        }
+        return commentRepository.countCommentsByActivityIds(activityIds, CommentStatus.ACTIVE).stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).intValue(),
+                        row -> ((Number) row[1]).intValue()));
+    }
+
+    private ActivityResponse mapToActivityResponse(Activity activity, Integer commentCount, boolean visited) {
         Long canonicalPlaceId = null;
         PlaceResponse placeResponse = null;
         if (activity.getPlace() != null) {
@@ -1201,6 +1337,8 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .endTime(activity.getEndTime())
                 .cost(activity.getCost())
                 .displayOrder(activity.getDisplayOrder())
+                .commentCount(commentCount)
+                .visited(visited)
                 .canonicalPlaceId(canonicalPlaceId)
                 .place(placeResponse)
                 .locationName(effectiveName)

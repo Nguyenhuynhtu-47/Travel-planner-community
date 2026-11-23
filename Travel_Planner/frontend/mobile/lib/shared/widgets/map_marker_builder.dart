@@ -18,6 +18,7 @@ class MapMarkerBuilder {
   static Marker buildStopMarker({
     required LatLng point,
     int? sequence,
+    bool visited = false,
     String? dayBadge,
     Color pinColor = AppColors.primary,
     Color badgeColor = AppColors.textPrimary,
@@ -31,6 +32,7 @@ class MapMarkerBuilder {
   }) {
     final markerWidget = _StopMarkerWidget(
       sequence: sequence,
+      visited: visited,
       dayBadge: dayBadge,
       pinColor: pinColor,
       badgeColor: badgeColor,
@@ -173,10 +175,7 @@ class MapMarkerBuilder {
           ),
           padding: const EdgeInsets.all(3.0),
           child: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
           ),
         ),
       ),
@@ -275,6 +274,7 @@ class MapMarkerBuilder {
 /// Internal rendering widget for [MapMarkerBuilder.buildStopMarker].
 class _StopMarkerWidget extends StatelessWidget {
   final int? sequence;
+  final bool visited;
   final String? dayBadge;
   final Color pinColor;
   final Color badgeColor;
@@ -286,6 +286,7 @@ class _StopMarkerWidget extends StatelessWidget {
 
   const _StopMarkerWidget({
     this.sequence,
+    required this.visited,
     this.dayBadge,
     required this.pinColor,
     required this.badgeColor,
@@ -298,8 +299,11 @@ class _StopMarkerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = semanticLabel ??
-        (sequence != null
+    final label =
+        semanticLabel ??
+        (visited
+            ? 'Đã ghé${dayBadge != null ? ' ($dayBadge)' : ''}'
+            : sequence != null
             ? 'Điểm dừng $sequence${dayBadge != null ? ' ($dayBadge)' : ''}'
             : 'Điểm dừng');
 
@@ -316,8 +320,10 @@ class _StopMarkerWidget extends StatelessWidget {
             if (dayBadge != null && dayBadge!.trim().isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(bottom: 2.0),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5.0,
+                  vertical: 1.5,
+                ),
                 decoration: BoxDecoration(
                   color: badgeColor,
                   borderRadius: BorderRadius.circular(6.0),
@@ -351,7 +357,7 @@ class _StopMarkerWidget extends StatelessWidget {
                     painter: _PinTeardropPainter(color: pinColor),
                   ),
 
-                  // Center Sequence Number or Icon
+                  // Center sequence, visited check or icon
                   Positioned(
                     top: (height * 0.7) * 0.18,
                     child: _buildPinContent(),
@@ -366,6 +372,9 @@ class _StopMarkerWidget extends StatelessWidget {
   }
 
   Widget _buildPinContent() {
+    if (visited) {
+      return const Icon(Icons.check_rounded, color: Colors.white, size: 18);
+    }
     if (sequence != null) {
       return Text(
         '$sequence',
@@ -379,20 +388,13 @@ class _StopMarkerWidget extends StatelessWidget {
     }
 
     if (icon != null) {
-      return Icon(
-        icon,
-        size: 14.0,
-        color: textColor,
-      );
+      return Icon(icon, size: 14.0, color: textColor);
     }
 
     return Container(
       width: 8.0,
       height: 8.0,
-      decoration: BoxDecoration(
-        color: textColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: textColor, shape: BoxShape.circle),
     );
   }
 }
@@ -436,12 +438,7 @@ class _PinTeardropPainter extends CustomPainter {
       clockwise: true,
     );
     // Right curve down to bottom tip
-    path.quadraticBezierTo(
-      width * 0.9,
-      height * 0.58,
-      width / 2,
-      height,
-    );
+    path.quadraticBezierTo(width * 0.9, height * 0.58, width / 2, height);
     path.close();
 
     // Draw shadow first

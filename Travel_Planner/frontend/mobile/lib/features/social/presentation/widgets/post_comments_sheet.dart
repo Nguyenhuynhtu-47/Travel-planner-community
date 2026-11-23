@@ -33,6 +33,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
 
   List<PostCommentModel> _comments = [];
   final Map<int, List<PostCommentModel>> _repliesByRoot = {};
+  final Map<int, PostCommentModel> _collapsedReplyPreviews = {};
   final Map<int, int> _replyPageByRoot = {};
   final Map<int, bool> _replyHasMoreByRoot = {};
   final Map<int, String> _replyErrorsByRoot = {};
@@ -121,7 +122,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
       return;
     }
     setState(() => _expandedRoots.add(rootId));
-    if (root.replyCount > 0 && !_repliesByRoot.containsKey(rootId)) {
+    if (root.replyCount > 0 && !_replyPageByRoot.containsKey(rootId)) {
       await _loadReplies(rootId, page: 0);
     }
   }
@@ -141,8 +142,9 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
       );
       if (!mounted) return;
       setState(() {
+        final preview = _collapsedReplyPreviews[rootId];
         final current = page == 0
-            ? <PostCommentModel>[]
+            ? <PostCommentModel>[?preview]
             : (_repliesByRoot[rootId] ?? []);
         final existingIds = current.map((comment) => comment.commentId).toSet();
         current.addAll(
@@ -187,12 +189,18 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
           } else {
             final rootId = _rootIdFor(_replyTo!);
             final replies = _repliesByRoot.putIfAbsent(rootId, () => []);
+            final isDirectReply = _replyTo!.commentId == rootId;
             if (replies.every(
               (reply) => reply.commentId != comment.commentId,
             )) {
-              replies.add(comment);
+              if (isDirectReply) {
+                replies.insert(0, comment);
+                _collapsedReplyPreviews[rootId] = comment;
+              } else {
+                replies.add(comment);
+              }
             }
-            _expandedRoots.add(rootId);
+            if (!isDirectReply) _expandedRoots.add(rootId);
             final rootIndex = _comments.indexWhere(
               (root) => root.commentId == rootId,
             );
@@ -555,11 +563,23 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                         final replies =
                             _repliesByRoot[root.commentId] ??
                             const <PostCommentModel>[];
+                        final preview = _collapsedReplyPreviews[root.commentId];
+                        final collapsedReplyCount =
+                            (root.replyCount - (preview == null ? 0 : 1)).clamp(
+                              0,
+                              root.replyCount,
+                            );
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildCommentItem(root, isReply: false),
-                            if (root.replyCount > 0)
+                            if (!expanded && preview != null) ...[
+                              const SizedBox(height: 8),
+                              _buildCommentItem(preview, isReply: true),
+                            ],
+                            if (expanded
+                                ? root.replyCount > 0 || replies.isNotEmpty
+                                : collapsedReplyCount > 0)
                               Padding(
                                 padding: const EdgeInsets.only(
                                   left: 58,
@@ -570,7 +590,9 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                                   child: Text(
                                     expanded
                                         ? 'Thu gọn câu trả lời'
-                                        : 'Xem ${root.replyCount} câu trả lời',
+                                        : preview == null
+                                        ? 'Xem ${root.replyCount} câu trả lời'
+                                        : 'Xem $collapsedReplyCount câu trả lời khác',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,

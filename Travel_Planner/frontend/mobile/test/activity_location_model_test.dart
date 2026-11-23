@@ -86,6 +86,7 @@ void main() {
       final activity = ActivityDetail.fromJson(legacyJson);
       expect(activity.activityId, 42);
       expect(activity.name, 'Hoạt động cũ');
+      expect(activity.commentCount, 0);
       expect(activity.customLocationName, isNull);
       expect(activity.customAddress, isNull);
       expect(activity.latitude, isNull);
@@ -146,6 +147,17 @@ void main() {
       expect(activity.locationProvider, 'nominatim');
       expect(activity.hasCoordinates, isTrue);
       expect(activity.effectiveLocationName, 'Nhà Sách Cá Chép');
+    });
+
+    test('ActivityDetail.fromJson parses commentCount from the activity API', () {
+      final activity = ActivityDetail.fromJson({
+        'activityId': 89,
+        'name': 'Ăn trưa',
+        'displayOrder': 1,
+        'commentCount': 6,
+      });
+
+      expect(activity.commentCount, 6);
     });
 
     test('CreateActivityRequest.toJson serializes custom location fields', () {

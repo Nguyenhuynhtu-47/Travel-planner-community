@@ -5,6 +5,7 @@ import '../../data/models/activity_detail.dart';
 import '../../data/models/itinerary_day_detail.dart';
 import '../../data/models/reorder_activity_item.dart';
 import 'activity_timeline_item.dart';
+import 'activity_visit_swipe_action.dart';
 
 class ItineraryDayCard extends StatefulWidget {
   final ItineraryDayDetail day;
@@ -19,6 +20,8 @@ class ItineraryDayCard extends StatefulWidget {
   final VoidCallback? onReorderActivities;
   final Future<bool> Function(List<ReorderActivityItem> reorderedItems)?
   onSaveActivityOrder;
+  final Future<bool> Function(ActivityDetail activity, bool visited)?
+  onActivityVisited;
 
   const ItineraryDayCard({
     super.key,
@@ -33,6 +36,7 @@ class ItineraryDayCard extends StatefulWidget {
     this.onSavePlace,
     this.onReorderActivities,
     this.onSaveActivityOrder,
+    this.onActivityVisited,
   });
 
   @override
@@ -499,7 +503,7 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                     itemCount: day.activities.length,
                     itemBuilder: (context, index) {
                       final act = day.activities[index];
-                      return ActivityTimelineItem(
+                      final activityItem = ActivityTimelineItem(
                         activity: act,
                         isLast: index == day.activities.length - 1,
                         onTap: widget.onActivityTap != null
@@ -517,6 +521,14 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                         onSavePlace: widget.onSavePlace != null
                             ? () => widget.onSavePlace!(act)
                             : null,
+                      );
+                      if (widget.onActivityVisited == null) return activityItem;
+                      return ActivityVisitSwipeAction(
+                        key: ValueKey('visit-${act.activityId}'),
+                        activity: act,
+                        onUpdate: (visited) =>
+                            widget.onActivityVisited!(act, visited),
+                        child: activityItem,
                       );
                     },
                   ),

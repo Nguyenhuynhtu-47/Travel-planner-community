@@ -1,24 +1,31 @@
 package Travel_Planner.Travel_Planner;
 
 import Travel_Planner.Travel_Planner.dto.request.CreateActivityRequest;
+import Travel_Planner.Travel_Planner.dto.request.SavePlaceToItineraryRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdateActivityRequest;
 import Travel_Planner.Travel_Planner.model.Activity;
+import Travel_Planner.Travel_Planner.model.ActivityVisit;
+import Travel_Planner.Travel_Planner.model.Comment;
 import Travel_Planner.Travel_Planner.model.Itinerary;
 import Travel_Planner.Travel_Planner.model.ItineraryDay;
 import Travel_Planner.Travel_Planner.model.Place;
 import Travel_Planner.Travel_Planner.model.User;
 import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
+import Travel_Planner.Travel_Planner.model.enums.CommentStatus;
 import Travel_Planner.Travel_Planner.model.enums.PlaceCategory;
 import Travel_Planner.Travel_Planner.model.enums.PlaceStatus;
 import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.model.enums.Visibility;
 import Travel_Planner.Travel_Planner.repository.ActivityRepository;
+import Travel_Planner.Travel_Planner.repository.ActivityVisitRepository;
+import Travel_Planner.Travel_Planner.repository.CommentRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryDayRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryRepository;
 import Travel_Planner.Travel_Planner.repository.PlaceRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.security.JwtTokenProvider;
+import Travel_Planner.Travel_Planner.service.ItineraryAccessGrantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,7 +68,16 @@ class ActivityLocationTest {
     private ActivityRepository activityRepository;
 
     @Autowired
+    private ActivityVisitRepository activityVisitRepository;
+
+    @Autowired
+    private CommentRepository commentRepository;
+
+    @Autowired
     private PlaceRepository placeRepository;
+
+    @Autowired
+    private ItineraryAccessGrantService accessGrantService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -474,7 +490,6 @@ class ActivityLocationTest {
                 .locationProvider("LOCATION_IQ")
                 .displayOrder(1)
                 .build());
-
         // Step 2: Update activity to switch to canonical place
         UpdateActivityRequest updateRequest = UpdateActivityRequest.builder()
                 .name("Chuyển sang Chùa Cầu")
@@ -685,6 +700,20 @@ class ActivityLocationTest {
                 .locationProvider("PLACE_CATALOG")
                 .displayOrder(1)
                 .build());
+        commentRepository.save(Comment.builder()
+                .user(ownerUser)
+                .itinerary(testItinerary)
+                .activity(activity)
+                .content("Bình luận đang hoạt động")
+                .status(CommentStatus.ACTIVE)
+                .build());
+        commentRepository.save(Comment.builder()
+                .user(otherUser)
+                .itinerary(testItinerary)
+                .activity(activity)
+                .content("Bình luận đã xóa")
+                .status(CommentStatus.DELETED)
+                .build());
 
         // Step 2: Admin hides the place
         activePlace.setStatus(PlaceStatus.HIDDEN);
@@ -696,7 +725,8 @@ class ActivityLocationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.days[0].activities[0].locationName").value("Chùa Cầu Hội An"))
                 .andExpect(jsonPath("$.days[0].activities[0].latitude").value(activePlace.getLatitude().doubleValue()))
-                .andExpect(jsonPath("$.days[0].activities[0].longitude").value(activePlace.getLongitude().doubleValue()));
+                .andExpect(jsonPath("$.days[0].activities[0].longitude").value(activePlace.getLongitude().doubleValue()))
+                .andExpect(jsonPath("$.days[0].activities[0].commentCount").value(1));
 
         // Step 4: Activity is still editable without error (independent snapshot)
         UpdateActivityRequest editRequest = UpdateActivityRequest.builder()
@@ -790,6 +820,34 @@ class ActivityLocationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Authorization: Non-owner cannot update or delete another user's activity")
+    void updateAndDeleteActivity_nonOwner_forbidden() throws Exception {
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Hoạt động thuộc chủ lịch trình")
+                .displayOrder(1)
+                .build());
+        UpdateActivityRequest updateRequest = UpdateActivityRequest.builder()
+                .name("Nội dung bị sửa trái phép")
+                .build();
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
+                        testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}",
+                        testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", otherToken))
+                .andExpect(status().isForbidden());
+
+        Activity unchanged = activityRepository.findById(activity.getActivityId()).orElseThrow();
+        assertEquals("Hoạt động thuộc chủ lịch trình", unchanged.getName());
     }
 
     @Test
@@ -892,5 +950,226 @@ class ActivityLocationTest {
         org.junit.jupiter.api.Assertions.assertEquals("Authoritative Address", act.getLocationAddress());
         org.junit.jupiter.api.Assertions.assertEquals("Authoritative Name", act.getCustomLocationName());
         org.junit.jupiter.api.Assertions.assertEquals("Authoritative Address", act.getCustomAddress());
+    }
+
+    @Test
+    @DisplayName("Only itinerary owner can change visit status; shared viewers never see visit markers")
+    void activityVisitStatus_isOwnerOnlyAndHiddenFromOtherViewers() throws Exception {
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Điểm cần ghé")
+                .displayOrder(1)
+                .latitude(new BigDecimal("10.7769"))
+                .longitude(new BigDecimal("106.7009"))
+                .build());
+        String visitStatusUrl = "/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}/visit-status";
+
+        mockMvc.perform(put(visitStatusUrl, testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activityId").value(activity.getActivityId()))
+                .andExpect(jsonPath("$.visited").value(true))
+                .andExpect(jsonPath("$.updatedAt").isNotEmpty());
+
+        // Simulate a row written by the previous viewer-scoped behavior. It must not leak
+        // into the shared itinerary marker after the owner-only rule is applied.
+        activityVisitRepository.save(ActivityVisit.builder()
+                .user(otherUser)
+                .activity(activity)
+                .visited(true)
+                .build());
+
+        mockMvc.perform(put(visitStatusUrl, testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId())
+                        .header("Authorization", otherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(false));
+
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId())
+                        .header("Authorization", ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(true));
+
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(false));
+
+        mockMvc.perform(put(visitStatusUrl, testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(put(visitStatusUrl, testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visited").value(false));
+    }
+
+    @Test
+    @DisplayName("A copied itinerary has independent activities and visit progress")
+    void copiedItinerary_visitProgressIsIndependent() throws Exception {
+        Activity sourceActivity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Hoạt động nguồn")
+                .displayOrder(1)
+                .build());
+        String visitStatusUrl = "/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}/visit-status";
+
+        mockMvc.perform(put(visitStatusUrl, testItinerary.getItineraryId(), testDay.getDayId(), sourceActivity.getActivityId())
+                        .header("Authorization", ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isOk());
+
+        String cloneJson = mockMvc.perform(post("/api/itineraries/{id}/clone", testItinerary.getItineraryId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.creator.username").value(otherUser.getUsername()))
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(false))
+                .andReturn().getResponse().getContentAsString();
+
+        int clonedItineraryId = objectMapper.readTree(cloneJson).get("itineraryId").asInt();
+        int clonedDayId = objectMapper.readTree(cloneJson).get("days").get(0).get("dayId").asInt();
+        int clonedActivityId = objectMapper.readTree(cloneJson).get("days").get(0)
+                .get("activities").get(0).get("activityId").asInt();
+        assertNotEquals(sourceActivity.getActivityId(), clonedActivityId);
+
+        mockMvc.perform(put(visitStatusUrl, clonedItineraryId, clonedDayId, clonedActivityId)
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visited").value(true));
+
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId())
+                        .header("Authorization", ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(true));
+        mockMvc.perform(get("/api/itineraries/{id}", clonedItineraryId)
+                        .header("Authorization", otherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(true));
+    }
+
+    @Test
+    @DisplayName("An activity created from a saved place has visit progress independent from its source itinerary")
+    void activityFromSavedPlace_visitProgressIsIndependent() throws Exception {
+        Activity sourceActivity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .place(activePlace)
+                .name("Hoạt động nguồn")
+                .displayOrder(1)
+                .build());
+        Itinerary targetItinerary = itineraryRepository.save(Itinerary.builder()
+                .user(otherUser).title("Lịch trình của người chọn địa điểm").location("Hội An")
+                .totalDays(1).visibility(Visibility.PRIVATE).status(ItineraryStatus.ACTIVE).build());
+        ItineraryDay targetDay = itineraryDayRepository.save(ItineraryDay.builder()
+                .itinerary(targetItinerary).dayNumber(1).date(LocalDate.now().plusDays(2)).build());
+
+        mockMvc.perform(post("/api/itineraries/{itineraryId}/places", targetItinerary.getItineraryId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(SavePlaceToItineraryRequest.builder()
+                                .placeId(activePlace.getPlaceId()).build())))
+                .andExpect(status().isCreated());
+
+        CreateActivityRequest createRequest = CreateActivityRequest.builder()
+                .name("Hoạt động mới từ địa điểm đã lưu")
+                .canonicalPlaceId(activePlace.getPlaceId())
+                .build();
+        String activityJson = mockMvc.perform(post("/api/itineraries/{itineraryId}/days/{dayId}/activities",
+                        targetItinerary.getItineraryId(), targetDay.getDayId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int newActivityId = objectMapper.readTree(activityJson).get("activityId").asInt();
+        assertNotEquals(sourceActivity.getActivityId(), newActivityId);
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}/visit-status",
+                        targetItinerary.getItineraryId(), targetDay.getDayId(), newActivityId)
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId())
+                        .header("Authorization", ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(false));
+        mockMvc.perform(get("/api/itineraries/{id}", targetItinerary.getItineraryId())
+                        .header("Authorization", otherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(true));
+    }
+
+    @Test
+    @DisplayName("Visit tracking rejects an activity path whose day does not match")
+    void activityVisitStatus_mismatchedDay_notFound() throws Exception {
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Điểm cần ghé")
+                .displayOrder(1)
+                .build());
+        Itinerary anotherItinerary = itineraryRepository.save(Itinerary.builder()
+                .user(ownerUser).title("Lịch trình khác").location("Đà Nẵng").totalDays(1)
+                .visibility(Visibility.PUBLIC).status(ItineraryStatus.ACTIVE).build());
+        ItineraryDay anotherDay = itineraryDayRepository.save(ItineraryDay.builder()
+                .itinerary(anotherItinerary).dayNumber(1).date(LocalDate.now().plusDays(6)).build());
+
+        mockMvc.perform(put("/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}/visit-status",
+                        anotherItinerary.getItineraryId(), anotherDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("A private itinerary grant allows viewing but not changing owner visit progress")
+    void activityVisitStatus_privateGrantCannotChangeOwnerProgress() throws Exception {
+        testItinerary.setVisibility(Visibility.PRIVATE);
+        itineraryRepository.save(testItinerary);
+        Activity activity = activityRepository.save(Activity.builder()
+                .itineraryDay(testDay)
+                .name("Điểm chia sẻ riêng")
+                .displayOrder(1)
+                .build());
+        accessGrantService.grantAccess(testItinerary, otherUser, ownerUser);
+        String visitStatusUrl = "/api/itineraries/{itineraryId}/days/{dayId}/activities/{activityId}/visit-status";
+
+        mockMvc.perform(put(visitStatusUrl, testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":true}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId())
+                        .header("Authorization", otherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days[0].activities[0].visited").value(false));
+
+        accessGrantService.revokeAccess(
+                testItinerary.getItineraryId(), otherUser.getUserId(), ownerUser.getUsername());
+
+        mockMvc.perform(put(visitStatusUrl, testItinerary.getItineraryId(), testDay.getDayId(), activity.getActivityId())
+                        .header("Authorization", otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visited\":false}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/itineraries/{id}", testItinerary.getItineraryId())
+                        .header("Authorization", otherToken))
+                .andExpect(status().isNotFound());
     }
 }

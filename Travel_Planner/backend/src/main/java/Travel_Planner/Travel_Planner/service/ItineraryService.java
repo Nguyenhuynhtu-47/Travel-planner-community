@@ -8,6 +8,7 @@ import Travel_Planner.Travel_Planner.dto.request.UpdateActivityRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdateDayRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdateItineraryRequest;
 import Travel_Planner.Travel_Planner.dto.response.ActivityResponse;
+import Travel_Planner.Travel_Planner.dto.response.ActivityVisitResponse;
 import Travel_Planner.Travel_Planner.dto.response.ItineraryDayResponse;
 import Travel_Planner.Travel_Planner.dto.response.ItineraryDetailResponse;
 import Travel_Planner.Travel_Planner.dto.response.ItinerarySummaryResponse;
@@ -77,4 +78,7 @@ public interface ItineraryService {
     void deleteActivity(Integer itineraryId, Integer dayId, Integer activityId, String currentUsername);
 
     List<ActivityResponse> reorderActivities(Integer itineraryId, Integer dayId, List<ReorderActivityItem> items, String currentUsername);
+
+    ActivityVisitResponse updateActivityVisitStatus(Integer itineraryId, Integer dayId, Integer activityId,
+                                                    boolean visited, String currentUsername);
 }

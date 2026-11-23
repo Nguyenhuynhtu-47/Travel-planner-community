@@ -25,6 +25,20 @@ class ItineraryCrudRepository {
   ItineraryCrudRepository({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
+  Future<void> updateActivityVisitStatus({
+    required int itineraryId,
+    required int dayId,
+    required int activityId,
+    required bool visited,
+    String? token,
+  }) async {
+    await _apiClient.put(
+      '${ApiConstants.itinerariesEndpoint}/$itineraryId/days/$dayId/activities/$activityId/visit-status',
+      body: {'visited': visited},
+      token: token,
+    );
+  }
+
   Future<String> uploadImage(
     String token, {
     required List<int> bytes,
@@ -139,7 +153,10 @@ class ItineraryCrudRepository {
   }
 
   /// Clones an existing accessible itinerary for the authenticated user.
-  Future<ItineraryDetail> cloneItinerary(int itineraryId, {String? token}) async {
+  Future<ItineraryDetail> cloneItinerary(
+    int itineraryId, {
+    String? token,
+  }) async {
     final response = await _apiClient.post(
       '${ApiConstants.itinerariesEndpoint}/$itineraryId/clone',
       body: const {},
@@ -345,9 +362,7 @@ class ItineraryCrudRepository {
     if (response is List) {
       return response
           .map(
-            (e) => PlaceSummary.fromJson(
-              Map<String, dynamic>.from(e as Map),
-            ),
+            (e) => PlaceSummary.fromJson(Map<String, dynamic>.from(e as Map)),
           )
           .toList();
     }
@@ -368,9 +383,7 @@ class ItineraryCrudRepository {
     if (response is List) {
       return response
           .map(
-            (e) => ItineraryPlace.fromJson(
-              Map<String, dynamic>.from(e as Map),
-            ),
+            (e) => ItineraryPlace.fromJson(Map<String, dynamic>.from(e as Map)),
           )
           .toList();
     }

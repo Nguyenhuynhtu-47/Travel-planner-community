@@ -659,6 +659,33 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     }
   }
 
+  Future<bool> _handleActivityVisited(
+    ActivityDetail activity,
+    ItineraryDayDetail day,
+    bool visited,
+  ) async {
+    final token = _effectiveToken?.trim();
+    if (token == null || token.isEmpty) return false;
+    final success = await _notifier.updateActivityVisitedStatus(
+      dayId: day.dayId,
+      activityId: activity.activityId,
+      visited: visited,
+      token: token,
+      repository: _crudRepository,
+    );
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Không thể cập nhật trạng thái đã ghé. Vui lòng thử lại.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+    return success;
+  }
+
   Future<bool> _handleSaveActivityOrder(
     ItineraryDetail itinerary,
     ItineraryDayDetail day,
@@ -1240,7 +1267,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                             ? Colors.redAccent
                             : AppColors.textPrimary,
                       ),
-                      tooltip: effectiveFavorited ? 'Bỏ yêu thích' : 'Yêu thích',
+                      tooltip: effectiveFavorited
+                          ? 'Bỏ yêu thích'
+                          : 'Yêu thích',
                       onPressed: _isTogglingFavorite
                           ? null
                           : () => _handleToggleFavorite(itinerary, isOwner),
@@ -1637,6 +1666,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                         ? (act) => _handleDeleteActivity(itinerary, day, act)
                         : null,
                     onActivityTap: (act) => _handleViewActivityDetail(act, day),
+                    onActivityVisited:
+                        isOwner && _effectiveToken?.trim().isNotEmpty == true
+                        ? (act, visited) =>
+                              _handleActivityVisited(act, day, visited)
+                        : null,
                     onActivityComments:
                         !isOwner &&
                             itinerary.visibility == 'PUBLIC' &&
@@ -1721,8 +1755,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     );
   }
 
-  void _openActivityComments(int activityId, String activityName) {
-    showModalBottomSheet<void>(
+  Future<void> _openActivityComments(
+    int activityId,
+    String activityName,
+  ) async {
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -1774,6 +1811,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         );
       },
     );
+    if (mounted) {
+      await _notifier.loadDetail(token: _effectiveToken);
+    }
   }
 
   void _openCreatorProfile(int userId) {

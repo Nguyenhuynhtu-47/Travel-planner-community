@@ -270,9 +270,18 @@ void main() {
 
       expect(find.byType(NestedScrollView), findsOneWidget);
       expect(find.byType(SliverPersistentHeader), findsOneWidget);
-      expect(find.text('Lịch trình'), findsOneWidget);
+      expect(find.text('Lịch trình').last, findsOneWidget);
       expect(find.text('Bài viết'), findsOneWidget);
       expect(find.text('Nguyen Van A'), findsOneWidget);
+
+      final profileScrollView = find.byType(NestedScrollView);
+      for (var i = 0; i < 3; i++) {
+        await tester.fling(profileScrollView, const Offset(0, -700), 1400);
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.fling(profileScrollView, const Offset(0, 700), 1400);
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+      expect(tester.takeException(), isNull);
 
       // Tap "Bài viết" tab
       await tester.tap(find.text('Bài viết'));

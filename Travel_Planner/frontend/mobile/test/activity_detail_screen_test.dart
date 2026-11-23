@@ -281,6 +281,35 @@ void main() {
   });
 
   group('ActivityTimelineItem - Tap Interactions & Popup Menu', () {
+    testWidgets('shows the activity-specific comment count on its button', (
+      tester,
+    ) async {
+      var openedComments = false;
+      const activity = ActivityDetail(
+        activityId: 200,
+        name: 'Bảo tàng',
+        displayOrder: 1,
+        commentCount: 4,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: ActivityTimelineItem(
+              activity: activity,
+              onComments: () => openedComments = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bình luận hoạt động (4)'), findsOneWidget);
+      await tester.tap(find.text('Bình luận hoạt động (4)'));
+      expect(openedComments, isTrue);
+    });
+
     testWidgets('Tapping activity information area invokes onTap callback', (tester) async {
       bool tapped = false;
 
@@ -451,8 +480,8 @@ void main() {
       await tester.tap(find.text('Hoạt động'));
       await tester.pumpAndSettle();
 
-      // Inside activity in Activities tab: "Bình luận hoạt động" IS visible for public viewers
-      expect(find.text('Bình luận hoạt động'), findsOneWidget);
+        // Activity comments include the activity-specific count.
+        expect(find.text('Bình luận hoạt động (0)'), findsOneWidget);
     });
 
     testWidgets('Tapping activity in personal itinerary navigates to ActivityDetailScreen', (tester) async {

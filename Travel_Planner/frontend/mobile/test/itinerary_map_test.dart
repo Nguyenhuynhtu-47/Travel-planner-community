@@ -163,10 +163,7 @@ void main() {
     });
 
     test('isValidCoordinate rejects NaN and Infinite values', () {
-      expect(
-        ItineraryMapHelper.isValidCoordinate(double.nan, 108.0),
-        isFalse,
-      );
+      expect(ItineraryMapHelper.isValidCoordinate(double.nan, 108.0), isFalse);
       expect(
         ItineraryMapHelper.isValidCoordinate(11.0, double.infinity),
         isFalse,
@@ -179,24 +176,30 @@ void main() {
   });
 
   group('Phase 5 - Marker Generation & Sequence Logic Tests', () {
-    test('extractMappedStops extracts only activities with valid coordinates', () {
-      final day1Stops = ItineraryMapHelper.extractMappedStops(
-        testItinerary,
-        selectedDayNumber: 1,
-      );
+    test(
+      'extractMappedStops extracts only activities with valid coordinates',
+      () {
+        final day1Stops = ItineraryMapHelper.extractMappedStops(
+          testItinerary,
+          selectedDayNumber: 1,
+        );
 
-      // Day 1 has 3 activities total, but only 2 have valid coordinates
-      expect(day1Stops.length, equals(2));
-      expect(day1Stops[0].activity.name, equals('Check-in Khách sạn Colline'));
-      expect(day1Stops[0].sequence, equals(1));
-      expect(day1Stops[0].point.latitude, equals(11.9431));
-      expect(day1Stops[0].point.longitude, equals(108.4382));
+        // Day 1 has 3 activities total, but only 2 have valid coordinates
+        expect(day1Stops.length, equals(2));
+        expect(
+          day1Stops[0].activity.name,
+          equals('Check-in Khách sạn Colline'),
+        );
+        expect(day1Stops[0].sequence, equals(1));
+        expect(day1Stops[0].point.latitude, equals(11.9431));
+        expect(day1Stops[0].point.longitude, equals(108.4382));
 
-      expect(day1Stops[1].activity.name, equals('Cà phê Tùng'));
-      expect(day1Stops[1].sequence, equals(3)); // 3rd activity in Day 1 list
-      expect(day1Stops[1].point.latitude, equals(11.9404));
-      expect(day1Stops[1].point.longitude, equals(108.4385));
-    });
+        expect(day1Stops[1].activity.name, equals('Cà phê Tùng'));
+        expect(day1Stops[1].sequence, equals(3)); // 3rd activity in Day 1 list
+        expect(day1Stops[1].point.latitude, equals(11.9404));
+        expect(day1Stops[1].point.longitude, equals(108.4385));
+      },
+    );
 
     test('extractMappedStops extracts stops across all days when dayNumber is null', () {
       final allStops = ItineraryMapHelper.extractMappedStops(
@@ -210,14 +213,17 @@ void main() {
       expect(allStops[1].day.dayNumber, equals(1));
     });
 
-    test('extractMappedStops returns empty list for day with no coordinates', () {
-      final day2Stops = ItineraryMapHelper.extractMappedStops(
-        testItinerary,
-        selectedDayNumber: 2,
-      );
+    test(
+      'extractMappedStops returns empty list for day with no coordinates',
+      () {
+        final day2Stops = ItineraryMapHelper.extractMappedStops(
+          testItinerary,
+          selectedDayNumber: 2,
+        );
 
-      expect(day2Stops, isEmpty);
-    });
+        expect(day2Stops, isEmpty);
+      },
+    );
 
     test('extractMappedStops returns empty list for empty day', () {
       final day3Stops = ItineraryMapHelper.extractMappedStops(
@@ -288,20 +294,23 @@ void main() {
       expect(notice, equals('1 hoạt động chưa có vị trí trên bản đồ'));
     });
 
-    test('Reports all activities missing when none have coordinates in Day 2', () {
-      final missing = ItineraryMapHelper.countMissingCoordinates(
-        testItinerary,
-        selectedDayNumber: 2,
-      );
-      // 2 activities, 0 have coordinates -> 2 missing
-      expect(missing, equals(2));
+    test(
+      'Reports all activities missing when none have coordinates in Day 2',
+      () {
+        final missing = ItineraryMapHelper.countMissingCoordinates(
+          testItinerary,
+          selectedDayNumber: 2,
+        );
+        // 2 activities, 0 have coordinates -> 2 missing
+        expect(missing, equals(2));
 
-      final notice = ItineraryMapHelper.getMissingCoordinatesMessage(
-        testItinerary,
-        selectedDayNumber: 2,
-      );
-      expect(notice, equals('Chưa có hoạt động nào có vị trí trên bản đồ'));
-    });
+        final notice = ItineraryMapHelper.getMissingCoordinatesMessage(
+          testItinerary,
+          selectedDayNumber: 2,
+        );
+        expect(notice, equals('Chưa có hoạt động nào có vị trí trên bản đồ'));
+      },
+    );
 
     test('Returns null notice when day has zero activities in Day 3', () {
       final missing = ItineraryMapHelper.countMissingCoordinates(
@@ -319,55 +328,63 @@ void main() {
   });
 
   group('Phase 5 - ItineraryMapPreviewCard Widget Tests', () {
-    testWidgets('Renders preview card with title, map, points count, and missing warning',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Renders preview card with title, map, points count, and missing warning',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ItineraryMapPreviewCard(
-              itinerary: testItinerary,
-              selectedDayNumber: 1,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ItineraryMapPreviewCard(
+                itinerary: testItinerary,
+                selectedDayNumber: 1,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Bản đồ Ngày 1'), findsOneWidget);
-      expect(find.text('2 điểm'), findsOneWidget);
-      expect(find.text('1 hoạt động chưa có vị trí trên bản đồ'), findsOneWidget);
-      expect(find.byType(AppMapView), findsOneWidget);
-    });
+        expect(find.text('Bản đồ Ngày 1'), findsOneWidget);
+        expect(find.text('2 điểm'), findsOneWidget);
+        expect(
+          find.text('1 hoạt động chưa có vị trí trên bản đồ'),
+          findsOneWidget,
+        );
+        expect(find.byType(AppMapView), findsOneWidget);
+      },
+    );
 
-    testWidgets('Tapping Toàn màn hình button invokes onOpenFullScreen callback',
-        (tester) async {
-      var fullScreenOpened = false;
+    testWidgets(
+      'Tapping Toàn màn hình button invokes onOpenFullScreen callback',
+      (tester) async {
+        var fullScreenOpened = false;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ItineraryMapPreviewCard(
-              itinerary: testItinerary,
-              selectedDayNumber: 1,
-              onOpenFullScreen: () => fullScreenOpened = true,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ItineraryMapPreviewCard(
+                itinerary: testItinerary,
+                selectedDayNumber: 1,
+                onOpenFullScreen: () => fullScreenOpened = true,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Toàn màn hình'), findsOneWidget);
-      await tester.tap(find.text('Toàn màn hình'));
-      await tester.pump();
+        expect(find.text('Toàn màn hình'), findsOneWidget);
+        await tester.tap(find.text('Toàn màn hình'));
+        await tester.pump();
 
-      expect(fullScreenOpened, isTrue);
-    });
+        expect(fullScreenOpened, isTrue);
+      },
+    );
 
-    testWidgets('Renders empty day overlay when day has zero activities',
-        (tester) async {
+    testWidgets('Renders empty day overlay when day has zero activities', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -383,270 +400,296 @@ void main() {
       expect(find.text('Chưa có hoạt động nào trong ngày này'), findsOneWidget);
     });
 
-    testWidgets('Renders no-coordinates overlay when activities exist but lack coordinates',
-        (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ItineraryMapPreviewCard(
-              itinerary: testItinerary,
-              selectedDayNumber: 2, // Day 2 has activities without coordinates
+    testWidgets(
+      'Renders no-coordinates overlay when activities exist but lack coordinates',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ItineraryMapPreviewCard(
+                itinerary: testItinerary,
+                selectedDayNumber:
+                    2, // Day 2 has activities without coordinates
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        find.text('Các hoạt động trong ngày này chưa có vị trí trên bản đồ'),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text('Các hoạt động trong ngày này chưa có vị trí trên bản đồ'),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('Updating selectedDayNumber dynamically clears stale activity selection',
-        (tester) async {
-      final cardKey = GlobalKey();
+    testWidgets(
+      'Updating selectedDayNumber dynamically clears stale activity selection',
+      (tester) async {
+        final cardKey = GlobalKey();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: StatefulBuilder(
-              builder: (ctx, setState) {
-                return ItineraryMapPreviewCard(
-                  key: cardKey,
-                  itinerary: testItinerary,
-                  selectedDayNumber: 1,
-                );
-              },
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (ctx, setState) {
+                  return ItineraryMapPreviewCard(
+                    key: cardKey,
+                    itinerary: testItinerary,
+                    selectedDayNumber: 1,
+                  );
+                },
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('Bản đồ Ngày 1'), findsOneWidget);
+        expect(find.text('Bản đồ Ngày 1'), findsOneWidget);
 
-      // Rebuild with Day 2
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ItineraryMapPreviewCard(
-              itinerary: testItinerary,
-              selectedDayNumber: 2,
+        // Rebuild with Day 2
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ItineraryMapPreviewCard(
+                itinerary: testItinerary,
+                selectedDayNumber: 2,
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Bản đồ Ngày 2'), findsOneWidget);
-    });
+        expect(find.text('Bản đồ Ngày 2'), findsOneWidget);
+      },
+    );
   });
 
   group('Phase 5 - ItineraryMapScreen Full-Screen Widget Tests', () {
-    testWidgets('Renders full-screen map, app bar, day chips, and recenter action',
-        (tester) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Renders full-screen map, app bar, day chips, and recenter action',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryMapScreen(
-            itinerary: testItinerary,
-            initialDayNumber: 1,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryMapScreen(
+              itinerary: testItinerary,
+              initialDayNumber: 1,
+            ),
           ),
-        ),
-      );
+        );
 
-      // App bar elements
-      expect(find.text('Hành Trình Khám Phá Đà Lạt 3N2Đ'), findsOneWidget);
-      expect(find.text('Đà Lạt • Bản đồ lịch trình'), findsOneWidget);
-      expect(find.byIcon(Icons.center_focus_strong_outlined), findsOneWidget);
+        // App bar elements
+        expect(find.text('Hành Trình Khám Phá Đà Lạt 3N2Đ'), findsOneWidget);
+        expect(find.text('Đà Lạt • Bản đồ lịch trình'), findsOneWidget);
+        expect(find.byIcon(Icons.center_focus_strong_outlined), findsOneWidget);
 
-      // Day selector chips
-      expect(find.text('Tất cả (3)'), findsOneWidget);
-      expect(find.text('Ngày 1 (3)'), findsOneWidget);
-      expect(find.text('Ngày 2 (2)'), findsOneWidget);
-      expect(find.text('Ngày 3 (0)'), findsOneWidget);
+        // Day selector chips
+        expect(find.text('Tất cả (3)'), findsOneWidget);
+        expect(find.text('Ngày 1 (3)'), findsOneWidget);
+        expect(find.text('Ngày 2 (2)'), findsOneWidget);
+        expect(find.text('Ngày 3 (0)'), findsOneWidget);
 
-      // Missing notice floating pill
-      expect(find.text('1 hoạt động chưa có vị trí trên bản đồ'), findsOneWidget);
+        // Missing notice floating pill
+        expect(
+          find.text('1 hoạt động chưa có vị trí trên bản đồ'),
+          findsOneWidget,
+        );
 
-      // Map canvas
-      expect(find.byType(AppMapView), findsOneWidget);
-    });
+        // Map canvas
+        expect(find.byType(AppMapView), findsOneWidget);
+      },
+    );
 
-    testWidgets('Switching day chips updates day selection and missing notice',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Switching day chips updates day selection and missing notice',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryMapScreen(
-            itinerary: testItinerary,
-            initialDayNumber: 1,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryMapScreen(
+              itinerary: testItinerary,
+              initialDayNumber: 1,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('1 hoạt động chưa có vị trí trên bản đồ'), findsOneWidget);
+        expect(
+          find.text('1 hoạt động chưa có vị trí trên bản đồ'),
+          findsOneWidget,
+        );
 
-      // Tap Ngày 2 chip
-      await tester.ensureVisible(find.text('Ngày 2 (2)'));
-      await tester.tap(find.text('Ngày 2 (2)'));
-      await tester.pumpAndSettle();
+        // Tap Ngày 2 chip
+        await tester.ensureVisible(find.text('Ngày 2 (2)'));
+        await tester.tap(find.text('Ngày 2 (2)'));
+        await tester.pumpAndSettle();
 
-      // Day 2 has no coordinates -> shows overlay
-      expect(
-        find.text('Các hoạt động trong ngày này chưa có vị trí trên bản đồ'),
-        findsWidgets,
-      );
+        // Day 2 has no coordinates -> shows overlay
+        expect(
+          find.text('Các hoạt động trong ngày này chưa có vị trí trên bản đồ'),
+          findsWidgets,
+        );
 
-      // Tap Ngày 3 chip (empty day)
-      await tester.ensureVisible(find.text('Ngày 3 (0)'));
-      await tester.tap(find.text('Ngày 3 (0)'));
-      await tester.pumpAndSettle();
+        // Tap Ngày 3 chip (empty day)
+        await tester.ensureVisible(find.text('Ngày 3 (0)'));
+        await tester.tap(find.text('Ngày 3 (0)'));
+        await tester.pumpAndSettle();
 
-      expect(
-        find.text('Chưa có hoạt động nào trong ngày này'),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text('Chưa có hoạt động nào trong ngày này'),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('Single coordinate day centers camera on marker without bounds error',
-        (tester) async {
-      final singleLocationItinerary = ItineraryDetail(
-        itineraryId: 99,
-        title: 'Chuyến Đi 1 Điểm',
-        location: 'Vũng Tàu',
-        totalDays: 1,
-        budget: 500000.0,
-        viewCount: 1,
-        favoriteCount: 0,
-        ratingCount: 0,
-        averageRating: 5.0,
-        visibility: 'PUBLIC',
-        status: 'ACTIVE',
-        days: [
-          ItineraryDayDetail(
-            dayId: 991,
-            dayNumber: 1,
-            activities: [
-              const ActivityDetail(
-                activityId: 9901,
-                name: 'Ngọn Hải Đăng',
-                latitude: 10.3341,
-                longitude: 107.0745,
-                displayOrder: 1,
-              ),
-            ],
+    testWidgets(
+      'Single coordinate day centers camera on marker without bounds error',
+      (tester) async {
+        final singleLocationItinerary = ItineraryDetail(
+          itineraryId: 99,
+          title: 'Chuyến Đi 1 Điểm',
+          location: 'Vũng Tàu',
+          totalDays: 1,
+          budget: 500000.0,
+          viewCount: 1,
+          favoriteCount: 0,
+          ratingCount: 0,
+          averageRating: 5.0,
+          visibility: 'PUBLIC',
+          status: 'ACTIVE',
+          days: [
+            ItineraryDayDetail(
+              dayId: 991,
+              dayNumber: 1,
+              activities: [
+                const ActivityDetail(
+                  activityId: 9901,
+                  name: 'Ngọn Hải Đăng',
+                  latitude: 10.3341,
+                  longitude: 107.0745,
+                  displayOrder: 1,
+                ),
+              ],
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryMapScreen(
+              itinerary: singleLocationItinerary,
+              initialDayNumber: 1,
+            ),
           ),
-        ],
-      );
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryMapScreen(
-            itinerary: singleLocationItinerary,
-            initialDayNumber: 1,
+        // Renders cleanly without bounds error
+        expect(find.byType(AppMapView), findsOneWidget);
+        expect(find.text('Chuyến Đi 1 Điểm'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Tapping marker in full-screen map shows bottom activity card with details',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryMapScreen(
+              itinerary: testItinerary,
+              initialDayNumber: 1,
+            ),
           ),
-        ),
-      );
+        );
 
-      // Renders cleanly without bounds error
-      expect(find.byType(AppMapView), findsOneWidget);
-      expect(find.text('Chuyến Đi 1 Điểm'), findsOneWidget);
-    });
+        // Initially no bottom card is displayed
+        expect(find.text('Điểm #1'), findsNothing);
 
-    testWidgets('Tapping marker in full-screen map shows bottom activity card with details',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+        // Find the stop marker
+        final markerFinder = find.text('3');
+        expect(markerFinder, findsOneWidget);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryMapScreen(
-            itinerary: testItinerary,
-            initialDayNumber: 1,
-          ),
-        ),
-      );
+        await tester.tap(markerFinder);
+        await tester.pumpAndSettle();
 
-      // Initially no bottom card is displayed
-      expect(find.text('Điểm #1'), findsNothing);
+        // Bottom floating card appears with details
+        expect(find.text('Điểm #3'), findsOneWidget);
+        expect(find.text('Ngày 1'), findsWidgets);
+        expect(find.text('Cà phê Tùng'), findsOneWidget);
+        expect(find.text('Quán Cà Phê Tùng'), findsOneWidget);
+        expect(find.text('10:30 - 12:00'), findsOneWidget);
+        expect(find.text('60.000 ₫'), findsOneWidget);
 
-      // Find the stop marker
-      final markerFinder = find.text('3');
-      expect(markerFinder, findsOneWidget);
+        // Tapping close icon dismisses the card
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
 
-      await tester.tap(markerFinder);
-      await tester.pumpAndSettle();
-
-      // Bottom floating card appears with details
-      expect(find.text('Điểm #3'), findsOneWidget);
-      expect(find.text('Ngày 1'), findsWidgets);
-      expect(find.text('Cà phê Tùng'), findsOneWidget);
-      expect(find.text('Quán Cà Phê Tùng'), findsOneWidget);
-      expect(find.text('10:30 - 12:00'), findsOneWidget);
-      expect(find.text('60.000 ₫'), findsOneWidget);
-
-      // Tapping close icon dismisses the card
-      await tester.tap(find.byIcon(Icons.close));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Điểm #3'), findsNothing);
-    });
+        expect(find.text('Điểm #3'), findsNothing);
+      },
+    );
   });
 
   group('Phase 5 - ItineraryDetailScreen Map Integration Tests', () {
-    testWidgets('ItineraryDetailScreen embeds ItineraryMapPreviewCard with day markers',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'ItineraryDetailScreen embeds ItineraryMapPreviewCard with day markers',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final mockClient = MockClient((request) async => http.Response('{}', 200));
-      final repo = ItineraryCrudRepository(apiClient: ApiClient(client: mockClient));
-      final auth = _FakeAuthNotifier();
-      final notifier = _FakeItineraryDetailNotifier(
-        itineraryId: 10,
-        detail: testItinerary,
-      );
+        final mockClient = MockClient(
+          (request) async => http.Response('{}', 200),
+        );
+        final repo = ItineraryCrudRepository(
+          apiClient: ApiClient(client: mockClient),
+        );
+        final auth = _FakeAuthNotifier();
+        final notifier = _FakeItineraryDetailNotifier(
+          itineraryId: 10,
+          detail: testItinerary,
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ItineraryDetailScreen(
-            itineraryId: 10,
-            notifier: notifier,
-            authNotifier: auth,
-            crudRepository: repo,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ItineraryDetailScreen(
+              itineraryId: 10,
+              initialTab: 1,
+              notifier: notifier,
+              authNotifier: auth,
+              crudRepository: repo,
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // Preview card is embedded and visible
-      expect(find.byType(ItineraryMapPreviewCard), findsOneWidget);
-      expect(find.text('Bản đồ lịch trình'), findsOneWidget);
-      expect(find.text('2 điểm'), findsOneWidget);
-      expect(find.text('Toàn màn hình'), findsOneWidget);
+        // Preview card is embedded and visible
+        expect(find.byType(ItineraryMapPreviewCard), findsOneWidget);
+        expect(find.text('Bản đồ lịch trình'), findsOneWidget);
+        expect(find.text('2 điểm'), findsOneWidget);
+        expect(find.text('Toàn màn hình'), findsOneWidget);
 
-      // Day selector chips are visible
-      expect(find.text('Tất cả (3)'), findsOneWidget);
-      expect(find.text('Ngày 1 (3)'), findsOneWidget);
+        // Day selector chips are visible
+        expect(find.text('Tất cả (3)'), findsOneWidget);
+        expect(find.text('Ngày 1 (3)'), findsOneWidget);
 
-      // Switching day chip to Ngày 2 updates preview card title to "Bản đồ Ngày 2"
-      await tester.tap(find.text('Ngày 2 (2)'));
-      await tester.pumpAndSettle();
+        // Switching day chip to Ngày 2 updates preview card title to "Bản đồ Ngày 2"
+        await tester.tap(find.text('Ngày 2 (2)'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Bản đồ Ngày 2'), findsOneWidget);
-    });
+        expect(find.text('Bản đồ Ngày 2'), findsOneWidget);
+      },
+    );
   });
 }

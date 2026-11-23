@@ -94,17 +94,60 @@ void main() {
     expect(find.text('Câu trả lời'), findsNothing);
   });
 
-  testWidgets('trả lời comment gốc tự mở thread và focus ô nhập', (
+  testWidgets(
+    'reply trực tiếp hiện ngay nhưng giữ các reply cũ thu gọn đến khi bấm xem',
+    (tester) async {
+      final repository = _ThreadRepository();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ItineraryCommentsSection(
+              itineraryId: 1,
+              token: 'test-token',
+              repository: repository,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Trả lời').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Câu trả lời'), findsNothing);
+      expect(find.textContaining('Đang trả lời'), findsOneWidget);
+      expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+
+      await tester.enterText(find.byType(TextField), 'Reply của tôi');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Gửi bình luận'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reply của tôi'), findsOneWidget);
+      expect(find.text('Câu trả lời'), findsNothing);
+      expect(find.text('Xem 1 câu trả lời khác'), findsOneWidget);
+
+      await tester.tap(find.text('Xem 1 câu trả lời khác'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reply của tôi'), findsOneWidget);
+      expect(find.text('Câu trả lời'), findsOneWidget);
+    },
+  );
+
+  testWidgets('activity comment giữ reply cũ thu gọn sau khi gửi reply gốc', (
     tester,
   ) async {
-    final repository = _ThreadRepository()..rootReplyCount = 0;
+    final repository = _ThreadRepository();
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ItineraryCommentsSection(
-            itineraryId: 1,
-            token: 'test-token',
-            repository: repository,
+          body: SizedBox(
+            height: 600,
+            child: ActivityCommentsSection(
+              activityId: 1,
+              token: 'test-token',
+              repository: repository,
+            ),
           ),
         ),
       ),
@@ -113,10 +156,16 @@ void main() {
 
     await tester.tap(find.text('Trả lời').first);
     await tester.pumpAndSettle();
+    expect(find.text('Câu trả lời'), findsNothing);
 
-    expect(find.text('Câu trả lời'), findsOneWidget);
-    expect(find.textContaining('Đang trả lời'), findsOneWidget);
-    expect(FocusManager.instance.primaryFocus?.hasFocus, isTrue);
+    await tester.enterText(find.byType(TextField), 'Reply hoạt động mới');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Gửi bình luận'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reply hoạt động mới'), findsOneWidget);
+    expect(find.text('Câu trả lời'), findsNothing);
+    expect(find.text('Xem 1 câu trả lời khác'), findsOneWidget);
   });
 
   testWidgets('composer hoạt động nằm dưới thread và hiện ngữ cảnh trả lời', (

@@ -153,6 +153,7 @@ Current inventory of API endpoints:
 | Itinerary Day | DELETE| `/api/itineraries/{id}/days/{dayId}` | Owner | Delete day, cascaded activities & renumber remaining | **Implemented** |
 | Activity | POST | `/api/itineraries/{id}/days/{dayId}/activities` | Owner | Create activity in day (destination nullable) | **Implemented** |
 | Activity | PUT | `/api/itineraries/{id}/days/{dayId}/activities/{activityId}` | Owner | Update activity details | **Implemented** |
+| Activity Visit | PUT | `/api/itineraries/{id}/days/{dayId}/activities/{activityId}/visit-status` | Itinerary owner | Idempotently set owner visit progress | **Implemented** |
 | Activity | DELETE| `/api/itineraries/{id}/days/{dayId}/activities/{activityId}` | Owner | Delete activity & renumber display order | **Implemented** |
 | Activity | PUT | `/api/itineraries/{id}/days/{dayId}/activities/reorder` | Owner | Two-pass batch reorder activities | **Implemented** |
 | Reuse | POST | `/api/itineraries/{id}/reuse` | Authenticated | Clone itinerary as personal copy | Planned |
@@ -293,11 +294,11 @@ Current inventory of API endpoints:
   - `destinationId` is optional (nullable) for activities without specific POIs (rest, free time).
   - `imageUrl` is optional and limited to HTTPS Cloudinary delivery URLs. Mobile uploads through the existing authenticated image endpoint and saves its returned URL; catalog image is the display fallback when this field is empty.
   - Automatically assigned `displayOrder = maxOrder + 1`.
-  - Response: `201 Created` with `ActivityResponse`.
+  - Response: `201 Created` with `ActivityResponse`, including the activity's active `commentCount`.
 - **Update Activity:** `PUT /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
   - Body (`UpdateActivityRequest`): updates name, description, start/end time, cost, location and optional `imageUrl`.
   - Omitted/null `imageUrl` preserves the current activity image for older clients; an empty string clears it.
-  - Response: `200 OK` with `ActivityResponse`.
+  - Response: `200 OK` with `ActivityResponse`, including the activity's active `commentCount`.
 - **Delete Activity:** `DELETE /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
   - Deletes activity and renumbers subsequent activities contiguously.
   - Response: `200 OK` with `{"message": "Đã xóa hoạt động thành công"}`.
@@ -305,7 +306,10 @@ Current inventory of API endpoints:
   - Body: List of `ReorderActivityItem`: `[{"activityId": 2, "displayOrder": 1}, {"activityId": 1, "displayOrder": 2}]`.
   - Validates that all IDs belong to `dayId`, no duplicates, and order values form a contiguous 1..N permutation.
   - Uses two-phase persistence (sets orders to `-i` with `flush()`, then assigns target orders) to avoid MySQL unique key violation on `uk_activity_day_order (day_id, display_order)`.
-  - Response: `200 OK` with `List<ActivityResponse>` ordered by `displayOrder`.
+  - Response: `200 OK` with `List<ActivityResponse>` ordered by `displayOrder`; each item includes its active `commentCount`.
+- Itinerary detail and day activity responses include `commentCount`, calculated from active comments attached to each activity. List responses use a grouped count query rather than one query per activity.
+- `ActivityResponse.visited` represents the itinerary owner's progress. It is returned as `false` to anonymous and non-owner viewers, including when legacy visit rows exist for them. The value is stored in `activity_visits`, uniquely keyed by `(user_id, activity_id)` and batch-loaded only for the itinerary owner.
+- `PUT /api/itineraries/{id}/days/{dayId}/activities/{activityId}/visit-status` accepts `{"visited": true}` or `false` and returns `{"activityId": 123, "visited": true, "updatedAt": "..."}`. Only the authenticated ACTIVE itinerary owner may update; the backend verifies itinerary/day/activity hierarchy. A non-owner receives 403 for a visible itinerary, while inaccessible private/deleted/blocked resources and mismatched parent IDs remain not found. Hibernate `ddl-auto=update` creates the association table; no manual migration is required.
 
 ## 11. Image Upload
 

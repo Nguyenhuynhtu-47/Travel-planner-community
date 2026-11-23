@@ -10,6 +10,7 @@ class ActivityDetail {
   final String? endTime;
   final double? estimatedCost;
   final int displayOrder;
+  final int commentCount;
   final DestinationSummary? destination;
   final int? canonicalPlaceId;
   final PlaceSummary? place;
@@ -22,6 +23,7 @@ class ActivityDetail {
   final String? placeId;
   final String? locationProvider;
   final String? imageUrl;
+  final bool visited;
 
   const ActivityDetail({
     required this.activityId,
@@ -32,6 +34,7 @@ class ActivityDetail {
     this.endTime,
     this.estimatedCost,
     required this.displayOrder,
+    this.commentCount = 0,
     this.destination,
     this.canonicalPlaceId,
     this.place,
@@ -44,6 +47,7 @@ class ActivityDetail {
     this.placeId,
     this.locationProvider,
     this.imageUrl,
+    this.visited = false,
   });
 
   factory ActivityDetail.fromJson(Map<String, dynamic> json) {
@@ -66,6 +70,9 @@ class ActivityDetail {
       displayOrder: json['displayOrder'] is num
           ? (json['displayOrder'] as num).toInt()
           : (int.tryParse(json['displayOrder']?.toString() ?? '') ?? 0),
+      commentCount: json['commentCount'] is num
+          ? (json['commentCount'] as num).toInt()
+          : (int.tryParse(json['commentCount']?.toString() ?? '') ?? 0),
       destination: rawDest is Map
           ? DestinationSummary.fromJson(Map<String, dynamic>.from(rawDest))
           : null,
@@ -75,10 +82,14 @@ class ActivityDetail {
       place: rawPlace is Map
           ? PlaceSummary.fromJson(Map<String, dynamic>.from(rawPlace))
           : null,
-      locationName: (json['locationName'] ?? json['customLocationName'])?.toString(),
-      locationAddress: (json['locationAddress'] ?? json['customAddress'])?.toString(),
-      customLocationName: (json['customLocationName'] ?? json['locationName'])?.toString(),
-      customAddress: (json['customAddress'] ?? json['locationAddress'])?.toString(),
+      locationName: (json['locationName'] ?? json['customLocationName'])
+          ?.toString(),
+      locationAddress: (json['locationAddress'] ?? json['customAddress'])
+          ?.toString(),
+      customLocationName: (json['customLocationName'] ?? json['locationName'])
+          ?.toString(),
+      customAddress: (json['customAddress'] ?? json['locationAddress'])
+          ?.toString(),
       latitude: json['latitude'] is num
           ? (json['latitude'] as num).toDouble()
           : num.tryParse(json['latitude']?.toString() ?? '')?.toDouble(),
@@ -88,8 +99,34 @@ class ActivityDetail {
       placeId: json['placeId']?.toString(),
       locationProvider: json['locationProvider']?.toString(),
       imageUrl: json['imageUrl']?.toString(),
+      visited: json['visited'] == true,
     );
   }
+
+  ActivityDetail copyWith({bool? visited}) => ActivityDetail(
+    activityId: activityId,
+    name: name,
+    description: description,
+    activityType: activityType,
+    startTime: startTime,
+    endTime: endTime,
+    estimatedCost: estimatedCost,
+    displayOrder: displayOrder,
+    commentCount: commentCount,
+    destination: destination,
+    canonicalPlaceId: canonicalPlaceId,
+    place: place,
+    locationName: locationName,
+    locationAddress: locationAddress,
+    customLocationName: customLocationName,
+    customAddress: customAddress,
+    latitude: latitude,
+    longitude: longitude,
+    placeId: placeId,
+    locationProvider: locationProvider,
+    imageUrl: imageUrl,
+    visited: visited ?? this.visited,
+  );
 
   static String? _formatTime(dynamic raw) {
     if (raw == null) return null;
@@ -126,30 +163,28 @@ class ActivityDetail {
   /// Authoritative display location name: strictly from activity snapshot
   /// (locationName takes precedence, falling back to legacy customLocationName for backward compatibility).
   /// Does NOT borrow name from Destination catalog.
-  String? get effectiveLocationName =>
-      locationName ?? customLocationName;
+  String? get effectiveLocationName => locationName ?? customLocationName;
 
   /// Authoritative display address: strictly from activity snapshot
   /// (locationAddress takes precedence, falling back to legacy customAddress for backward compatibility).
   /// Does NOT borrow address from Destination catalog.
-  String? get effectiveAddress =>
-      locationAddress ?? customAddress;
+  String? get effectiveAddress => locationAddress ?? customAddress;
 
   /// Effective image URL: activity snapshot image, fallback to place image, fallback to legacy destination image.
   String? get effectiveImageUrl =>
       (imageUrl != null && imageUrl!.trim().isNotEmpty)
-          ? imageUrl!.trim()
-          : (place?.imageUrl != null && place!.imageUrl!.trim().isNotEmpty)
-              ? place!.imageUrl!.trim()
-              : destination?.imageUrl?.trim();
+      ? imageUrl!.trim()
+      : (place?.imageUrl != null && place!.imageUrl!.trim().isNotEmpty)
+      ? place!.imageUrl!.trim()
+      : destination?.imageUrl?.trim();
 
   /// Effective description: activity description, fallback to place description, fallback to legacy destination description.
   String? get effectiveDescription =>
       (description != null && description!.trim().isNotEmpty)
-          ? description!.trim()
-          : (place?.description != null && place!.description!.trim().isNotEmpty)
-              ? place!.description!.trim()
-              : destination?.description?.trim();
+      ? description!.trim()
+      : (place?.description != null && place!.description!.trim().isNotEmpty)
+      ? place!.description!.trim()
+      : destination?.description?.trim();
 
   /// Display name prioritized for external navigation labels (Google Maps deep links):
   /// 1. Linked catalog place name if present and non-empty.

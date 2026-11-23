@@ -22,6 +22,8 @@ public class ActivityResponse {
     private LocalTime endTime;
     private BigDecimal cost;
     private Integer displayOrder;
+    private Integer commentCount;
+    private Boolean visited;
     private Long canonicalPlaceId;
     private PlaceResponse place;
     private String locationName;
