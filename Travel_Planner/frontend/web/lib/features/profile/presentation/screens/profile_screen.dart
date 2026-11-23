@@ -9,8 +9,13 @@ import '../../data/profile_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
+  final bool embedded;
 
-  const ProfileScreen({super.key, required this.authNotifier});
+  const ProfileScreen({
+    super.key,
+    required this.authNotifier,
+    this.embedded = false,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -198,16 +203,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Hồ sơ cá nhân'),
-        actions: [
-          IconButton(
-            tooltip: 'Đăng xuất',
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
-        ],
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text('Hồ sơ cá nhân'),
+              actions: [
+                IconButton(
+                  tooltip: 'Đăng xuất',
+                  icon: const Icon(Icons.logout),
+                  onPressed: _logout,
+                ),
+              ],
+            ),
       body: _loading
           ? const Center(
               key: ValueKey('profile_loading'),

@@ -77,7 +77,7 @@ class AppTheme {
             return AppColors.primary;
           }),
           foregroundColor: const WidgetStatePropertyAll<Color>(Colors.white),
-          minimumSize: const WidgetStatePropertyAll<Size>(Size.fromHeight(48)),
+          minimumSize: const WidgetStatePropertyAll<Size>(Size(64, 48)),
           shape: WidgetStatePropertyAll<OutlinedBorder>(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
@@ -90,7 +90,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.textPrimary,
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size(64, 48),
           side: const BorderSide(color: AppColors.textPrimary),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),

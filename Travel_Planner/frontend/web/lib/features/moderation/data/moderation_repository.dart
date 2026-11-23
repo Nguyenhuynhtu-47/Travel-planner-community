@@ -34,6 +34,20 @@ class ModerationRepository {
     return [];
   }
 
+  Future<AdminPostModel> getPostById(
+    int postId, {
+    required String token,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminCommunityPostDetailEndpoint(postId),
+      token: token,
+    );
+    if (response is Map<String, dynamic>) {
+      return AdminPostModel.fromJson(response);
+    }
+    throw Exception('Không thể tải chi tiết bài viết');
+  }
+
   Future<AdminPostModel> moderatePost(
     int postId, {
     required String status,
@@ -42,10 +56,11 @@ class ModerationRepository {
   }) async {
     final body = <String, dynamic>{
       'status': status,
-      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      if (reason != null && reason.trim().isNotEmpty)
+        'moderationReason': reason.trim(),
     };
     final response = await _apiClient.patch(
-      ApiConstants.adminCommunityPostDetailEndpoint(postId),
+      ApiConstants.adminCommunityPostModerateEndpoint(postId),
       body: body,
       token: token,
     );
@@ -89,14 +104,33 @@ class ModerationRepository {
     return [];
   }
 
+  Future<AdminPostReportModel> getReportById(
+    int reportId, {
+    required String token,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.adminCommunityReportDetailEndpoint(reportId),
+      token: token,
+    );
+    if (response is Map<String, dynamic>) {
+      return AdminPostReportModel.fromJson(response);
+    }
+    throw Exception('Không thể tải chi tiết báo cáo');
+  }
+
   Future<AdminPostReportModel> resolveReport(
     int reportId, {
     required String status,
     required String token,
   }) async {
-    final body = {'status': status};
+    final body = {
+      'status': status,
+      'resolution': status,
+    };
+    final path =
+        '${ApiConstants.adminCommunityReportResolveEndpoint(reportId)}?resolution=$status';
     final response = await _apiClient.patch(
-      ApiConstants.adminCommunityReportDetailEndpoint(reportId),
+      path,
       body: body,
       token: token,
     );
@@ -119,7 +153,7 @@ class ModerationRepository {
       if (status != null && status.isNotEmpty) 'status=$status',
       if (deadLetterOnly) 'deadLetterOnly=true',
     ];
-    final path = '${ApiConstants.adminCommunityMediaAssetsEndpoint}?${queryParams.join('&')}';
+    final path = '${ApiConstants.adminMediaAssetsEndpoint}?${queryParams.join('&')}';
 
     final response = await _apiClient.get(path, token: token);
     if (response is Map<String, dynamic> && response['content'] is List) {
@@ -132,19 +166,20 @@ class ModerationRepository {
     return [];
   }
 
-  Future<AdminMediaAssetModel> retryMediaAsset(
+  Future<void> retryMediaAsset(
     int mediaAssetId, {
     required String token,
   }) async {
     final response = await _apiClient.post(
-      ApiConstants.adminCommunityMediaAssetRetryEndpoint(mediaAssetId),
+      ApiConstants.adminMediaAssetRetryEndpoint(mediaAssetId),
       body: {},
       token: token,
     );
     if (response is Map<String, dynamic>) {
-      return AdminMediaAssetModel.fromJson(response);
+      // Backend returned updated asset representation
+      return;
     }
-    throw Exception('Không thể retry xóa media asset');
+    // If response is null / empty 200 OK, success
   }
 }
 

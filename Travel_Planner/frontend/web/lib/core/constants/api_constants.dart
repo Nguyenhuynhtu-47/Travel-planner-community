@@ -21,9 +21,15 @@ class ApiConstants {
   static String adminPlaceDetailEndpoint(int id) => '/api/admin/places/$id';
   static const String adminCommunityPostsEndpoint = '/api/admin/community/posts';
   static String adminCommunityPostDetailEndpoint(int id) => '/api/admin/community/posts/$id';
+  static String adminCommunityPostModerateEndpoint(int id) => '/api/admin/community/posts/$id/moderate';
   static String adminCommunityPostPurgeEndpoint(int id) => '/api/admin/community/posts/$id/purge';
   static const String adminCommunityReportsEndpoint = '/api/admin/community/reports';
   static String adminCommunityReportDetailEndpoint(int id) => '/api/admin/community/reports/$id';
-  static const String adminCommunityMediaAssetsEndpoint = '/api/admin/community/media-assets';
-  static String adminCommunityMediaAssetRetryEndpoint(int id) => '/api/admin/community/media-assets/$id/retry';
+  static String adminCommunityReportResolveEndpoint(int id) => '/api/admin/community/reports/$id/resolve';
+  static const String adminMediaAssetsEndpoint = '/api/admin/media-assets';
+  static String adminMediaAssetRetryEndpoint(int id) => '/api/admin/media-assets/$id/retry';
+
+  // Backward-compatible aliases
+  static const String adminCommunityMediaAssetsEndpoint = adminMediaAssetsEndpoint;
+  static String adminCommunityMediaAssetRetryEndpoint(int id) => adminMediaAssetRetryEndpoint(id);
 }

@@ -74,7 +74,7 @@ public class JwtTokenProvider {
                 .claim("userId", user.getUserId())
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
-                .claim("tokenVersion", user.getTokenVersion() != null ? user.getTokenVersion() : 1);
+                .claim("tokenVersion", (user.getTokenVersion() != null && user.getTokenVersion() > 0) ? user.getTokenVersion() : 1);
 
         if (sessionId != null && !sessionId.isBlank()) {
             builder.claim("sessionId", sessionId);

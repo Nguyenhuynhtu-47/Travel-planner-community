@@ -50,6 +50,8 @@ class AdminPostModel {
   final int commentCount;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final DateTime? moderatedAt;
+  final String? moderationReason;
 
   const AdminPostModel({
     required this.postId,
@@ -63,20 +65,35 @@ class AdminPostModel {
     this.commentCount = 0,
     required this.createdAt,
     this.updatedAt,
+    this.moderatedAt,
+    this.moderationReason,
   });
 
   factory AdminPostModel.fromJson(Map<String, dynamic> json) {
-    final mediaList = json['media'] is List ? json['media'] as List : [];
     final urls = <String>[];
     final assetIds = <int>[];
-    for (final item in mediaList) {
-      if (item is Map) {
-        if (item['secureUrl'] != null) urls.add(item['secureUrl'].toString());
-        if (item['mediaAssetId'] != null) {
-          final id = item['mediaAssetId'] is int
-              ? item['mediaAssetId'] as int
-              : int.tryParse(item['mediaAssetId'].toString()) ?? 0;
-          assetIds.add(id);
+
+    // Primary: backend standard response DTO (mediaUrls & mediaAssetIds)
+    if (json['mediaUrls'] is List) {
+      urls.addAll((json['mediaUrls'] as List).map((e) => e.toString()));
+    }
+    if (json['mediaAssetIds'] is List) {
+      assetIds.addAll((json['mediaAssetIds'] as List)
+          .map((e) => e is int ? e : int.tryParse('$e') ?? 0)
+          .where((id) => id > 0));
+    }
+
+    // Fallback: media array of objects
+    if (urls.isEmpty && json['media'] is List) {
+      for (final item in json['media'] as List) {
+        if (item is Map) {
+          if (item['secureUrl'] != null) urls.add(item['secureUrl'].toString());
+          if (item['mediaAssetId'] != null) {
+            final id = item['mediaAssetId'] is int
+                ? item['mediaAssetId'] as int
+                : int.tryParse(item['mediaAssetId'].toString()) ?? 0;
+            if (id > 0) assetIds.add(id);
+          }
         }
       }
     }
@@ -105,6 +122,10 @@ class AdminPostModel {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
+      moderatedAt: json['moderatedAt'] != null
+          ? DateTime.tryParse(json['moderatedAt'].toString())
+          : null,
+      moderationReason: json['moderationReason']?.toString(),
     );
   }
 
@@ -120,6 +141,8 @@ class AdminPostModel {
     'commentCount': commentCount,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt?.toIso8601String(),
+    'moderatedAt': moderatedAt?.toIso8601String(),
+    'moderationReason': moderationReason,
   };
 }
 

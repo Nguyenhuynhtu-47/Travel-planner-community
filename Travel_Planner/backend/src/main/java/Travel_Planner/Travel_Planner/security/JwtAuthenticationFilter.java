@@ -60,7 +60,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
                     // Global JWT Revocation Check via strict token_version comparison
                     if (userDetails instanceof CustomUserDetails customUser) {
-                        int currentDbVersion = customUser.getTokenVersion() != null ? customUser.getTokenVersion() : 1;
+                        int currentDbVersion = (customUser.getTokenVersion() != null && customUser.getTokenVersion() > 0)
+                                ? customUser.getTokenVersion()
+                                : 1;
 
                         // 1. Missing tokenVersion claim: compatible ONLY when current database version is exactly 1
                         if (tokenVersionFromJwt == null) {

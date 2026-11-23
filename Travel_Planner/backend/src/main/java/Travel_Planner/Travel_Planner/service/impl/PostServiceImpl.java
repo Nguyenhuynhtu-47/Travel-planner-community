@@ -953,6 +953,24 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public PostResponse getAdminPostById(Long postId, String adminUsername) {
+        User admin = getActiveUser(adminUsername);
+        if (admin.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("Chỉ quản trị viên mới có quyền xem chi tiết bài viết quản trị");
+        }
+
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new ResourceNotFoundException("Bài viết không tồn tại"));
+
+        List<PostMedia> postMediaList = postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(postId);
+        List<String> urls = postMediaList.stream().map(pm -> pm.getMediaAsset().getSecureUrl()).toList();
+        List<Long> assetIds = postMediaList.stream().map(pm -> pm.getMediaAsset().getMediaAssetId()).toList();
+
+        return toPostResponse(post, urls, assetIds, false, admin.getUserId());
+    }
+
+    @Override
     @Transactional
     public PostResponse moderatePost(Long postId, ModeratePostRequest request, String adminUsername) {
         User admin = getActiveUser(adminUsername);
@@ -1056,6 +1074,49 @@ public class PostServiceImpl implements PostService {
                 .totalElements(reportsPage.getTotalElements())
                 .totalPages(reportsPage.getTotalPages())
                 .last(reportsPage.isLast())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PostReportResponse getAdminReportById(Long reportId, String adminUsername) {
+        User admin = getActiveUser(adminUsername);
+        if (admin.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("Chỉ quản trị viên mới có quyền xem chi tiết báo cáo");
+        }
+
+        PostReport report = postReportRepository.findById(reportId)
+                .orElseThrow(() -> new ResourceNotFoundException("Báo cáo không tồn tại"));
+
+        PostAuthorResponse reporter = PostAuthorResponse.builder()
+                .userId(report.getReporter().getUserId())
+                .handle(report.getReporter().getHandle())
+                .username(report.getReporter().getUsername())
+                .fullName(report.getReporter().getFullName())
+                .avatar(report.getReporter().getAvatar())
+                .build();
+
+        PostAuthorResponse resolver = null;
+        if (report.getResolvedBy() != null) {
+            resolver = PostAuthorResponse.builder()
+                    .userId(report.getResolvedBy().getUserId())
+                    .handle(report.getResolvedBy().getHandle())
+                    .username(report.getResolvedBy().getUsername())
+                    .fullName(report.getResolvedBy().getFullName())
+                    .avatar(report.getResolvedBy().getAvatar())
+                    .build();
+        }
+
+        return PostReportResponse.builder()
+                .reportId(report.getReportId())
+                .postId(report.getPost().getPostId())
+                .reporter(reporter)
+                .reason(report.getReason())
+                .details(report.getDetails())
+                .status(report.getStatus())
+                .createdAt(report.getCreatedAt())
+                .resolvedAt(report.getResolvedAt())
+                .resolvedBy(resolver)
                 .build();
     }
 
@@ -1265,6 +1326,8 @@ public class PostServiceImpl implements PostService {
                 .isOwner(isOwner)
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
+                .moderatedAt(post.getModeratedAt())
+                .moderationReason(post.getModerationReason())
                 .build();
     }
 

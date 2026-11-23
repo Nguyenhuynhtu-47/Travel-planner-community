@@ -46,6 +46,8 @@ public class PostResponse {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime moderatedAt;
+    private String moderationReason;
 
     // Backward-compatibility getters for clients checking likedByMe / owner
     @JsonProperty("likedByMe")

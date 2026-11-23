@@ -44,11 +44,15 @@ public interface PostService {
     // Admin Moderation
     PageResponse<PostResponse> getAdminPosts(PostStatus status, int page, int size);
 
+    PostResponse getAdminPostById(Long postId, String adminUsername);
+
     PostResponse moderatePost(Long postId, ModeratePostRequest request, String adminUsername);
 
     void purgePost(Long postId, String adminUsername);
 
     PageResponse<PostReportResponse> getAdminReports(ReportStatus status, int page, int size);
+
+    PostReportResponse getAdminReportById(Long reportId, String adminUsername);
 
     PostReportResponse resolveReport(Long reportId, ReportStatus resolution, String adminUsername);
 

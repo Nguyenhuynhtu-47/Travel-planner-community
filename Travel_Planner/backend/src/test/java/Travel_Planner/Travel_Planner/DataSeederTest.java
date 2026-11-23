@@ -80,6 +80,9 @@ class DataSeederTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired(required = false)
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
         cleanDatabase();
@@ -91,6 +94,22 @@ class DataSeederTest {
     }
 
     private void cleanDatabase() {
+        if (jdbcTemplate != null) {
+            try {
+                jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
+                jdbcTemplate.execute("DELETE FROM post_reports");
+                jdbcTemplate.execute("DELETE FROM post_media");
+                jdbcTemplate.execute("DELETE FROM post_comments");
+                jdbcTemplate.execute("DELETE FROM post_likes");
+                jdbcTemplate.execute("DELETE FROM posts");
+                jdbcTemplate.execute("DELETE FROM media_assets");
+            } catch (Exception ignored) {
+            } finally {
+                try {
+                    jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
+                } catch (Exception ignored) {}
+            }
+        }
         // Clean test database tables in reverse foreign-key order
         offlineDownloadRepository.deleteAll();
         itineraryShareRepository.deleteAll();
