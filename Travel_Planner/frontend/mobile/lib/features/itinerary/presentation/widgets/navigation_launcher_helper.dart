@@ -11,10 +11,7 @@ class NavigationStop {
   final LatLng point;
   final String? label;
 
-  const NavigationStop({
-    required this.point,
-    this.label,
-  });
+  const NavigationStop({required this.point, this.label});
 
   /// Factory helper from [LatLng] coordinate and optional [label].
   factory NavigationStop.fromPoint(LatLng point, [String? label]) =>
@@ -33,6 +30,36 @@ class NavigationLauncherHelper {
   NavigationLauncherHelper._();
 
   static const int maxIntermediateWaypoints = 9;
+
+  /// Builds a free Google Maps directions URL from the device to one activity.
+  /// The target is an exact coordinate when available, otherwise a place address/name.
+  static Uri? buildCurrentLocationDirectionsUri({
+    required LatLng origin,
+    LatLng? destinationPoint,
+    String? destinationAddress,
+    String? destinationName,
+    String mode = 'driving',
+  }) {
+    final destination = destinationPoint != null
+        ? '${destinationPoint.latitude},${destinationPoint.longitude}'
+        : (destinationAddress?.trim().isNotEmpty == true
+              ? destinationAddress!.trim()
+              : destinationName?.trim());
+    if (destination == null || destination.isEmpty) return null;
+
+    final travelMode = switch (mode.toLowerCase()) {
+      'walking' || 'walk' || 'foot-walking' => 'walking',
+      'bicycling' || 'cycling' || 'bike' || 'cycling-regular' => 'bicycling',
+      'transit' => 'transit',
+      _ => 'driving',
+    };
+    return Uri.https('www.google.com', '/maps/dir/', {
+      'api': '1',
+      'origin': '${origin.latitude},${origin.longitude}',
+      'destination': destination,
+      'travelmode': travelMode,
+    });
+  }
 
   /// Formats a coordinate with an optional label for Google Maps URL parameters.
   /// If [label] is present and non-empty, produces `lat,lon(sanitizedLabel)`.
@@ -67,7 +94,8 @@ class NavigationLauncherHelper {
     List<LatLng>? waypoints,
     String mode = 'driving',
   }) {
-    final effectiveStops = stops ??
+    final effectiveStops =
+        stops ??
         waypoints?.map((wp) => NavigationStop(point: wp)).toList() ??
         const [];
 
@@ -126,7 +154,8 @@ class NavigationLauncherHelper {
     String mode = 'driving',
     UrlLauncherFn launcher = launchUrl,
   }) async {
-    final effectiveStops = stops ??
+    final effectiveStops =
+        stops ??
         waypoints?.map((wp) => NavigationStop(point: wp)).toList() ??
         const [];
 
@@ -143,7 +172,8 @@ class NavigationLauncherHelper {
       return false;
     }
 
-    if (effectiveStops.length > 2 + maxIntermediateWaypoints && context.mounted) {
+    if (effectiveStops.length > 2 + maxIntermediateWaypoints &&
+        context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -164,7 +194,9 @@ class NavigationLauncherHelper {
       if (!launched && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Không thể mở ứng dụng Google Maps trên thiết bị này.'),
+            content: Text(
+              'Không thể mở ứng dụng Google Maps trên thiết bị này.',
+            ),
             backgroundColor: AppColors.error,
           ),
         );

@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Chọn ảnh đại diện và ảnh bìa lịch trình du lịch.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Dùng vị trí hiện tại để mở đường đi đến hoạt động trong lịch trình.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

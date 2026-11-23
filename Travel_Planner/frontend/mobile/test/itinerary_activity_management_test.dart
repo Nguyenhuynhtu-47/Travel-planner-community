@@ -19,8 +19,10 @@ import 'package:mobile/features/itinerary/data/models/update_activity_request.da
 import 'package:mobile/features/itinerary/presentation/itinerary_detail_notifier.dart';
 import 'package:mobile/features/itinerary/presentation/screens/itinerary_detail_screen.dart';
 import 'package:mobile/features/itinerary/presentation/widgets/activity_form_dialog.dart';
+import 'package:mobile/features/itinerary/presentation/widgets/activity_visit_swipe_action.dart';
 import 'package:mobile/features/itinerary/presentation/widgets/delete_activity_dialog.dart';
 import 'package:mobile/features/itinerary/presentation/widgets/reorder_activities_dialog.dart';
+import 'package:mobile/features/itinerary/presentation/widgets/itinerary_day_card.dart';
 
 class MockAuthNotifier extends AuthNotifier {
   final Map<String, dynamic>? _user;
@@ -999,6 +1001,7 @@ void main() {
           MaterialApp(
             home: ItineraryDetailScreen(
               itineraryId: 10,
+              initialTab: 1,
               notifier: notifier,
               authNotifier: authNotifier,
               crudRepository: repository,
@@ -1019,6 +1022,7 @@ void main() {
         // Activities should render
         expect(find.text('Uống cà phê Tùng'), findsOneWidget);
         expect(find.text('Dạo Quảng trường Lâm Viên'), findsOneWidget);
+        expect(find.byType(ActivityVisitSwipeAction), findsNWidgets(2));
       },
     );
 
@@ -1050,6 +1054,7 @@ void main() {
           MaterialApp(
             home: ItineraryDetailScreen(
               itineraryId: 10,
+              initialTab: 1,
               notifier: notifier,
               authNotifier: authNotifier,
               crudRepository: repository,
@@ -1063,6 +1068,7 @@ void main() {
         expect(find.text('Thêm hoạt động'), findsNothing);
         expect(find.text('Sắp xếp'), findsNothing);
         expect(find.text('Thêm hoạt động đầu tiên'), findsNothing);
+        expect(find.byType(ActivityVisitSwipeAction), findsNothing);
 
         // But should still view the activities
         expect(find.text('Uống cà phê Tùng'), findsOneWidget);
@@ -1109,6 +1115,7 @@ void main() {
         MaterialApp(
           home: ItineraryDetailScreen(
             itineraryId: 10,
+            initialTab: 1,
             notifier: notifier,
             authNotifier: authNotifier,
             crudRepository: repository,
@@ -1332,6 +1339,7 @@ void main() {
           MaterialApp(
             home: ItineraryDetailScreen(
               itineraryId: 10,
+              initialTab: 1,
               notifier: notifier,
               authNotifier: authNotifier,
               crudRepository: repository,
@@ -1398,6 +1406,7 @@ void main() {
           MaterialApp(
             home: ItineraryDetailScreen(
               itineraryId: 10,
+              initialTab: 1,
               notifier: notifier,
               authNotifier: authNotifier,
               crudRepository: repository,
@@ -1472,6 +1481,7 @@ void main() {
         MaterialApp(
           home: ItineraryDetailScreen(
             itineraryId: 10,
+            initialTab: 1,
             notifier: notifier,
             authNotifier: authNotifier,
             crudRepository: repository,
@@ -1529,6 +1539,7 @@ void main() {
           MaterialApp(
             home: ItineraryDetailScreen(
               itineraryId: 10,
+              initialTab: 1,
               notifier: notifier,
               authNotifier: authNotifier,
               crudRepository: repository,
@@ -1558,40 +1569,18 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-
-        final mockClient = MockClient(
-          (request) async => http.Response('{}', 200),
-        );
-        final repository = ItineraryCrudRepository(
-          apiClient: ApiClient(client: mockClient),
-        );
-        final authNotifier = MockAuthNotifier(
-          user: {'username': 'traveler_viet'},
-          token: 'token_viet',
-        );
-
-        final notifier = FakeItineraryDetailNotifier(
-          itineraryId: 10,
-          presetDetail: testDetailWithOwner,
-        );
-
         await tester.pumpWidget(
           MaterialApp(
-            home: ItineraryDetailScreen(
-              itineraryId: 10,
-              notifier: notifier,
-              authNotifier: authNotifier,
-              crudRepository: repository,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ItineraryDayCard(
+                  day: testDetailWithOwner.days.first,
+                  onActivityVisited: (_, _) async => true,
+                  onSaveActivityOrder: (_) async => true,
+                ),
+              ),
             ),
           ),
-        );
-        await tester.pumpAndSettle();
-
-        // Scroll to make sure "Sắp xếp" is visible if needed
-        await tester.scrollUntilVisible(
-          find.text('Sắp xếp'),
-          200,
-          scrollable: find.byType(Scrollable).first,
         );
         await tester.pumpAndSettle();
 
@@ -1633,6 +1622,7 @@ void main() {
             theme: AppTheme.lightTheme,
             home: ItineraryDetailScreen(
               itineraryId: 10,
+              initialTab: 1,
               notifier: notifier,
               authNotifier: authNotifier,
               crudRepository: repository,

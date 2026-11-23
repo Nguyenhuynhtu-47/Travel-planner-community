@@ -17,6 +17,16 @@ class ItineraryDayDetail {
     required this.activities,
   });
 
+  ItineraryDayDetail copyWith({List<ActivityDetail>? activities}) =>
+      ItineraryDayDetail(
+        dayId: dayId,
+        dayNumber: dayNumber,
+        title: title,
+        description: description,
+        date: date,
+        activities: activities ?? this.activities,
+      );
+
   factory ItineraryDayDetail.fromJson(Map<String, dynamic> json) {
     final rawActivities = json['activities'];
     final activitiesList = <ActivityDetail>[];

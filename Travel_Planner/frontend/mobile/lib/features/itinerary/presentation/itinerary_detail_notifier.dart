@@ -106,10 +106,7 @@ class ItineraryDetailNotifier extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final places = await repo.getSavedPlaces(
-        itineraryId,
-        token: token,
-      );
+      final places = await repo.getSavedPlaces(itineraryId, token: token);
       savedPlaces = places;
       savedPlacesError = null;
     } catch (e) {
@@ -152,5 +149,50 @@ class ItineraryDetailNotifier extends ChangeNotifier {
 
   void retry({String? token}) {
     loadDetail(token: token);
+  }
+
+  Future<bool> updateActivityVisitedStatus({
+    required int dayId,
+    required int activityId,
+    required bool visited,
+    required String token,
+    ItineraryCrudRepository? repository,
+  }) async {
+    final previousDetail = itineraryDetail;
+    final updateRepository = repository ?? crudRepository;
+    if (previousDetail == null || updateRepository == null) return false;
+
+    itineraryDetail = previousDetail.copyWith(
+      days: previousDetail.days
+          .map((day) {
+            if (day.dayId != dayId) return day;
+            return day.copyWith(
+              activities: day.activities
+                  .map((activity) {
+                    return activity.activityId == activityId
+                        ? activity.copyWith(visited: visited)
+                        : activity;
+                  })
+                  .toList(growable: false),
+            );
+          })
+          .toList(growable: false),
+    );
+    notifyListeners();
+
+    try {
+      await updateRepository.updateActivityVisitStatus(
+        itineraryId: itineraryId,
+        dayId: dayId,
+        activityId: activityId,
+        visited: visited,
+        token: token,
+      );
+      return true;
+    } catch (_) {
+      itineraryDetail = previousDetail;
+      notifyListeners();
+      return false;
+    }
   }
 }
