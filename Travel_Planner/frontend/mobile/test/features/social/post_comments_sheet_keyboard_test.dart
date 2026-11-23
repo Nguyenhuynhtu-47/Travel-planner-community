@@ -389,7 +389,7 @@ void main() {
     expect(find.text('Reply A'), findsOneWidget);
     expect(find.text('Reply B'), findsOneWidget);
 
-    await tester.tap(find.text('Ẩn câu trả lời').first);
+    await tester.tap(find.text('Thu gọn câu trả lời').first);
     await tester.pumpAndSettle();
     expect(find.text('Reply A'), findsNothing);
     expect(find.text('Reply B'), findsOneWidget);
@@ -399,6 +399,69 @@ void main() {
     expect(find.text('Reply A'), findsOneWidget);
     expect(mockRepo.replyRequests, [1, 2]);
   });
+
+  testWidgets(
+    'replying to a post root previews the sent reply and keeps older replies collapsed',
+    (tester) async {
+      mockRepo.comments = [
+        PostCommentModel(
+          commentId: 1,
+          postId: 10,
+          content: 'Root with replies',
+          author: const PostAuthorModel(userId: 2, handle: 'a', fullName: 'A'),
+          replyCount: 1,
+          createdAt: DateTime.now(),
+        ),
+      ];
+      mockRepo.repliesByRoot[1] = [
+        PostCommentModel(
+          commentId: 11,
+          postId: 10,
+          content: 'Older reply',
+          author: const PostAuthorModel(userId: 3, handle: 'b', fullName: 'B'),
+          parentCommentId: 1,
+          rootCommentId: 1,
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          screenSize: const Size(360, 640),
+          keyboardHeight: 0,
+          child: PostCommentsSheet(
+            postId: 10,
+            token: 'valid_jwt_token',
+            repository: mockRepo,
+            notifier: notifier,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(mockRepo.replyRequests, isEmpty);
+
+      await tester.tap(find.byKey(const ValueKey('reply_comment_1')));
+      await tester.pumpAndSettle();
+      expect(mockRepo.replyRequests, isEmpty);
+      expect(find.text('Older reply'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'My new reply');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('My new reply'), findsOneWidget);
+      expect(find.text('Older reply'), findsNothing);
+      expect(find.text('Xem 1 câu trả lời khác'), findsOneWidget);
+      expect(mockRepo.replyRequests, isEmpty);
+
+      await tester.tap(find.text('Xem 1 câu trả lời khác'));
+      await tester.pumpAndSettle();
+      expect(mockRepo.replyRequests, [1]);
+      expect(find.text('My new reply'), findsOneWidget);
+      expect(find.text('Older reply'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'replying to a nested community comment keeps the exact parent id',

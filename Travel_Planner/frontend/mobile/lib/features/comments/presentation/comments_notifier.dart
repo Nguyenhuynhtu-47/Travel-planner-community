@@ -13,6 +13,8 @@ class CommentsNotifier extends ChangeNotifier {
 
   final List<ItineraryComment> comments = [];
   final Map<int, List<ItineraryComment>> replies = {};
+  /// Keeps the latest direct reply visible while its thread remains collapsed.
+  final Map<int, ItineraryComment> collapsedReplyPreviews = {};
   final Map<int, PageResult<ItineraryComment>> _replyPages = {};
   final Set<int> loadingReplies = {};
   bool isLoading = true;
@@ -84,7 +86,9 @@ class CommentsNotifier extends ChangeNotifier {
 
   Future<bool> submit(String content, String? token, {int? parentCommentId}) async {
     final trimmed = content.trim();
-    if (trimmed.isEmpty || token == null || token.isEmpty || isSubmitting) return false;
+    if (trimmed.isEmpty || token == null || token.isEmpty || isSubmitting) {
+      return false;
+    }
     isSubmitting = true;
     submitError = null;
     _notifySafely();
@@ -98,7 +102,14 @@ class CommentsNotifier extends ChangeNotifier {
       errorStatusCode = null;
       if (parentCommentId != null) {
         final rootId = comment.rootCommentId ?? parentCommentId;
-        replies.putIfAbsent(rootId, () => <ItineraryComment>[]).add(comment);
+        final rootReplies = replies.putIfAbsent(rootId, () => <ItineraryComment>[]);
+        rootReplies.removeWhere((item) => item.commentId == comment.commentId);
+        if (parentCommentId == rootId) {
+          rootReplies.insert(0, comment);
+          collapsedReplyPreviews[rootId] = comment;
+        } else {
+          rootReplies.add(comment);
+        }
         final rootIndex = comments.indexWhere((item) => item.commentId == rootId);
         if (rootIndex >= 0) {
           final root = comments[rootIndex];
@@ -140,13 +151,23 @@ class CommentsNotifier extends ChangeNotifier {
 
   Future<void> loadReplies(int rootId, {bool refresh = false}) async {
     if (loadingReplies.contains(rootId)) return;
-    if (refresh) { replies.remove(rootId); _replyPages.remove(rootId); }
+    if (refresh) {
+      replies.remove(rootId);
+      _replyPages.remove(rootId);
+      final preview = collapsedReplyPreviews[rootId];
+      if (preview != null) replies[rootId] = <ItineraryComment>[preview];
+    }
     loadingReplies.add(rootId); _notifySafely();
     try {
       final result = await _repository.getReplies(rootId, page: refresh ? 0 : (_replyPages[rootId]?.pageNumber ?? -1) + 1, size: _pageSize);
       final list = replies.putIfAbsent(rootId, () => <ItineraryComment>[]);
       final seen = list.map((comment) => comment.commentId).toSet();
-      list.addAll(result.content.where((comment) => seen.add(comment.commentId)));
+      final fetchedReplies = result.content
+          .where((comment) => seen.add(comment.commentId))
+          .toList();
+      final preview = collapsedReplyPreviews[rootId];
+      if (preview != null && list.isEmpty) list.add(preview);
+      list.addAll(fetchedReplies);
       _replyPages[rootId] = result;
       errorMessage = null;
     } on ApiException catch (error) { errorMessage = error.message; }
@@ -155,9 +176,12 @@ class CommentsNotifier extends ChangeNotifier {
   }
 
   bool repliesHaveMore(int rootId) => _replyPages[rootId]?.hasMore ?? false;
+  bool hasLoadedReplies(int rootId) => _replyPages.containsKey(rootId);
 
   Future<bool> updateComment(int commentId, String content, String? token) async {
-    if (token == null || token.isEmpty || content.trim().isEmpty || isSubmitting) return false;
+    if (token == null || token.isEmpty || content.trim().isEmpty || isSubmitting) {
+      return false;
+    }
     isSubmitting = true; submitError = null; _notifySafely();
     try {
       final updated = await _repository.updateComment(commentId, content: content.trim(), token: token);
@@ -177,7 +201,9 @@ class CommentsNotifier extends ChangeNotifier {
           userId: old.userId, handle: old.handle, username: old.username, fullName: old.fullName, avatar: old.avatar,
           createdAt: old.createdAt, updatedAt: old.updatedAt, parentCommentId: old.parentCommentId,
           rootCommentId: old.rootCommentId, replyCount: old.replyCount, deleted: true));
-        if (old.parentCommentId != null) _decrementRootReplyCount(old.rootCommentId);
+        if (old.parentCommentId != null) {
+          _decrementRootReplyCount(old.rootCommentId);
+        }
       }
       return true;
     } catch (_) { submitError = 'Không thể xóa bình luận. Vui lòng thử lại.'; return false; }

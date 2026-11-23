@@ -47,6 +47,11 @@ public interface CommentRepository extends JpaRepository<Comment, Integer> {
 
     long countByActivity_ActivityIdInAndStatus(java.util.Collection<Integer> activityIds, CommentStatus status);
 
+    @Query("select c.activity.activityId, count(c) from Comment c where c.activity.activityId in :activityIds " +
+            "and c.status = :status group by c.activity.activityId")
+    List<Object[]> countCommentsByActivityIds(@Param("activityIds") java.util.Collection<Integer> activityIds,
+                                              @Param("status") CommentStatus status);
+
     @Modifying
     @Query("update Comment c set c.activity = null, c.itinerary = :itinerary where c.activity.activityId in :activityIds")
     int moveActivityCommentsToItinerary(@Param("activityIds") java.util.Collection<Integer> activityIds,

@@ -459,10 +459,17 @@ public class ItineraryServiceImpl implements ItineraryService {
                 activityMap.computeIfAbsent(activity.getItineraryDay().getDayId(), k -> new ArrayList<>()).add(activity);
             }
         }
+        List<Activity> allActivities = activityMap.values().stream()
+                .flatMap(Collection::stream)
+                .toList();
+        Map<Integer, Integer> activityCommentCounts = fetchActivityCommentCounts(allActivities);
 
         List<ItineraryDayResponse> dayResponses = days.stream().map(day -> {
             List<Activity> dayActivities = activityMap.getOrDefault(day.getDayId(), Collections.emptyList());
-            List<ActivityResponse> activityResponses = dayActivities.stream().map(this::mapToActivityResponse).toList();
+            List<ActivityResponse> activityResponses = dayActivities.stream()
+                    .map(activity -> mapToActivityResponse(activity,
+                            activityCommentCounts.getOrDefault(activity.getActivityId(), 0)))
+                    .toList();
             return ItineraryDayResponse.builder()
                     .dayId(day.getDayId())
                     .dayNumber(day.getDayNumber())
@@ -895,7 +902,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         day = itineraryDayRepository.save(day);
 
         List<Activity> activities = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(dayId);
-        List<ActivityResponse> activityResponses = activities.stream().map(this::mapToActivityResponse).toList();
+        List<ActivityResponse> activityResponses = mapToActivityResponses(activities);
 
         return ItineraryDayResponse.builder()
                 .dayId(day.getDayId())
@@ -999,7 +1006,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                         .build());
             }
         }
-        return mapToActivityResponse(activity);
+        return mapToActivityResponses(List.of(activity)).get(0);
     }
 
     @Override
@@ -1043,7 +1050,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                         .build());
             }
         }
-        return mapToActivityResponse(activity);
+        return mapToActivityResponses(List.of(activity)).get(0);
     }
 
     @Override
@@ -1142,7 +1149,7 @@ public class ItineraryServiceImpl implements ItineraryService {
         activityRepository.flush();
 
         List<Activity> updated = activityRepository.findByItineraryDay_DayIdOrderByDisplayOrderAsc(dayId);
-        return updated.stream().map(this::mapToActivityResponse).toList();
+        return mapToActivityResponses(updated);
     }
 
     private Itinerary findOwnedItinerary(Integer itineraryId, String currentUsername, String action) {
@@ -1171,7 +1178,30 @@ public class ItineraryServiceImpl implements ItineraryService {
         }
     }
 
-    private ActivityResponse mapToActivityResponse(Activity activity) {
+    private List<ActivityResponse> mapToActivityResponses(List<Activity> activities) {
+        Map<Integer, Integer> commentCounts = fetchActivityCommentCounts(activities);
+        return activities.stream()
+                .map(activity -> mapToActivityResponse(activity,
+                        commentCounts.getOrDefault(activity.getActivityId(), 0)))
+                .toList();
+    }
+
+    private Map<Integer, Integer> fetchActivityCommentCounts(List<Activity> activities) {
+        List<Integer> activityIds = activities.stream()
+                .map(Activity::getActivityId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (activityIds.isEmpty()) {
+            return Map.of();
+        }
+        return commentRepository.countCommentsByActivityIds(activityIds, CommentStatus.ACTIVE).stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).intValue(),
+                        row -> ((Number) row[1]).intValue()));
+    }
+
+    private ActivityResponse mapToActivityResponse(Activity activity, Integer commentCount) {
         Long canonicalPlaceId = null;
         PlaceResponse placeResponse = null;
         if (activity.getPlace() != null) {
@@ -1201,6 +1231,7 @@ public class ItineraryServiceImpl implements ItineraryService {
                 .endTime(activity.getEndTime())
                 .cost(activity.getCost())
                 .displayOrder(activity.getDisplayOrder())
+                .commentCount(commentCount)
                 .canonicalPlaceId(canonicalPlaceId)
                 .place(placeResponse)
                 .locationName(effectiveName)

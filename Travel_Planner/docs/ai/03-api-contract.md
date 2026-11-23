@@ -293,11 +293,11 @@ Current inventory of API endpoints:
   - `destinationId` is optional (nullable) for activities without specific POIs (rest, free time).
   - `imageUrl` is optional and limited to HTTPS Cloudinary delivery URLs. Mobile uploads through the existing authenticated image endpoint and saves its returned URL; catalog image is the display fallback when this field is empty.
   - Automatically assigned `displayOrder = maxOrder + 1`.
-  - Response: `201 Created` with `ActivityResponse`.
+  - Response: `201 Created` with `ActivityResponse`, including the activity's active `commentCount`.
 - **Update Activity:** `PUT /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
   - Body (`UpdateActivityRequest`): updates name, description, start/end time, cost, location and optional `imageUrl`.
   - Omitted/null `imageUrl` preserves the current activity image for older clients; an empty string clears it.
-  - Response: `200 OK` with `ActivityResponse`.
+  - Response: `200 OK` with `ActivityResponse`, including the activity's active `commentCount`.
 - **Delete Activity:** `DELETE /api/itineraries/{id}/days/{dayId}/activities/{activityId}`
   - Deletes activity and renumbers subsequent activities contiguously.
   - Response: `200 OK` with `{"message": "Đã xóa hoạt động thành công"}`.
@@ -305,7 +305,8 @@ Current inventory of API endpoints:
   - Body: List of `ReorderActivityItem`: `[{"activityId": 2, "displayOrder": 1}, {"activityId": 1, "displayOrder": 2}]`.
   - Validates that all IDs belong to `dayId`, no duplicates, and order values form a contiguous 1..N permutation.
   - Uses two-phase persistence (sets orders to `-i` with `flush()`, then assigns target orders) to avoid MySQL unique key violation on `uk_activity_day_order (day_id, display_order)`.
-  - Response: `200 OK` with `List<ActivityResponse>` ordered by `displayOrder`.
+  - Response: `200 OK` with `List<ActivityResponse>` ordered by `displayOrder`; each item includes its active `commentCount`.
+- Itinerary detail and day activity responses include `commentCount`, calculated from active comments attached to each activity. List responses use a grouped count query rather than one query per activity.
 
 ## 11. Image Upload
 

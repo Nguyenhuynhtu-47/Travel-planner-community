@@ -52,9 +52,12 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return Container(
-      color: AppColors.background,
-      child: child,
+    return SizedBox(
+      height: height,
+      child: Container(
+        color: AppColors.background,
+        child: child,
+      ),
     );
   }
 

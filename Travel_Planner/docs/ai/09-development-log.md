@@ -10304,6 +10304,15 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 
 ---
 
+## 2026-11-22 - Profile Pinned Tab Header Geometry Fix
+
+- Replaced the profile tab header's unconstrained `Container` with `SizedBox(height: height)` around the same background container. This makes the built child match the `ProfileTabBarDelegate`'s fixed `minExtent` and `maxExtent`, preventing the observed pinned sliver geometry from reporting a layout extent larger than its paint extent.
+- Extended the personal profile widget test to fling up and down repeatedly and assert that no Flutter exception is raised. Updated the tab label finder to disambiguate the profile statistic from the tab label.
+- Verification: focused profile scroll test passed; `flutter analyze --no-pub` on the changed Dart source and test reported no issues.
+- No profile API, authentication, backend, or database behavior was changed. Physical-device profile loading was not reverified in this session.
+
+---
+
 ## 2026-11-20 - Animated Splash Screen on Every App Launch (`feature/splash`)
 
 - **Task Summary:**
@@ -10720,3 +10729,45 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 4. **Verification & Tests:**
    - Added widget tests in `share_bottom_sheet_widget_test.dart` verifying all 8 required in-app messaging elements, selection state management, and the absolute absence of OS share shortcuts.
    - Executed full test suite: 32 tests passed (7 category localization, 16 phase-2 messaging share, 6 post share count, 3 widget tests).
+
+---
+
+## [2026-11-22] Keep Newly Submitted Root Replies Visible While Threads Stay Collapsed
+
+### 1. Scope and Behavior
+- Applied the same collapsed-thread behavior to itinerary comments, activity comments, and community post comments.
+- Replying directly to a root comment no longer opens the thread or fetches its existing replies automatically.
+- After a successful direct reply, that new reply is shown immediately at the top of the collapsed thread. The existing replies remain hidden behind a `View N other replies` control and are fetched only when the user opens the thread.
+- Opening the thread merges the local preview with paginated API results without duplicating the submitted reply. Replies addressed to a child comment continue using the existing expanded-thread flow and preserve the immediate parent ID.
+
+### 2. Files Changed
+- `frontend/mobile/lib/features/comments/presentation/comments_notifier.dart`: track a direct-reply preview per root and merge it with paginated reply results.
+- `frontend/mobile/lib/features/comments/presentation/widgets/itinerary_comments_section.dart`: keep root replies collapsed on reply selection and render the newly submitted reply preview.
+- `frontend/mobile/lib/features/social/presentation/widgets/post_comments_sheet.dart`: implement equivalent preview, lazy-loading, and reply-count behavior for post threads.
+- `frontend/mobile/test/features/comments/comment_thread_widget_test.dart`: cover itinerary and activity behavior and preserve nested reply behavior.
+- `frontend/mobile/test/features/social/post_comments_sheet_keyboard_test.dart`: cover collapsed post replies, deferred loading, and merging after expansion.
+
+### 3. Verification
+- `flutter analyze` on the modified Dart implementation and focused tests: passed with no issues.
+- Focused Flutter tests for comments notifier, itinerary/activity comment threads, post comment sheet, and community post enhancements: all passed.
+- No backend, API, or database changes were needed.
+
+---
+
+## [2026-11-22] Show Activity Comment Counts in the Activities Tab
+
+### 1. Scope and Behavior
+- Added an activity-specific `commentCount` to `ActivityResponse` and the Flutter `ActivityDetail` model.
+- The activity timeline button now displays `Bình luận hoạt động (N)` using the active comment count for that activity.
+- Activity comment counts are queried in a grouped repository query for itinerary/day list responses to avoid an N+1 query pattern. The itinerary detail is reloaded after closing the activity comments sheet so new or deleted comments are reflected in the activity tab.
+- No database schema change was required; the API response change is additive.
+
+### 2. Files Changed
+- Backend: `ActivityResponse.java`, `CommentRepository.java`, `ItineraryServiceImpl.java`, and `ActivityLocationTest.java`.
+- Flutter: `activity_detail.dart`, `activity_timeline_item.dart`, `itinerary_detail_screen.dart`, `activity_detail_screen_test.dart`, and `activity_location_model_test.dart`.
+- Documentation: `docs/ai/03-api-contract.md` and `CODEBASE_GUIDE/07C-LICH-TRINH-ACTIVITY-MAP.md`.
+
+### 3. Verification
+- Backend: `.\mvnw.cmd test -Dtest=ActivityLocationTest` passed (24 tests).
+- Flutter: `flutter analyze` on the five changed model/UI/test files passed with no issues.
+- Flutter tests: `activity_detail_screen_test.dart` and `activity_location_model_test.dart` passed (25 tests total).

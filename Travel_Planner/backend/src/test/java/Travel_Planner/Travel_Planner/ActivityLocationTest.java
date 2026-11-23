@@ -3,17 +3,20 @@ package Travel_Planner.Travel_Planner;
 import Travel_Planner.Travel_Planner.dto.request.CreateActivityRequest;
 import Travel_Planner.Travel_Planner.dto.request.UpdateActivityRequest;
 import Travel_Planner.Travel_Planner.model.Activity;
+import Travel_Planner.Travel_Planner.model.Comment;
 import Travel_Planner.Travel_Planner.model.Itinerary;
 import Travel_Planner.Travel_Planner.model.ItineraryDay;
 import Travel_Planner.Travel_Planner.model.Place;
 import Travel_Planner.Travel_Planner.model.User;
 import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
+import Travel_Planner.Travel_Planner.model.enums.CommentStatus;
 import Travel_Planner.Travel_Planner.model.enums.PlaceCategory;
 import Travel_Planner.Travel_Planner.model.enums.PlaceStatus;
 import Travel_Planner.Travel_Planner.model.enums.Role;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.model.enums.Visibility;
 import Travel_Planner.Travel_Planner.repository.ActivityRepository;
+import Travel_Planner.Travel_Planner.repository.CommentRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryDayRepository;
 import Travel_Planner.Travel_Planner.repository.ItineraryRepository;
 import Travel_Planner.Travel_Planner.repository.PlaceRepository;
@@ -59,6 +62,9 @@ class ActivityLocationTest {
 
     @Autowired
     private ActivityRepository activityRepository;
+
+    @Autowired
+    private CommentRepository commentRepository;
 
     @Autowired
     private PlaceRepository placeRepository;
@@ -474,7 +480,6 @@ class ActivityLocationTest {
                 .locationProvider("LOCATION_IQ")
                 .displayOrder(1)
                 .build());
-
         // Step 2: Update activity to switch to canonical place
         UpdateActivityRequest updateRequest = UpdateActivityRequest.builder()
                 .name("Chuyển sang Chùa Cầu")
@@ -685,6 +690,20 @@ class ActivityLocationTest {
                 .locationProvider("PLACE_CATALOG")
                 .displayOrder(1)
                 .build());
+        commentRepository.save(Comment.builder()
+                .user(ownerUser)
+                .itinerary(testItinerary)
+                .activity(activity)
+                .content("Bình luận đang hoạt động")
+                .status(CommentStatus.ACTIVE)
+                .build());
+        commentRepository.save(Comment.builder()
+                .user(otherUser)
+                .itinerary(testItinerary)
+                .activity(activity)
+                .content("Bình luận đã xóa")
+                .status(CommentStatus.DELETED)
+                .build());
 
         // Step 2: Admin hides the place
         activePlace.setStatus(PlaceStatus.HIDDEN);
@@ -696,7 +715,8 @@ class ActivityLocationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.days[0].activities[0].locationName").value("Chùa Cầu Hội An"))
                 .andExpect(jsonPath("$.days[0].activities[0].latitude").value(activePlace.getLatitude().doubleValue()))
-                .andExpect(jsonPath("$.days[0].activities[0].longitude").value(activePlace.getLongitude().doubleValue()));
+                .andExpect(jsonPath("$.days[0].activities[0].longitude").value(activePlace.getLongitude().doubleValue()))
+                .andExpect(jsonPath("$.days[0].activities[0].commentCount").value(1));
 
         // Step 4: Activity is still editable without error (independent snapshot)
         UpdateActivityRequest editRequest = UpdateActivityRequest.builder()

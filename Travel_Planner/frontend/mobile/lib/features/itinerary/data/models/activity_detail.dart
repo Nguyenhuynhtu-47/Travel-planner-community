@@ -10,6 +10,7 @@ class ActivityDetail {
   final String? endTime;
   final double? estimatedCost;
   final int displayOrder;
+  final int commentCount;
   final DestinationSummary? destination;
   final int? canonicalPlaceId;
   final PlaceSummary? place;
@@ -32,6 +33,7 @@ class ActivityDetail {
     this.endTime,
     this.estimatedCost,
     required this.displayOrder,
+    this.commentCount = 0,
     this.destination,
     this.canonicalPlaceId,
     this.place,
@@ -66,6 +68,9 @@ class ActivityDetail {
       displayOrder: json['displayOrder'] is num
           ? (json['displayOrder'] as num).toInt()
           : (int.tryParse(json['displayOrder']?.toString() ?? '') ?? 0),
+      commentCount: json['commentCount'] is num
+          ? (json['commentCount'] as num).toInt()
+          : (int.tryParse(json['commentCount']?.toString() ?? '') ?? 0),
       destination: rawDest is Map
           ? DestinationSummary.fromJson(Map<String, dynamic>.from(rawDest))
           : null,

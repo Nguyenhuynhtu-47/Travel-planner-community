@@ -409,7 +409,7 @@ class ActivityTimelineItem extends StatelessWidget {
                       child: TextButton.icon(
                         onPressed: onComments,
                         icon: const Icon(Icons.mode_comment_outlined, size: 17),
-                        label: const Text('Bình luận hoạt động'),
+                        label: Text('Bình luận hoạt động (${activity.commentCount})'),
                         style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
                       ),
                     ),

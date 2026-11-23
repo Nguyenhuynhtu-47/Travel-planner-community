@@ -1721,8 +1721,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     );
   }
 
-  void _openActivityComments(int activityId, String activityName) {
-    showModalBottomSheet<void>(
+  Future<void> _openActivityComments(int activityId, String activityName) async {
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -1774,6 +1774,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         );
       },
     );
+    if (mounted) {
+      await _notifier.loadDetail(token: _effectiveToken);
+    }
   }
 
   void _openCreatorProfile(int userId) {
