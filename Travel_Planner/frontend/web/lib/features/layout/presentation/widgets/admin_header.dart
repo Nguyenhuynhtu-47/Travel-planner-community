@@ -21,7 +21,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(AppHeights.header);
 
   @override
   Widget build(BuildContext context) {
@@ -30,162 +30,163 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
     final isOnline = healthStatus == 'UP';
 
     return Container(
-      height: 64,
+      height: AppHeights.header,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(
           bottom: BorderSide(color: AppColors.border, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
           // Sidebar toggle
           IconButton(
-            icon: const Icon(Icons.menu, color: AppColors.textPrimary, size: 22),
+            icon: const Icon(Icons.menu, color: AppColors.textPrimary, size: 20),
             tooltip: 'Đóng/Mở menu',
+            splashRadius: 20,
             onPressed: onToggleSidebar,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.sm),
 
-          // Breadcrumbs & Title
+          // Breadcrumbs & Title with horizontal scrolling protection for compact viewports
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Admin',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.muted,
-                        fontWeight: FontWeight.w500,
-                      ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Admin',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w500,
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
-                    ),
-                    Text(
-                      currentTab.group.label,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.muted,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
-                    ),
-                    Text(
-                      currentTab.shortTitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  currentTab.title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
+                  ),
+                  Text(
+                    currentTab.group.label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('/', style: TextStyle(fontSize: 12, color: AppColors.borderStrong)),
+                  ),
+                  Text(
+                    currentTab.shortTitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primaryAccessible,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
           // Backend Health indicator
           if (healthStatus != null) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
               decoration: BoxDecoration(
-                color: isOnline ? const Color(0xFFECFDF5) : Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(16),
+                color: isOnline ? AppColors.successLight : AppColors.warningLight,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
                 border: Border.all(
-                  color: isOnline ? const Color(0xFFA7F3D0) : Colors.amber.shade300,
+                  color: isOnline ? AppColors.successBorder : AppColors.warningBorder,
+                  width: 1,
                 ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 7,
-                    height: 7,
+                    width: 6,
+                    height: 6,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isOnline ? AppColors.success : Colors.amber.shade800,
+                      color: isOnline ? AppColors.success : AppColors.warning,
                     ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     isOnline ? 'Hệ thống: Trực tuyến' : 'Hệ thống: $healthStatus',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w600,
-                      color: isOnline ? const Color(0xFF047857) : Colors.amber.shade900,
+                      color: isOnline ? AppColors.success : AppColors.warning,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: AppSpacing.md),
           ],
 
           // Profile chip button
           InkWell(
             onTap: onGoToProfile,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            hoverColor: AppColors.surfaceHover,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   CircleAvatar(
-                    radius: 16,
+                    radius: 13,
                     backgroundColor: AppColors.primaryLight,
                     child: Text(
                       fullName.isNotEmpty ? fullName[0].toUpperCase() : 'A',
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 160),
-                    child: Text(
-                      fullName,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fullName,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const Text(
+                        'Quản trị viên',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
+          const SizedBox(width: 4),
 
-          const SizedBox(width: 8),
-
-          // Logout button
+          // Logout Icon button
           IconButton(
-            icon: const Icon(Icons.logout, size: 20, color: AppColors.textSecondary),
+            icon: const Icon(Icons.logout, size: 18, color: AppColors.textMuted),
             tooltip: 'Đăng xuất',
+            splashRadius: 18,
             onPressed: onLogout,
           ),
         ],

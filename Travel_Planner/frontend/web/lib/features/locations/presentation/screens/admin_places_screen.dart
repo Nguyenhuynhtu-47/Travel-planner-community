@@ -8,9 +8,18 @@ import 'package:travel_planner_web/features/locations/data/models/place_model.da
 import 'package:travel_planner_web/features/locations/data/place_repository.dart';
 import 'package:travel_planner_web/features/locations/presentation/widgets/hide_place_dialog.dart';
 import 'package:travel_planner_web/features/locations/presentation/widgets/place_form_dialog.dart';
+import 'package:travel_planner_web/shared/widgets/admin_data_table.dart';
+import 'package:travel_planner_web/shared/widgets/admin_dialog.dart';
+import 'package:travel_planner_web/shared/widgets/admin_page_header.dart';
+import 'package:travel_planner_web/shared/widgets/admin_status_badge.dart';
+import 'package:travel_planner_web/shared/widgets/admin_toolbar.dart';
+import 'package:travel_planner_web/shared/widgets/hover_movement.dart';
 import 'package:travel_planner_web/shared/widgets/web_map_view.dart';
 
 /// Screen for administering canonical Places (ADMIN role only).
+/// Aligned with docs/plan/admin-design-system.md (Minimalism & Swiss Style).
+/// Implements enterprise data table with server-side pagination, instant search,
+/// category/status filtering, map-based inspection, and CRUD flows.
 class AdminPlacesScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final PlaceRepository? repository;
@@ -33,14 +42,18 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
   Timer? _debounceTimer;
 
   List<PlaceModel> _places = [];
-  PlaceModel? _selectedPlace;
   bool _isLoading = false;
   String? _errorMessage;
+  int _page = 0;
+  final int _pageSize = 20;
+  int _totalPages = 0;
+  int _totalElements = 0;
   String _categoryFilter = 'ALL';
   String _statusFilter = 'ALL'; // ALL, ACTIVE, HIDDEN
 
   bool get isAdmin {
-    final role = widget.authNotifier.currentUser?['role']?.toString().toUpperCase();
+    final role =
+        widget.authNotifier.currentUser?['role']?.toString().toUpperCase();
     return role == 'ADMIN';
   }
 
@@ -75,8 +88,18 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 350), () {
+      setState(() => _page = 0);
       _loadPlaces(showLoading: false);
     });
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final day = dt.day.toString().padLeft(2, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final year = dt.year.toString();
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year $hour:$min';
   }
 
   Future<void> _loadPlaces({bool showLoading = true}) async {
@@ -92,28 +115,27 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
     try {
       final categoryParam = _categoryFilter == 'ALL' ? null : _categoryFilter;
       final statusParam = _statusFilter == 'ALL' ? null : _statusFilter;
-      final keywordParam = _searchController.text.trim().isEmpty ? null : _searchController.text.trim();
+      final keywordParam = _searchController.text.trim().isEmpty
+          ? null
+          : _searchController.text.trim();
 
-      final list = await _repository.getAdminPlaces(
+      final res = await _repository.getAdminPlacesPaged(
         keyword: keywordParam,
         category: categoryParam,
         status: statusParam,
+        page: _page,
+        size: _pageSize,
+        token: widget.authNotifier.token,
       );
 
       if (mounted) {
         setState(() {
-          _places = list;
+          _places = res.content;
+          _totalPages = res.totalPages;
+          _totalElements = res.totalElements;
+          _page = res.page;
           _isLoading = false;
           _errorMessage = null;
-
-          if (_selectedPlace != null) {
-            final match = _places.where((p) => p.id == _selectedPlace!.id).firstOrNull;
-            _selectedPlace = match ?? (_places.isNotEmpty ? _places.first : null);
-          } else if (_places.isNotEmpty) {
-            _selectedPlace = _places.first;
-          } else {
-            _selectedPlace = null;
-          }
         });
       }
     } on ApiException catch (e) {
@@ -127,9 +149,17 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Lỗi không xác định khi tải danh sách địa điểm: ${e.toString()}';
+          _errorMessage =
+              'Lỗi không xác định khi tải danh sách địa điểm: ${e.toString()}';
         });
       }
+    }
+  }
+
+  void _onPageChanged(int newPage) {
+    if (newPage != _page && newPage >= 0) {
+      setState(() => _page = newPage);
+      _loadPlaces(showLoading: true);
     }
   }
 
@@ -155,7 +185,7 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
           latitude: latitude,
           longitude: longitude,
         );
-        await _repository.createPlace(req);
+        await _repository.createPlace(req, token: widget.authNotifier.token);
       },
     );
 
@@ -196,7 +226,8 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
           longitude: longitude,
           status: status ?? place.status,
         );
-        await _repository.updatePlace(place.id, req);
+        await _repository.updatePlace(place.id, req,
+            token: widget.authNotifier.token);
       },
     );
 
@@ -227,12 +258,298 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
             content: Text(place.isActive
                 ? 'Đã ẩn địa điểm "${place.name}".'
                 : 'Đã kích hoạt lại địa điểm "${place.name}".'),
-            backgroundColor: place.isActive ? AppColors.warning : AppColors.success,
+            backgroundColor:
+                place.isActive ? AppColors.warning : AppColors.success,
           ),
         );
       }
       await _loadPlaces(showLoading: false);
     }
+  }
+
+  void _showPlaceDetailDialog(PlaceModel place) {
+    AdminDialog.show<void>(
+      context: context,
+      width: 640,
+      title: 'Chi tiết Địa điểm #${place.id}',
+      titleBadge: AdminStatusBadge(status: place.status),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image Preview if available
+            if (place.imageUrl != null && place.imageUrl!.isNotEmpty) ...[
+              Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSubtle,
+                    border: Border.all(color: AppColors.border, width: 1),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    child: Image.network(
+                      place.imageUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        padding: const EdgeInsets.all(24),
+                        color: AppColors.surfaceSubtle,
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.broken_image,
+                                size: 40, color: AppColors.textMuted),
+                            SizedBox(height: 6),
+                            Text('Không thể tải hình ảnh địa điểm',
+                                style: TextStyle(
+                                    color: AppColors.textMuted, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+
+            // Badges row
+            Row(
+              children: [
+                _buildCategoryBadge(place.categoryDisplay),
+                const SizedBox(width: AppSpacing.sm),
+                AdminStatusBadge(status: place.status),
+                const SizedBox(width: AppSpacing.sm),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Text(
+                    'ID: #${place.id}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Place Name
+            Text(
+              place.name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Metadata rows
+            _buildDetailRow('Địa chỉ:', place.address,
+                icon: Icons.map_outlined),
+            if (place.administrativeAreaName != null &&
+                place.administrativeAreaName!.isNotEmpty)
+              _buildDetailRow('Khu vực:', place.administrativeAreaName!,
+                  icon: Icons.location_city_outlined),
+            _buildDetailRow('Tọa độ chuẩn hóa:', place.formattedCoordinates,
+                icon: Icons.explore_outlined, isSelectable: true),
+            if (place.description != null && place.description!.isNotEmpty)
+              _buildDetailRow('Mô tả:', place.description!,
+                  icon: Icons.notes_outlined),
+            if (place.createdAt != null)
+              _buildDetailRow('Ngày tạo:', _formatDateTime(place.createdAt!),
+                  icon: Icons.calendar_today_outlined),
+            if (place.updatedAt != null)
+              _buildDetailRow(
+                  'Cập nhật gần nhất:', _formatDateTime(place.updatedAt!),
+                  icon: Icons.update_outlined),
+
+            // Provider mappings if present
+            if (place.providerMappings.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'Nhà cung cấp định danh (Provider Mappings):',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: place.providerMappings.map((m) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      '${m.provider}: ${m.providerPlaceId}',
+                      style: const TextStyle(
+                          fontSize: 11.5,
+                          fontFamily: 'monospace',
+                          color: AppColors.textSecondary),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+
+            // Interactive Map Preview
+            if (place.hasCoordinates) ...[
+              const SizedBox(height: AppSpacing.md),
+              const Text(
+                'Vị trí trên bản đồ chuẩn hóa:',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 190,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.sm - 1),
+                  child: WebMapView(
+                    initialCenter: place.coordinate!,
+                    initialZoom: 15,
+                    markers: [
+                      Marker(
+                        point: place.coordinate!,
+                        width: 34,
+                        height: 34,
+                        child: const Icon(
+                          Icons.location_on,
+                          color: AppColors.primary,
+                          size: 30,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        OutlinedButton.icon(
+          icon: const Icon(Icons.edit_outlined, size: 14),
+          label: const Text('Chỉnh sửa', style: TextStyle(fontSize: 12.5)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textPrimary,
+            side: const BorderSide(color: AppColors.borderStrong),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          onPressed: () {
+            Navigator.of(context).pop();
+            _handleEditPlace(place);
+          },
+        ),
+        ElevatedButton.icon(
+          icon: Icon(
+            place.isActive
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            size: 14,
+          ),
+          label: Text(
+            place.isActive ? 'Ẩn địa điểm' : 'Kích hoạt lại',
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                place.isActive ? AppColors.warning : AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          onPressed: () {
+            Navigator.of(context).pop();
+            _handleToggleHidePlace(place);
+          },
+        ),
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AppColors.border),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.sm)),
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Đóng',
+              style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value,
+      {IconData? icon, bool isSelectable = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: AppColors.textMuted),
+            const SizedBox(width: 6),
+          ],
+          SizedBox(
+            width: 140,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          Expanded(
+            child: isSelectable
+                ? SelectableText(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  )
+                : Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -243,37 +560,49 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
-            child: Card(
-              margin: const EdgeInsets.all(24),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: AppColors.border),
+            child: Container(
+              margin: const EdgeInsets.all(AppSpacing.xxl),
+              padding: const EdgeInsets.all(AppSpacing.xxl),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.border),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.gpp_bad_outlined, size: 64, color: AppColors.error),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Truy cập bị từ chối',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.gpp_bad_outlined,
+                      size: 56, color: AppColors.error),
+                  const SizedBox(height: AppSpacing.md),
+                  const Text(
+                    'Truy cập bị từ chối',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  const Text(
+                    'Bạn cần quyền Quản trị viên (ADMIN) để xem và quản lý danh mục địa điểm.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        height: 1.5),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.arrow_back, size: 16),
+                    label: const Text('Quay lại'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm)),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Bạn cần quyền Quản trị viên (ADMIN) để xem và quản lý danh mục địa điểm.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.arrow_back),
-                      label: const Text('Quay lại'),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                  ],
-                ),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ],
               ),
             ),
           ),
@@ -282,583 +611,467 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
     }
 
     return Scaffold(
-      appBar: widget.embedded
-          ? null
-          : AppBar(
-              title: const Text('Quản lý Địa điểm Chuẩn hóa (Places)'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Làm mới',
+      backgroundColor: AppColors.background,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Standalone Enterprise Page Header
+          AdminPageHeader(
+            title: 'Quản lý Địa điểm Chuẩn hóa (Places)',
+            subtitle:
+                'Cơ sở dữ liệu địa điểm du lịch, ẩm thực, lưu trú đã được định danh và tọa độ hóa.',
+            actions: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadius.input),
+                  border: Border.all(color: AppColors.border, width: 1),
+                ),
+                child: Text(
+                  'Tổng: $_totalElements địa điểm',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              HoverMovement.button(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('Làm mới', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.borderStrong),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button)),
+                  ),
                   onPressed: () => _loadPlaces(showLoading: true),
                 ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-                    label: const Text('Thêm địa điểm'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    ),
-                    onPressed: _handleCreatePlace,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              HoverMovement.button(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.add_location_alt_outlined, size: 15),
+                  label: const Text('Thêm địa điểm',
+                      style: TextStyle(fontSize: 12.5)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button)),
                   ),
+                  onPressed: _handleCreatePlace,
                 ),
-              ],
-            ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 960;
-          return Column(
-            children: [
-              if (widget.embedded) _buildEmbeddedToolbar(),
-              _buildFilterBar(),
-              const Divider(height: 1, color: AppColors.border),
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                    : _errorMessage != null
-                        ? _buildErrorView()
-                        : isWide
-                            ? _buildWideLayout()
-                            : _buildCompactLayout(),
               ),
             ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildEmbeddedToolbar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.place_outlined, size: 20, color: AppColors.primary),
-          const SizedBox(width: 8),
-          const Text(
-            'Danh sách Địa điểm Chuẩn hóa (Places)',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
           ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.refresh, size: 20),
-            tooltip: 'Làm mới',
-            onPressed: () => _loadPlaces(showLoading: true),
+
+          // Standard Admin Toolbar (Search, Category Filter, Status Filter)
+          AdminToolbar(
+            filters: [
+              // Search input
+              SizedBox(
+                width: 260,
+                height: 32,
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  style: const TextStyle(fontSize: 12.5),
+                  decoration: InputDecoration(
+                    hintText: 'Tìm kiếm theo tên hoặc địa chỉ...',
+                    hintStyle: const TextStyle(
+                        fontSize: 12, color: AppColors.textMuted),
+                    prefixIcon: const Icon(Icons.search,
+                        size: 16, color: AppColors.textMuted),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 14),
+                            splashRadius: 14,
+                            padding: EdgeInsets.zero,
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _page = 0);
+                              _loadPlaces(showLoading: false);
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 0, horizontal: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      borderSide: const BorderSide(color: AppColors.primaryAccessible),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Category dropdown
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Danh mục: ',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary)),
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _categoryFilter,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textPrimary),
+                        items: _categories.map((c) {
+                          return DropdownMenuItem(
+                              value: c['value'], child: Text(c['label']!));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null && val != _categoryFilter) {
+                            setState(() {
+                              _categoryFilter = val;
+                              _page = 0;
+                            });
+                            _loadPlaces();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Status dropdown
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Trạng thái: ',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary)),
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _statusFilter,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textPrimary),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'ALL', child: Text('Tất cả trạng thái')),
+                          DropdownMenuItem(
+                              value: 'ACTIVE',
+                              child: Text('Đang hoạt động')),
+                          DropdownMenuItem(
+                              value: 'HIDDEN', child: Text('Đã ẩn')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null && val != _statusFilter) {
+                            setState(() {
+                              _statusFilter = val;
+                              _page = 0;
+                            });
+                            _loadPlaces();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.add_location_alt_outlined, size: 16),
-            label: const Text('Thêm địa điểm'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            ),
-            onPressed: _handleCreatePlace,
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildCategoryDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSoft,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _categoryFilter,
-          icon: const Icon(Icons.category_outlined, size: 20, color: AppColors.textSecondary),
-          items: _categories.map((c) {
-            return DropdownMenuItem(value: c['value'], child: Text(c['label']!));
-          }).toList(),
-          onChanged: (val) {
-            if (val != null && val != _categoryFilter) {
-              setState(() => _categoryFilter = val);
-              _loadPlaces();
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSoft,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _statusFilter,
-          icon: const Icon(Icons.filter_list, size: 20, color: AppColors.textSecondary),
-          items: const [
-            DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
-            DropdownMenuItem(value: 'ACTIVE', child: Text('Đang hoạt động')),
-            DropdownMenuItem(value: 'HIDDEN', child: Text('Đã ẩn')),
-          ],
-          onChanged: (val) {
-            if (val != null && val != _statusFilter) {
-              setState(() => _statusFilter = val);
-              _loadPlaces();
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterBar() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 850;
-
-        final searchField = TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          decoration: InputDecoration(
-            hintText: 'Tìm kiếm theo tên hoặc địa chỉ địa điểm...',
-            prefixIcon: const Icon(Icons.search, color: AppColors.muted),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 18),
-                    onPressed: () {
-                      _searchController.clear();
-                      _loadPlaces(showLoading: false);
-                    },
-                  )
-                : null,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSoft,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-          ),
-        );
-
-        if (isNarrow) {
-          return Container(
-            color: AppColors.surface,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                searchField,
-                const SizedBox(height: 12),
-                Row(
+          // Error Banner if server/network failure
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.errorBorder, width: 1),
+                ),
+                child: Row(
                   children: [
-                    Expanded(child: _buildCategoryDropdown()),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildStatusDropdown()),
+                    const Icon(Icons.error_outline,
+                        size: 16, color: AppColors.error),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _loadPlaces(showLoading: true),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: AppColors.error,
+                      ),
+                      child: const Text('Thử lại',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
                   ],
                 ),
-              ],
-            ),
-          );
-        }
-
-        return Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: searchField,
-              ),
-              const SizedBox(width: 12),
-              _buildCategoryDropdown(),
-              const SizedBox(width: 12),
-              _buildStatusDropdown(),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildErrorView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-            const SizedBox(height: 12),
-            Text(
-              _errorMessage ?? 'Đã xảy ra lỗi khi tải dữ liệu.',
-              style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Thử lại'),
-              onPressed: () => _loadPlaces(showLoading: true),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWideLayout() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(flex: 6, child: _buildPlacesList()),
-        const VerticalDivider(width: 1, color: AppColors.border),
-        Expanded(
-          flex: 5,
-          child: _selectedPlace != null
-              ? _buildPlaceDetailPanel(_selectedPlace!)
-              : _buildEmptyDetailPlaceholder(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCompactLayout() {
-    return _buildPlacesList();
-  }
-
-  Widget _buildPlacesList() {
-    if (_places.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.place_outlined, size: 56, color: AppColors.muted),
-              const SizedBox(height: 16),
-              const Text(
-                'Không tìm thấy địa điểm nào',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Thử thay đổi bộ lọc tìm kiếm hoặc thêm địa điểm chuẩn hóa mới.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_location_alt_outlined),
-                label: const Text('Thêm địa điểm ngay'),
-                onPressed: _handleCreatePlace,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _places.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final place = _places[index];
-        final isSelected = _selectedPlace?.id == place.id;
-
-        return InkWell(
-          onTap: () {
-            setState(() => _selectedPlace = place);
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.primary.withValues(alpha: 0.05) : AppColors.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isSelected ? AppColors.primary : AppColors.border,
-                width: isSelected ? 1.5 : 1.0,
               ),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Thumbnail
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    color: AppColors.surfaceSoft,
-                    child: place.imageUrl != null && place.imageUrl!.isNotEmpty
-                        ? Image.network(
-                            place.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, color: AppColors.muted),
-                          )
-                        : const Icon(Icons.image_not_supported_outlined, color: AppColors.muted),
-                  ),
-                ),
-                const SizedBox(width: 12),
 
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              place.name,
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+          // Places Data Table Workspace
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final dynamicAddressWidth =
+                      (constraints.maxWidth - 780).clamp(200.0, 600.0);
+                  final dynamicNameWidth =
+                      (constraints.maxWidth > 1200) ? 260.0 : 180.0;
+
+                  return AdminDataTable(
+                    isLoading: _isLoading,
+                    minWidth: constraints.maxWidth.isFinite
+                        ? constraints.maxWidth
+                        : 880.0,
+                    emptyMessage: _searchController.text.isNotEmpty
+                        ? 'Không tìm thấy địa điểm nào khớp với từ khóa "${_searchController.text}".'
+                        : 'Không tìm thấy địa điểm nào',
+                    currentPage: _page,
+                    totalPages: _totalPages,
+                    totalElements: _totalElements,
+                    pageSize: _pageSize,
+                    onPageChanged: _onPageChanged,
+                    columns: [
+                      AdminDataColumn.text('ID', numeric: true),
+                      AdminDataColumn.text('TÊN ĐỊA ĐIỂM'),
+                      AdminDataColumn.text('DANH MỤC'),
+                      AdminDataColumn.text('ĐỊA CHỈ'),
+                      AdminDataColumn.text('KHU VỰC'),
+                      AdminDataColumn.text('TỌA ĐỘ'),
+                      AdminDataColumn.text('TRẠNG THÁI'),
+                      AdminDataColumn.text('THAO TÁC'),
+                    ],
+                    rows: _places.map((place) {
+                      return AdminDataRow(
+                        onTap: () => _showPlaceDetailDialog(place),
+                        cells: [
+                          Text(
+                            '#${place.id}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 12.5),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ClipRRect(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.sm),
+                                child: Container(
+                                  width: 28,
+                                  height: 28,
+                                  color: AppColors.surfaceSubtle,
+                                  child: place.imageUrl != null &&
+                                          place.imageUrl!.isNotEmpty
+                                      ? Image.network(
+                                          place.imageUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error,
+                                                  stackTrace) =>
+                                              const Icon(Icons.broken_image,
+                                                  size: 16,
+                                                  color: AppColors.textMuted),
+                                        )
+                                      : const Icon(Icons.place_outlined,
+                                          size: 16, color: AppColors.textMuted),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                    minWidth: 140, maxWidth: dynamicNameWidth),
+                                child: Tooltip(
+                                  message: place.name,
+                                  waitDuration:
+                                      const Duration(milliseconds: 400),
+                                  child: Text(
+                                    place.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12.5),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           _buildCategoryBadge(place.categoryDisplay),
-                          const SizedBox(width: 6),
-                          _buildStatusBadge(place.status),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        place.address,
-                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Icon(Icons.explore_outlined, size: 14, color: AppColors.muted),
-                          const SizedBox(width: 4),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                                minWidth: 200, maxWidth: dynamicAddressWidth),
+                            child: Tooltip(
+                              message: place.address,
+                              waitDuration:
+                                  const Duration(milliseconds: 400),
+                              child: Text(
+                                place.address,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ),
                           Text(
-                            place.formattedCoordinates,
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            place.administrativeAreaName ?? '-',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                          Tooltip(
+                            message: place.hasCoordinates
+                                ? 'Tọa độ: ${place.latitude}, ${place.longitude}'
+                                : 'Chưa có tọa độ',
+                            child: Text(
+                              place.hasCoordinates
+                                  ? '${place.latitude!.toStringAsFixed(4)}, ${place.longitude!.toStringAsFixed(4)}'
+                                  : '-',
+                              style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontFamily: 'monospace',
+                                  color: AppColors.textSecondary),
+                            ),
+                          ),
+                          AdminStatusBadge(status: place.status),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              HoverMovement.button(
+                                child: Tooltip(
+                                  message: 'Xem chi tiết địa điểm',
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        _showPlaceDetailDialog(place),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.textSecondary,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6),
+                                    ),
+                                    child: const Text('Chi tiết',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                                ),
+                              ),
+                              HoverMovement.button(
+                                child: Tooltip(
+                                  message: 'Chỉnh sửa thông tin địa điểm',
+                                  child: TextButton(
+                                    onPressed: () => _handleEditPlace(place),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor:
+                                          AppColors.primaryAccessible,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6),
+                                    ),
+                                    child: const Text('Sửa',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600)),
+                                  ),
+                                ),
+                              ),
+                              HoverMovement.button(
+                                child: Tooltip(
+                                  message: place.isActive
+                                      ? 'Tạm ẩn địa điểm khỏi bản đồ'
+                                      : 'Kích hoạt lại địa điểm trên bản đồ',
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        _handleToggleHidePlace(place),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: place.isActive
+                                          ? AppColors.warning
+                                          : AppColors.success,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6),
+                                    ),
+                                    child: Text(
+                                      place.isActive ? 'Ẩn' : 'Kích hoạt',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPlaceDetailPanel(PlaceModel place) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Action row
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  place.name,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                ),
-              ),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Chỉnh sửa'),
-                onPressed: () => _handleEditPlace(place),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: place.isActive ? AppColors.warning : AppColors.success,
-                  foregroundColor: Colors.white,
-                ),
-                icon: Icon(
-                  place.isActive ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  size: 16,
-                ),
-                label: Text(place.isActive ? 'Ẩn' : 'Kích hoạt'),
-                onPressed: () => _handleToggleHidePlace(place),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Badges
-          Row(
-            children: [
-              _buildCategoryBadge(place.categoryDisplay),
-              const SizedBox(width: 8),
-              _buildStatusBadge(place.status),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceSoft,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Text(
-                  'ID: #${place.id}',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Image if present
-          if (place.imageUrl != null && place.imageUrl!.isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 180,
-                width: double.infinity,
-                color: AppColors.surfaceSoft,
-                child: Image.network(
-                  place.imageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const Center(
-                    child: Text('Không thể tải ảnh', style: TextStyle(color: AppColors.textSecondary)),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Address
-          _buildInfoRow(Icons.map_outlined, 'Địa chỉ', place.address),
-          const SizedBox(height: 12),
-
-          // Coordinates
-          _buildInfoRow(Icons.explore_outlined, 'Tọa độ chuẩn hóa', place.formattedCoordinates),
-          const SizedBox(height: 12),
-
-          // Description
-          if (place.description != null && place.description!.isNotEmpty) ...[
-            _buildInfoRow(Icons.notes_outlined, 'Mô tả', place.description!),
-            const SizedBox(height: 12),
-          ],
-
-          // Map preview
-          if (place.hasCoordinates) ...[
-            const SizedBox(height: 8),
-            const Text(
-              'Vị trí trên bản đồ',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 220,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: WebMapView(
-                  initialCenter: place.coordinate!,
-                  initialZoom: 15,
-                  markers: [
-                    Marker(
-                      point: place.coordinate!,
-                      width: 36,
-                      height: 36,
-                      child: const Icon(Icons.location_on, color: AppColors.primary, size: 32),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String title, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: AppColors.muted),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.4)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyDetailPlaceholder() {
-    return const Center(
-      child: Text(
-        'Chọn một địa điểm từ danh sách để xem chi tiết.',
-        style: TextStyle(color: AppColors.textSecondary),
       ),
     );
   }
 
   Widget _buildCategoryBadge(String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.border),
       ),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
-    final isActive = status.toUpperCase() == 'ACTIVE';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: isActive ? AppColors.success.withValues(alpha: 0.1) : AppColors.warning.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        isActive ? 'ACTIVE' : 'HIDDEN',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: isActive ? AppColors.success : AppColors.warning,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textSecondary,
         ),
       ),
     );

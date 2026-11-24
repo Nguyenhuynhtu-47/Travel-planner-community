@@ -273,8 +273,8 @@ void main() {
     expect(notifier.isAuthenticated, isTrue);
     expect(notifier.currentUser?['role'], 'ADMIN');
     expect(find.byType(AdminShell), findsOneWidget);
-    expect(find.text('Admin Portal'), findsOneWidget);
-    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Cổng quản trị'), findsOneWidget);
+    expect(find.text('Tổng quan'), findsWidgets);
     expect(find.textContaining('Trung tâm Quản trị Travel Planner'), findsOneWidget);
   });
 
@@ -337,8 +337,8 @@ void main() {
 
     expect(notifier.isAuthenticated, isTrue);
     expect(find.byType(AdminShell), findsOneWidget);
-    expect(find.text('Admin Portal'), findsOneWidget);
-    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Cổng quản trị'), findsOneWidget);
+    expect(find.text('Tổng quan'), findsWidgets);
     expect(find.textContaining('Trung tâm Quản trị Travel Planner'), findsOneWidget);
   });
 }

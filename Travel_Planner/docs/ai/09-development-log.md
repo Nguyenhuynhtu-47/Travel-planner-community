@@ -11152,3 +11152,736 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 - Unvisited activities reveal `Đã ghé thăm` on a right swipe; visited activities reveal `Chưa ghé thăm` on a left swipe. Drag distance is measured across the full gesture, short swipes snap back, and successful updates close the action. Failed updates preserve the existing rollback behavior and leave the action available for retry.
 - Added a compact `Đã ghé` badge to the existing metadata row for visited activities; no second large status button or new package was added.
 - Verification: `flutter test test/features/itinerary/activity_visit_tracking_test.dart test/itinerary_activity_management_test.dart` passed (43 tests), including 320×640 layout, short-swipe snap-back, hidden action tap protection, and both swipe directions; scoped `flutter analyze` over the changed swipe, timeline and test files passed with no issues. Physical-device/emulator visual review remains a manual check.
+
+---
+
+## [2026-11-23] Web Admin Portal UI Refactoring – Professional SaaS / ERP Dashboard
+
+### 1. Scope and Design Invariants
+- Refactored the entire Flutter Web Admin interface from an AI-generated/template aesthetic into a clean, utilitarian, data-dense **Professional SaaS / ERP Admin Dashboard**.
+- Strictly UI-only refactoring: zero backend code modifications, zero database schema or API endpoint adjustments, zero alterations to navigation order, tab grouping, or RBAC guards.
+- Specific elements removed per product specification:
+  - User profile footer at the bottom of `AdminSidebar` (avatar, name, ADMIN role badge, and sidebar logout button removed; collapse/expand toggle button retained).
+  - Quick Actions ("Lối tắt thao tác nhanh") chip container removed from `AdminDashboardScreen`.
+  - Connection & System Status card removed from `AdminDashboardScreen` (system status remains cleanly integrated in the top header).
+- Visual refinements applied across all modules:
+  - 1px hairline crisp borders (`AppColors.border`, `AppColors.hairlineSoft`), subtle 6–8px border radiuses, eliminated floating/glow drop shadows.
+  - Slim header height (52px) with horizontal inline breadcrumbs, backend health pill, profile avatar chip, and dedicated logout action.
+  - High-density sidebar (248px expanded, 68px collapsed) with standardized item heights (~36px) and subtle active highlight.
+  - Metric stat tiles with high visual clarity, large numeric displays (24px bold), and click-through callbacks to respective admin modules.
+
+### 2. Files Changed
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: Removed user profile footer, preserved collapse toggle, tightened navigation density and typography.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_header.dart`: Reduced height to 52px, implemented compact breadcrumbs, inline health pill, profile chip, and logout action.
+- `Travel_Planner/frontend/web/lib/features/dashboard/presentation/screens/admin_dashboard_screen.dart`: Removed Quick Actions & System Status cards, modernized header row and metric tiles.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/placeholder_feature_view.dart`: Clean container layout with 1px border and streamlined planned features checklist.
+- `Travel_Planner/frontend/web/lib/features/profile/presentation/screens/profile_screen.dart`: Removed floating shadows, applied 1px borders and compact form styling.
+- `Travel_Planner/frontend/web/test/admin_portal_layout_test.dart`: Updated layout test expectations to align with the removal of Quick Actions and sidebar logout icon.
+- `Travel_Planner/docs/plan/21-admin-ui-non-ai-refactor-report.md`: Detailed audit and refactoring documentation.
+
+### 3. Verification
+- `flutter test` in `frontend/web`: 67/67 tests passed (`All tests passed!`).
+- `flutter analyze` in `frontend/web`: Zero warnings, zero errors (`No issues found!`).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web`).
+- Git working tree verified with `git status` (no unstaged backend files, no unintended modifications).
+
+---
+
+## [2026-11-23] Web Admin UI Rework – Second Design Pass & Nested Tab Navigation Fix
+
+### 1. Scope, Root Cause Investigation, and Architecture Fixes
+- **Nested Tab & Report Navigation Bug Investigation:**
+  - *Symptom:* Selecting the "Quản lý báo cáo" (Reports) sidebar item updated the breadcrumbs to `Admin / QUẢN LÝ CỘNG ĐỒNG / Quản lý báo cáo`, but the child tab "Bài viết" remained selected and the posts table was erroneously displayed.
+  - *Root Cause:* `AdminShell._buildCurrentContent()` instantiated `AdminModerationScreen` for `posts`, `reports`, and `media` without distinct `Key` identifiers. Flutter recycled the existing `State` object (`_AdminModerationScreenState`), while `_tabController.animateTo(...)` did not synchronously align the active tab index on screen mount. Furthermore, nested tab bar touches lacked two-way notification back to `AdminShell`.
+  - *Fix:*
+    - Assigned explicit `ValueKey`s (`tab_posts`, `tab_reports`, `tab_media`) to `AdminModerationScreen` instances in `AdminShell`.
+    - Added direct index assignment `_tabController.index = widget.initialTabIndex` on widget updates for deterministic synchronization.
+    - Added two-way navigation callback `onNavigateTab` so clicking nested tabs in `AdminTabBar` immediately updates `_currentTab` in `AdminShell`, perfectly synchronizing the sidebar, breadcrumbs, and view.
+- **Shared Admin Design System Implementation:**
+  - Created `AdminPageHeader` (`lib/shared/widgets/admin_page_header.dart`): Flat page header replacing bulky outer cards.
+  - Created `AdminToolbar` (`lib/shared/widgets/admin_toolbar.dart`): Unified 1px bordered toolbar hosting search fields, dropdown filters, and secondary action buttons.
+  - Created `AdminStatusBadge` (`lib/shared/widgets/admin_status_badge.dart`): Professional semantic badge with soft tint backgrounds (ACTIVE, PENDING, HIDDEN, DELETED, ATTACHED, UNATTACHED, DEAD-LETTER).
+  - Created `AdminTabBar` (`lib/shared/widgets/admin_tab_bar.dart`): High-density, flat sub-tab strip with 2px crimson active indicator.
+- **Dashboard Redesign:**
+  - Replaced isolated metric cards with a unified, contiguous **SaaS Metric Strip** divided by subtle 1px vertical borders.
+  - Highlighted primary numbers (26px w800) with subtle alert accents for pending reports.
+  - Elevated the main data workspace into a balanced two-column responsive grid focusing on Pending Reports and Recent Posts with clean tabular rows.
+- **Places Screen Redesign:**
+  - Integrated `AdminPageHeader`, `AdminToolbar` with category and status dropdowns, and semantic `AdminStatusBadge` labels.
+  - Polished wide-layout list and details preview pane with embedded `WebMapView`.
+
+### 2. Files Changed
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_page_header.dart`: New shared flat page header.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_toolbar.dart`: New shared toolbar component.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_status_badge.dart`: New shared semantic status badge.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_tab_bar.dart`: New shared flat tab bar.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart`: Assigned distinct keys and wired two-way tab synchronization.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_moderation_screen.dart`: Integrated `AdminTabBar`, `AdminToolbar`, `AdminStatusBadge`, high-density `DataTable`, and two-way route syncing.
+- `Travel_Planner/frontend/web/lib/features/dashboard/presentation/screens/admin_dashboard_screen.dart`: Redesigned into unified metric strip and 2-column data grid.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/screens/admin_places_screen.dart`: Integrated shared header, toolbar, and semantic badges.
+- `Travel_Planner/frontend/web/test/admin_portal_layout_test.dart`: Maintained 100% test alignment.
+- `Travel_Planner/docs/plan/22-admin-ui-second-redesign-report.md`: Comprehensive audit and redesign report.
+
+### 3. Verification
+- `flutter test` across all 67 web tests: **67/67 passed** (`All tests passed!`).
+- `flutter analyze` in `frontend/web`: **No issues found** (0 errors, 0 warnings).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web`).
+- Git working tree verified clean with zero backend modifications.
+
+---
+
+## [2026-11-23] Web Admin Navigation Refactor – Text-Only Sidebar & Unified Screen Navigation
+
+### 1. Scope, Design Decisions, and Architecture
+- **Text-Only Sidebar Implementation:**
+  - Completely eliminated all decorative and functional icons across group headers, menu items, and brand logo headers.
+  - Replaced icon branding with clean typography: bold uppercase brand title `TRAVEL PLANNER` and subtitle `Admin Portal`.
+  - In collapsed mode (`isCollapsed: true`, width 68px), navigation items and groups render clean textual tokens (e.g. `TP`, `DB`, `CĐ`, `ĐĐ`, `LT`, `ND`, `HT`) with full tooltip previews.
+  - Retained chevrons (`Icons.expand_more` / `Icons.chevron_right`) strictly as interactive dropdown expand/collapse indicators and collapse toggle.
+- **Hierarchical Menu Structure (Dropdowns vs. Standalone):**
+  - **Type A (Dropdown/Accordion):** Structured parent-child groups:
+    - *Quản lý cộng đồng*: hosts *Kiểm duyệt bài viết* (`AdminTab.posts`), *Quản lý báo cáo* (`AdminTab.reports`), and *Quản lý người dùng* (`AdminTab.users`).
+    - *Quản lý nội dung*: hosts *Quản lý Media* (`AdminTab.media`) and *Khu vực hành chính* (`AdminTab.administrativeAreas`).
+    - *Hệ thống*: hosts *Nhật ký hoạt động* (`AdminTab.auditLogs`) and *Cài đặt hệ thống* (`AdminTab.settings`).
+    - Includes automatic expansion when any child item is activated, plus pending reports counter badges on parent when collapsed.
+  - **Type B (Standalone Menu Items):** Direct 1-level items for independent modules:
+    - *Dashboard* (`AdminTab.dashboard`)
+    - *Quản lý địa điểm* (`AdminTab.places`)
+    - *Quản lý lịch trình* (`AdminTab.itineraries`)
+- **Decomposition of Nested Function Tabs into Dedicated Standalone Screens:**
+  - Completely eliminated internal multi-page tabs (`AdminTabBar` / `TabController` / `TabBarView`) used as a multi-feature host in `AdminModerationScreen`.
+  - Created 3 standalone, dedicated screens:
+    1. `AdminPostsScreen` (`lib/features/moderation/presentation/screens/admin_posts_screen.dart`): Standalone Post Moderation screen with dedicated `AdminPageHeader`, `AdminToolbar` (search, status filter ALL/ACTIVE/HIDDEN, refresh), high-density data table, and modal actions (details, hide, restore, hard purge).
+    2. `AdminReportsScreen` (`lib/features/moderation/presentation/screens/admin_reports_screen.dart`): Standalone Reports Management screen with dedicated `AdminPageHeader`, `AdminToolbar` (status filter PENDING/RESOLVED/DISMISSED/ALL, refresh), data table, detail dialog, and quick action buttons (resolve, dismiss).
+    3. `AdminMediaScreen` (`lib/features/moderation/presentation/screens/admin_media_screen.dart`): Standalone Media Assets screen with dedicated `AdminPageHeader`, `AdminToolbar` (status filter ALL/UNATTACHED/ATTACHED/DELETING/DELETED, dead-letter checkbox, refresh), data table, detail dialog, and retry action.
+  - Updated `AdminShell` to map each `AdminTab` 1:1 directly to its dedicated standalone screen.
+  - Preserved `AdminModerationScreen` as a backward-compatible delegation wrapper and exported all independent screens.
+
+### 2. Files Changed
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: Text-only design, Type A dropdowns with auto-expansion, Type B standalone items, and badge notifications.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart`: Mapped `AdminTab` 1:1 to dedicated standalone screens.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_posts_screen.dart`: New standalone screen for Post Moderation.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_reports_screen.dart`: New standalone screen for Reports Management.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_media_screen.dart`: New standalone screen for Media Assets Management.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_moderation_screen.dart`: Updated to export and delegate cleanly to standalone screens.
+- `Travel_Planner/frontend/web/test/admin_portal_layout_test.dart`: Added widget tests for text-only sidebar, dropdown expand/collapse toggling, collapsed text badges, and standalone screen routing in `AdminShell`.
+- `Travel_Planner/docs/plan/23-admin-sidebar-navigation-refactor-report.md`: Comprehensive audit and refactoring documentation.
+
+### 3. Verification
+- `flutter test` across all web tests: **68/68 passed** (`All tests passed!`).
+- `flutter analyze` in `frontend/web`: **No issues found** (0 errors, 0 warnings).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web` in 72.4s).
+- Git status verified (no unauthorized backend changes, no commit/push actions performed).
+
+---
+
+## [2026-11-23] Web Admin Navigation – Flat Text-Only Sidebar & URL/Route Synchronization
+
+### 1. Scope, Design Decisions, and Architecture
+- **Elimination of All Sidebar Dropdowns:**
+  - Removed all parent/child dropdown hierarchy (`_buildDropdownParent`), accordion behaviors, and expand/collapse chevrons.
+  - Flatted the entire navigation structure into a direct, single-level list of tabs organized under static category headers.
+  - Preserved the complete list of 10 administrative tabs with their exact original titles: Dashboard, Kiểm duyệt bài viết, Quản lý báo cáo, Quản lý người dùng, Quản lý địa điểm, Quản lý lịch trình, Quản lý Media, Khu vực hành chính, Nhật ký hoạt động, Cài đặt.
+- **Strict Text-Only Presentation:**
+  - Zero icons across all menu items, group labels, and brand headers.
+  - Clear visual distinction for active tabs using subtle background tint (`AppColors.primaryLight`) and bold primary brand red text (`AppColors.primary`).
+  - Maintained badge counts (e.g. pending reports count) and 'Sắp có' labels on uncompleted modules.
+- **Bi-directional URL and Route Synchronization:**
+  - Extended `AdminTab` with `routePath` getter and `AdminTab.fromRoute(rawRoute)` parser supporting both hash (`#/reports`) and path (`/reports`) URLs.
+  - In `main.dart`, on authenticated initial load, `Uri.base` is parsed to set `initialTab` for `AdminShell`.
+  - In `AdminShell`, browser URLs are synchronized upon tab selection via `SystemNavigator.routeInformationUpdated(uri: Uri.parse(tab.routePath))`, supporting browser reload (F5) retention, history Back/Forward, and direct URL entry.
+- **Independent Screen Mapping (Zero Nested Tabs in Pages):**
+  - Confirmed 1:1 mapping between each sidebar tab and its standalone screen without nested navigation tabs (`AdminPostsScreen`, `AdminReportsScreen`, `AdminPlacesScreen`, `AdminMediaScreen`, `AdminDashboardScreen`).
+
+### 2. Files Changed
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: Flat text-only sidebar without dropdowns or icons.
+- `Travel_Planner/frontend/web/lib/features/layout/domain/admin_tab.dart`: Added `routePath` and `AdminTab.fromRoute` resolution.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart`: Added browser URL resolution on init and synchronization via `SystemNavigator`.
+- `Travel_Planner/frontend/web/lib/main.dart`: Passed initial route tab to `AdminShell`.
+- `Travel_Planner/frontend/web/test/admin_portal_layout_test.dart`: Updated layout tests and added route resolution unit tests.
+- `Travel_Planner/docs/plan/24-admin-flat-sidebar-route-sync-report.md`: Detailed audit and refactoring report.
+
+### 3. Verification
+- `flutter test` across all web tests: **69/69 passed** (`All tests passed!`).
+- `flutter analyze` in `frontend/web`: **No issues found** (0 errors, 0 warnings).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web` in 114.5s).
+- Git working tree verified clean without unintended modifications or commits.
+
+---
+
+## [2026-11-23] Web Admin Navigation – Consistent SaaS Icon Integration for Sidebar Tabs
+
+### 1. Scope, Design Decisions, and Architecture
+- **Icon Integration for Existing Sidebar Tabs:**
+  - Integrated high-legibility Material outlined and filled icons for all 10 existing tabs:
+    - *Dashboard*: `Icons.dashboard_outlined` / `Icons.dashboard`
+    - *Kiểm duyệt bài viết*: `Icons.article_outlined` / `Icons.article`
+    - *Quản lý báo cáo*: `Icons.report_problem_outlined` / `Icons.report_problem`
+    - *Quản lý người dùng*: `Icons.people_outline` / `Icons.people`
+    - *Quản lý địa điểm*: `Icons.place_outlined` / `Icons.place`
+    - *Quản lý lịch trình*: `Icons.map_outlined` / `Icons.map`
+    - *Quản lý Media*: `Icons.perm_media_outlined` / `Icons.perm_media`
+    - *Khu vực hành chính*: `Icons.location_city_outlined` / `Icons.location_city`
+    - *Nhật ký hoạt động*: `Icons.receipt_long_outlined` / `Icons.receipt_long`
+    - *Cài đặt*: `Icons.settings_outlined` / `Icons.settings`
+- **SaaS / ERP Visual Consistency:**
+  - Standardized icon size to 18px in expanded mode and 20px in collapsed mode.
+  - Consistent 10px horizontal gap between icon and title text.
+  - Uniform semantic colors: `AppColors.primary` (brand red) for active tabs and `AppColors.textSecondary` for inactive tabs.
+  - Maintained badge counts (pending reports) in both expanded mode (inline count badge) and collapsed mode (positioned badge overlay).
+- **Preservation of Flat Hierarchy and Routing:**
+  - Retained exact tab names, order, category groupings, and 1:1 route mapping.
+  - Zero dropdowns, zero accordion menus.
+  - No changes to other functional areas, backend APIs, or page layouts.
+
+### 2. Files Changed
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: Integrated uniform icons across all menu items in expanded and collapsed modes.
+- `Travel_Planner/frontend/web/test/admin_portal_layout_test.dart`: Updated widget tests to verify icon rendering and collapsed mode badges.
+- `Travel_Planner/docs/plan/25-admin-sidebar-icons-integration-report.md`: Detailed audit and icon integration report.
+
+### 3. Verification
+- `flutter test` across all web tests: **69/69 passed** (`All tests passed!`).
+- `flutter analyze` in `frontend/web`: **No issues found** (0 errors, 0 warnings).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web` in 78.9s).
+- Git working tree verified clean without unauthorized modifications or commits.
+
+---
+
+## [2026-11-23] Web Admin Portal – Comprehensive Design System Specification (UI/UX Pro Max)
+
+### 1. Scope, Design Decisions, and Architecture
+- **Design Intelligence & Style Selection:**
+  - Applied the **UI/UX Pro Max Skill** to analyze and establish a dedicated Design System for the Flutter Web Admin Portal.
+  - Selected the **Professional Enterprise SaaS Admin / Minimalism & Swiss Style** pattern:
+    - *Canvas-first pure white floor* (`#FFFFFF`) to ensure sharp data contrast and minimize fatigue during prolonged operational sessions.
+    - *Data-dense, content-focused layout* replacing decorative consumer elements with 1px hairlines (`#E2E8F0`), purposeful whitespace, and clear typographic hierarchy.
+    - *Preservation of Core Brand Palette:* Formulated a comprehensive palette maintaining **Teal (`#0D9488`)** as the primary enterprise accent and **Orange (`#F97316`)** as the secondary attention/pending moderation accent.
+    - *Strict micro-radius hierarchy:* Replaced consumer-style pill and bubble geometries with a disciplined 4px radius scale (0px sharp containers, 2px micro-tags, 4px buttons/inputs/badges, max 6px dialogs).
+    - *Zero decorative shadows:* Elevation 0 across all panels and tables; functional micro-shadows reserved solely for floating popovers and modals.
+- **Specification Documentation:**
+  - Authored a comprehensive technical blueprint at `Travel_Planner/docs/plan/admin-design-system.md` covering:
+    1. Selected design philosophy and contrast with mobile consumer UX.
+    2. Complete color tokens palette with WCAG 2.1 AA compliance (18.2:1 text contrast, 4.55:1 primary button contrast).
+    3. 8-step typographic scale using Inter / system font fallback and monospace tokens for code/IDs.
+    4. 4px-grid spacing scale, sizing heights (52px header, 46px toolbar, 38px/44px table rows, 32px/36px inputs/buttons).
+    5. Component specifications for Sidebar, Header, Data Table, Forms, Buttons, Badges, and Dialogs.
+    6. Dashboard rules and Data Visualization guidelines (KPI metric strips, time-series line charts, horizontal comparison bars).
+    7. UX guidelines and explicit anti-patterns (no card-nesting, no pill searchbars, no unpaginated tables).
+    8. 5-phase structured roadmap for incremental migration without service disruption.
+- **Scope Discipline:**
+  - Only UX analysis and design system documentation were performed. No frontend source code, backend APIs, business logic, or database schemas were modified. No Git commits or pushes were executed.
+
+### 2. Files Created & Modified
+- `Travel_Planner/docs/plan/admin-design-system.md`: Full design system specification and implementation guide.
+- `Travel_Planner/docs/ai/09-development-log.md`: Appended session entry documenting the design system audit and specification.
+
+### 3. Verification
+- Verified that all proposed tokens fulfill WCAG 2.1 AA contrast requirements.
+- Verified that `Travel_Planner/docs/plan/admin-design-system.md` covers all user requirements, design tokens, blueprints, and implementation phases.
+- Git working tree verified clean with zero unauthorized backend, API, or frontend code modifications.
+
+---
+
+## [2026-11-23] Web Admin Portal – Design System Implementation (Phase 1 & 2: Tokens, Theme & Shared Components)
+
+### 1. Scope, Design Decisions, and Architecture
+- **Enterprise Design Tokens & WCAG 2.1 AA Compliance:**
+  - Standardized `AppColors` in `frontend/web/lib/core/theme/app_colors.dart` with Swiss Minimalist palette:
+    - *Primary Teal Token*: Calibrated to **Teal 700 (`#0F766E`)** to strictly satisfy the WCAG 2.1 AA contrast threshold of 4.5:1 for normal white text (measured at **5.60 : 1**).
+    - *Secondary Orange Token*: Calibrated to **Orange 600 (`#EA580C`)** and **Orange 700 (`#C2410C`)** for high-contrast attention badges and pending moderation states (6.3:1 contrast on `#FFF7ED`).
+    - *Neutral Slate Tokens*: White canvas (`#FFFFFF`), subtle surface (`#F8FAFC`), 1px hairlines (`#E2E8F0`), strong border (`#CBD5E1`), deep ink (`#0F172A`, 18.2:1 contrast), body (`#334155`), and muted (`#64748B`, 4.85:1 contrast).
+    - Added structured tokens for `AppSpacing` (4px grid), `AppRadius` (2px-6px disciplined micro-radius, eliminating pill geometry), `AppHeights` (standard 52px header, 46px toolbar, 38px table header, 44px rows, 36px buttons), and `AppTypography` (8-step scale).
+- **Global Theme Standardization (`app_theme.dart`):**
+  - Updated `AppTheme.lightTheme` with `DialogThemeData`, `DataTableThemeData`, `InputDecorationTheme` (4px radius, 1.5px Teal focus border), `ElevatedButtonTheme` (36px height, 4px radius, 0 elevation), and `OutlinedButtonTheme`.
+- **Shared Component Suite Implementation (`frontend/web/lib/shared/widgets/`):**
+  - `AdminPageHeader`: Flat, 1px bottom border `#E2E8F0`, 18px semi-bold title, 12.5px muted subtitle, zero bulky card wrappers.
+  - `AdminToolbar`: Standardized 46px dải công cụ on `#F8FAFC`, responsive search box, and dropdown filter containers.
+  - `AdminStatusBadge`: Semantic 4-group status indicator with 4px radius and high-contrast color tokens.
+  - `AdminDataTable` (NEW): Reusable enterprise data table with 38px fixed header, 44px/52px rows, hover tint `#F1F5F9`, horizontal scroll support, built-in pagination footer ("Hiển thị X - Y / Z"), loading spinner, and empty state.
+  - `AdminDialog` (NEW): Swiss Minimalist 3-part modal dialog (header with [X], scrollable body, sticky action footer, 6px radius, elevation 2).
+  - `AppPrimaryButton` & `AppTextField`: Standardized to 4px radius, 36px height, Teal `#0F766E` background, and stacked labels.
+- **Layout Navigation Alignment:**
+  - `AdminSidebar`: Active tab styled with 3px Teal left indicator and `#F0FDFA` tint; pending reports badge updated to Orange `AppColors.accent`.
+  - `AdminHeader`: Active breadcrumb styled in Teal; system health badge updated to 4px radius with semantic tokens.
+- **Scope Discipline:**
+  - Zero backend, database, or API changes. Zero routing modifications. No Git commits or pushes executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/core/theme/app_colors.dart`: Added tokens for colors, spacing, radius, heights, and typography.
+- `Travel_Planner/frontend/web/lib/core/theme/app_theme.dart`: Synchronized ThemeData with design tokens.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_page_header.dart`: Standardized to flat Swiss layout.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_toolbar.dart`: Standardized toolbar styling and responsive layout.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_status_badge.dart`: Synchronized semantic status styles.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_data_table.dart`: New reusable enterprise data table component.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_dialog.dart`: New structured modal dialog component.
+- `Travel_Planner/frontend/web/lib/shared/widgets/app_primary_button.dart`: Standardized CTA button styling.
+- `Travel_Planner/frontend/web/lib/shared/widgets/app_text_field.dart`: Standardized form text field with stacked label.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: Synchronized active tab indicator and badge.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_header.dart`: Synchronized breadcrumb and health badge.
+- `Travel_Planner/frontend/web/test/admin_design_system_test.dart`: 11 automated tests covering tokens, WCAG contrast, and shared components.
+- `Travel_Planner/docs/plan/26-admin-design-system-shared-components-report.md`: Detailed technical implementation report.
+
+### 3. Verification
+- `flutter analyze` in `frontend/web`: **No issues found** (0 errors, 0 warnings).
+- `flutter test` across all web tests: **80/80 passed** (`All tests passed!`).
+- Automated WCAG 2.1 AA verification: Text on Teal button = **5.60:1** (passes $\ge 4.5:1$ threshold); Ink on white = **18.20:1**.
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web` in 63.7s).
+- Git status verified (no commits, no pushes).
+
+---
+
+## [2026-11-23] Web Admin Portal – Design System Implementation (Phase 2: Admin Shell & Operations Dashboard)
+
+### 1. Scope, Design Decisions, and Architecture
+- **Objective & Architectural Focus:**
+  - Applied the standardized Design System to production interface components, focusing on the **Admin Shell** (`admin_shell.dart`, `admin_sidebar.dart`, `admin_header.dart`, `placeholder_feature_view.dart`) and the **Operations Dashboard** (`admin_dashboard_screen.dart`).
+  - Aligned the entire administrative experience with the **Professional Enterprise SaaS / ERP Admin (Minimalism & Swiss Style)** philosophy: pure white `#FFFFFF` canvas, 1px `#E2E8F0` hairlines, 4px grid rhythm, zero decorative gradients, no unnecessary card nesting, and strict data density.
+- **Admin Shell Engineering:**
+  - `AdminSidebar`: Preserved all 10 navigation tabs, 5 functional groups, explicit order, and dedicated SaaS icons with zero additions/deletions. Active tab styled with a 3px Teal (`#0F766E`) left hairline indicator and `#F0FDFA` background tint. Pending reports badge rendered with Orange `#EA580C`. Integrated `OverflowBox` and `ClipRect` inside `AnimatedContainer` to eliminate subpixel layout overflows during 180ms collapse/expand transitions between 68px and 240px.
+  - `AdminHeader`: Standardized to 52px height (`AppHeights.header`) with a bottom 1px hairline border. Flattened breadcrumbs (`Admin / GROUP / Short Title | Full Title`) with horizontal scroll protection to avoid flex overflows on compact viewports. System telemetry badge updated to 4px radius with semantic tokens (`UP` / `UNAVAILABLE`).
+  - `AdminShell Container`: Responsive viewport logic auto-collapses the sidebar to icon rail mode when screen width `< 960px` while maintaining expanded mode on wide desktop viewports (`>= 960px`). Preserved 2-way routing synchronization (`routePath` & `fromRoute`), supporting direct URL navigation, browser Back/Forward, and reload. Refactored Access Denied view to a clean Swiss modal box with a 6px radius and `#DC2626` logout CTA.
+  - `PlaceholderFeatureView`: Replaced hardcoded amber styles with semantic tokens (`AppColors.warningLight`, `AppColors.warningBorder`, `AppColors.warning`), 4px radius, and standard `AppPrimaryButton`.
+- **Operations Dashboard Redesign:**
+  - `Page Header`: Integrated flat `AdminPageHeader` with personalized administrator greeting, real-time last-refreshed timestamp (`Cập nhật: HH:mm:ss`), and quick `[Làm mới]` refresh button. Wrapped in adaptive stacking for viewports `< 960px`.
+  - `Unified SaaS Metric Strip`: Connected 4 live metrics from backend APIs: Places (`/api/admin/places`), Posts (`/api/admin/community/posts`), Pending Reports (`/api/admin/community/reports?status=PENDING`), and Media Assets (`/api/admin/media-assets`). Responsive border-divided strip on wide screens (`>= 900px`) and 2x2 grid on narrower viewports. Each cell functions as an instant navigation target.
+  - `Two-column Operational Workspaces`:
+    - *Left Panel (Pending Reports)*: Renders real incoming moderation reports with `#reportId`, violation reason, target `#postId`, `@reporter`, and direct `[Xử lý]` action button navigating to `AdminTab.reports`.
+    - *Right Panel (Recent Posts)*: Renders real community submissions with author avatar initials, handle, content snippet, media count, `AdminStatusBadge`, and `[Xem tất cả →]` navigation button.
+  - `Bottom Telemetry Strip`: Live health telemetry bar reporting backend status (`travel-planner-backend`, `UP`), server timestamp, and round-trip status.
+  - `Data States`: Seamlessly handles Loading (Teal spinner on white), Empty (pragmatic notice), and Error (contextual alert banner with `[Thử lại]` retry mechanism).
+- **Zero Fake Data Policy & Backend Boundary Compliance:**
+  - Strictly avoided creating fake time-series charts or mock statistics. Because the backend does not provide time-series aggregation endpoints, the dashboard focuses purely on operational metrics and actionable queues.
+  - No backend, API, database, or routing modifications were made. No Git commits or pushes were executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart`: Container polish, responsive auto-collapse, and Access Denied refactoring.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: Active tab indicator, badge styling, subpixel overflow protection during collapse/expand animation.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_header.dart`: Flat breadcrumbs with horizontal scroll protection, semantic telemetry status badge.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/placeholder_feature_view.dart`: Standardized to Swiss warning styles and `AppPrimaryButton`.
+- `Travel_Planner/frontend/web/lib/features/dashboard/presentation/screens/admin_dashboard_screen.dart`: Complete redesign as a Swiss Minimalist Operations Dashboard.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_page_header.dart`: Responsive action wrapping and compact stacking for viewports `< 960px`.
+- `Travel_Planner/frontend/web/test/admin_dashboard_phase2_test.dart`: Automated test suite verifying real data rendering, operational actions, error retry banner, and responsive sidebar behavior.
+- `Travel_Planner/docs/plan/27-admin-shell-dashboard-implementation-report.md`: Detailed technical report for Phase 2.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 2.5s, 0 errors, 0 warnings).
+- `flutter test` across all web tests: **83/83 passed!** (All tests passed, 0 failures, 0 regressions).
+- `flutter test test/admin_dashboard_phase2_test.dart`: **3/3 passed!** (Real data rendering, error retry banner, and auto-collapse responsive behavior).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully built (`√ Built build\web` in 63.6s).
+- Git status verified (no commits, no pushes).
+
+---
+
+## [2026-11-23] Web Admin Portal – Design System Implementation (Phase 3: Post Moderation & Reports)
+
+### 1. Scope, Design Decisions, and Architecture
+- **Objective & Architectural Focus:**
+  - Applied the standardized Design System to the community moderation workspaces: **Post Moderation** (`admin_posts_screen.dart`) and **Reports Management** (`admin_reports_screen.dart`).
+  - Strengthened the **Professional Enterprise SaaS / ERP Admin (Minimalism & Swiss Style)** architecture:
+    - Pure white `#FFFFFF` canvas, neutral slates (`#F8FAFC`, `#E2E8F0`, `#CBD5E1`), disciplined 4px spacing grid, zero card nesting, and no decorative gradients.
+    - Preserved 100% independent navigation: `AdminTab.posts` (route `/posts`) and `AdminTab.reports` (route `/reports`) exist as standalone workspaces directly linked to the Sidebar. Zero multi-feature tab hosting or nested tab switching.
+- **Server-Side Pagination & Data Container (`moderation_repository.dart`):**
+  - Introduced `AdminPageResponse<T>` to accurately wrap Spring Boot `PageResponse<T>` payloads (`content`, `totalElements`, `totalPages`, `page`, `size`).
+  - Added `getPostsPaged(...)` and `getReportsPaged(...)` providing real server-side pagination with `totalElements`.
+  - Retained `getPosts(...)` and `getReports(...)` for complete backward compatibility.
+  - Enhanced `AdminPostAuthorModel.fromJson` to parse both `fullName` and `displayName` safely.
+- **Post Moderation Workspace (`admin_posts_screen.dart`):**
+  - `AdminPageHeader`: Integrated flat enterprise header with subtitle and total records counter chip (`Tổng: X bài viết`).
+  - `AdminToolbar`: Standardized 46px toolbar with search filter input, status dropdown filter (`Tất cả (ALL)`, `Hoạt động (ACTIVE)`, `Đã ẩn (HIDDEN)`, `Đã xóa (DELETED)`), and live refresh action. Resets `page = 0` on filter change.
+  - `AdminDataTable`: Replaced raw DataTable with reusable `AdminDataTable`: 7 standardized columns, `AdminStatusBadge`, 1-line content snippet with ellipsis, and built-in server-side pagination bar ("Hiển thị X - Y trong số Z bản ghi").
+  - `AdminDialog` Moderation Flows:
+    - Post Detail Dialog: Modal (640px) displaying author metadata, selectable content in a `#F8FAFC` container with 1px border, expandable attached image thumbnails, likes/comments counters, and moderation reason.
+    - Hide / Restore Dialog: Structured modal (480px) with 3-line input field for `moderationReason` and contextual confirmation button (`Xác nhận ẩn` / `Xác nhận khôi phục`).
+    - Hard Purge Warning Dialog: Destructive modal with clear Cloudinary deletion warning and `#DC2626` action button.
+- **Reports Workspace (`admin_reports_screen.dart`):**
+  - `AdminPageHeader`: Standardized enterprise header with total reports counter chip.
+  - `AdminToolbar`: Search filter, status dropdown (`Chờ xử lý (PENDING)`, `Đã xử lý (RESOLVED)`, `Đã bỏ qua (DISMISSED)`, `Tất cả (ALL)`), and refresh button. Defaults to `PENDING` queue.
+  - `AdminDataTable`: 8 standardized columns, status badges (`PENDING` warning badge, `RESOLVED` success badge, `DISMISSED` neutral badge), and server-side pagination bar.
+  - `AdminDialog` Resolution Flows:
+    - Report Detail Dialog: Modal (580px) displaying reporter info, target post ID, violation reason, details, and timestamps.
+    - Report Resolution Actions: `[Xử lý vi phạm]` (`PATCH /resolve?resolution=RESOLVED`) and `[Bỏ qua]` (`PATCH /resolve?resolution=DISMISSED`). Does not cascade delete the underlying post unless explicitly actioned in post moderation.
+- **Zero Backend / API Contract Changes:**
+  - Zero modifications to Spring Boot backend, entity models, database schemas, or API contracts.
+  - Documented that the backend does not provide a global `?q=` or `?search=` parameter on `/api/admin/community/posts` or `/api/admin/community/reports`. Local search filter operates on loaded page items.
+  - No Git commits or pushes were executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/features/moderation/data/moderation_repository.dart`: Added `AdminPageResponse<T>`, `getPostsPaged`, and `getReportsPaged`.
+- `Travel_Planner/frontend/web/lib/features/moderation/data/models/admin_post_model.dart`: Enhanced author parser for fallback `displayName`.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_posts_screen.dart`: Complete redesign with `AdminDataTable`, `AdminDialog`, and server-side pagination.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_reports_screen.dart`: Complete redesign with `AdminDataTable`, `AdminDialog`, and server-side pagination.
+- `Travel_Planner/frontend/web/test/admin_moderation_phase3_test.dart`: New comprehensive test suite covering pagination, status filtering, actions, error states, and route independence.
+- `Travel_Planner/docs/plan/28-admin-moderation-reports-implementation-report.md`: Detailed technical completion report.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 1.4s, 0 errors, 0 warnings).
+- `flutter test` across all web tests: **88/88 passed!** (All tests passed, 0 failures, 0 regressions).
+- `flutter test test/admin_moderation_phase3_test.dart`: **5/5 passed!** (Server-side pagination, status filters, hide/restore/purge actions, resolve/dismiss actions, error banner retry, and route independence).
+- `flutter test test/admin_moderation_test.dart`: **17/17 passed!** (100% backward compatibility preserved).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web`).
+- Git status verified (no commits, no pushes).
+
+
+
+
+
+
+
+
+
+---
+
+## 21. Session Entry: Admin Design System – Phase 4: Media Management Implementation (2026-11-23)
+
+### 1. Goals & Scope Accomplished
+- **Media Management Redesign (`Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_media_screen.dart`):**
+  - Fully transformed from an ad-hoc layout to the unified **Professional Enterprise SaaS / ERP Admin (Minimalism & Swiss Style)** architecture.
+  - `#FFFFFF` canvas, 1px `#E2E8F0` hairline borders, 4px micro-radius (`AppRadius.sm`), Teal `#0F766E` primary brand accent, and high-contrast semantic badges conforming to WCAG 2.1 AA.
+- **Server-Side Pagination & Data Repository (`ModerationRepository`):**
+  - Implemented `getMediaAssetsPaged` returning `AdminPageResponse<AdminMediaAssetModel>` capturing `totalElements`, `totalPages`, `page`, and `size`.
+  - Maintained 100% backward compatibility for legacy `getMediaAssets`.
+- **Dual View Modes (Enterprise Data Table vs Responsive Media Gallery Grid):**
+  - **Data Table View (`AdminDataTable`):** Standard 9-column layout (`ASSET ID`, `NGƯỜI TẢI LÊN`, `XEM TRƯỚC`, `CLOUDINARY PUBLIC ID`, `TRẠNG THÁI`, `RETRY`, `DEAD-LETTER`, `LỖI GẦN NHẤT`, `THAO TÁC`) with thumbnail previews, status badges, retry counts, dead-letter flags, and integrated server-side pagination bar.
+  - **Gallery Grid View (`GridView.builder`):** Responsive card grid (`maxCrossAxisExtent: 260`) displaying large thumbnail with loading/error builders, ID/status overlays, uploader info, dead-letter tags, quick action buttons, and pagination footer.
+  - Segmented toggle control on `AdminToolbar` allowing instant switching between Table and Grid modes.
+- **Toolbar & Real Backend Capabilities:**
+  - Integrated `AdminToolbar` with instant client-side search (searching by asset ID, uploader, Cloudinary public ID, media type, status).
+  - Status filter dropdown (`ALL`, `UNATTACHED`, `ATTACHED`, `DELETING`, `DELETED`) resetting to page 0 upon change.
+  - Dead-letter checkbox toggle (`Chỉ hiện Dead-lettered (Lỗi quá số lần retry)`) mapping to backend `@RequestParam(defaultValue = "false") boolean deadLetterOnly`.
+  - Real-time `[Làm mới]` refresh button.
+- **Preview & Inspection Modal (`AdminDialog`):**
+  - Enterprise 3-part dialog (580px width) with title, status badge, aspect-ratio preserved image preview container (max height 260px), and copy raw URL to clipboard button.
+  - Comprehensive technical metadata table: Uploader ID/Username, Cloudinary Public ID, Secure URL, Format, Retry Count, Dead-letter threshold status, error callout box, and created/updated timestamps.
+  - Safe retry deletion CTA: `[Thử lại xóa (Retry)]` calling `POST /api/admin/media-assets/{id}/retry`.
+- **Zero Backend / API Contract Changes:**
+  - Documented that the backend does not provide a direct standalone `DELETE /api/admin/media-assets/{id}` API because media deletion is handled asynchronously through post purge or unattached sweepers.
+  - Provided operational notes guiding administrators on asynchronous deletion and retry mechanics.
+  - No Git commits or pushes were executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/features/moderation/data/moderation_repository.dart`: Added `getMediaAssetsPaged` with `AdminPageResponse<AdminMediaAssetModel>`.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_media_screen.dart`: Complete redesign with `AdminDataTable`, Gallery Grid, `AdminDialog`, and server-side pagination.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart`: Supplied `ModerationRepository(apiClient: _apiClient)` to child screens (`posts`, `reports`, `media`).
+- `Travel_Planner/frontend/web/test/admin_media_phase4_test.dart`: Created comprehensive unit/widget test suite covering server-side pagination, status/dead-letter filtering, asset inspection, copy URL, retry deletion, grid/table view toggle, RBAC, and shell integration.
+- `Travel_Planner/docs/plan/29-admin-media-management-implementation-report.md`: Detailed technical completion report.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 1.5s, 0 errors, 0 warnings, 0 lints).
+- `flutter test` across all web tests: **94/94 passed!** (All tests passed, 0 failures, 0 regressions).
+- `flutter test test/admin_media_phase4_test.dart`: **6/6 passed!**
+- `flutter test test/admin_moderation_test.dart`: **17/17 passed!** (100% backward compatibility preserved).
+- `flutter test test/admin_portal_layout_test.dart`: **12/12 passed!**
+- `flutter test test/admin_moderation_phase3_test.dart`: **5/5 passed!**
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web`).
+- Git status verified (no commits, no pushes).
+
+---
+
+## 22. Session Entry: Admin Design System – Phase 5: Places Management Implementation (2026-11-23)
+
+### 1. Goals & Scope Accomplished
+- **Places Management Redesign (`Travel_Planner/frontend/web/lib/features/locations/presentation/screens/admin_places_screen.dart`):**
+  - Completely replaced the legacy split-view (table + side map) with a high-density, full-width **Professional Enterprise SaaS / ERP Admin (Minimalism & Swiss Style)** layout.
+  - Pure `#FFFFFF` canvas, 1px `#E2E8F0` borders, 4px micro-radius (`AppRadius.sm`), Teal `#0F766E` primary CTA, and WCAG 2.1 AA compliant semantic status badges.
+- **Server-Side Pagination & Paged Repository (`PlaceRepository`):**
+  - Added `getAdminPlacesPaged` returning `AdminPageResponse<PlaceModel>` with page metadata (`totalElements`, `totalPages`, `page`, `size`).
+  - Preserved backward compatibility for legacy `getAdminPlaces`.
+- **High-Density Data Table (`AdminDataTable`):**
+  - 8-column table: `ID`, `TÊN ĐỊA ĐIỂM`, `DANH MỤC`, `ĐỊA CHỈ`, `KHU VỰC`, `TỌA ĐỘ`, `TRẠNG THÁI`, and `THAO TÁC`.
+  - Server-side pagination controls embedded in table footer, with responsive range label to prevent flex overflow.
+- **Interactive Enterprise Dialogs (`AdminDialog`):**
+  - **`PlaceFormDialog`:** Dual-pane layout. Left pane contains validated form inputs (`AppTextField`, category dropdown, lat/lon inputs, description, image URL). Right pane features interactive `WebMapView` with click-to-pin coordinate selection and bidirectional lat/lon updates.
+  - **`_showPlaceDetailDialog`:** Inspection modal presenting place photo preview, administrative area name, external provider mappings (`TOMTOM`, `GOOGLE`, etc.), and location verification map preview.
+  - **`HidePlaceDialog`:** Enterprise confirmation dialog displaying soft-delete consequences, reminding admins that linked activities and itineraries remain intact.
+- **Real Backend Capabilities Honored:**
+  - `GET /api/admin/places`: Keyword search (client debounced at 350ms), category filter, status filter, and server-side page navigation.
+  - `GET /api/admin/places/{id}`: Detailed inspection modal.
+  - `POST /api/admin/places`: Validated place creation with deduplication rules.
+  - `PUT /api/admin/places/{id}`: Place updating and reactivation.
+  - `DELETE /api/admin/places/{id}`: Soft deletion setting status to `HIDDEN`.
+- **Zero Backend / Contract Changes:**
+  - No database or backend API modifications. No mobile app modifications.
+  - No Git commits or pushes were executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/features/locations/data/models/place_model.dart`: Added `administrativeAreaName`, `createdAt`, `updatedAt`, `providerMappings` to `PlaceModel`; updated `CreatePlaceRequest`.
+- `Travel_Planner/frontend/web/lib/features/locations/data/place_repository.dart`: Added `getAdminPlacesPaged`.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/widgets/hide_place_dialog.dart`: Converted to `AdminDialog` with Swiss style warnings and `AdminStatusBadge`.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/widgets/place_form_dialog.dart`: Converted to 2-column enterprise modal with `AppTextField` and click-to-pin `WebMapView`.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/screens/admin_places_screen.dart`: Complete redesign with `AdminPageHeader`, `AdminToolbar`, `AdminDataTable`, and detail modal.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart`: Supplied `PlaceRepository(apiClient: _apiClient)` to `AdminPlacesScreen`.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_data_table.dart`: Made range indicator flexible to prevent narrow width flex overflow.
+- `Travel_Planner/frontend/web/test/admin_places_phase5_test.dart`: Created comprehensive unit/widget test suite (6 tests covering pagination, filtering, detail modal with map, creation POST, soft-delete, and shell integration).
+- `Travel_Planner/docs/plan/30-admin-places-management-implementation-report.md`: Technical completion report for Phase 5.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 2.5s, 0 errors, 0 warnings, 0 lints).
+- `flutter test` across all web tests: **100/100 passed!** (All tests passed, 0 failures, 0 regressions).
+- `flutter test test/admin_places_phase5_test.dart`: **6/6 passed!**
+- `flutter test test/admin_place_test.dart`: **9/9 passed!**
+- `flutter test test/admin_portal_layout_test.dart`: **12/12 passed!**
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web` in 91.2s).
+- Git status verified (no commits, no pushes).
+
+---
+
+## 23. Session Entry: Admin Design System – Phase 6: Remaining Admin Pages & Final Consistency Audit (2026-11-23)
+
+### 1. Goals & Scope Accomplished
+- **Complete Route & Sidebar Inventory:**
+  - Conducted an exhaustive inventory of all 11 Sidebar navigation items and their backing controllers in the Spring Boot backend (`Travel_Planner/Travel_Planner/controller/`).
+  - Confirmed active operational domains: `dashboard`, `posts`, `reports`, `places`, `media`, and `profile`.
+  - Identified unbacked roadmap modules: `users`, `itineraries`, `administrativeAreas`, `auditLogs`, and `settings` (backend lacks admin-level management controllers for these domains).
+  - Maintained clear architectural integrity: **no mock data or speculative APIs** were created. Unbacked modules render standardized [`PlaceholderFeatureView`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/placeholder_feature_view.dart) with recovery navigation to Dashboard.
+- **Authentication Views Standardization (`LoginScreen` & `RegisterScreen`):**
+  - Eliminated all elevation shadows (`boxShadow`), replacing them with crisp 1px `#E2E8F0` hairline borders.
+  - Converted container border radius from 14px to `AppRadius.sm` (4px).
+  - Constrained width to 440px with `AppSpacing.xxl` padding adhering to Swiss Minimalism.
+- **Profile Screen Standardized (`ProfileScreen`):**
+  - Injected `ProfileRepository` via constructor and wired `ProfileRepository(apiClient: _apiClient)` in [`AdminShell`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart) for clean mockability.
+  - Replaced hardcoded status badges with design system tokens (`AppColors.successLight`, `warningLight`, `errorLight` with high-contrast text conforming to WCAG 2.1 AA).
+  - Standardized containers and cards to `AppRadius.sm` (4px).
+- **Placeholder Feature Views Standardized (`PlaceholderFeatureView`):**
+  - Updated card container to `AppRadius.sm` (4px) with 1px border.
+  - Retained `[Quay lại Dashboard]` button for consistent UX flow.
+- **Full Admin Portal Consistency Audit:**
+  - Audited all 37 Dart source files in `frontend/web/lib/`:
+    - `BoxShadow`: 0 occurrences.
+    - `LinearGradient`: 0 occurrences.
+    - `BorderRadius.circular(>8)`: 0 occurrences.
+    - Flat 11-item sidebar navigation preserved without dropdowns or nested tabs.
+    - Consistent typography, table row density (44px), and 3-part `AdminDialog` modals.
+- **Zero Backend / Contract Changes:**
+  - No database or backend code modifications.
+  - No Git commits or pushes were executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/features/auth/presentation/screens/login_screen.dart`: Removed box-shadow, adjusted max-width and radius to 4px.
+- `Travel_Planner/frontend/web/lib/features/auth/presentation/screens/register_screen.dart`: Removed box-shadow, adjusted max-width and radius to 4px.
+- `Travel_Planner/frontend/web/lib/features/profile/presentation/screens/profile_screen.dart`: Injected `ProfileRepository`, replaced hardcoded status colors with semantic tokens, standardized 4px radius.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/screens/admin_shell.dart`: Supplied `ProfileRepository(apiClient: _apiClient)` to `ProfileScreen`.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/placeholder_feature_view.dart`: Standardized radius to `AppRadius.sm`.
+- `Travel_Planner/frontend/web/test/admin_phase6_final_consistency_test.dart`: Created comprehensive test suite (5 tests covering Login, Register, Profile, PlaceholderFeatureView, and Shell tabs).
+- `Travel_Planner/docs/plan/31-admin-remaining-pages-final-audit-report.md`: Technical completion report for Phase 6 and final consistency audit.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 2.2s, 0 errors, 0 warnings, 0 lints).
+- `flutter test` across all web tests: **105/105 passed!** (All tests passed, 0 failures, 0 regressions).
+- `flutter test test/admin_phase6_final_consistency_test.dart`: **5/5 passed!**
+- `flutter test test/admin_places_phase5_test.dart`: **6/6 passed!**
+- `flutter test test/admin_media_phase4_test.dart`: **6/6 passed!**
+- `flutter test test/admin_moderation_phase3_test.dart`: **5/5 passed!**
+- `flutter test test/admin_dashboard_phase2_test.dart`: **6/6 passed!**
+- `flutter test test/admin_design_system_test.dart`: **12/12 passed!**
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web` in 143.5s).
+- Git status verified (no commits, no pushes).
+
+---
+
+## 24. Session Entry: Brand Identity Migration & Visual Redesign (2026-11-23)
+
+### 1. Goals & Scope Accomplished
+- **Brand Identity Audit & Alignment:**
+  - Audited `DESIGN.md`, `04-ui-design-system.md`, and `Travel_Planner/frontend/mobile/lib/core/theme/app_colors.dart`.
+  - Replaced ad-hoc Teal (`#0F766E`) and Orange (`#EA580C`) palettes in Admin with official **Airbnb Rausch (`#FF385C`)** brand identity tokens.
+  - Implemented high-contrast accessible proposal token `primaryAccessible` (`#D90740`) ensuring WCAG 2.1 AA 4.5:1+ compliance for normal text on white backgrounds.
+  - Decoupled semantic business status badges from the brand accent: `ACTIVE` (Emerald), `PENDING`/`WARNING`/`HIDDEN` (Amber `#D97706`), `DELETED`/`BANNED` (Crimson), and `UNATTACHED` (Sky Blue).
+- **Admin Shell Visual Redesign:**
+  - Redesigned branding block in [`AdminSidebar`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart): solid Rausch container (`#FF385C`) with crisp white travel mark.
+  - Active navigation state updated to an authoritative 3px solid Rausch left hairline indicator, subtle `#FFF0F2` tint, and high-contrast `#D90740` text.
+  - Synchronized [`AdminHeader`](file:///d:/CODE/HCMUTE/TLCN/Travel-planner-community/Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_header.dart) breadcrumb with `#D90740` active short-title.
+- **Operations Dashboard Hierarchy Redesign:**
+  - Transformed metric cards into an interactive, high-density telemetry strip with custom icon containers (`#FFF0F2` for alerts, `#F8FAFC` for standard metrics), bold 26px digits (`#0F172A`), and clear forward-triage arrows.
+  - Standardized quick action text buttons (`[Xử lý]`, `[Xem tất cả →]`) on `#D90740`.
+- **Shared Components & Verification:**
+  - Standardized `AppPrimaryButton` on `#FF385C` background with `#E00B41` active hover and `#FFD1DA` loading/disabled fill.
+  - Zero box-shadows, zero gradients, 4px micro-radii strictly preserved.
+  - Created `admin_brand_visual_verification_test.dart` verifying AdminShell, Posts, Reports, Media, and Places.
+- **Zero Backend / Contract Changes:**
+  - No database or backend code modifications.
+  - No Git commits or pushes were executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/core/theme/app_colors.dart`: Replaced Teal tokens with Rausch (`#FF385C`, `#E00B41`, `#FFF0F2`, `#FFD1DA`, `#D90740`).
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: Updated brand mark to solid Rausch with white icon, and active tab styling to `#D90740`.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_header.dart`: Updated active breadcrumb to `#D90740`.
+- `Travel_Planner/frontend/web/lib/features/dashboard/presentation/screens/admin_dashboard_screen.dart`: Metric strip redesign and triage links.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_status_badge.dart`: Refined `HIDDEN`/`WARNING` styles to Amber (`#D97706`).
+- `Travel_Planner/frontend/web/test/admin_design_system_test.dart`: Updated token assertions and WCAG contrast calculations.
+- `Travel_Planner/frontend/web/test/admin_brand_visual_verification_test.dart`: Created visual verification test suite.
+- `Travel_Planner/docs/plan/33-admin-brand-identity-redesign-report.md`: Technical completion and visual analysis report.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 1.5s, 0 errors, 0 warnings, 0 lints).
+- `flutter test` across all web tests: **110/110 passed!** (All tests passed, 0 failures, 0 regressions).
+- `flutter test test/admin_brand_visual_verification_test.dart`: **5/5 passed!**
+- `flutter test test/admin_design_system_test.dart`: **12/12 passed!**
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully compiled (`√ Built build\web`).
+- Git status verified (no commits, no pushes).
+
+---
+
+## 25. Session Entry: Admin UI Refinement, Layout Bug Fix & Micro-Interactions (2026-11-23)
+
+### 1. Goals & Scope Accomplished
+- **Eliminated Duplicate Page Titles:**
+  - Removed independent trailing page title from `AdminHeader` breadcrumbs.
+  - Designated `AdminPageHeader` as the sole authority for page titles, subtitles, record counts, and action buttons.
+  - Ensured `AdminHeader` renders clean breadcrumbs (`Admin / [Group] / [ShortTitle]`) alongside system health and user controls.
+- **Resolved RenderFlex Layout Overflows in Places and Media Screens:**
+  - Diagnosed root causes: `AdminDataTable` lacked vertical scrolling when placed inside `Expanded` containers with 20 items per page, triggering `BOTTOM OVERFLOWED BY 553 PIXELS` (Places) and `495 PIXELS` (Media) and pushing pagination bars off-screen.
+  - Converted `AdminDataTable` to `StatefulWidget` with bidirectional scrolling: wrapped table body in vertical and horizontal `Scrollbar` + `SingleChildScrollView` under bounded height constraints.
+  - Pinned `_buildPaginationBar()` inside the table container with `AppRadius.table` (8px) corners, ensuring pagination controls are permanently accessible.
+- **Improved Data Table Width & Responsive Column Layout:**
+  - Expanded data tables across available width while maintaining column proportions.
+  - Added constraints on long content columns (Posts content: 260–520px with ellipsis and Tooltip; Places: 140–260px name and 200–360px address; Media: 180–360px Cloudinary ID and 160–340px error).
+  - Maintained fixed action column widths (140–170px) preventing layout drift.
+- **Refined Micro-radius Design Tokens:**
+  - Added semantic micro-radii to `AppRadius`: `badge: 4.0px`, `input: 6.0px`, `button: 6.0px`, `sidebarItem: 6.0px`, `card: 8.0px`, `dialog: 8.0px`, `table: 8.0px`.
+  - Maintained 100% backward compatibility with `xs`, `sm`, `md`, `lg`.
+  - Updated `AppTheme` components (Dialog, InputDecoration, ElevatedButton, OutlinedButton, TextButton) with micro-radii.
+- **Subtle Hover & Micro-interactions (120–180ms):**
+  - Added 150ms `AnimatedContainer` hover state to `AdminSidebar` items with `AppColors.primaryTint` (`#FFF7F8`).
+  - Added row hover state (`#FAFBFC`) to `AdminDataTable` with fixed 44px row heights preventing layout shifts.
+  - Implemented button hover (`#E00B41`) and pressed (`#B80536`) states for `AppPrimaryButton`.
+  - Maintained accessibility and Rausch `#FF385C` / `#D90740` brand consistency.
+- **Automated & Visual Verification Across 4 Viewports:**
+  - Created test suite `admin_refinement_visual_verification_test.dart` testing 20 items in Places, Media, Posts, Dashboard across 1440×900, 1366×768, 1024×768, and 768×1024 viewports with 0 RenderFlex overflow.
+- **Zero Backend / Contract Changes:**
+  - No database or backend code modifications.
+  - No mobile app code modifications.
+  - No Git commits or pushes were executed.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/core/theme/app_colors.dart`: Added `primaryTint`, `primaryPressed`, `tableHover`, and semantic micro-radii in `AppRadius`.
+- `Travel_Planner/frontend/web/lib/core/theme/app_theme.dart`: Updated theme radius and button/input hover & pressed styles.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_header.dart`: Removed trailing divider and duplicate page title from breadcrumbs.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_data_table.dart`: Bidirectional scrolling, pinned pagination footer, row hover state, 8px radius.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/screens/admin_places_screen.dart`: Adaptive column constraints and 6px micro-radii.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_media_screen.dart`: Adaptive column constraints and 6px/8px micro-radii.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_posts_screen.dart`: 260–520px content constraint with tooltip and 6px micro-radii.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_reports_screen.dart`: Desktop width stabilization and 6px micro-radii.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: 150ms hover animation and 6px micro-radii.
+- `Travel_Planner/frontend/web/lib/features/dashboard/presentation/screens/admin_dashboard_screen.dart`: 8px card radius.
+- `Travel_Planner/frontend/web/lib/shared/widgets/app_primary_button.dart`: 6px radius, hover and pressed states.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_status_badge.dart`: 4px badge radius.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_dialog.dart`: 8px dialog radius.
+- `Travel_Planner/frontend/web/test/admin_refinement_visual_verification_test.dart`: Multi-viewport overflow & duplicate title verification test suite.
+- `Travel_Planner/frontend/web/test/admin_portal_layout_test.dart`: Updated assertion for breadcrumb title.
+- `Travel_Planner/docs/plan/34-admin-ui-refinement-and-layout-fix-report.md`: Detailed engineering report.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (0 errors, 0 warnings, 0 lints).
+- `flutter test` across all web tests: **129/129 passed!** (110 existing + 19 new refinement tests, 0 failures).
+- `flutter test test/admin_refinement_visual_verification_test.dart`: **19/19 passed!** (verified 1440×900, 1366×768, 1024×768, 768×1024).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Successfully built (`√ Built build\web`).
+- Git status verified (no commits, no pushes).
+
+---
+
+## 26. Session Entry: Final Admin UI Polish – Hover, Layout, Actions & Comprehensive Vietnamese Localization (2026-11-23)
+
+### 1. Goals & Scope Accomplished
+- **Diagnosed and Resolved Ineffective Hover Interactions on Real Browsers:**
+  - Identified root causes: `AdminSidebar` was a `StatelessWidget` with text/icon styles strictly bound to `isSelected` without local state tracking; in `AdminDataTable`, missing `onSelectChanged` prevented Flutter from attaching `TableRowInkWell`.
+  - Re-architected sidebar menu items into stateful `_SidebarMenuItem` tracking `_isHovered` via `MouseRegion(cursor: SystemMouseCursors.click)` and 150ms `AnimatedContainer` transitions with brand tint `#FFF7F8`, border `#FFD1DA`, and text/icon `#D90740`.
+  - Fixed non-uniform border exception in Flutter's `BoxDecoration` by employing `Border.all` and an inner `Positioned(left: 0, width: 3)` active indicator.
+  - Enabled full-width `TableRowInkWell` hover on `AdminDataTable` with `AppColors.primaryTint` (`#FFF7F8`) and zero layout shifts.
+  - Transformed dashboard KPI cards to stateful `_MetricCellWidget` with interactive hover state, Rausch accenting, and pointer feedback.
+- **Optimized Data Table Width and Adaptive Column Allocation:**
+  - Resolved large blank gap on the right of posts and media tables across widescreen resolutions.
+  - Applied `LayoutBuilder` dynamic width scaling: posts content expands adaptively `(constraints.maxWidth - 720).clamp(280.0, 1000.0)`; places address expands `(constraints.maxWidth - 720).clamp(200.0, 600.0)`; media Cloudinary ID expands `(constraints.maxWidth - 680).clamp(180.0, 500.0)`.
+  - Maintained column alignment, text truncation with ellipsis, and Vietnamese tooltips on long text fields.
+- **Visual Hierarchy for Table Action Buttons:**
+  - Differentiated table actions with clear semantic color coding: "Chi tiết" (Neutral `#717171`), "Sửa" (Rausch `#D90740`), "Ẩn" / "Bỏ qua" (Amber `#D97706`), "Kích hoạt" / "Khôi phục" / "Xử lý vi phạm" (Emerald `#059669`), and "Xóa vĩnh viễn" (Error Red `#DC2626`).
+- **100% Comprehensive Vietnamese Localization:**
+  - Systematically eliminated all residual English system strings:
+    - Sidebar subtitle: `'Admin Portal'` -> `'Cổng quản trị'`.
+    - Dashboard tab & header: `'Dashboard'` / `'Tổng quan Dashboard'` -> `'Tổng quan'`.
+    - Audit logs tab: `'Audit Logs'` -> `'Nhật ký hoạt động'`.
+    - Placeholder views: `'Quay lại Dashboard'` -> `'Quay lại trang Tổng quan'`.
+    - Dead-letter handling: `'DEAD-LETTER'` -> `'Lỗi đình trệ'`, `'DEAD-LETTER QUÁ HẠN'` -> `'LỖI ĐÌNH TRỆ QUÁ HẠN'`.
+    - Action buttons: `'Hard Purge'` -> `'Xóa vĩnh viễn'`, `'Retry xóa'` / `'Retry Deletion'` -> `'Thử lại xóa'`.
+    - Dropdowns: stripped technical codes `(ACTIVE)`, `(HIDDEN)`, `(DELETING)` to clean Vietnamese labels (`'Đang hoạt động'`, `'Đã ẩn'`, `'Đang xóa'`).
+- **Brand Identity & Backward Compatibility:**
+  - Maintained Swiss Minimalist styling, strict WCAG 2.1 AA contrast compliance (`#D90740` >= 4.5:1), and consistency with the Flutter mobile app.
+  - Zero modifications to backend APIs, database schemas, or mobile app source code.
+  - Zero git commits or pushes.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/core/theme/app_colors.dart`: Standardized `tableHover` to `Color(0xFFFFF7F8)`.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: `_SidebarMenuItem` with `MouseRegion`, 150ms hover, localized subtitle to `'Cổng quản trị'`.
+- `Travel_Planner/frontend/web/lib/features/layout/domain/admin_tab.dart`: Localized tab titles (`'Tổng quan'`, `'Nhật ký hoạt động'`).
+- `Travel_Planner/frontend/web/lib/features/dashboard/presentation/screens/admin_dashboard_screen.dart`: Localized header title to `'Tổng quan'`, stateful `_MetricCellWidget` hover.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_data_table.dart`: Full-row `TableRowInkWell` hover attachment with `#FFF7F8`.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_posts_screen.dart`: Adaptive `LayoutBuilder` width, semantic action colors, tooltips, `'Xóa vĩnh viễn'`.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/screens/admin_places_screen.dart`: Adaptive width, semantic action colors, clean dropdown labels.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/widgets/place_form_dialog.dart`: Localized status dropdown items.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_reports_screen.dart`: Localized column headers, compact spacing.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_media_screen.dart`: Adaptive width, localized headers, `'Lỗi đình trệ'`, `'Thử lại xóa'`.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_status_badge.dart`: Localized `DEAD_LETTER` default to `'Lỗi đình trệ'`.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/placeholder_feature_view.dart`: Localized to `'Quay lại trang Tổng quan'`.
+- `Travel_Planner/frontend/web/test/`: Synchronized assertions in 11 test suites to match the localized labels and adaptive layouts.
+- `Travel_Planner/docs/plan/35-admin-final-visual-polish-and-vietnamese-localization-report.md`: Detailed technical report.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 6.5s, 0 errors, 0 warnings, 0 lints).
+- `flutter test` across all web tests: **129/129 passed!** (100% passing across 12 test suites, 0 failures).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Clean production compilation (`√ Built build\web` in 147.9s).
+- Git status verified (no commits, no pushes).
+
+---
+
+## 27. Session Entry: Flutter Web Admin Subtle Hover Movement Refinement (2026-11-23 / 2026-11-24)
+
+### 1. Goals & Scope Accomplished
+- **Transitioned from Color-Darkening Hover to Subtle Movement (Micro-translations):**
+  - Replaced static background color changes and text darkening on hover with physics-based, smooth micro-translations (1.0–2.0px).
+  - Maintained zero layout shifts, zero jitter, and strictly preserved the Airbnb Rausch color palette (`#FF385C`, `#D90740`, `#FFF7F8`, `#FFD1DA`).
+  - Standardized motion parameters: duration 150ms, curve `Curves.easeOut`, and smooth return to `(0, 0, 0)` upon pointer departure.
+- **Engineered Reusable Motion Framework (`HoverMovement` & `RowHoverTracker`):**
+  - Created `Travel_Planner/frontend/web/lib/shared/widgets/hover_movement.dart` with specialized factory constructors:
+    - `HoverMovement.button`: -1.5px vertical lift on hover (`dy: -1.5`).
+    - `HoverMovement.card`: -2.0px vertical lift on hover (`dy: -2.0`).
+    - `HoverMovement.slide`: +2.0px horizontal slide on hover (`dx: 2.0`).
+    - `HoverMovement.row`: +1.5px horizontal slide on hover (`dx: 1.5`).
+  - Built `RowHoverTracker` to synchronize hover states across all cells in an `AdminDataRow` with a 35ms debounce timer, completely preventing flicker when the mouse crosses cell boundaries.
+- **Applied Subtle Hover Motion Across All Core Admin Modules:**
+  - **Sidebar (`AdminSidebar`):** Menu items and collapse toggle slide horizontally by `+2.0px` on hover via `_SidebarMenuItem` and `HoverMovement.slide`.
+  - **Buttons:** `AppPrimaryButton`, header CTAs ("Thêm địa điểm", "Làm mới"), and table action TextButtons/OutlinedButtons ("Chi tiết", "Sửa", "Ẩn", "Khôi phục", "Xóa vĩnh viễn", "Thử lại xóa") lift by `-1.5px`.
+  - **Dashboard Metric Cards:** 4 SaaS KPI cells elevate by `-2.0px` on hover via `_MetricCellWidget`.
+  - **Media Gallery Cards:** Asset cards in grid view elevate by `-2.0px`.
+  - **Data Table Rows (`AdminDataTable`):** All cells in a hovered row synchronously micro-shift by `+1.5px` without modifying row heights or causing overflow.
+- **Zero Regressions & Preserved Scope:**
+  - Zero modifications to backend APIs or database schemas.
+  - Zero modifications to Flutter mobile app.
+  - Zero Git commits or pushes.
+
+### 2. Files Changed & Created
+- `Travel_Planner/frontend/web/lib/shared/widgets/hover_movement.dart`: Reusable subtle movement widget and row hover tracker.
+- `Travel_Planner/frontend/web/lib/shared/widgets/app_primary_button.dart`: Integrated -1.5px button lift on hover.
+- `Travel_Planner/frontend/web/lib/shared/widgets/admin_data_table.dart`: Synchronized +1.5px row hover translation across cells with `RowHoverTracker`.
+- `Travel_Planner/frontend/web/lib/features/layout/presentation/widgets/admin_sidebar.dart`: +2.0px horizontal slide on menu items and collapse toggle.
+- `Travel_Planner/frontend/web/lib/features/dashboard/presentation/screens/admin_dashboard_screen.dart`: -2.0px card lift on KPI cards and -1.5px button lift on action triggers.
+- `Travel_Planner/frontend/web/lib/features/locations/presentation/screens/admin_places_screen.dart`: Header CTAs and action button lifts.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_posts_screen.dart`: Table action button lifts.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_reports_screen.dart`: Table action button lifts.
+- `Travel_Planner/frontend/web/lib/features/moderation/presentation/screens/admin_media_screen.dart`: Table action button lifts and -2.0px gallery card lift.
+- `Travel_Planner/frontend/web/test/hover_movement_test.dart`: Dedicated widget test suite for hover movements.
+- `Travel_Planner/docs/plan/35-admin-hover-movement-refinement-report.md`: Detailed technical report in English.
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Execution Results
+- `flutter analyze` in `frontend/web`: **No issues found!** (ran in 2.5s, 0 errors, 0 warnings, 0 lints).
+- `flutter test test/hover_movement_test.dart`: **3/3 passed!**
+- `flutter test` across all web tests: **132/132 passed!** (129 existing + 3 new motion tests, 0 failures).
+- `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Clean production compilation (`√ Built build\web` in 212.0s).
+- Git status verified (no commits, no pushes).

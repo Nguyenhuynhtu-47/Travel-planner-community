@@ -660,9 +660,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Hard Purge'), findsOneWidget);
-      await tester.ensureVisible(find.text('Hard Purge'));
-      await tester.tap(find.text('Hard Purge'));
+      expect(find.text('Xóa vĩnh viễn'), findsOneWidget);
+      await tester.ensureVisible(find.text('Xóa vĩnh viễn'));
+      await tester.tap(find.text('Xóa vĩnh viễn'));
       await tester.pumpAndSettle();
 
       expect(find.text('CẢNH BÁO: XÓA VĨNH VIỄN'), findsOneWidget);
@@ -671,7 +671,7 @@ void main() {
               'Hành động này sẽ xóa vĩnh viễn bài viết khỏi hệ thống'),
           findsOneWidget);
 
-      await tester.tap(find.text('Xóa vĩnh viễn'));
+      await tester.tap(find.text('Xóa vĩnh viễn').last);
       await tester.pumpAndSettle();
 
       expect(purgeCalled, true);
@@ -873,10 +873,10 @@ void main() {
 
       expect(find.text('uploader_12'), findsOneWidget);
       expect(find.text('tp/posts/asset_301'), findsOneWidget);
-      expect(find.text('Retry xóa'), findsOneWidget);
+      expect(find.text('Thử lại xóa'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Retry xóa'));
-      await tester.tap(find.text('Retry xóa'));
+      await tester.ensureVisible(find.text('Thử lại xóa'));
+      await tester.tap(find.text('Thử lại xóa'));
       await tester.pumpAndSettle();
 
       expect(retryCalled, true);

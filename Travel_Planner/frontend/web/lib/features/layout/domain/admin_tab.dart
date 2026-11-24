@@ -27,7 +27,7 @@ enum AdminTab {
   String get title {
     switch (this) {
       case AdminTab.dashboard:
-        return 'Tổng quan Dashboard';
+        return 'Tổng quan';
       case AdminTab.posts:
         return 'Kiểm duyệt bài viết';
       case AdminTab.reports:
@@ -35,15 +35,15 @@ enum AdminTab {
       case AdminTab.users:
         return 'Quản lý người dùng';
       case AdminTab.places:
-        return 'Quản lý địa điểm chuẩn hóa';
+        return 'Quản lý Địa điểm Chuẩn hóa (Places)';
       case AdminTab.itineraries:
         return 'Quản lý lịch trình';
       case AdminTab.media:
-        return 'Quản lý Media Assets';
+        return 'Quản lý tài nguyên đa phương tiện';
       case AdminTab.administrativeAreas:
         return 'Quản lý khu vực hành chính';
       case AdminTab.auditLogs:
-        return 'Nhật ký hoạt động (Audit Logs)';
+        return 'Nhật ký hoạt động';
       case AdminTab.settings:
         return 'Cài đặt hệ thống';
       case AdminTab.profile:
@@ -54,7 +54,7 @@ enum AdminTab {
   String get shortTitle {
     switch (this) {
       case AdminTab.dashboard:
-        return 'Dashboard';
+        return 'Tổng quan';
       case AdminTab.posts:
         return 'Kiểm duyệt bài viết';
       case AdminTab.reports:
@@ -66,7 +66,7 @@ enum AdminTab {
       case AdminTab.itineraries:
         return 'Quản lý lịch trình';
       case AdminTab.media:
-        return 'Quản lý Media';
+        return 'Quản lý hình ảnh';
       case AdminTab.administrativeAreas:
         return 'Khu vực hành chính';
       case AdminTab.auditLogs:
@@ -169,5 +169,62 @@ enum AdminTab {
       case AdminTab.settings:
         return false;
     }
+  }
+
+  String get routePath {
+    switch (this) {
+      case AdminTab.dashboard:
+        return '/dashboard';
+      case AdminTab.posts:
+        return '/posts';
+      case AdminTab.reports:
+        return '/reports';
+      case AdminTab.users:
+        return '/users';
+      case AdminTab.places:
+        return '/places';
+      case AdminTab.itineraries:
+        return '/itineraries';
+      case AdminTab.media:
+        return '/media';
+      case AdminTab.administrativeAreas:
+        return '/administrative-areas';
+      case AdminTab.auditLogs:
+        return '/audit-logs';
+      case AdminTab.settings:
+        return '/settings';
+      case AdminTab.profile:
+        return '/profile';
+    }
+  }
+
+  static AdminTab fromRoute(String? rawRoute) {
+    if (rawRoute == null || rawRoute.isEmpty || rawRoute == '/') {
+      return AdminTab.dashboard;
+    }
+    final clean = rawRoute
+        .toLowerCase()
+        .replaceAll('#', '')
+        .replaceAll('/', '')
+        .trim();
+    for (final tab in AdminTab.values) {
+      if (tab.name.toLowerCase() == clean) return tab;
+      if (tab.routePath.replaceAll('/', '').toLowerCase() == clean) return tab;
+    }
+    if (clean.contains('post')) return AdminTab.posts;
+    if (clean.contains('report')) return AdminTab.reports;
+    if (clean.contains('place')) return AdminTab.places;
+    if (clean.contains('media')) return AdminTab.media;
+    if (clean.contains('user')) return AdminTab.users;
+    if (clean.contains('itinerar')) return AdminTab.itineraries;
+    if (clean.contains('area') || clean.contains('admin')) {
+      return AdminTab.administrativeAreas;
+    }
+    if (clean.contains('audit') || clean.contains('log')) {
+      return AdminTab.auditLogs;
+    }
+    if (clean.contains('setting')) return AdminTab.settings;
+    if (clean.contains('profile')) return AdminTab.profile;
+    return AdminTab.dashboard;
   }
 }

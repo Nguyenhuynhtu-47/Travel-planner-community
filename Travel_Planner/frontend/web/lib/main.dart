@@ -4,6 +4,7 @@ import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/layout/domain/admin_tab.dart';
 import 'features/layout/presentation/screens/admin_shell.dart';
 
 void main() {
@@ -68,8 +69,12 @@ class _MyAppState extends State<MyApp> {
           }
 
           if (_authNotifier.isAuthenticated) {
+            final routeTab = AdminTab.fromRoute(
+              Uri.base.fragment.isNotEmpty ? Uri.base.fragment : Uri.base.path,
+            );
             return AdminShell(
               authNotifier: _authNotifier,
+              initialTab: routeTab,
               apiClient: widget.apiClient,
             );
           }
