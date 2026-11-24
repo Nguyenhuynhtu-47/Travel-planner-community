@@ -11885,3 +11885,167 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 - `flutter test` across all web tests: **132/132 passed!** (129 existing + 3 new motion tests, 0 failures).
 - `flutter build web --dart-define=API_BASE_URL=http://localhost:8080`: Clean production compilation (`√ Built build\web` in 212.0s).
 - Git status verified (no commits, no pushes).
+
+---
+
+## Session Date: 2026-11-24 — Comprehensive Admin Functionality Audit & 7-Phase Plan Refinement (Plan Refinement Only)
+
+### 1. Overview & Scope (Read-Only Activity)
+- Conducted an exhaustive, independent audit and subsequent Plan Refinement of the entire Admin system across Spring Boot Backend (`Travel_Planner/backend`) and Flutter Web Admin (`Travel_Planner/frontend/web`).
+- Verified real-world codebase mechanics:
+  - Confirmed `token_version` on `User` entity, `user_sessions` active session tracking, and triple-layer revocation enforcement in `JwtAuthenticationFilter` (`isSessionActive`, `tokenVersionFromJwt == currentDbVersion`, `userDetails.isEnabled() && userDetails.isAccountNonLocked()`).
+  - Confirmed `globalOnUnauthorized` 401 interceptor present in both Flutter Mobile and Flutter Web `ApiClient` for automatic logout and session clearing.
+- Restructured and refined the implementation roadmap into exactly **7 independent Phases**:
+  - Phase 1: Audit Trail Core (Backend only)
+  - Phase 2: User Management (Backend & Web UI)
+  - Phase 3: Itinerary Moderation (Backend & Web UI, strict privacy and read-only boundaries)
+  - Phase 4: Administrative Areas (Web UI leveraging existing 5 backend endpoints & batch resolve)
+  - Phase 5: Audit Logs UI (Web UI with multi-criteria filters, JSON diff viewer, CSV/JSON export)
+  - Phase 6: System Settings (Dynamic business configs, safe maintenance mode with admin bypass, zero exposed secrets)
+  - Phase 7: Dashboard v2 (Single aggregated summary API replacing 5 fragmented calls, real-data growth charts)
+- **Strict Compliance Rule:** Absolutely zero application source code, databases, migrations, or configurations were modified. No Git commits or pushes were made.
+
+### 2. Deliverables Refined & Synchronized
+- `Travel_Planner/docs/plan/36-admin-functionality-comprehensive-audit.md`: Refined comprehensive audit report with actual authentication/session revocation verification and 7-phase alignment.
+- `Travel_Planner/docs/plan/37-admin-functionality-implementation-roadmap.md`: Restructured 7-phase detailed implementation roadmap with deep technical analyses (Auth, Authorization, DB/Migration, API Design, Testing Plans, Acceptance Criteria, Definition of Done).
+- `Travel_Planner/docs/plan/38-admin-functionality-traceability-matrix.md`: Updated 42-function end-to-end traceability matrix mapped across the 11-link chain to the 7-phase roadmap.
+
+### 3. Next Steps & Recommendation
+- Await project owner review and formal approval of the refined 7-Phase Implementation Roadmap before proceeding with Phase 1 execution.
+
+---
+
+## Session Date: 2026-11-24 — Final Consistency Patch for Admin Roadmap (Architecture Decoupling & Consistency Hardening)
+
+### 1. Hardening Scope & Decisions (Read-Only Activity)
+- Completed the final consistency patch across `36-admin-functionality-comprehensive-audit.md`, `37-admin-functionality-implementation-roadmap.md`, and `38-admin-functionality-traceability-matrix.md`.
+- **A. Traceability Matrix Math & Status Reconciliation:**
+  - Audited all 42 functions across the 11-link chain:
+    - `[EXISTS - VERIFIED]`: Exactly 18 functions (42.86%) — Part I (1.1–1.5, 5 functions) + Part V (5.1–5.5, 5 functions) + Part VI (6.1–6.8, 8 functions).
+    - `[EXISTS - REFACTOR]`: Exactly 1 function (2.38%) — Part VII (7.7 Dashboard Summary Stats).
+    - `[PLANNED]`: Exactly 23 functions (54.76%) — Phase 1 (2.1, 2.2: 2) + Phase 2 (1.6, 3.1–3.5: 6) + Phase 3 (4.1–4.4: 4) + Phase 4 (5.6–5.9: 4) + Phase 5 (7.1–7.3: 3) + Phase 6 (7.4–7.6: 3) + Phase 7 (7.8: 1).
+    - Grand Total: 18 + 1 + 23 = 42 unique functions (100.00%). Zero duplicate IDs, zero missing IDs, zero cross-phase overlaps.
+- **B. Resolution of Mutex Guard Row Dependency:**
+  - Identified and eliminated forward dependency where Phase 2 previously relied on `system_settings` (Phase 6).
+  - Selected decoupled architecture: Created dedicated standalone table `admin_role_guard` in Phase 2 Flyway migration (`guard_id INT PRIMARY KEY, guard_name VARCHAR(50) NOT NULL UNIQUE, locked_at DATETIME, locked_by VARCHAR(50)`), seeded with `(1, 'ADMIN_ROLE_MUTEX')`.
+  - Phase 2 has zero dependency on Phase 6; Phase 6 `system_settings` remains 100% focused on business parameters without technical lock rows.
+- **C. Complete Retry & Transaction Architecture for Admin Mutex:**
+  - Exception specification: Only retries database lock contention exceptions (`CannotAcquireLockException` - MySQL Error 1205, `PessimisticLockingFailureException` - MySQL Error 1213). Never retries business exceptions (`BadRequestException`, `ResourceNotFoundException`).
+  - Transaction boundary per retry: Spring Proxy `@Retryable(maxAttempts = 3, backoff = @Backoff(delay = 100, multiplier = 2))` wraps transactional method executing in `@Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)`. Each retry executes in a fresh, clean transaction.
+  - Unified Mutex: All admin role/status changes (promote, demote, ban, unban) acquire `admin_role_guard` lock via `SELECT ... FOR UPDATE`.
+  - Defined explicit integration test suite in Phase 2 (`promoteUserToAdmin_success`, `demoteAdmin_successWhenMultipleAdmins`, `demoteLastAdmin_rejected`, `banLastAdmin_rejected`, `selfBanOrSelfDemotion_rejected`, `concurrentDemotionOfTwoAdmins_oneSucceedsOneRejected`).
+- **D. Strict Audit Hardening:**
+  - `ITINERARY_PRIVATE_INSPECT`: Cannot use `readOnly = true` transaction; enforced `@Transactional(propagation = Propagation.REQUIRED, readOnly = false)`. Audit log must commit before payload is returned; on failure throws `AuditTrailPersistenceException` (HTTP 500) and never leaks private data.
+  - `AUDIT_EXPORT`: Accurately tracks export outcome. Records `result_status = SUCCESS` upon completion, or `result_status = FAILED` via `REQUIRES_NEW` exception handler if streaming/generation fails. Never logs false success.
+- **E. Batch Resolve Idempotency & Sequential Execution:**
+  - Verified backend idempotency: `overwriteExisting = false` skips already-linked places (`SKIPPED`).
+  - Gateway timeout resilience: If HTTP 504 occurs after DB commit, subsequent batch retry safely skips resolved places without data duplication.
+  - Slicing: Sequential batch processing (chunk size 50 `placeIds`) with real-time UI tracking across 6 states (`TOTAL`, `PROCESSED`, `SUCCESS`, `FAILURE`, `SKIPPED`, `PENDING`).
+  - Dry-run: Explicit UI warning banner that dry-run results are previews and database state may change before execution.
+- **F. Audit Log Storage Hardening:**
+  - Stable pagination: Enforced compound order `ORDER BY created_at DESC, log_id DESC` preventing record drift.
+  - Export: Hard cap 5,000 records using `AuditLogExportProjection` and streaming to HTTP output stream to prevent OOM.
+  - Retention: 180 days active retention in `audit_logs`; older records archived to `audit_logs_archive` table by scheduled job; Admin queryable via extended date filter.
+
+### 2. Files Updated
+- `Travel_Planner/docs/plan/36-admin-functionality-comprehensive-audit.md`: Hardened audit report with decoupled guard table and strict audit rules.
+- `Travel_Planner/docs/plan/37-admin-functionality-implementation-roadmap.md`: Hardened roadmap with decoupled `admin_role_guard`, `@Retryable` + `REQUIRES_NEW` proxy, and stable pagination.
+- `Travel_Planner/docs/plan/38-admin-functionality-traceability-matrix.md`: Corrected math to exactly 18 verified (42.86%), 1 refactor (2.38%), 23 planned (54.76%) = 42 (100.00%).
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Compliance
+- Confirmed zero changes to application source code (`backend/`, `frontend/mobile/`, `frontend/web/`), database migrations, or server configuration.
+
+---
+
+## Session Date: 2026-11-24 — Final Admin Plan: Last Technical Consistency Patch (Actor Re-validation, 2-Bean Proxy Boundary, 3-State Export Lifecycle)
+
+### 1. Hardening Scope & Decisions (Read-Only Activity)
+- Completed the final technical consistency patch across `36-admin-functionality-comprehensive-audit.md`, `37-admin-functionality-implementation-roadmap.md`, and `38-admin-functionality-traceability-matrix.md`.
+- **A. Actor Re-validation After Mutex Lock:**
+  - Enforced mandatory rule: Immediately after acquiring `SELECT ... FOR UPDATE` on `admin_role_guard`, the worker must reload the Actor entity from DB within the current transaction (`userRepository.findByUsername(actorUsername)`).
+  - Validates `actor.status == ACTIVE` and `actor.role == ADMIN`. If the Actor was banned or demoted by another admin while waiting in the lock queue, the operation is rejected immediately with `AccessDeniedException` (HTTP 403 Forbidden).
+  - Pre-lock claims in `SecurityContextHolder` are never implicitly trusted.
+- **B. Spring AOP Proxy Boundary (Decoupled 2-Bean Architecture):**
+  - Identified that placing `@Retryable` and `@Transactional` in the same bean causes self-invocation, bypassing the Spring AOP Proxy and preventing new transaction creation per retry.
+  - Architecture separated into two distinct Spring Beans:
+    - Bean 1: `AdminUserOrchestrationService` with `@Retryable(retryFor = {CannotAcquireLockException.class, PessimisticLockingFailureException.class}, maxAttempts = 3, backoff = @Backoff(delay = 100, multiplier = 2))`.
+    - Bean 2: `AdminUserTransactionalWorker` with `@Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)`.
+  - Every retry attempt calls Bean 2 via the Spring AOP Proxy, guaranteeing a clean physical database transaction per attempt.
+  - Non-retryable business exceptions (`BadRequestException`, `AccessDeniedException`, `ResourceNotFoundException`) propagate immediately without retry.
+- **C. 8 Mandatory Concurrency Integration Tests for Phase 2:**
+  1. `antiSelfDemotion_rejected`
+  2. `antiSelfBan_rejected`
+  3. `lastAdminDemotion_rejected`
+  4. `lastAdminBan_rejected`
+  5. `concurrentDemotion_actorPrivilegeMaintained_invariantMaintained`
+  6. `concurrentPromoteAndDemote_success`
+  7. `concurrentBanAndDemote_lastAdminProtected`
+  8. `actorLosesPrivilegeWhileWaitingForMutex_rejected` (explicitly tests actor losing privileges in lock queue).
+- **D. Audit Export Lifecycle & 3-State Standardization:**
+  - Standardized states:
+    - `SUCCESS`: Artifact generated completely, strict audit committed successfully with `result_status = 'SUCCESS'`, artifact authorized for delivery.
+    - `DELIVERY_FAILED`: Artifact generated and audit `SUCCESS` committed, but HTTP transmission to client failed (network drop, `ClientAbortException`). Secondary event `AUDIT_EXPORT_DELIVERY_FAILED` recorded via `REQUIRES_NEW`.
+    - `FAILED`: Extraction or artifact generation failed before audit commit, or audit commit failed. No file delivered.
+  - `Export ID` (UUID) links the export request, temporary file, and all associated audit entries.
+  - Temporary files stored in `java.io.tmpdir/travel_planner_exports/{exportId}.csv`, cleaned up in streaming `finally` block, with `@Scheduled(cron = "0 0 * * * *")` sweep for orphan files older than 2 hours.
+- **E. Filter Chain Order & Maintenance Mode:**
+  - `CorsFilter` handles browser HTTP `OPTIONS` preflight first (200 OK), followed by `JwtAuthenticationFilter` (populating `ROLE_ADMIN`), followed by `MaintenanceModeFilter` (evaluating authenticated admin bypass).
+
+### 2. Files Updated
+- `Travel_Planner/docs/plan/36-admin-functionality-comprehensive-audit.md`: Hardened audit report.
+- `Travel_Planner/docs/plan/37-admin-functionality-implementation-roadmap.md`: Hardened roadmap with 2-bean proxy design, 8 integration tests, and 3-state export lifecycle.
+- `Travel_Planner/docs/plan/38-admin-functionality-traceability-matrix.md`: Traceability matrix aligned with 2-bean architecture, 8 tests, and 3-state export lifecycle (maintaining exact 42 functions: 18 verified, 1 refactor, 23 planned).
+- `Travel_Planner/docs/ai/09-development-log.md`: Development log updated.
+
+### 3. Verification & Compliance
+- Confirmed zero changes to application source code (`backend/`, `frontend/mobile/`, `frontend/web/`), database migrations, or server configuration.
+- Ready for final project owner approval before Phase 1 implementation.
+
+---
+
+## Session Date: 2026-11-25 — Final Admin Approval: Last Edge-Case Patch (Concurrency Test Redesign, Admin Mutation Paths Verification, Database Down Resilience & Stream Lease Protection)
+
+### 1. Hardening Scope & Decisions (Read-Only Activity)
+- Completed the final edge-case hardening patch across `36-admin-functionality-comprehensive-audit.md`, `37-admin-functionality-implementation-roadmap.md`, `38-admin-functionality-traceability-matrix.md`, and `09-development-log.md`.
+- **A. Concurrent Ban & Demote Test Redesign (`concurrentBanAndDemote_lastAdminProtected`):**
+  - Eliminated ambiguity in test setup where actors or targets could unintentionally trigger anti-self-demotion or anti-self-ban checks.
+  - Test setup established with exactly 3 ACTIVE Admins: `admin_A`, `admin_B`, `admin_C`:
+    - Thread 1: `actor = admin_A`, `target = admin_C`, `action = DEMOTE`.
+    - Thread 2: `actor = admin_B`, `target = admin_C`, `action = BAN`.
+  - Mutex serialization sequence:
+    - If Thread 1 acquires `ADMIN_ROLE_MUTEX` first: Successfully demotes `admin_C` to `USER` (ACTIVE Admins count decreases from 3 to 2: `admin_A` and `admin_B`). Thread 2 waiting in queue acquires lock, re-validates `admin_B` (ACTIVE ADMIN), re-fetches `admin_C` (now `role = USER`), and successfully bans `admin_C` as a standard user. Final ACTIVE Admins = 2 (`admin_A`, `admin_B`).
+    - If Thread 2 acquires mutex first: Successfully bans `admin_C` (ACTIVE Admins count decreases from 3 to 2). Thread 1 waiting in queue acquires lock, re-validates `admin_A` (ACTIVE ADMIN), re-fetches `admin_C` (now `status = BANNED`), and successfully demotes `admin_C` to `USER`. Final ACTIVE Admins = 2 (`admin_A`, `admin_B`).
+  - Invariant assertion: Under no interleaving does the ACTIVE Admin count drop below 1, and neither actor self-bans nor self-demotes.
+- **B. Exhaustive Verification of Admin Role/Status Mutation Paths:**
+  - Audited all existing backend code paths updating `User`:
+    - `ProfileServiceImpl.updateProfile()`: Only mutates `fullName`, `phoneNumber`, `address`, `bio`, `avatarUrl`. Never touches `role` or `status`.
+    - `AuthServiceImpl.register()` and `GoogleAuthServiceImpl.processGoogleUser()`: Hardcoded to assign `Role.USER`.
+    - Confirmed zero user self-deletion, deactivation, or purge endpoints exist in the codebase.
+  - Verified that in the planned roadmap, strictly two endpoints mutate `User.role` and `User.status`:
+    1. `PATCH /api/admin/users/{id}/role`
+    2. `PATCH /api/admin/users/{id}/status`
+  - Enforced architectural standard: Both endpoints (and any future account lifecycle mutations) MUST route through `AdminUserOrchestrationService` and acquire `ADMIN_ROLE_MUTEX` on `admin_role_guard` before any modification. Direct updates bypassing this mutex are strictly prohibited.
+- **C. Audit Export Resilience & Database Down Boundary (`AUDIT_PERSISTENCE_FAILED`):**
+  - Addressed the physical limitation where a dead database cannot record audit logs via `REQUIRES_NEW`:
+    - Tier 1 (`SUCCESS`): Generation and streaming successful $\rightarrow$ audit logged as `SUCCESS`.
+    - Tier 2 (`DELIVERY_FAILED`): Client disconnection / network abort during streaming $\rightarrow$ audit logged as `DELIVERY_FAILED` via `REQUIRES_NEW`.
+    - Tier 3 (`FAILED`): Query or serialization error while DB is reachable $\rightarrow$ audit logged as `FAILED` via `REQUIRES_NEW`.
+    - Tier 4 (`AUDIT_PERSISTENCE_FAILED`): Database down / unreachable during strict audit logging $\rightarrow$ export process immediately aborted, temporary file/artifact deleted, no data delivered to client, error emitted to application server logs (`Logger.error`) and SIEM/APM alerts for out-of-band investigation.
+  - Establishes a zero-leak policy: No export artifact is ever delivered if strict audit logging fails.
+- **D. Protection of Streaming Files Against Orphan Cleanup Cron:**
+  - Resolved potential race condition between HTTP streaming and background scheduled cleanup.
+  - Two-layer deletion architecture:
+    1. Primary Cleanup: Spring Controller `finally` block deletes the temporary file immediately upon stream completion or client abort.
+    2. Orphan Sweep Cron: `@Scheduled(cron = "0 0 * * * *")` enforces a strict 2-hour lease rule (`currentTime - file.lastModified > 2 hours`).
+  - Safety guarantee: HTTP response streaming has a hard gateway/client timeout $\le 10$ minutes. Since active streaming files are always younger than 10 minutes, the 2-hour cron sweep will never delete an in-flight export stream.
+
+### 2. Files Updated
+- `Travel_Planner/docs/plan/36-admin-functionality-comprehensive-audit.md`: Updated with concurrency test setup (3 active admins), backend mutation paths audit, database-down boundary, and 2-hour file lease rules.
+- `Travel_Planner/docs/plan/37-admin-functionality-implementation-roadmap.md`: Updated Section 2.1, 2.4, Phase 2, and Phase 5 specifications.
+- `Travel_Planner/docs/plan/38-admin-functionality-traceability-matrix.md`: Aligned Row 7.3 and header with 4-tier failure handling and lease-based cron (preserving exact 42 functions: 18 verified, 1 refactor, 23 planned).
+- `Travel_Planner/docs/ai/09-development-log.md`: Appended session entry.
+
+### 3. Verification & Compliance
+- Confirmed zero changes to application source code (`backend/`, `frontend/mobile/`, `frontend/web/`), database migrations, or server configuration.
+- Full architectural and security alignment achieved. Ready for implementation approval.
