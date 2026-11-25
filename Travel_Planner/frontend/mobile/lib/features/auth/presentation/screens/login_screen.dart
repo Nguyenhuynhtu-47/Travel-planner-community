@@ -177,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           'Travel Planner',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 26,
+                            fontSize: 28,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
                             letterSpacing: -0.5,
@@ -188,10 +188,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           'Đăng nhập để tiếp tục kế hoạch du lịch của bạn',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 15.5,
                             fontWeight: FontWeight.w400,
                             color: AppColors.textSecondary,
-                            height: 1.4,
+                            height: 1.45,
                           ),
                         ),
                         const SizedBox(height: 32),
@@ -202,6 +202,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
                           errorText: valErrors?['usernameOrEmail'],
+                          labelStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          inputStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.textPrimary,
+                          ),
+                          hintStyle: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.textSecondary.withValues(alpha: 0.72),
+                          ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Vui lòng nhập tên đăng nhập hoặc email';
@@ -209,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         AppTextField(
                           label: 'Mật khẩu',
                           hint: 'Nhập mật khẩu',
@@ -218,6 +233,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           textInputAction: TextInputAction.done,
                           onFieldSubmitted: (_) => _submit(),
                           errorText: valErrors?['password'],
+                          labelStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          inputStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.textPrimary,
+                          ),
+                          hintStyle: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.textSecondary.withValues(alpha: 0.72),
+                          ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Vui lòng nhập mật khẩu';
@@ -251,7 +281,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               'Quên mật khẩu?',
                               style: TextStyle(
                                 color: AppColors.primary,
-                                fontSize: 13,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -277,7 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               'Chưa có tài khoản? ',
                               style: TextStyle(
                                 color: AppColors.textSecondary,
-                                fontSize: 14,
+                                fontSize: 15,
                               ),
                             ),
                             GestureDetector(
@@ -299,7 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     color: AppColors.primary,
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 14,
+                                    fontSize: 15,
                                   ),
                                 ),
                               ),
