@@ -81,5 +81,7 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
     List<Place> findByAdministrativeAreaIsNull();
 
     Page<Place> findByAdministrativeArea_AreaId(Long areaId, Pageable pageable);
+
+    long countByAdministrativeAreaIsNotNull();
 }
 

@@ -2,6 +2,7 @@ package Travel_Planner.Travel_Planner.controller;
 
 import Travel_Planner.Travel_Planner.dto.request.BatchResolvePlacesRequest;
 import Travel_Planner.Travel_Planner.dto.request.ManualLinkAdministrativeAreaRequest;
+import Travel_Planner.Travel_Planner.dto.response.AdministrativeAreaStatsResponse;
 import Travel_Planner.Travel_Planner.dto.response.BatchLinkingReportResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceDetailResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceResolutionResultResponse;
@@ -61,6 +62,14 @@ public class AdminPlaceAdministrativeAreaController {
     @DeleteMapping("/{id}/administrative-area")
     public ResponseEntity<PlaceDetailResponse> unlink(@PathVariable Long id) {
         return ResponseEntity.ok(linkingService.unlink(id));
+    }
+
+    /**
+     * Retrieve administrative area coverage statistics across all places.
+     */
+    @GetMapping("/administrative-area/stats")
+    public ResponseEntity<AdministrativeAreaStatsResponse> getCoverageStats() {
+        return ResponseEntity.ok(linkingService.getCoverageStats());
     }
 
     /**

@@ -40,7 +40,9 @@ class PlaceModel {
   final String category; // ATTRACTION, RESTAURANT, CAFE, HOTEL, ENTERTAINMENT, SHOPPING, OTHER
   final String status; // ACTIVE, HIDDEN
   final List<PlaceProviderMappingItem> providerMappings;
+  final String? administrativeAreaCode;
   final String? administrativeAreaName;
+  final String? administrativeAreaParentName;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -58,7 +60,9 @@ class PlaceModel {
     required this.category,
     required this.status,
     this.providerMappings = const [],
+    this.administrativeAreaCode,
     this.administrativeAreaName,
+    this.administrativeAreaParentName,
     this.createdAt,
     this.updatedAt,
   });
@@ -104,9 +108,14 @@ class PlaceModel {
           .toList();
     }
 
+    String? adminAreaCode;
     String? adminAreaName;
+    String? adminAreaParentName;
     if (json['administrativeArea'] is Map<String, dynamic>) {
-      adminAreaName = json['administrativeArea']['name']?.toString();
+      final areaMap = json['administrativeArea'] as Map<String, dynamic>;
+      adminAreaCode = areaMap['code']?.toString();
+      adminAreaName = areaMap['name']?.toString();
+      adminAreaParentName = areaMap['parentName']?.toString();
     } else if (json['administrativeAreaName'] != null) {
       adminAreaName = json['administrativeAreaName']?.toString();
     }
@@ -133,7 +142,9 @@ class PlaceModel {
       category: json['category'] as String? ?? 'ATTRACTION',
       status: json['status'] as String? ?? 'ACTIVE',
       providerMappings: mappings,
+      administrativeAreaCode: adminAreaCode,
       administrativeAreaName: adminAreaName,
+      administrativeAreaParentName: adminAreaParentName,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

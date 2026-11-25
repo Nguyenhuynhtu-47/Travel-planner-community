@@ -1,7 +1,9 @@
 package Travel_Planner.Travel_Planner.service.impl;
 
+import Travel_Planner.Travel_Planner.dto.audit.AuditCommand;
 import Travel_Planner.Travel_Planner.dto.request.BatchResolvePlacesRequest;
 import Travel_Planner.Travel_Planner.dto.request.ManualLinkAdministrativeAreaRequest;
+import Travel_Planner.Travel_Planner.dto.response.AdministrativeAreaStatsResponse;
 import Travel_Planner.Travel_Planner.dto.response.BatchLinkingReportResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceDetailResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceResolutionResultResponse;
@@ -10,31 +12,40 @@ import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
 import Travel_Planner.Travel_Planner.model.AdministrativeArea;
 import Travel_Planner.Travel_Planner.model.Place;
 import Travel_Planner.Travel_Planner.model.enums.AdministrativeAreaTrustClassification;
+import Travel_Planner.Travel_Planner.model.enums.AuditActionType;
+import Travel_Planner.Travel_Planner.model.enums.AuditTargetType;
 import Travel_Planner.Travel_Planner.model.enums.ConfidenceClassification;
 import Travel_Planner.Travel_Planner.repository.AdministrativeAreaRepository;
 import Travel_Planner.Travel_Planner.repository.PlaceRepository;
 import Travel_Planner.Travel_Planner.resolver.AdministrativeAreaResolver;
 import Travel_Planner.Travel_Planner.resolver.impl.AdministrativeAreaResolverImpl;
+import Travel_Planner.Travel_Planner.service.AuditLogService;
 import Travel_Planner.Travel_Planner.service.PlaceAdministrativeAreaService;
 import Travel_Planner.Travel_Planner.service.PlaceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
 public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAreaService {
 
     private static final Logger log = LoggerFactory.getLogger(PlaceAdministrativeAreaServiceImpl.class);
+    public static final int MAX_BATCH_SIZE = 50;
 
     private final PlaceRepository placeRepository;
     private final AdministrativeAreaRepository areaRepository;
     private final AdministrativeAreaResolver resolver;
     private final PlaceService placeService;
+    private final AuditLogService auditLogService;
 
     public PlaceAdministrativeAreaServiceImpl(
             PlaceRepository placeRepository,
@@ -42,10 +53,22 @@ public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAr
             AdministrativeAreaResolver resolver,
             PlaceService placeService
     ) {
+        this(placeRepository, areaRepository, resolver, placeService, null);
+    }
+
+    @Autowired
+    public PlaceAdministrativeAreaServiceImpl(
+            PlaceRepository placeRepository,
+            AdministrativeAreaRepository areaRepository,
+            AdministrativeAreaResolver resolver,
+            PlaceService placeService,
+            AuditLogService auditLogService
+    ) {
         this.placeRepository = placeRepository;
         this.areaRepository = areaRepository;
         this.resolver = resolver;
         this.placeService = placeService;
+        this.auditLogService = auditLogService;
     }
 
     @Override
@@ -63,6 +86,7 @@ public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAr
 
         if (place.getAdministrativeArea() != null && !overwriteExisting) {
             PlaceResolutionResultResponse res = resolver.resolve(place);
+            res.setCurrentlyLinked(true);
             res.setEligibleForAutoLink(false);
             res.setExplanation("Địa điểm đã được liên kết với đơn vị hành chính: " +
                     place.getAdministrativeArea().getName() + " (" + place.getAdministrativeArea().getCode() + ")");
@@ -124,11 +148,23 @@ public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAr
             throw new BadRequestException("Đơn vị hành chính này thuộc diện cách ly pháp lý, không được phép liên kết.");
         }
 
+        String previousCode = place.getAdministrativeArea() != null ? place.getAdministrativeArea().getCode() : null;
         place.setAdministrativeArea(area);
         placeRepository.save(place);
 
         log.info("Manually linked Place {} ({}) -> AdministrativeArea {} ({})",
                 place.getPlaceId(), place.getName(), area.getCode(), area.getName());
+
+        if (auditLogService != null) {
+            auditLogService.logStrictAction(AuditCommand.builder()
+                    .actionType(AuditActionType.PLACE_ADMIN_AREA_LINK)
+                    .targetType(AuditTargetType.PLACE)
+                    .targetId(String.valueOf(placeId))
+                    .reason(request.getReason())
+                    .beforeSnapshot(previousCode != null ? Map.of("administrativeAreaCode", previousCode) : null)
+                    .afterSnapshot(Map.of("administrativeAreaCode", area.getCode(), "administrativeAreaName", area.getName()))
+                    .build());
+        }
 
         return placeService.getAdminPlaceById(placeId);
     }
@@ -138,15 +174,32 @@ public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAr
         Place place = placeRepository.findById(placeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy địa điểm với ID: " + placeId));
 
+        String previousCode = place.getAdministrativeArea() != null ? place.getAdministrativeArea().getCode() : null;
         place.setAdministrativeArea(null);
         placeRepository.save(place);
 
         log.info("Unlinked AdministrativeArea from Place {} ({})", place.getPlaceId(), place.getName());
+
+        if (auditLogService != null) {
+            auditLogService.logStrictAction(AuditCommand.builder()
+                    .actionType(AuditActionType.PLACE_ADMIN_AREA_LINK)
+                    .targetType(AuditTargetType.PLACE)
+                    .targetId(String.valueOf(placeId))
+                    .reason("Unlink administrative area from place")
+                    .beforeSnapshot(previousCode != null ? Map.of("administrativeAreaCode", previousCode) : null)
+                    .afterSnapshot(Map.of("unlinked", true))
+                    .build());
+        }
+
         return placeService.getAdminPlaceById(placeId);
     }
 
     @Override
     public BatchLinkingReportResponse batchResolveAndLink(BatchResolvePlacesRequest request) {
+        if (request.getPlaceIds() != null && request.getPlaceIds().size() > MAX_BATCH_SIZE) {
+            throw new BadRequestException("Mỗi batch chỉ được xử lý tối đa " + MAX_BATCH_SIZE + " địa điểm.");
+        }
+
         List<Place> targetPlaces;
         if (request.getPlaceIds() != null && !request.getPlaceIds().isEmpty()) {
             targetPlaces = placeRepository.findAllById(request.getPlaceIds());
@@ -165,10 +218,24 @@ public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAr
 
         for (Place p : targetPlaces) {
             PlaceResolutionResultResponse res;
-            if (request.isDryRun()) {
-                res = resolver.resolve(p);
-            } else {
-                res = resolveAndLink(p.getPlaceId(), request.isOverwriteExisting());
+            try {
+                if (request.isDryRun()) {
+                    res = resolver.resolve(p);
+                } else {
+                    res = resolveAndLink(p.getPlaceId(), request.isOverwriteExisting());
+                }
+            } catch (Exception ex) {
+                log.warn("[BATCH_RESOLVE] Failed to process placeId={}: {}", p.getPlaceId(), ex.getMessage());
+                res = PlaceResolutionResultResponse.builder()
+                        .placeId(p.getPlaceId())
+                        .placeName(p.getName())
+                        .placeAddress(p.getAddress())
+                        .confidence(ConfidenceClassification.NO_MATCH)
+                        .eligibleForAutoLink(false)
+                        .currentlyLinked(p.getAdministrativeArea() != null)
+                        .explanation("Lỗi xử lý địa điểm: " + ex.getMessage())
+                        .warnings(List.of(ex.getMessage() != null ? ex.getMessage() : "Unknown error"))
+                        .build();
             }
 
             results.add(res);
@@ -186,6 +253,26 @@ public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAr
             }
         }
 
+        if (auditLogService != null
+                && !request.isDryRun()
+                && SecurityContextHolder.getContext().getAuthentication() != null) {
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("totalPlacesExamined", total);
+            summary.put("linkedCount", linked);
+            summary.put("skippedCount", skipped);
+            summary.put("quarantinedCount", quarantined);
+            summary.put("ambiguousCount", ambiguous);
+            summary.put("noMatchCount", noMatch);
+            summary.put("overwriteExisting", request.isOverwriteExisting());
+            auditLogService.logStrictAction(AuditCommand.builder()
+                    .actionType(AuditActionType.PLACE_ADMIN_AREA_BATCH_RESOLVE)
+                    .targetType(AuditTargetType.PLACE)
+                    .targetId("BATCH")
+                    .reason("Batch resolve administrative areas (" + total + " places)")
+                    .afterSnapshot(summary)
+                    .build());
+        }
+
         return BatchLinkingReportResponse.builder()
                 .totalPlacesExamined(total)
                 .linkedCount(linked)
@@ -195,6 +282,24 @@ public class PlaceAdministrativeAreaServiceImpl implements PlaceAdministrativeAr
                 .noMatchCount(noMatch)
                 .dryRun(request.isDryRun())
                 .results(results)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdministrativeAreaStatsResponse getCoverageStats() {
+        long totalPlaces = placeRepository.count();
+        long linkedPlaces = placeRepository.countByAdministrativeAreaIsNotNull();
+        long unlinkedPlaces = Math.max(0L, totalPlaces - linkedPlaces);
+        double coveragePercentage = totalPlaces == 0L
+                ? 0.0
+                : Math.round((linkedPlaces * 10000.0) / totalPlaces) / 100.0;
+
+        return AdministrativeAreaStatsResponse.builder()
+                .totalPlaces(totalPlaces)
+                .linkedPlaces(linkedPlaces)
+                .unlinkedPlaces(unlinkedPlaces)
+                .coveragePercentage(coveragePercentage)
                 .build();
     }
 }

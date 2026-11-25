@@ -244,4 +244,117 @@ public class AdminPlaceAdministrativeAreaControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("GET /api/admin/places/administrative-area/stats should return real coverage stats for ADMIN and block non-ADMIN")
+    void testGetCoverageStats_AdminAndSecurity() throws Exception {
+        mockMvc.perform(get("/api/admin/places/administrative-area/stats"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/admin/places/administrative-area/stats")
+                        .header("Authorization", userToken))
+                .andExpect(status().isForbidden());
+
+        long initialTotal = placeRepository.count();
+        long initialLinked = placeRepository.countByAdministrativeAreaIsNotNull();
+        long initialUnlinked = Math.max(0L, initialTotal - initialLinked);
+
+        // Verify stats match real database counts
+        mockMvc.perform(get("/api/admin/places/administrative-area/stats")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPlaces", is((int) initialTotal)))
+                .andExpect(jsonPath("$.linkedPlaces", is((int) initialLinked)))
+                .andExpect(jsonPath("$.unlinkedPlaces", is((int) initialUnlinked)));
+
+        // Link testPlace and verify stats reflect real database count
+        ManualLinkAdministrativeAreaRequest linkReq = ManualLinkAdministrativeAreaRequest.builder()
+                .administrativeAreaCode("00070")
+                .reason("Verify stats update")
+                .build();
+        mockMvc.perform(post("/api/admin/places/" + testPlace.getPlaceId() + "/administrative-area/link")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(linkReq)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/admin/places/administrative-area/stats")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.linkedPlaces", is((int) (initialLinked + 1))));
+    }
+
+    @Test
+    @DisplayName("POST /api/admin/places/administrative-area/batch-resolve should reject > 50 placeIds and support idempotent retry")
+    void testBatchResolve_MaxChunkAndIdempotentRetry() throws Exception {
+        List<Long> oversizedIds = java.util.stream.LongStream.rangeClosed(1, 51)
+                .boxed()
+                .toList();
+        BatchResolvePlacesRequest oversizedReq = BatchResolvePlacesRequest.builder()
+                .dryRun(true)
+                .placeIds(oversizedIds)
+                .build();
+
+        mockMvc.perform(post("/api/admin/places/administrative-area/batch-resolve")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(oversizedReq)))
+                .andExpect(status().isBadRequest());
+
+        // Create second place with unresolvable address for partial batch testing
+        Place unresolvablePlace = placeRepository.save(Place.builder()
+                .name("Unknown Place XYZ")
+                .address("Nowhere Land 99999")
+                .latitude(new BigDecimal("0.0000000"))
+                .longitude(new BigDecimal("0.0000000"))
+                .category(PlaceCategory.OTHER)
+                .status(PlaceStatus.ACTIVE)
+                .build());
+
+        // Dry run should NOT persist
+        BatchResolvePlacesRequest dryReq = BatchResolvePlacesRequest.builder()
+                .dryRun(true)
+                .placeIds(List.of(testPlace.getPlaceId(), unresolvablePlace.getPlaceId()))
+                .build();
+        mockMvc.perform(post("/api/admin/places/administrative-area/batch-resolve")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dryReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPlacesExamined", is(2)))
+                .andExpect(jsonPath("$.dryRun", is(true)));
+
+        assertNull(placeRepository.findById(testPlace.getPlaceId()).orElseThrow().getAdministrativeArea());
+
+        // Real run should link testPlace and leave unresolvablePlace unlinked
+        BatchResolvePlacesRequest realReq = BatchResolvePlacesRequest.builder()
+                .dryRun(false)
+                .overwriteExisting(false)
+                .placeIds(List.of(testPlace.getPlaceId(), unresolvablePlace.getPlaceId()))
+                .build();
+        mockMvc.perform(post("/api/admin/places/administrative-area/batch-resolve")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(realReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPlacesExamined", is(2)))
+                .andExpect(jsonPath("$.linkedCount", is(1)))
+                .andExpect(jsonPath("$.noMatchCount", is(1)));
+
+        String linkedCodeBeforeRetry = placeRepository.findById(testPlace.getPlaceId())
+                .orElseThrow().getAdministrativeArea().getCode();
+
+        // Idempotent retry on both places should keep linkedCode unchanged and not fail
+        mockMvc.perform(post("/api/admin/places/administrative-area/batch-resolve")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(realReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPlacesExamined", is(2)))
+                .andExpect(jsonPath("$.linkedCount", is(1)));
+
+        String linkedCodeAfterRetry = placeRepository.findById(testPlace.getPlaceId())
+                .orElseThrow().getAdministrativeArea().getCode();
+        assertEquals(linkedCodeBeforeRetry, linkedCodeAfterRetry);
+    }
 }
