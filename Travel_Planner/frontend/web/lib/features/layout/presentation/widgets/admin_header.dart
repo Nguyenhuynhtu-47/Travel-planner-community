@@ -94,44 +94,6 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
 
-          // Backend Health indicator
-          if (healthStatus != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-              decoration: BoxDecoration(
-                color: isOnline ? AppColors.successLight : AppColors.warningLight,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                border: Border.all(
-                  color: isOnline ? AppColors.successBorder : AppColors.warningBorder,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isOnline ? AppColors.success : AppColors.warning,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isOnline ? 'Hệ thống: Trực tuyến' : 'Hệ thống: $healthStatus',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: isOnline ? AppColors.success : AppColors.warning,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-          ],
-
           // Profile chip button
           InkWell(
             onTap: onGoToProfile,

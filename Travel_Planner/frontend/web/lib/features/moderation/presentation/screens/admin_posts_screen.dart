@@ -569,8 +569,6 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
           // Standalone Enterprise Page Header
           AdminPageHeader(
             title: 'Kiểm duyệt bài viết',
-            subtitle:
-                'Quản lý, rà soát và kiểm duyệt nội dung bài đăng cộng đồng vi phạm tiêu chuẩn.',
             actions: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

@@ -33,9 +33,7 @@ class AdminSidebar extends StatelessWidget {
       width: width,
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        border: Border(
-          right: BorderSide(color: AppColors.border, width: 1),
-        ),
+        border: Border(right: BorderSide(color: AppColors.border, width: 1)),
       ),
       child: ClipRect(
         child: OverflowBox(
@@ -94,7 +92,9 @@ class AdminSidebar extends StatelessWidget {
   Widget _buildLogo() {
     return Container(
       height: AppHeights.header,
-      padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 12 : AppSpacing.lg),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCollapsed ? 12 : AppSpacing.lg,
+      ),
       alignment: Alignment.centerLeft,
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -151,7 +151,11 @@ class AdminSidebar extends StatelessWidget {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 6),
         child: Divider(
-            height: 1, indent: 14, endIndent: 14, color: AppColors.hairlineSoft),
+          height: 1,
+          indent: 14,
+          endIndent: 14,
+          color: AppColors.hairlineSoft,
+        ),
       );
     }
     return Padding(
@@ -167,10 +171,7 @@ class AdminSidebar extends StatelessWidget {
   }
 
   // Flat menu item with uniform icon, spacing, and styling
-  Widget _buildMenuItem(
-    AdminTab tab, {
-    int badgeCount = 0,
-  }) {
+  Widget _buildMenuItem(AdminTab tab, {int badgeCount = 0}) {
     return _SidebarMenuItem(
       tab: tab,
       isSelected: currentTab == tab,
@@ -188,7 +189,11 @@ class AdminSidebar extends StatelessWidget {
         child: Tooltip(
           message: 'Mở rộng menu',
           child: IconButton(
-            icon: const Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: AppColors.textSecondary,
+            ),
             onPressed: onToggleCollapse,
           ),
         ),
@@ -207,10 +212,14 @@ class AdminSidebar extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  Icon(Icons.chevron_left, size: 20, color: AppColors.textSecondary),
+                  Icon(
+                    Icons.chevron_left,
+                    size: 20,
+                    color: AppColors.textSecondary,
+                  ),
                   SizedBox(width: 8),
                   Text(
-                    'Thu gọn menu',
+                    'Thu gọn',
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,
@@ -283,7 +292,9 @@ class _SidebarMenuItemState extends State<_SidebarMenuItem> {
                 border: Border.all(
                   color: isSelected
                       ? AppColors.primaryBorder
-                      : (isHovered ? AppColors.primaryBorder : Colors.transparent),
+                      : (isHovered
+                            ? AppColors.primaryBorder
+                            : Colors.transparent),
                   width: 1,
                 ),
               ),
@@ -296,21 +307,31 @@ class _SidebarMenuItemState extends State<_SidebarMenuItem> {
                     size: 20,
                     color: isSelected
                         ? AppColors.primaryAccessible
-                        : (isHovered ? AppColors.primaryAccessible : AppColors.textSecondary),
+                        : (isHovered
+                              ? AppColors.primaryAccessible
+                              : AppColors.textSecondary),
                   ),
                   if (widget.badgeCount > 0)
                     Positioned(
                       top: 0,
                       right: 4,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.accent,
                           borderRadius: BorderRadius.circular(AppRadius.badge),
                         ),
-                        constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                        constraints: const BoxConstraints(
+                          minWidth: 14,
+                          minHeight: 14,
+                        ),
                         child: Text(
-                          widget.badgeCount > 99 ? '99+' : widget.badgeCount.toString(),
+                          widget.badgeCount > 99
+                              ? '99+'
+                              : widget.badgeCount.toString(),
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 9,
@@ -337,11 +358,7 @@ class _SidebarMenuItemState extends State<_SidebarMenuItem> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
-          transform: Matrix4.translationValues(
-            isHovered ? 2.0 : 0.0,
-            0.0,
-            0.0,
-          ),
+          transform: Matrix4.translationValues(isHovered ? 2.0 : 0.0, 0.0, 0.0),
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
           decoration: BoxDecoration(
             color: isSelected
@@ -384,7 +401,9 @@ class _SidebarMenuItemState extends State<_SidebarMenuItem> {
                       size: 18,
                       color: isSelected
                           ? AppColors.primaryAccessible
-                          : (isHovered ? AppColors.primaryAccessible : AppColors.textSecondary),
+                          : (isHovered
+                                ? AppColors.primaryAccessible
+                                : AppColors.textSecondary),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -397,7 +416,9 @@ class _SidebarMenuItemState extends State<_SidebarMenuItem> {
                               : (isHovered ? FontWeight.w500 : FontWeight.w400),
                           color: isSelected
                               ? AppColors.primaryAccessible
-                              : (isHovered ? AppColors.primaryAccessible : AppColors.textPrimary),
+                              : (isHovered
+                                    ? AppColors.primaryAccessible
+                                    : AppColors.textPrimary),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

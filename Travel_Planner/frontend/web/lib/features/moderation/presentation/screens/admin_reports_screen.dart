@@ -342,8 +342,6 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
           // Standalone Enterprise Page Header
           AdminPageHeader(
             title: 'Quản lý báo cáo vi phạm',
-            subtitle:
-                'Xử lý, phân giải và rà soát các báo cáo vi phạm tiêu chuẩn từ cộng đồng người dùng.',
             actions: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
