@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final MaintenanceModeFilter maintenanceModeFilter;
     private final ObjectMapper objectMapper;
 
     @Value("${cors.allowed-origins:http://localhost:8081,http://127.0.0.1:8081}")
@@ -47,8 +48,11 @@ public class SecurityConfig {
     @Value("${cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}")
     private String allowedOriginPatternsConfig;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            MaintenanceModeFilter maintenanceModeFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.maintenanceModeFilter = maintenanceModeFilter;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         this.objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -98,7 +102,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(maintenanceModeFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
