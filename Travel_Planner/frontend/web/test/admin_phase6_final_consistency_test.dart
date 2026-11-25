@@ -9,7 +9,6 @@ import 'package:travel_planner_web/features/auth/data/auth_repository.dart';
 import 'package:travel_planner_web/features/auth/data/auth_storage.dart';
 import 'package:travel_planner_web/features/auth/presentation/auth_notifier.dart';
 import 'package:travel_planner_web/features/auth/presentation/screens/login_screen.dart';
-import 'package:travel_planner_web/features/auth/presentation/screens/register_screen.dart';
 import 'package:travel_planner_web/features/layout/domain/admin_tab.dart';
 import 'package:travel_planner_web/features/layout/presentation/screens/admin_shell.dart';
 import 'package:travel_planner_web/features/layout/presentation/widgets/placeholder_feature_view.dart';
@@ -63,7 +62,7 @@ void main() {
       }
     });
 
-    testWidgets('RegisterScreen adheres to Swiss minimalism: no shadows, 4px radius, clean layout', (tester) async {
+    testWidgets('LoginScreen does not expose self-registration flow on Admin Portal', (tester) async {
       SharedPreferences.setMockInitialValues({});
       final authStorage = AuthStorage();
       final mockClient = MockClient((request) async => http.Response('Not found', 404));
@@ -74,22 +73,13 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: RegisterScreen(authNotifier: authNotifier),
+          home: LoginScreen(authNotifier: authNotifier),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Tạo tài khoản mới'), findsOneWidget);
-      expect(find.byType(AppPrimaryButton), findsOneWidget);
-
-      // Verify no BoxShadow in container
-      final containers = tester.widgetList<Container>(find.byType(Container));
-      for (final container in containers) {
-        final boxDec = container.decoration;
-        if (boxDec is BoxDecoration) {
-          expect(boxDec.boxShadow, isNull, reason: 'No elevation shadow allowed under Swiss Minimalism');
-        }
-      }
+      expect(find.text('Đăng ký ngay'), findsNothing);
+      expect(find.text('Tạo tài khoản mới'), findsNothing);
     });
 
     testWidgets('ProfileScreen renders enterprise design system card and WCAG status badges', (tester) async {
@@ -167,7 +157,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: PlaceholderFeatureView(
-              tab: AdminTab.users,
+              tab: AdminTab.settings,
               onGoToDashboard: () => returned = true,
             ),
           ),
@@ -175,7 +165,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Quản lý người dùng'), findsOneWidget);
+      expect(find.text('Cài đặt hệ thống'), findsOneWidget);
       expect(find.text('Chưa triển khai'), findsOneWidget);
       expect(find.text('Lộ trình chức năng dự kiến:'), findsOneWidget);
       expect(find.text('Quay lại trang Tổng quan'), findsOneWidget);
@@ -216,20 +206,19 @@ void main() {
       );
       await authNotifier.checkAuthStatus();
 
-      // Test Itineraries tab
+      // Test Settings tab inside AdminShell
       await tester.pumpWidget(
         MaterialApp(
           home: AdminShell(
             authNotifier: authNotifier,
-            initialTab: AdminTab.itineraries,
+            initialTab: AdminTab.settings,
             apiClient: ApiClient(client: mockClient),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Quản lý lịch trình'), findsWidgets);
-      expect(find.byType(PlaceholderFeatureView), findsOneWidget);
+      expect(find.text('Cài đặt hệ thống'), findsWidgets);
     });
   });
 }

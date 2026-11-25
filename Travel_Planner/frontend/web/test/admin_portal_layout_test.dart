@@ -53,15 +53,14 @@ void main() {
       expect(AdminTab.dashboard.isImplemented, isTrue);
       expect(AdminTab.posts.isImplemented, isTrue);
       expect(AdminTab.reports.isImplemented, isTrue);
+      expect(AdminTab.users.isImplemented, isTrue);
       expect(AdminTab.places.isImplemented, isTrue);
+      expect(AdminTab.itineraries.isImplemented, isTrue);
       expect(AdminTab.media.isImplemented, isTrue);
+      expect(AdminTab.administrativeAreas.isImplemented, isTrue);
+      expect(AdminTab.auditLogs.isImplemented, isTrue);
+      expect(AdminTab.settings.isImplemented, isTrue);
       expect(AdminTab.profile.isImplemented, isTrue);
-
-      expect(AdminTab.users.isImplemented, isFalse);
-      expect(AdminTab.itineraries.isImplemented, isFalse);
-      expect(AdminTab.administrativeAreas.isImplemented, isFalse);
-      expect(AdminTab.auditLogs.isImplemented, isFalse);
-      expect(AdminTab.settings.isImplemented, isFalse);
     });
   });
 
@@ -178,16 +177,16 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: PlaceholderFeatureView(
-              tab: AdminTab.users,
+              tab: AdminTab.settings,
               onGoToDashboard: () => wentBack = true,
             ),
           ),
         ),
       );
 
-      expect(find.text('Quản lý người dùng'), findsOneWidget);
+      expect(find.text('Cài đặt hệ thống'), findsOneWidget);
       expect(find.text('Chưa triển khai'), findsOneWidget);
-      expect(find.textContaining('Nhóm: QUẢN LÝ CỘNG ĐỒNG'), findsOneWidget);
+      expect(find.textContaining('Nhóm: HỆ THỐNG'), findsOneWidget);
       expect(find.textContaining('Lộ trình chức năng dự kiến:'), findsOneWidget);
       expect(find.text('Quay lại trang Tổng quan'), findsOneWidget);
 
@@ -234,7 +233,7 @@ void main() {
       expect(find.text('Quản lý báo cáo'), findsOneWidget);
       expect(find.text('5'), findsOneWidget); // Pending reports badge
       expect(find.text('Quản lý địa điểm'), findsOneWidget);
-      expect(find.text('Quản lý Media'), findsOneWidget);
+      expect(find.text('Quản lý hình ảnh'), findsOneWidget);
 
       // Verify SaaS icons are rendered next to items
       expect(find.byIcon(AdminTab.dashboard.activeIcon), findsOneWidget);
@@ -474,6 +473,16 @@ void main() {
         if (request.url.path == '/api/admin/media-assets') {
           return http.Response(jsonEncode({'content': [], 'totalElements': 2}), 200);
         }
+        if (request.url.path == '/api/admin/users') {
+          return http.Response(jsonEncode({
+            'content': [],
+            'pageNumber': 0,
+            'pageSize': 20,
+            'totalElements': 0,
+            'totalPages': 0,
+            'last': true,
+          }), 200);
+        }
         return http.Response('{}', 200);
       });
 
@@ -510,14 +519,29 @@ void main() {
       expect(find.text('Xử lý, phân giải và rà soát các báo cáo vi phạm tiêu chuẩn từ cộng đồng người dùng.'), findsOneWidget);
 
       // Switch to Standalone Media Screen
-      await tester.tap(find.text('Quản lý Media'));
+      await tester.tap(find.text('Quản lý hình ảnh'));
       await tester.pumpAndSettle();
       expect(find.text('Giám sát tài nguyên tải lên Cloudinary, xử lý dead-letter và retry dọn dẹp file rác.'), findsOneWidget);
 
-      // Switch to Coming Soon tab: Users
+      // Switch to Implemented Users Screen
       await tester.tap(find.text('Quản lý người dùng'));
       await tester.pumpAndSettle();
-      expect(find.text('Chưa triển khai'), findsOneWidget);
+      expect(find.text('Tra cứu tài khoản, phân quyền vai trò và kiểm soát phiên đăng nhập'), findsOneWidget);
+
+      // Switch to Implemented Administrative Areas Screen
+      await tester.tap(find.text('Khu vực hành chính'));
+      await tester.pumpAndSettle();
+      expect(find.text('Đơn vị hành chính cấp tỉnh'), findsOneWidget);
+
+      // Switch to Implemented Audit Logs Screen
+      await tester.tap(find.text('Nhật ký hoạt động'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Tra cứu bất biến các thao tác quản trị'), findsOneWidget);
+
+      // Switch to Implemented Settings Screen
+      await tester.tap(find.text('Cài đặt'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cài đặt hệ thống'), findsWidgets);
     });
   });
 }

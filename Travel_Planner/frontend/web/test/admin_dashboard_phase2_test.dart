@@ -30,12 +30,12 @@ class _FailOnceDashboardRepository extends DashboardRepository {
   _FailOnceDashboardRepository(this.fallbackRepo);
 
   @override
-  Future<AdminDashboardData> fetchDashboardData(String? token) async {
+  Future<AdminDashboardData> fetchDashboardData(String? token, {int days = 30}) async {
     callCount++;
     if (callCount == 1) {
       throw Exception('Connection reset by peer');
     }
-    return fallbackRepo.fetchDashboardData(token);
+    return fallbackRepo.fetchDashboardData(token, days: days);
   }
 }
 
