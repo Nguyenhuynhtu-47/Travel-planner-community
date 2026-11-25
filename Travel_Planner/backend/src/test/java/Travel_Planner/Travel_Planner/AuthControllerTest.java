@@ -455,11 +455,11 @@ class AuthControllerTest {
         userRepository.save(adminUser);
         String token = jwtTokenProvider.generateToken(adminUser);
 
-        // Access is allowed through security filter chain; since no admin controller is implemented yet,
-        // it returns 404 (Not Found), confirming it was NOT rejected by 401 or 403.
+        // Access is allowed through security filter chain and handled by AdminUserController (Phase 2),
+        // returning 200 OK and confirming it was NOT rejected by 401 or 403.
         mockMvc.perform(get("/api/admin/users")
                 .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
     }
 
     @Test

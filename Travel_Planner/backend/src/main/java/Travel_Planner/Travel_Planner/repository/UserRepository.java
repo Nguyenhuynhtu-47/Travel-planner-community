@@ -1,7 +1,10 @@
 package Travel_Planner.Travel_Planner.repository;
 
 import Travel_Planner.Travel_Planner.model.User;
+import Travel_Planner.Travel_Planner.model.enums.Role;
+import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,7 +17,9 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, Integer> {
+public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecificationExecutor<User> {
+
+    long countByRoleAndStatus(Role role, UserStatus status);
 
     Optional<User> findByUsername(String username);
 
