@@ -158,16 +158,15 @@ enum AdminTab {
       case AdminTab.dashboard:
       case AdminTab.posts:
       case AdminTab.reports:
-      case AdminTab.places:
-      case AdminTab.media:
-      case AdminTab.profile:
-        return true;
       case AdminTab.users:
+      case AdminTab.places:
       case AdminTab.itineraries:
+      case AdminTab.media:
       case AdminTab.administrativeAreas:
       case AdminTab.auditLogs:
       case AdminTab.settings:
-        return false;
+      case AdminTab.profile:
+        return true;
     }
   }
 

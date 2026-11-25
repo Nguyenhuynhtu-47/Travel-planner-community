@@ -36,6 +36,8 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Integer>, 
 
     List<Itinerary> findByUser_UserId(Integer userId);
 
+    long countByUser_UserId(Integer userId);
+
     @EntityGraph(attributePaths = {"user"})
     Page<Itinerary> findByUser_UserIdAndVisibilityAndStatusAndUser_StatusOrderByCreatedAtDesc(
             Integer userId, Visibility visibility, ItineraryStatus status, UserStatus userStatus, Pageable pageable);

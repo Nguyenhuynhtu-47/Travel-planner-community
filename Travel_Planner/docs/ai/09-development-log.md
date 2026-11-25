@@ -12049,3 +12049,585 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 ### 3. Verification & Compliance
 - Confirmed zero changes to application source code (`backend/`, `frontend/mobile/`, `frontend/web/`), database migrations, or server configuration.
 - Full architectural and security alignment achieved. Ready for implementation approval.
+
+---
+
+## Session Date: 2026-11-25 — Admin Phase 1 Implementation: Audit Trail Core (Backend Only)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail`
+- **Objective:** Implement Phase 1 (Audit Trail Core) on the Spring Boot backend per `docs/plan/36-admin-functionality-comprehensive-audit.md`, `docs/plan/37-admin-functionality-implementation-roadmap.md`, and `docs/plan/38-admin-functionality-traceability-matrix.md` (Traceability items `2.1` and `2.2`).
+- **Scope Boundaries Enforced:** Backend-only foundational layer. Zero Phase 2–7 endpoints or UI changes (`frontend/mobile/`, `frontend/web/` untouched). Zero direct public or admin REST controller endpoints exposed for audit log mutation.
+
+### 2. Technical Architecture & Implementation Details
+1. **Immutable Append-Only Audit Persistence (`AuditLog`, `AuditLogRepository`):**
+   - Created `AuditLog` JPA entity (`@Entity`, `@Immutable`, `updatable = false` on all columns) mapped to `audit_logs` with 5 indexes (`idx_audit_actor_created`, `idx_audit_action_created`, `idx_audit_target_created`, `idx_audit_created_at`, `idx_audit_correlation_id`).
+   - Added `@PrePersist` policy validation and `@PreUpdate` / `@PreRemove` hooks throwing `UnsupportedOperationException` to forbid updates or deletes at the JPA lifecycle level.
+   - Created `AuditLogRepository` extending `org.springframework.data.repository.Repository<AuditLog, Long>` (intentionally omitting `CrudRepository`, `JpaRepository`, and `JpaSpecificationExecutor` so `delete*` / `update*` methods do not exist in the repository contract), providing `save`, `saveAndFlush`, `findById`, `existsById`, `findAll`, `count`, and deterministic stable pagination queries (`createdAt DESC, logId DESC`).
+   - Standardized enums in `model/enums/`: `AuditPolicy` (`STRICT`, `BEST_EFFORT_TELEMETRY`), `AuditActionType` (binding immutable `AuditPolicy` to every action), `AuditTargetType`, and `AuditResultStatus` (`SUCCESS`, `FAILED`, `DELIVERY_FAILED`).
+
+2. **Schema Migration Alignment (`AuditLogMigrationRunner`):**
+   - Confirmed the project uses Hibernate `ddl-auto=update` (dev/test) plus idempotent Spring `ApplicationRunner` schema runners with MySQL Advisory Locks (`GET_LOCK`/`RELEASE_LOCK`), with no Flyway or Liquibase dependencies in `pom.xml`.
+   - Implemented `AuditLogMigrationRunner` (`@Order(7)`) acquiring single-connection MySQL advisory lock `audit_log_migration_lock`, creating `audit_logs` idempotently (`CREATE TABLE IF NOT EXISTS`) with `DESC` compound indexes, verifying missing columns/indexes, and documenting the rollback SQL (`DROP TABLE IF EXISTS audit_logs;`) and production `ddl-auto=validate` pre-deployment SQL requirement.
+
+3. **Strict Audit vs. Best-Effort Telemetry & Transaction Boundaries (`AuditLogServiceImpl`, `AuditTrailPersistenceException`):**
+   - `logStrictAction(AuditCommand)`: Executes under `@Transactional(propagation = Propagation.REQUIRED, readOnly = false)`, rejects active `readOnly` transactions, resolves authoritative actor/context, masks snapshots, and calls `saveAndFlush`. Any persistence failure throws `AuditTrailPersistenceException` (HTTP 500 safe generic message without leaking secrets) and triggers atomic rollback of the enclosing business transaction.
+   - `logIsolatedOutcome(AuditCommand)`: Executes under `@Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = false)` for isolated failure/delivery-failure outcomes while preserving strict persistence checks.
+   - `recordBestEffortTelemetry(AuditCommand)`: Executes outside DB transactions (`Propagation.NOT_SUPPORTED`), explicitly rejects any `AuditPolicy.STRICT` action with `IllegalArgumentException`, and catches telemetry sink failures with warning logs without affecting caller transactions.
+
+4. **Data Masking, Allowlist Snapshots & Anti-Spoofing Context (`DataMaskingUtil`, `AuditContextResolver`, `CorrelationIdFilter`):**
+   - Created allowlist-first snapshot DTOs in `dto/audit/`: `AuditSnapshot`, `UserAuditSnapshot`, `ItineraryAuditSnapshot`, `PlaceAuditSnapshot`, `PostAuditSnapshot`, `ReportAuditSnapshot`, `SettingAuditSnapshot`, `AuditExportSnapshot`.
+   - Implemented `DataMaskingUtil` to recursively reject raw JPA `@Entity` instances and `HibernateProxy` objects (including nested inside maps, lists, arrays, and DTO fields), and recursively redact denylisted credential keys (`password`, `token`, `tokens`, `secret`, `api_key`, `authorization`, `cookie`, `otp`, `hash`, etc.), embedded JWT/`Bearer` strings, and PII (`email`, `phone`) across nested objects and collections.
+   - Implemented `CorrelationIdFilter` (`MDC` propagation per request) and `AuditContextResolver` (resolving actor strictly from `SecurityContextHolder`, ignoring spoofed headers like `X-Actor-Id`/`X-Actor-Username`, rejecting unauthenticated/anonymous callers and mismatched `expectedActorUsername`, and resolving IP via `ClientIpResolver`).
+
+### 3. Files Created
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/enums/AuditPolicy.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/enums/AuditActionType.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/enums/AuditTargetType.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/enums/AuditResultStatus.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/model/AuditLog.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/exception/AuditTrailPersistenceException.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/AuditLogMigrationRunner.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/repository/AuditLogRepository.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/AuditSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/UserAuditSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/ItineraryAuditSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/PlaceAuditSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/PostAuditSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/ReportAuditSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/SettingAuditSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/AuditExportSnapshot.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/dto/audit/AuditCommand.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/util/DataMaskingUtil.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/security/CorrelationIdFilter.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/util/AuditContextResolver.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/AuditLogService.java`
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/service/impl/AuditLogServiceImpl.java`
+- `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/DataMaskingUtilTest.java`
+- `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/AuditLogServiceTest.java`
+- `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/AuditLogMigrationRunnerTest.java`
+- `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/AuditLogRepositoryTest.java`
+
+### 4. Verification & Test Results (Executed Against MySQL 8.0.37 `travel_planner_test`)
+- **Targeted Phase 1 Suite (`./mvnw test "-Dtest=DataMaskingUtilTest,AuditLogServiceTest,AuditLogMigrationRunnerTest,AuditLogRepositoryTest"`):**
+  - `DataMaskingUtilTest`: **4 passed, 0 failed**
+  - `AuditLogServiceTest`: **7 passed, 0 failed**
+  - `AuditLogMigrationRunnerTest`: **3 passed, 0 failed**
+  - `AuditLogRepositoryTest`: **6 passed, 0 failed**
+  - **Subtotal:** **20 / 20 PASS (100%)**
+- **Full Backend Regression Suite (`./mvnw test`):**
+  - **Result:** **705 run, 0 failures, 0 errors, 0 skipped** (`BUILD SUCCESS`).
+  - Zero regressions across Authentication, Profile, Itinerary, Place, AdministrativeArea, Community, and Messaging test suites.
+
+### 5. Next Steps
+- Review Phase 1 implementation and proceed to Phase 2 (User Management & Session Revocation) upon project owner approval.
+
+---
+
+## Session Date: 2026-11-25 — Phase 1 Production Migration Verification (`ddl-auto=validate`)
+
+### 1. Verification Finding (Spring Boot Lifecycle)
+- Verified Spring Boot container initialization order: `LocalContainerEntityManagerFactoryBean` (`entityManagerFactory`) initializes and executes Hibernate `SchemaValidator` (`spring.jpa.hibernate.ddl-auto=validate` in `application-prod.properties`) during `AbstractApplicationContext.finishBeanFactoryInitialization()`, **before** `ApplicationRunner.run()` is invoked by `SpringApplication.callRunners()`.
+- Consequently, a standalone `ApplicationRunner` cannot create `audit_logs` in time when `ddl-auto=validate` runs on a fresh production database where `audit_logs` does not yet exist.
+
+### 2. Solution Implemented (Without Flyway/Liquibase)
+- Preserved the project's existing JDBC + MySQL Advisory Lock schema management mechanism without adding Flyway or Liquibase dependencies:
+  - Added `AuditSchemaDependsOnPostProcessor` (`BeanFactoryPostProcessor`) to declare `auditLogMigrationRunner` in `entityManagerFactory`'s `dependsOn` list before JPA initialization.
+  - Updated `AuditLogMigrationRunner` (`@Component("auditLogMigrationRunner")`) to implement `InitializingBean` (in addition to `ApplicationRunner`), injecting `DataSource` directly so `ensureSchemaAndMigration()` creates/verifies `audit_logs` and its 5 indexes under `GET_LOCK('audit_log_migration_lock', 15)` strictly **before** Hibernate `ddl-auto=validate` executes, failing fast with `IllegalStateException` on critical schema initialization failures.
+- No business logic in `AuditLogService` was altered, and scope remained strictly within Phase 1.
+
+### 3. Production Verification & Regression Results
+- **Created `AuditLogProductionValidationTest`:**
+  - Verified `entityManagerFactory` `BeanDefinition.getDependsOn()` includes `auditLogMigrationRunner`.
+  - Dropped `audit_logs` on `travel_planner_test`, booted `SpringApplicationBuilder(TravelPlannerApplication.class)` with `spring.jpa.hibernate.ddl-auto=validate`: confirmed `AuditLogMigrationRunner` created `audit_logs` prior to `LocalContainerEntityManagerFactoryBean` validation, and persisted an `AuditLog` record.
+  - Rebooted a second `ddl-auto=validate` context while `audit_logs` already existed with data: confirmed idempotent startup and row preservation (**2 / 2 PASS**).
+- **Full Backend Test Suite (`./mvnw test`):** **707 run, 0 failures, 0 errors, 0 skipped** (`BUILD SUCCESS`).
+
+### 4. Files Created / Modified
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/AuditSchemaDependsOnPostProcessor.java` (CREATED)
+- `Travel_Planner/backend/src/main/java/Travel_Planner/Travel_Planner/config/AuditLogMigrationRunner.java` (MODIFIED)
+- `Travel_Planner/backend/src/test/java/Travel_Planner/Travel_Planner/AuditLogProductionValidationTest.java` (CREATED)
+- `Travel_Planner/docs/ai/09-development-log.md` (MODIFIED)
+
+
+---
+
+## Session Date: 2026-11-25 — Admin Phase 2 Implementation: User Management (Backend & Web UI)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (uncommitted Phase 1 Audit Trail Core work preserved in full).
+- **Objective:** Implement **Phase 2: Admin User Management** across Spring Boot Backend (`AdminUserController`, concurrency-safe role/status orchestration, session revocation, Strict Audit integration) and Flutter Web Admin (`AdminUsersScreen`, detail/action dialogs, and removal of self-registration from Web Admin), strictly following `docs/plan/36-admin-functionality-comprehensive-audit.md`, `docs/plan/37-admin-functionality-implementation-roadmap.md`, and `docs/plan/38-admin-functionality-traceability-matrix.md`.
+- **Scope Boundaries Enforced:** Zero Phase 3–7 features added. All 11 Admin Sidebar names, ordering, groups, routes, and icons remain unchanged (`AdminTab.users` flipped to `isImplemented = true` and wired to `AdminUsersScreen`). Mobile app and Backend `POST /api/auth/register` remain untouched.
+
+### 2. Backend Implementation Details
+1. **Schema & Mutex Infrastructure (`AdminRoleGuard`, `AdminUserMigrationRunner`, `AuditSchemaDependsOnPostProcessor`):**
+   - Added `AdminRoleGuard` entity (`admin_role_guard` table, guard key `ADMIN_ROLE_MUTEX`) and `AdminRoleGuardRepository` with `@Lock(LockModeType.PESSIMISTIC_WRITE)` query `findByGuardNameForUpdate`.
+   - Added `AdminUserMigrationRunner` (`InitializingBean` + `ApplicationRunner`, `@Order(8)`) creating `admin_role_guard`, seeding `(1, 'ADMIN_ROLE_MUTEX')`, and creating compound filter index `idx_users_admin_filter` on `users(role, status, created_at DESC)` under MySQL advisory lock `admin_user_migration_lock`.
+   - Registered `adminUserMigrationRunner` in `AuditSchemaDependsOnPostProcessor` so schema validation (`ddl-auto=validate`) runs strictly after migration readiness.
+   - Added `USER_SESSIONS_REVOKE(AuditPolicy.STRICT)` to `AuditActionType`.
+2. **2-Bean Concurrency-Safe Orchestration (`AdminUserOrchestrationServiceImpl` + `AdminUserTransactionalWorker`):**
+   - Enabled `@EnableResilientMethods` on `TravelPlannerApplication` to leverage Spring Framework 7's built-in `@Retryable` (`includes = {CannotAcquireLockException.class, PessimisticLockingFailureException.class}, maxRetries = 2, delay = 100, multiplier = 2.0`) on `AdminUserOrchestrationServiceImpl`.
+   - Separated transaction boundaries across bean proxies into `AdminUserTransactionalWorker` (`@Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)`), acquiring `ADMIN_ROLE_MUTEX` first before reloading both the authenticated Actor (enforcing `ACTIVE` + `ROLE_ADMIN`, throwing `AccessDeniedException` if revoked mid-wait) and the Target user (`ResourceNotFoundException` if missing).
+   - Enforced anti-self-ban, anti-self-role-change, anti-self-session-revoke, and last-active-admin protection (`countByRoleAndStatus(Role.ADMIN, UserStatus.ACTIVE) <= 1`).
+   - Invoked `UserSessionService.revokeAllSessions` on account ban and role changes, and recorded atomic Strict Audit entries via `AuditLogService.logStrictAction`.
+3. **REST API & DTOs (`AdminUserController`):**
+   - Exposed `@PreAuthorize("hasRole('ADMIN')")` endpoints under `/api/admin/users`: `GET ""` (search, `role`, `status`, pagination), `GET "/{id}"`, `PATCH "/{id}/status"`, `PATCH "/{id}/role"`, and `POST "/{id}/sessions/revoke-all"`.
+   - Added Jakarta-validated requests (`UpdateUserStatusRequest`, `UpdateUserRoleRequest`) and masked/safe response DTOs (`UserAdminResponse`, `UserAdminDetailResponse`) without password hashes or secret fields.
+
+### 3. Flutter Web Admin Implementation Details
+1. **Web Admin Self-Registration Removal:**
+   - Deleted `frontend/web/lib/features/auth/presentation/screens/register_screen.dart` and `frontend/web/test/username_validation_test.dart`.
+   - Removed `registerEndpoint` (`api_constants.dart`), `register(...)` (`auth_repository.dart`, `auth_notifier.dart`), and registration navigation from `login_screen.dart`, replacing it with internal provisioning notice copy.
+2. **Users Management UI (`AdminUsersScreen`, `UserDetailDialog`, `user_action_dialogs.dart`):**
+   - Implemented `AdminUserModel`, `AdminUserDetailModel`, `AdminUserSessionModel`, and `AdminUserRepository` wired to `/api/admin/users` endpoints.
+   - Built `AdminUsersScreen` adhering to `admin-design-system.md` (server-side pagination, keyword search, role/status dropdown filters, status badges, self-protection disabled buttons with explanatory tooltips, loading/empty/error-retry states, and `ADMIN` UI guard).
+   - Built `UserDetailDialog` (identity strip, itinerary/post/active-session KPIs, metadata, recent login sessions, and remote session revocation) and `StatefulWidget`-backed dialogs in `user_action_dialogs.dart` (`showBanUnbanUserDialog`, `showChangeRoleDialog`, `showRevokeSessionsConfirmDialog`) to safely manage `TextEditingController` disposal after dialog exit animations.
+   - Wired `AdminTab.users` (`isImplemented => true`) in `admin_tab.dart` and `admin_shell.dart`.
+
+### 4. Verification & Test Results
+- **Backend Full Suite (`./mvnw test` against MySQL `travel_planner_test`):**
+  - `AdminUserControllerTest`: **8 passed, 0 failed**
+  - `AdminUserConcurrencyIntegrationTest`: **9 passed, 0 failed**
+  - `AuthControllerTest` (updated `security_adminEndpoint_withAdminRole_shouldPassSecurity` from legacy `404` to `200 OK` now that `/api/admin/users` exists): **40 passed, 0 failed**
+  - **Total Backend Suite:** **724 run, 0 failures, 0 errors, 0 skipped** (`BUILD SUCCESS`).
+- **Flutter Web Verification:**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test` (including new `admin_users_phase2_test.dart` and updated `widget_test.dart`, `admin_phase6_final_consistency_test.dart`, `admin_portal_layout_test.dart`): **130 passed, 0 failed**.
+- **Flutter Mobile Auth Regression:**
+  - `flutter test test/email_verification_test.dart test/auth_401_test.dart`: **14 passed, 0 failed**.
+
+
+---
+
+## Session Date: 2026-11-25 — Admin Phase 2 UI Refinement: Real User Avatars & Table Layout Polish
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1 and Phase 2 changes).
+- **Objective:** Upgrade the Admin User Management table (`AdminUsersScreen`) and detail dialog (`UserDetailDialog`) to render real user avatars from the backend `avatar` field (with strict URL validation and fallback initials) and optimize table column sizing, alignment, and text overflow resilience.
+- **Backend Verification:** Inspected `UserAdminResponse`, `UserAdminDetailResponse`, and `AdminUserOrchestrationServiceImpl`; confirmed both list (`GET /api/admin/users`) and detail (`GET /api/admin/users/{id}`) endpoints already serialize `avatar` from `User.getAvatar()`. No backend modifications were required.
+
+### 2. Implementation Details
+1. **Reusable Real Avatar Component (`user_avatar.dart`):**
+   - Created `UserAvatar` (`frontend/web/lib/features/users/presentation/widgets/user_avatar.dart`) with `UserAvatar.resolveValidUrl(String?)` validating `http://`/`https://` URLs and resolving leading-`/` relative paths against `ApiConstants.baseUrl` while rejecting `null`, empty strings, `//` protocol-relative strings, and non-HTTP(S) schemes.
+   - Renders `ClipOval` + `Image.network(..., fit: BoxFit.cover)` with `loadingBuilder` and `errorBuilder` falling back seamlessly to the existing letter-initial avatar when absent, malformed, or failing network load (never substitutes fake stock avatars).
+   - Wired `UserAvatar` into both `AdminUsersScreen` rows (`size: 34`) and `UserDetailDialog` header (`size: 42`).
+2. **Responsive Data Table Layout & Alignment (`admin_users_screen.dart`):**
+   - Wrapped `AdminDataTable` in `LayoutBuilder` so `minWidth` expands across 100% of available desktop viewport width (`max(availableWidth, 1070.0)`) while preserving horizontal scroll on narrow screens.
+   - Standardized explicit header/cell widths and left alignment across all 7 columns (`ID`, `Người dùng`, `Email`, `Vai trò`, `Trạng thái`, `Ngày tạo`, `THAO TÁC`), increased row height to `56.0` for two-line identity legibility, and applied `TextOverflow.ellipsis` + `Tooltip` guards on long display names, `@handle • username`, and emails.
+   - Configured compact `IconButton` styling (`minimumSize: Size(36, 36)`, `fixedSize: Size(36, 36)`, `MaterialTapTargetSize.shrinkWrap`) inside `width: 124` for the `THAO TÁC` column to eliminate horizontal RenderFlex overflow.
+
+### 3. Verification & Test Results
+- **Flutter Web Verification (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test` (including new URL-validation unit tests and avatar/long-text overflow widget tests in `admin_users_phase2_test.dart`): **132 passed, 0 failed**.
+- **Scope & Regression Integrity:** Backend, Mobile app, Phase 1 Audit Trail, and the 11 Admin Sidebar items remained untouched (prior Backend `./mvnw test` **724/724 PASS** and Mobile auth regression **14/14 PASS** remain valid).
+
+
+---
+
+## Session Date: 2026-11-25 — Admin Places Table Optimization & Login Portal Redesign
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1 and Phase 2 changes).
+- **Objective:**
+  1. Optimize `AdminPlacesScreen` column allocation so the right-most action column (`THAO TÁC`) stays visible within the viewport when the 252px Sidebar is expanded, without sacrificing existing actions or breaking narrow-viewport horizontal table scrolling.
+  2. Redesign `LoginScreen` into a balanced Professional SaaS / Enterprise Admin portal layout with subtle travel-domain visual motif using exact brand tokens (`#FF385C`, `#E00B41`, `#FFFFFF`, `#0F172A`, `#64748B`), while keeping self-registration permanently removed on Web Admin.
+
+### 2. Implementation Details
+1. **Places Data Table Column Allocation (`admin_places_screen.dart`):**
+   - Tightened `AdminDataTable` spacing (`columnSpacing: 12`, `horizontalMargin: 12`, `dataRowHeight: AppHeights.tableRowComfortable`) and constrained secondary metadata columns (`ID: 40`, `DANH MỤC: 102`, `KHU VỰC: 88–114`, `TỌA ĐỘ: 106`, `TRẠNG THÁI: 86`) with `TextOverflow.ellipsis` and hover `Tooltip`s.
+   - Dynamically sized `TÊN ĐỊA ĐIỂM` (`46%`) and `ĐỊA CHỈ` (`54%`) from `LayoutBuilder` remaining budget (`tableMinWidth = max(availableWidth, 980.0)`), keeping `'Chi tiết'`, `'Sửa'`, and `'Ẩn'` / `'Kích hoạt'` visible at `1366x768+` with expanded Sidebar (`252px`) while constraining horizontal scroll exclusively inside `AdminDataTable` on narrower viewports.
+2. **Enterprise Admin Login Redesign (`login_screen.dart`):**
+   - Desktop (`>= 960px`): Implemented a balanced split 2-column workspace pairing `_TravelAdminBrandPanel` (cartographic grid + subtle curved itinerary waypoints rendered via `_TravelRouteMotifPainter`, Travel Planner brand lockup, three concise module capability summaries, and coordinate footer) on `#F8FAFC` with the crisp `#FFFFFF` authentication card (`maxWidth: 420`, `ADMIN ACCESS` badge, existing validation, loading state, password visibility toggle, and internal provisioning notice).
+   - Narrow viewports (`< 960px`) & short heights: Switches cleanly to a stacked brand strip + form card inside `SingleChildScrollView` with zero vertical/horizontal overflow.
+
+### 3. Verification & Test Results
+- **Flutter Web Verification (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found** (`4.3s`).
+  - `flutter test` (including new expanded-sidebar visibility test at `1366x768` in `admin_places_phase5_test.dart` and desktop/mobile layout tests in `widget_test.dart`): **135 passed, 0 failed**.
+- **Repository & Scope Integrity:** Backend, Mobile app, Phase 1 Audit Trail, and the 11 Admin Sidebar items remained untouched; zero Git commits/checkouts performed.
+
+
+---
+
+## Session Date: 2026-11-25 — Admin Login Portal Redesign (45:55 Organic Wave Split Layout)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1 and Phase 2 changes).
+- **Objective:** Redesign Flutter Web Admin `LoginScreen` inspired by the reference split-screen organic-wave composition while strictly honoring Travel Planner brand tokens (`#FF385C`, `#E00B41`, `#FFFFFF`, `#0F172A`, `#64748B`), zero heavy shadows, responsive vertical mobile/tablet fallback, existing login/validation/navigation logic, and permanent removal of Web Admin self-registration.
+
+### 2. Implementation Details (`login_screen.dart`)
+1. **Desktop Split-Screen & Layered Organic Wave (`>= 960px`):**
+   - Built a 45:55 split `Stack` + `Row` workspace backed by `_WaveSplitBackgroundPainter`.
+   - Left brand zone (`#FF385C` to `#E00B41` subtle gradient) uses multi-bend cubic Bezier wave curves with two translucent coral/rose accent wave layers (`AppColors.primaryBorder`, `#FF8FA3`) transitioning seamlessly into the pure `#FFFFFF` right pane, paired with restrained translucent white route/waypoint and compass vector accents.
+   - Left foreground (`_DesktopBrandPane`) renders clean white typography only: `'Chào mừng đến với'`, circular Travel Explore emblem, `'Travel Planner'`, `'Travel Planner Portal'` role pill, concise administration summary text, and minimal bottom branding (`'TRAVEL PLANNER  |  ADMINISTRATION'`), intentionally omitting feature cards.
+   - Right login zone (`flex: 55`) places a borderless, card-free form directly on white canvas (`'ADMIN PORTAL'` badge, `'Đăng nhập hệ thống'`, concise subtitle, existing `AppTextField` inputs with password visibility toggle, `#FF385C` `AppPrimaryButton`, and internal provisioning notice).
+2. **Responsive Tablet / Mobile Layout (`< 960px`):**
+   - Renders inside `SingleChildScrollView` with a top curved wave banner (`_MobileWaveBrandHeader` via `_TopBannerWaveClipper`) stacked strictly above the centered white form area so waves never obscure form controls and low-height screens stay scrollable.
+
+### 3. Verification & Test Results
+- **Flutter Web Verification (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found** (`4.2s`).
+  - `flutter test` (including updated assertions in `widget_test.dart`, `admin_phase6_final_consistency_test.dart`, and `login_flow_integration_test.dart`): **135 passed, 0 failed**.
+- **Repository & Scope Integrity:** Only Login UI, `widget_test.dart`, and `09-development-log.md` were touched; Sidebar, routes, API, Backend, Mobile app, and Phase 1/2 work remain untouched without commits.
+
+
+---
+
+## Session Date: 2026-11-25 — Login Typography Refinement (Web Admin & Mobile)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1 and Phase 2 changes).
+- **Objective:** Synchronize Login screen typography readability across Flutter Web Admin and Flutter Mobile without modifying layout structure, wave divider, colors, or authentication/navigation logic.
+
+### 2. Implementation Details
+1. **Shared Input & Button Typography Hooks (`AppTextField`, Web `AppPrimaryButton`):**
+   - Added optional `labelStyle`, `inputStyle`, and `hintStyle` overrides to both `frontend/web/lib/shared/widgets/app_text_field.dart` and `frontend/mobile/lib/shared/widgets/app_text_field.dart` (preserving defaults for all other screens).
+   - Added optional `fontSize` parameter (defaulting to `13`) to `frontend/web/lib/shared/widgets/app_primary_button.dart`.
+2. **Flutter Web Admin Login (`frontend/web/lib/features/auth/presentation/screens/login_screen.dart`):**
+   - Increased font sizes slightly across left/mobile brand headings (`Travel Planner`: `30`/`22`, `'Travel Planner Portal'`: `13.5`, subtitle/greeting: `14.5`/`15`, footer: `11.5`), right form header (`'ADMIN PORTAL'`: `11.5`, `'Đăng nhập hệ thống'`: `28`, subtitle: `15`), submit button (`14.5`), and internal provisioning notice (`13`).
+   - Styled `'Tên đăng nhập hoặc Email'` and `'Mật khẩu'` field labels at `14.5px`, `FontWeight.w600`, `#0F172A`, with clearer `14px` placeholders (`alpha: 0.85` on `AppColors.textMuted`) and `15px` input text.
+3. **Flutter Mobile Login (`frontend/mobile/lib/features/auth/presentation/screens/login_screen.dart`):**
+   - Increased title (`28`), subtitle (`15.5`), `'Quên mật khẩu?'` (`14`), and bottom prompt (`15`) font sizes proportionally for mobile readability.
+   - Styled `'Tên đăng nhập hoặc Email'` and `'Mật khẩu'` labels at `15px`, `FontWeight.w600`, `AppColors.textPrimary`, paired with `16px` input text and clearer `15px` placeholders (`alpha: 0.72` on `AppColors.textSecondary`).
+
+### 3. Verification & Test Results
+- **Flutter Web (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test` (including `FontWeight.w600` assertions in `widget_test.dart`): **135 passed, 0 failed**.
+- **Flutter Mobile (`cd Travel_Planner/frontend/mobile`):**
+  - `flutter analyze lib/features/auth/presentation/screens/login_screen.dart lib/shared/widgets/app_text_field.dart test/widget_test.dart`: **No issues found** (full-package `flutter analyze` retains only 2 pre-existing `info` deprecation hints in `report_post_dialog.dart`).
+  - `flutter test test/widget_test.dart test/email_verification_test.dart test/auth_401_test.dart test/google_sign_in_test.dart test/password_reset_test.dart test/animation_enhancements_test.dart`: **43 passed, 0 failed**.
+- **Repository Integrity:** No commits, pushes, or branch changes performed.
+
+
+---
+
+## Session Date: 2026-11-25 — Phase 3: Admin Itinerary Moderation (Backend & Flutter Web)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1, Phase 2, Places, and Login UI changes without commits).
+- **Approved Design Sources:** `docs/plan/36-admin-functionality-comprehensive-audit.md`, `docs/plan/37-admin-functionality-implementation-roadmap.md`, `docs/plan/38-admin-functionality-traceability-matrix.md` (IDs `4.1–4.4`).
+- **Scope:** Implemented Phase 3 Itinerary Moderation on Spring Boot Backend and Flutter Web Admin, keeping all 11 Admin Sidebar items, order, groups, routes, and icons intact while enabling `AdminTab.itineraries`.
+
+### 2. Backend Implementation (IDs 4.1–4.4 + PRIVATE Strict Audit Protocol)
+1. **Database Index Migration (`AdminItineraryMigrationRunner`, `AuditSchemaDependsOnPostProcessor`):**
+   - Added `AdminItineraryMigrationRunner` (`@Order(9)`, `InitializingBean` + `ApplicationRunner`) under MySQL advisory lock `admin_itinerary_migration_lock` to idempotently create `idx_itineraries_admin_query` on `itineraries(status, visibility, created_at DESC)` before Hibernate `ddl-auto=validate` via `AuditSchemaDependsOnPostProcessor`.
+2. **DTOs & Allowlist Responses:**
+   - Created `ModerateItineraryRequest` (`@NotNull ItineraryStatus status`, `@NotBlank @Size(min = 3, max = 255) String reason`).
+   - Created `ItineraryAdminResponse` and `ItineraryAdminDetailResponse` (with `CreatorSummaryResponse`, read-only `days` & `activities`, `privateInspection`, and `inspectedReportId`).
+3. **Service & Controller (`AdminItineraryService`, `AdminItineraryServiceImpl`, `AdminItineraryController`):**
+   - `GET /api/admin/itineraries`: Server-side paged list (`PUBLIC` visibility only; rejects `PRIVATE` list requests with HTTP 400). Supports search (`keyword`), `status`, and `location` filters.
+   - `GET /api/admin/itineraries/{id}`: Read-only detail inspector. For `PRIVATE` itineraries, enforces `reportId` (must exist in `post_reports`, `status == PENDING`, and belong to the exact `itineraryId` via `post.itinerary.itineraryId`) + `inspectionReason` (10–255 chars), re-verifies active `ROLE_ADMIN` from DB, and executes Strict Audit (`ITINERARY_PRIVATE_INSPECT`, `readOnly = false`, `Propagation.REQUIRED`) **before** returning payload (rolling back / failing closed with `AuditTrailPersistenceException` if audit persistence fails).
+   - `PATCH /api/admin/itineraries/{id}/status`: Moderates status between `ACTIVE` and `HIDDEN` (no physical deletion or creator mutation) with mandatory reason (`3–255` chars) and atomic Strict Audit (`ITINERARY_MODERATE`) in the same transaction.
+4. **Backend Integration Tests (`AdminItineraryControllerTest`):**
+   - Added 8 integration tests covering RBAC, `PUBLIC`-only listing/filtering/pagination, read-only detail, hide/restore + validation, atomic rollback on audit failure, `PRIVATE` inspection guards + fail-closed audit-failure protection, and idempotent migration.
+
+### 3. Flutter Web Admin Implementation
+1. **API & Data Layer (`api_constants.dart`, `admin_itinerary_model.dart`, `itinerary_admin_repository.dart`):**
+   - Added `adminItinerariesEndpoint`, `adminItineraryDetailEndpoint(id)`, and `adminItineraryModerateEndpoint(id)`.
+   - Implemented `AdminItineraryCreator`, `AdminItineraryModel`, `AdminItineraryActivityModel`, `AdminItineraryDayModel`, `AdminItineraryDetailModel`, `PagedAdminItineraries`, and `ItineraryAdminRepository`.
+2. **UI & Dialogs (`AdminItinerariesScreen`, `ItineraryDetailDialog`, `ModerateItineraryDialog`, `PrivateInspectDialog`):**
+   - Built `AdminItinerariesScreen` with Vietnamese UI following Swiss Minimalism (`admin-design-system.md`): search, status filter, server-side pagination, loading/empty/error-retry states, and non-`ADMIN` access block.
+   - Built `ItineraryDetailDialog` (read-only day/activity timeline + `PRIVATE` Strict Audit banner), `ModerateItineraryDialog` (3–255 char reason validation), and `PrivateInspectDialog` (`itineraryId` + `reportId` + `inspectionReason` >= 10 chars).
+   - Enabled `AdminTab.itineraries.isImplemented => true` in `admin_tab.dart` and wired `AdminItinerariesScreen` in `admin_shell.dart` without altering any sidebar names, order, groups, routes, or icons.
+3. **Flutter Web Tests:**
+   - Added `test/admin_itineraries_phase3_test.dart` (3 widget test suites) and updated placeholder assertions in `admin_portal_layout_test.dart` and `admin_phase6_final_consistency_test.dart` to `AdminTab.administrativeAreas`.
+
+### 4. Verification & Test Results
+- **Backend (`cd Travel_Planner/backend; ./mvnw test`):**
+  - **732 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)**, including all 8 tests in `AdminItineraryControllerTest`.
+- **Flutter Web (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test`: **138 passed, 0 failed**.
+- **Repository Integrity:** All changes remain uncommitted on `feature/admin-audit-trail`.
+
+
+---
+
+## Session Date: 2026-11-25 — Phase 4: Administrative Areas (IDs 5.6–5.9)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1, Phase 2, Phase 3, Places, and Login UI changes without commits).
+- **Approved Design Sources:** `docs/plan/36-admin-functionality-comprehensive-audit.md`, `docs/plan/37-admin-functionality-implementation-roadmap.md`, `docs/plan/38-admin-functionality-traceability-matrix.md` (IDs `5.6–5.9`).
+- **Scope:** Implemented Phase 4 Administrative Areas (dynamic hierarchy, coverage stats, sequential chunk-50 Batch Resolve with `dryRun` & idempotent retry, and Place administrative area linking) while preserving all existing `/api/administrative-areas/**` and `/api/admin/places/**` APIs and keeping all 11 Admin Sidebar items, order, groups, routes, and icons intact (`AdminTab.administrativeAreas` enabled).
+
+### 2. Backend Implementation & Reused APIs
+1. **Reused Infrastructure:**
+   - Reused `AdministrativeAreaController` (`GET /api/administrative-areas/provinces`, `GET /api/administrative-areas/{code}/children`, `GET /api/administrative-areas/search`) and `AdminPlaceAdministrativeAreaController` (`preview`, `resolve`, `link`, `unlink`, `batch-resolve`).
+   - Reused `PlaceAdministrativeAreaServiceImpl.batchResolveAndLink`, `AdministrativeArea`, `AdministrativeAreaRepository`, and NQ 388/NQ-UBTVQH16 quarantine guards.
+2. **New Coverage Stats Endpoint (`GET /api/admin/places/administrative-area/stats`):**
+   - Created `AdministrativeAreaStatsResponse` (`totalPlaces`, `linkedPlaces`, `unlinkedPlaces`, `coveragePercentage`).
+   - Added `countByAdministrativeAreaIsNotNull()` to `PlaceRepository`, `getCoverageStats()` to `PlaceAdministrativeAreaService` / `PlaceAdministrativeAreaServiceImpl`, and `@GetMapping("/administrative-area/stats")` to `AdminPlaceAdministrativeAreaController` (`@PreAuthorize("hasRole('ADMIN')")`).
+3. **Batch Resolve Hardening & Strict Audit:**
+   - Enforced `MAX_BATCH_SIZE = 50` when `placeIds` are provided (`BadRequestException` if `> 50`).
+   - Added per-place exception isolation inside `batchResolveAndLink` so one failing record does not abort the remaining batch.
+   - Added `AuditLogService.logStrictAction` (`PLACE_ADMIN_AREA_LINK` and `PLACE_ADMIN_AREA_BATCH_RESOLVE`) for authenticated admin mutations (skipping audit during `dryRun = true` and unauthenticated startup migration), keeping the 4-arg constructor intact for existing unit tests.
+4. **Backend Tests (`AdminPlaceAdministrativeAreaControllerTest`, `PlaceAdministrativeAreaServiceTest`):**
+   - Added integration tests for `/stats` (RBAC 401/403 + real DB count updates) and `/batch-resolve` (`> 50` rejection, `dryRun = true` non-persistence, partial failure handling, and idempotent retry).
+
+### 3. Flutter Web Admin Implementation
+1. **API & Data Layer (`api_constants.dart`, `administrative_area_model.dart`, `administrative_area_repository.dart`, `place_model.dart`):**
+   - Added endpoints and models (`AdministrativeAreaNodeModel`, `AdministrativeAreaSummaryModel`, `AdministrativeAreaStatsModel`, `PlaceResolutionResultModel`, `BatchLinkingReportModel`) and extended `PlaceModel` with `administrativeAreaCode` and `administrativeAreaParentName`.
+2. **UI & Workflows:**
+   - **`AdminAdministrativeAreasScreen`** (`admin_administrative_areas_screen.dart`):
+     - **ID 5.6:** Dynamic province/commune tree loaded from APIs without hardcoded counts (e.g. no hardcoded `34`), supporting lazy expand/collapse and search filtering.
+     - **ID 5.7:** Real-time coverage KPI strip (`totalPlaces`, `linkedPlaces`, `unlinkedPlaces`, `coveragePercentage`) with loading, empty, error, and retry states.
+     - **ID 5.8:** Sequential Batch Resolve control panel chunking `placeIds` into sequential batches of max 50 (no parallel execution), `dryRun` toggle + warning banner, `overwriteExisting` toggle, 6 progress counters (`TOTAL`, `PROCESSED`, `SUCCESS`, `FAILURE`, `SKIPPED`, `PENDING`), per-batch logs, continuation on partial chunk failure, and idempotent retry for failed Place IDs only.
+   - **`PlaceAdministrativeAreaDialog`** (`place_administrative_area_dialog.dart`) & **`AdminPlacesScreen`** (**ID 5.9**):
+     - Integrated preview, auto-resolve, area search, manual code linking, and unlinking directly from `AdminPlacesScreen` (`ĐVHC` row action & detail dialog link).
+   - Enabled `AdminTab.administrativeAreas.isImplemented => true` in `admin_tab.dart` and wired `AdminAdministrativeAreasScreen` in `admin_shell.dart`.
+3. **Widget Tests (`test/admin_admin_areas_phase4_test.dart`, `admin_portal_layout_test.dart`, `admin_phase6_final_consistency_test.dart`):**
+   - Added Phase 4 widget tests covering IDs 5.6–5.9 (dynamic hierarchy, stats + error/retry, sequential chunk-50 batching + dryRun + failure continuation + retry, and `AdminPlacesScreen` linking integration).
+   - Updated placeholder tab checks in `admin_portal_layout_test.dart` and `admin_phase6_final_consistency_test.dart` to `AdminTab.auditLogs`.
+
+### 4. Verification & Test Results
+- **Backend (`cd Travel_Planner/backend; ./mvnw test`):**
+  - **734 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)**.
+- **Flutter Web (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test`: **141 passed, 0 failed**.
+- **Repository Integrity:** All changes remain uncommitted on `feature/admin-audit-trail`.
+
+
+---
+
+## Session Date: 2026-11-25 — Phase 5: Audit Logs UI (Read-Only Explorer)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1–4, Places, and Login UI changes without commits).
+- **Approved Design Sources:** `docs/plan/36-admin-functionality-comprehensive-audit.md`, `docs/plan/37-admin-functionality-implementation-roadmap.md`, `docs/plan/38-admin-functionality-traceability-matrix.md`.
+- **Scope:** Implemented Phase 5 read-only Audit Logs API & Flutter Web Explorer (`AdminTab.auditLogs`) while preserving Audit Trail Core immutability, all 11 Admin Sidebar items/order/groups/routes/icons, and without expanding into Phase 6–7.
+
+### 2. Backend Implementation (Strictly Read-Only)
+1. **Allowlist DTOs:**
+   - `AuditLogResponse`: List-view allowlist (`logId`, `actorId`, `actorUsername`, `actionType`, `targetType`, `targetId`, `reason`, `resultStatus`, `ipAddress`, `correlationId`, `createdAt`) — never exposes JPA entities or unmasked snapshots.
+   - `AuditLogDetailResponse`: Detail-view allowlist adding `userAgent`, `beforeDataJson`, and `afterDataJson` (re-masked through `DataMaskingUtil.maskJsonString` as defense-in-depth).
+2. **Repository & Service (`AuditLogRepository`, `AdminAuditLogService`, `AdminAuditLogServiceImpl`):**
+   - Preserved `AuditLogRepository extends Repository<AuditLog, Long>` (zero `delete`/`update` methods). Added `@Query` `searchAuditLogs` with compound deterministic ordering (`ORDER BY a.createdAt DESC, a.logId DESC`).
+   - Enforced `@Transactional(readOnly = true)`, `page >= 0`, `1 <= size <= 100`, ISO date/datetime boundary parsing, and `fromDate <= toDate` validation (`BadRequestException` on invalid inputs).
+3. **Controller & Exception Handling (`AdminAuditLogController`, `GlobalExceptionHandler`):**
+   - Exposed `GET /api/admin/audit-logs`, `GET /api/admin/audit-logs/{id}`, and `GET /api/admin/audit-logs/action-types` under `@PreAuthorize("hasRole('ADMIN')")` with **no** `POST`/`PUT`/`PATCH`/`DELETE` endpoints.
+   - Added `HttpRequestMethodNotSupportedException` handler (`405 Method Not Allowed`) in `GlobalExceptionHandler`.
+4. **Backend Integration Tests (`AdminAuditLogControllerTest`):**
+   - Verified 401/403 RBAC enforcement, stable compound pagination (`createdAt DESC, logId DESC`), individual & combined filters, invalid page/size/date-range rejection, masked snapshot verification (`***MASKED***`), zero mutation during queries, and 405 rejection on `POST`/`PUT`/`PATCH`/`DELETE`.
+
+### 3. Flutter Web Admin Implementation
+1. **Data Layer (`api_constants.dart`, `audit_log_model.dart`, `audit_log_repository.dart`):**
+   - Added `adminAuditLogsEndpoint`, `adminAuditLogDetailEndpoint(id)`, and `adminAuditLogActionTypesEndpoint`.
+   - Implemented read-only `AuditLogModel`, `AuditLogDetailModel` (with `formatJsonPretty`), and `AuditLogRepository`.
+2. **UI & Navigation (`AdminAuditLogsScreen`, `AuditLogDetailDialog`, `admin_tab.dart`, `admin_shell.dart`):**
+   - Built `AdminAuditLogsScreen` in Vietnamese following Swiss Minimalism: table (`Thời gian`, `Người thực hiện`, `Hành động`, `Đối tượng tác động`, `Kết quả`, `Chi tiết`), multi-dimensional filters (`keyword`, `actorUsername`, `actionType`, `targetType`, `resultStatus`, `fromDate`, `toDate`) preserved across server-side pagination, loading/empty/error-retry states, and non-`ADMIN` block.
+   - Built `AuditLogDetailDialog` displaying metadata (`IP`, `User-Agent`, `Correlation ID`, `reason`) and read-only formatted Before/After JSON snapshots with masking notice and zero edit/delete controls.
+   - Enabled `AdminTab.auditLogs.isImplemented => true` and wired `AdminAuditLogsScreen` into `AdminShell`.
+3. **Widget Tests (`test/admin_audit_logs_phase5_test.dart`, `admin_portal_layout_test.dart`, `admin_phase6_final_consistency_test.dart`):**
+   - Verified table rendering, filter preservation across pagination, masked detail modal, error+retry, empty state, non-`ADMIN` block, and Sidebar navigation.
+
+### 4. Verification & Test Results
+- **Backend (`cd Travel_Planner/backend; ./mvnw test`):**
+  - **739 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)**.
+- **Flutter Web (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test`: **143 passed, 0 failed**.
+- **Repository Integrity:** All changes remain uncommitted on `feature/admin-audit-trail`.
+
+
+---
+
+## Session Date: 2026-11-25 — Phase 6: System Settings (IDs 7.4–7.6)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1–5, Places, and Login UI changes without commits).
+- **Approved Design Sources:** `docs/plan/36-admin-functionality-comprehensive-audit.md`, `docs/plan/37-admin-functionality-implementation-roadmap.md`, `docs/plan/38-admin-functionality-traceability-matrix.md` (IDs `7.4–7.6`).
+- **Scope:** Implemented Phase 6 dynamic System Settings and global Maintenance Mode (`AdminTab.settings`) without expanding into Phase 7 (Dashboard v2), keeping all 11 Admin Sidebar items, order, groups, routes, and icons intact.
+
+### 2. Backend Implementation
+1. **Schema & Pre-JPA Migration (`SystemSetting`, `SystemSettingMigrationRunner`, `AuditSchemaDependsOnPostProcessor`):**
+   - Created `SystemSetting` entity mapped to `system_settings` (`setting_key` PK, `setting_value`, `setting_group`, `description`, `value_type`, `updated_at`, `updated_by`).
+   - Added `SystemSettingMigrationRunner` (`@Order(10)`, `InitializingBean` + `ApplicationRunner`) under MySQL advisory lock `system_setting_migration_lock` and wired it into `AuditSchemaDependsOnPostProcessor` before Hibernate `ddl-auto=validate`.
+   - Seeded 5 allowlisted business settings idempotently (`INSERT IGNORE`):
+     - `MODERATION_AUTO_HIDE_THRESHOLD` (`5`, INT `1..50`)
+     - `GEO_AUTO_RESOLVE_CONFIDENCE_THRESHOLD` (`0.85`, DOUBLE `0.50..1.00`)
+     - `MEDIA_MAX_IMAGE_SIZE_MB` (`2`, INT `1..5`, respecting the static 5MB Servlet container multipart limit)
+     - `SYSTEM_MAINTENANCE_MODE` (`false`, BOOLEAN)
+     - `SYSTEM_MAINTENANCE_MESSAGE` (STRING `1..255` chars)
+2. **Service, Cache & Strict Audit (`SystemSettingRepository`, `SystemSettingService`, `SystemSettingServiceImpl`):**
+   - Enforced strict allowlist (`ALLOWED_BUSINESS_KEYS`) so technical secrets/credentials can never be queried or mutated.
+   - Added `ConcurrentHashMap` in-memory cache refreshed on startup and updated only after DB save + Strict Audit commit succeed.
+   - Recorded `AuditActionType.MAINTENANCE_TOGGLE` (for `SYSTEM_MAINTENANCE_MODE`) and `AuditActionType.SETTING_UPDATE` (for other keys) with `SettingAuditSnapshot` before/after snapshots inside the same `Propagation.REQUIRED` transaction.
+3. **Maintenance Mode Filter & Controller (`MaintenanceModeFilter`, `SecurityConfig`, `AdminSettingsController`):**
+   - Registered `MaintenanceModeFilter` strictly after `JwtAuthenticationFilter` (with `@Lazy SystemSettingService` to avoid circular dependency with `SecurityConfig.objectMapper`).
+   - Allows `OPTIONS` preflight, `/api/health`, `/api/auth/login`, and authenticated `ROLE_ADMIN` bypass; returns HTTP 503 with maintenance message for unauthenticated or non-admin requests when maintenance mode is enabled.
+   - Exposed `GET /api/admin/settings` and `PUT /api/admin/settings/{key}` under `@PreAuthorize("hasRole('ADMIN')")`.
+4. **Backend Tests (`AdminSettingsControllerTest`):**
+   - Verified 401/403 RBAC, allowlist-only responses, validation of ranges (`> 5MB` upload, `> 50` moderation, `< 0.50` geo, unknown/secret keys), Strict Audit persistence (`SETTING_UPDATE` & `MAINTENANCE_TOGGLE`), and Maintenance Mode HTTP 503 enforcement vs `/api/health`, `/api/auth/login`, CORS `OPTIONS`, and `ROLE_ADMIN` bypass.
+
+### 3. Flutter Web Admin Implementation
+1. **Data Layer (`api_constants.dart`, `system_setting_model.dart`, `settings_repository.dart`):**
+   - Added `adminSettingsEndpoint` and `adminSettingUpdateEndpoint(key)`, `SystemSettingModel`, and `SettingsRepository`.
+2. **UI & Navigation (`AdminSettingsScreen`, `admin_tab.dart`, `admin_shell.dart`):**
+   - Built `AdminSettingsScreen` in Vietnamese following Swiss Minimalism: grouped configuration panels (`MODERATION`, `GEO`, `MEDIA` with static 5MB Servlet limit notice, `MAINTENANCE` with confirmation warning dialog before enabling), client-side range validation, loading/empty/error-retry states, and non-`ADMIN` block.
+   - Enabled `AdminTab.settings.isImplemented => true` and wired `AdminSettingsScreen` in `AdminShell`.
+3. **Widget Tests (`test/admin_settings_phase6_test.dart`, `admin_portal_layout_test.dart`, `admin_phase6_final_consistency_test.dart`):**
+   - Verified grouped loading, `> 5MB` upload validation, setting update, maintenance toggle confirmation dialog, error+retry, empty state, non-`ADMIN` block, and Sidebar navigation.
+
+### 4. Verification & Test Results
+- **Backend (`cd Travel_Planner/backend; ./mvnw test`):**
+  - **743 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)**.
+- **Flutter Web (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test`: **145 passed, 0 failed**.
+- **Repository Integrity:** All changes remain uncommitted on `feature/admin-audit-trail`.
+
+
+---
+
+## Session Date: 2026-11-25 — Phase 7: Dashboard v2 (IDs 7.7–7.8)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1–6, Places, and Login UI changes without commits).
+- **Approved Design Sources:** `docs/plan/36-admin-functionality-comprehensive-audit.md`, `docs/plan/37-admin-functionality-implementation-roadmap.md`, `docs/plan/38-admin-functionality-traceability-matrix.md` (IDs `7.7–7.8`).
+- **Scope:** Upgraded the Admin Operations Dashboard to **Dashboard v2** with a single unified summary API, real-data growth analytics over synchronized time windows, and a recent Audit Trail feed — completing all 11 Admin Sidebar tabs (`AdminTab.values`) with 0 remaining `PlaceholderFeatureView` tabs.
+
+### 2. Backend Implementation
+1. **Allowlist DTOs (`AdminDashboardSummaryResponse`, `AdminDashboardAnalyticsResponse`):**
+   - `AdminDashboardSummaryResponse`: 6 core operational metric groups (`Users`, `Places` + area coverage %, `Itineraries`, `Posts`, `Pending Reports`, `Media Assets` + dead-letter count) plus `healthStatus` and `serverTimestamp`.
+   - `AdminDashboardAnalyticsResponse`: `days`, `fromDate`, `toDate`, `userRegistrationsDaily`, `communityPostsWeekly`, and `recentAuditLogs` (latest 5 entries).
+2. **Service & Controller (`AdminDashboardService`, `AdminDashboardServiceImpl`, `AdminDashboardController`):**
+   - Implemented `@Transactional(readOnly = true)` database-side JPQL `COUNT` / `SUM` / `GROUP BY` aggregations via `EntityManager` (avoiding full-table `findAll()` loads) and queried the latest 5 audit entries via `AuditLogRepository.findByOrderByCreatedAtDescLogIdDesc(PageRequest.of(0, 5))`.
+   - Enforced synchronized `[today - (days - 1), today]` boundaries (`1 <= days <= 365`, `BadRequestException` otherwise) for both `userRegistrationsDaily` and `communityPostsWeekly`.
+   - Exposed `GET /api/admin/dashboard/summary` and `GET /api/admin/dashboard/analytics` under `@PreAuthorize("hasRole('ADMIN')")`.
+3. **Backend Integration Tests (`AdminDashboardControllerTest`):**
+   - Verified 401/403 RBAC enforcement, exact DB aggregation accuracy across all 6 metric groups, synchronized time-series analytics + recent audit feed, and 400 validation for invalid `days` parameters.
+
+### 3. Flutter Web Admin Implementation
+1. **Data Layer (`api_constants.dart`, `dashboard_repository.dart`):**
+   - Added `adminDashboardSummaryEndpoint` and `adminDashboardAnalyticsEndpoint`.
+   - Upgraded `DashboardRepository` and `AdminDashboardData` to load all 6 metric groups from the single `/api/admin/dashboard/summary` call + `/api/admin/dashboard/analytics?days=$days` (with automatic 404 fallback to legacy endpoints so existing Phase 2 mock tests remain compatible).
+2. **UI (`admin_dashboard_screen.dart`):**
+   - Upgraded `AdminDashboardScreen` to render all 6 clickable operational metric groups (`Người dùng hệ thống`, `Địa điểm chuẩn hóa`, `Lịch trình du lịch`, `Bài viết cộng đồng`, `Báo cáo chờ xử lý`, `Tài nguyên Media`) in a responsive Swiss Minimalist grid.
+   - Added synchronized time-range chips (`7 ngày`, `30 ngày`, `90 ngày`), two real-data bar charts (`Người dùng mới đăng ký theo ngày`, `Bài viết cộng đồng chia sẻ theo tuần`), and the `Hoạt động quản trị gần đây` feed linking to `AdminTab.auditLogs`.
+   - Restored expected `AdminPageHeader` titles in `admin_places_screen.dart` (`Quản lý Địa điểm Chuẩn hóa (Places)`) and `admin_media_screen.dart` (`Quản lý tài nguyên Media`) to keep existing test assertions aligned.
+3. **Widget Tests (`test/admin_dashboard_v2_test.dart`, `test/admin_dashboard_phase2_test.dart`):**
+   - Verified single-call summary loading, 6 metric groups, time-range chart synchronization, KPI navigation, empty chart/audit states, and error+retry handling.
+
+### 4. Verification & Test Results
+- **Backend (`cd Travel_Planner/backend; ./mvnw test`):**
+  - **745 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)**.
+- **Flutter Web (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test`: **147 passed, 0 failed**.
+- **Repository Integrity:** All changes remain uncommitted on `feature/admin-audit-trail`.
+
+
+---
+
+## Session Date: 2026-11-25 — UI Refinement: Dashboard & Administrative Areas
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted Phase 1–7, Places, and Login UI changes without commits).
+- **Scope:** Visual and UX refinement of **AdminDashboardScreen** and **AdminAdministrativeAreasScreen** in Flutter Web Admin, plus minimal real-data Backend Dashboard extensions (`privateItineraries`, `activeItineraries`, `topPlaces`, and 8 `recentAuditLogs`) and restoring `AdminMediaScreen` header title (`Quản lý tài nguyên Media`).
+
+### 2. Changes Implemented
+1. **Backend Dashboard Extensions (`AdminDashboardSummaryResponse`, `AdminDashboardAnalyticsResponse`, `AdminDashboardServiceImpl`, `AdminDashboardControllerTest`):**
+   - Added `privateItineraries` and `activeItineraries` DB aggregations to `GET /api/admin/dashboard/summary`.
+   - Added `topPlaces` (top 5 places ordered by `ItineraryPlace` usage count) and expanded `recentAuditLogs` to 8 entries in `GET /api/admin/dashboard/analytics`.
+2. **Flutter Web Dashboard UI (`dashboard_repository.dart`, `admin_dashboard_screen.dart`, `admin_dashboard_v2_test.dart`):**
+   - Replaced flat white KPI cells with domain-specific pastel-tinted KPI cards (Blue for Users, Green for Places, Purple for Itineraries, Pink for Posts, Amber/Red for Pending Reports, Teal/Red for Media) with high-contrast typography and hover states.
+   - Added explicit units and legend pills to synchronized time-range growth charts (`7 / 30 / 90 ngày`).
+   - Added two real-data operational cards: **Phân bố lịch trình** (segmented bar + breakdown of Public, Private, Hidden, and Active itineraries) and **Top địa điểm được đưa vào lịch trình** (ranked top 5 places with area/category and usage count).
+   - Restored `AdminPageHeader` title in `admin_media_screen.dart` to `Quản lý tài nguyên Media`.
+3. **Flutter Web Administrative Areas UI (`admin_administrative_areas_screen.dart`):**
+   - Reordered responsive layout to prioritize **Thống kê → Batch Resolve → Cây khu vực hành chính động**.
+   - Upgraded the coverage KPI strip with semantic pastel tiles (`Tổng địa điểm`, `Đã liên kết`, `Chưa liên kết`, `Tỷ lệ bao phủ`) and a prominent progress bar.
+   - Redesigned the Batch Resolve panel into a guided workflow with inline descriptions for **Chạy thử (dryRun)** and **Ghi đè liên kết đã có** (plus warning banner when Overwrite is enabled), mode-distinct action button (`Chạy thử Batch Resolve` vs `Thực thi Batch Resolve`), clear result mode badge (`CHẠY THỬ` vs `THỰC THI`), 6 progress counters, and Retry for failed IDs only.
+
+### 3. Verification & Test Results
+- **Backend (`cd Travel_Planner/backend; ./mvnw test`):**
+  - **745 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)**.
+- **Flutter Web (`cd Travel_Planner/frontend/web`):**
+  - `flutter analyze`: **No issues found**.
+  - `flutter test`: **147 passed, 0 failed**.
+- **Repository Integrity:** All changes remain uncommitted on `feature/admin-audit-trail`.
+
+
+---
+
+## Session Date: 2026-11-25 — UI Redesign: Administrative Areas (AWS EC2-Inspired Hierarchical Table)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted changes without commits).
+- **Scope:** Full UI/UX redesign of **AdminAdministrativeAreasScreen** (`lib/features/administrative_areas/presentation/screens/admin_administrative_areas_screen.dart`) inspired by the AWS EC2 Instances horizontal table layout, unified 100% in Vietnamese while preserving all Phase 4 APIs and business logic.
+
+### 2. Changes Implemented
+1. **100% Vietnamese Terminology (`admin_administrative_areas_screen.dart`):**
+   - Replaced all mixed English labels (`Dry Run`, `Batch Resolve`, `TOTAL`, `PROCESSED`, `SUCCESS`, `FAILURE`, `SKIPPED`, `PENDING`, `Retry`) with clear Vietnamese labels (`Chế độ chạy thử`, `Liên kết hàng loạt`, `Tổng số địa điểm`, `Đã xử lý`, `Thành công`, `Thất bại`, `Bỏ qua`, `Chờ xử lý`, `Chạy lại địa điểm thất bại`).
+2. **Compact Coverage Stats Strip:**
+   - Replaced large KPI blocks with a slim horizontal strip showing `Tổng số địa điểm`, `Đã liên kết`, `Chưa liên kết`, `Tỷ lệ bao phủ`, and a slim `LinearProgressIndicator`, backed by `GET /api/admin/places/administrative-area/stats`.
+3. **Unified Management Toolbar & Batch Linking Dialog:**
+   - Consolidated search (`Tìm kiếm khu vực hành chính theo tên hoặc mã...`), status filter (`Tất cả`, `Hoạt động`, `Ngừng hoạt động`), `Làm mới dữ liệu`, and primary `#FF385C` `Liên kết hàng loạt` button above the table.
+   - Moved the sequential Batch Resolve workflow into a dedicated modal dialog (`_openBatchResolveDialog`) preserving Dry Run, Overwrite Existing (with warning), mode-specific CTA (`Chạy thử liên kết` vs `Thực thi liên kết`), 6 live progress counters, chunk logs, and failed-ID retry.
+4. **Full-Width Interactive Hierarchical Table:**
+   - Built a Swiss Minimalist full-width table with sortable `Mã đơn vị` and `Tên đơn vị` columns, status pills, and inline row expansion (`Xem trực thuộc` / `Thu gọn`) that lazy-loads `GET /api/administrative-areas/{code}/children` directly beneath the selected province row with `↳` indentation, loading/empty/error-retry states, and horizontal scroll containment.
+5. **Tests (`admin_admin_areas_phase4_test.dart`, `admin_portal_layout_test.dart`):**
+   - Updated test selectors to match the Vietnamese table/dialog labels and added coverage for search filtering, inline child error+retry, and Dry Run/Overwrite mode toggling.
+
+### 3. Verification & Test Results
+- `flutter analyze lib/features/administrative_areas test/admin_admin_areas_phase4_test.dart` (verified after final edit).
+- `flutter test test/admin_admin_areas_phase4_test.dart` (verified after final edit).
+- Backend untouched in this task (`./mvnw test` previously verified: 745 tests passed, 0 failures).
+
+
+---
+
+## Session Date: 2026-11-25 — UI Adjustment: Administrative Areas (Region Filter & Pagination)
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted changes without commits).
+- **Scope:** Incremental refinement of **AdminAdministrativeAreasScreen** without redesigning from scratch: removed the `Trạng thái` column, replaced the status filter with a 3-region geographic filter (`Tất cả khu vực`, `Miền Bắc`, `Miền Trung`, `Miền Nam`) backed by a centralized 34-province code mapping, and added client-side pagination after search and region filtering.
+
+### 2. Changes Implemented
+1. **Centralized 34-Province Region Mapping (`lib/features/administrative_areas/domain/vietnam_region_mapping.dart`):**
+   - Defined `VietnamRegion` enum and `kProvinceCodeToRegion` mapping all 34 official province codes from `backend/src/main/resources/data/administrative/provinces.json` (15 North, 11 Central, 8 South) using province `code` as key.
+   - Unknown codes return `null` from `resolveProvinceRegion` and are excluded from specific region filters safely without misclassification.
+2. **Table & Filter Refinements (`admin_administrative_areas_screen.dart`):**
+   - Removed the `Trạng thái` column from table header, province rows, and child rows, rebalancing remaining column widths.
+   - Replaced the `Trạng thái` dropdown with `Khu vực địa lý` (`Tất cả khu vực`, `Miền Bắc`, `Miền Trung`, `Miền Nam`).
+   - Added pagination footer (`Hiển thị X–Y trên Z đơn vị`, page size selector `10 / 20 / 50`, `Trang trước`, page numbers, `Trang sau` with disabled boundary states) operating strictly after `search -> region filter -> sort`.
+   - Automatically resets to page 1 and clears expanded province state when search query, region filter, page size, or current page changes so child rows never leak across pages.
+3. **Tests (`test/admin_admin_areas_phase4_test.dart`):**
+   - Added unit test verifying `kProvinceCodeToRegion` covers all 34 unique province codes (15 North, 11 Central, 8 South) and safe handling of unknown codes.
+   - Added widget test verifying `Trạng thái` removal, `search -> region -> pagination` order, range display, and expanded child row isolation across page changes.
+
+### 3. Verification & Test Results
+- `flutter analyze lib/features/administrative_areas test/admin_admin_areas_phase4_test.dart`: verified after final edit.
+- `flutter test test/admin_admin_areas_phase4_test.dart`: verified after final edit.
+- Backend untouched (`./mvnw test` previously verified: 745 tests passed, 0 failures).
+
+
+---
+
+## Session Date: 2026-11-25 — Profile Screen Crash Fix & 2-Column Portal Redesign
+
+### 1. Context & Scope
+- **Git Branch:** `feature/admin-audit-trail` (preserving all uncommitted changes without commits).
+- **Scope:** Fixed the Flutter Web `TextFormField` multiline assertion crash in Edit Profile mode (`Giới thiệu`) and redesigned `ProfileScreen` (`#/profile`) into a responsive 2-column enterprise portal layout.
+
+### 2. Changes Implemented
+1. **Multiline `TextField` Crash Fix (`lib/shared/widgets/app_text_field.dart`, `profile_screen.dart`):**
+   - Updated `AppTextField` to automatically upgrade `keyboardType` to `TextInputType.multiline` whenever `!isPassword && maxLines > 1 && keyboardType == TextInputType.text`, preventing Flutter's `!identical(textInputAction, TextInputAction.newline) || maxLines == 1 || !identical(keyboardType, TextInputType.text)` assertion failure.
+   - Added optional `readOnly`, `enabled`, `prefixIcon`, `suffixIcon`, `fillColor`, and `focusNode` parameters to `AppTextField`.
+   - Explicitly set `keyboardType: TextInputType.multiline` on the `Giới thiệu` field in `ProfileScreen`.
+2. **Responsive 2-Column Portal UI (`lib/features/profile/presentation/screens/profile_screen.dart`):**
+   - Expanded container width to `maxWidth: 1080` with a 35% / 65% responsive split on wide screens (`>= 820px`).
+   - **Left Summary Card:** Large bordered avatar (with live preview & camera focus trigger in Edit mode), display name, `@handle`, role/status badges, join date, and primary action buttons.
+   - **Right Detail / Edit Cards:**
+     - `Thông tin cá nhân` card with 2-column field grid (`Họ và tên`, `Số điện thoại`, `Địa chỉ`, `@handle`), Avatar URL input with inline `48px` live preview, and full-width `Giới thiệu` multiline input.
+     - `Thông tin tài khoản` card displaying `@handle`, `Email`, `Vai trò`, `Trạng thái tài khoản`, `Ngày tham gia` with icons; `Email` and `Vai trò` rendered in `readOnly` gray state with lock icons during Edit mode.
+     - Bottom action bar with `Hủy bỏ` (`OutlinedButton`) and `Lưu thay đổi` (`ElevatedButton` `#F43F5E`).
+3. **Tests (`test/profile_screen_test.dart`):**
+   - Added unit/widget tests verifying `AppTextField` multiline + `TextInputAction.newline` safety and `ProfileScreen` 2-column View/Edit flow + `PUT /api/user/profile` submission.
+
+### 3. Verification & Test Results
+- `flutter analyze lib/features/profile lib/shared/widgets/app_text_field.dart test/profile_screen_test.dart`: **No issues found**.
+- `flutter test test/profile_screen_test.dart test/admin_phase6_final_consistency_test.dart`: verified after final edit.

@@ -2,6 +2,7 @@ package Travel_Planner.Travel_Planner.service;
 
 import Travel_Planner.Travel_Planner.dto.request.BatchResolvePlacesRequest;
 import Travel_Planner.Travel_Planner.dto.request.ManualLinkAdministrativeAreaRequest;
+import Travel_Planner.Travel_Planner.dto.response.AdministrativeAreaStatsResponse;
 import Travel_Planner.Travel_Planner.dto.response.BatchLinkingReportResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceDetailResponse;
 import Travel_Planner.Travel_Planner.dto.response.PlaceResolutionResultResponse;
@@ -35,5 +36,10 @@ public interface PlaceAdministrativeAreaService {
      * Batch resolve and link multiple places.
      */
     BatchLinkingReportResponse batchResolveAndLink(BatchResolvePlacesRequest request);
+
+    /**
+     * Retrieve administrative area coverage statistics across all places.
+     */
+    AdministrativeAreaStatsResponse getCoverageStats();
 }
 

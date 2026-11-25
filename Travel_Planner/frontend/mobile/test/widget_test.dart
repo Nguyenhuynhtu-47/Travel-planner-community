@@ -18,6 +18,14 @@ void main() {
     expect(find.text('Travel Planner'), findsOneWidget);
     expect(find.text('Tên đăng nhập hoặc Email'), findsOneWidget);
     expect(find.text('Mật khẩu'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Tên đăng nhập hoặc Email')).style?.fontWeight,
+      FontWeight.w600,
+    );
+    expect(
+      tester.widget<Text>(find.text('Mật khẩu')).style?.fontWeight,
+      FontWeight.w600,
+    );
     expect(find.text('Đăng nhập'), findsOneWidget);
     expect(find.text('Đăng ký ngay'), findsOneWidget);
   });

@@ -15,7 +15,16 @@ class AppTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final int maxLines;
   final int? minLines;
+  final bool readOnly;
+  final bool enabled;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
+  final Color? fillColor;
+  final FocusNode? focusNode;
   final String? Function(String?)? validator;
+  final TextStyle? labelStyle;
+  final TextStyle? inputStyle;
+  final TextStyle? hintStyle;
 
   const AppTextField({
     super.key,
@@ -30,7 +39,16 @@ class AppTextField extends StatefulWidget {
     this.textInputAction,
     this.maxLines = 1,
     this.minLines,
+    this.readOnly = false,
+    this.enabled = true,
+    this.prefixIcon,
+    this.suffixIcon,
+    this.fillColor,
+    this.focusNode,
     this.validator,
+    this.labelStyle,
+    this.inputStyle,
+    this.hintStyle,
   });
 
   @override
@@ -48,33 +66,56 @@ class _AppTextFieldState extends State<AppTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveMaxLines = widget.isPassword ? 1 : widget.maxLines;
+    // Flutter asserts if TextInputAction.newline is paired with maxLines > 1
+    // and TextInputType.text; automatically upgrade to multiline.
+    final effectiveKeyboardType = (!widget.isPassword &&
+            effectiveMaxLines > 1 &&
+            widget.keyboardType == TextInputType.text)
+        ? TextInputType.multiline
+        : widget.keyboardType;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           widget.label,
-          style: AppTypography.labelControl.copyWith(
-            color: AppColors.textSecondary,
-          ),
+          style: widget.labelStyle ??
+              AppTypography.labelControl.copyWith(
+                color: AppColors.textSecondary,
+              ),
         ),
         const SizedBox(height: 6),
         TextFormField(
           controller: widget.controller,
-          keyboardType: widget.keyboardType,
+          focusNode: widget.focusNode,
+          keyboardType: effectiveKeyboardType,
           textInputAction: widget.textInputAction,
           obscureText: widget.isPassword ? _obscureText : false,
-          maxLines: widget.isPassword ? 1 : widget.maxLines,
+          maxLines: effectiveMaxLines,
           minLines: widget.isPassword ? 1 : widget.minLines,
+          readOnly: widget.readOnly,
+          enabled: widget.enabled,
           onChanged: widget.onChanged,
           onFieldSubmitted: widget.onFieldSubmitted,
           validator: widget.validator,
-          style: AppTypography.bodyData.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: widget.inputStyle ??
+              AppTypography.bodyData.copyWith(
+                color: widget.readOnly || !widget.enabled
+                    ? AppColors.textSecondary
+                    : AppColors.textPrimary,
+              ),
           decoration: InputDecoration(
             hintText: widget.hint,
+            hintStyle: widget.hintStyle,
             errorText: widget.errorText,
+            filled: widget.fillColor != null || widget.readOnly || !widget.enabled,
+            fillColor: widget.fillColor ??
+                ((widget.readOnly || !widget.enabled)
+                    ? const Color(0xFFF8FAFC)
+                    : null),
+            prefixIcon: widget.prefixIcon,
             suffixIcon: widget.isPassword
                 ? IconButton(
                     icon: Icon(
@@ -92,7 +133,7 @@ class _AppTextFieldState extends State<AppTextField> {
                       });
                     },
                   )
-                : null,
+                : widget.suffixIcon,
           ),
         ),
       ],

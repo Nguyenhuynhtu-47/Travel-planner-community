@@ -133,58 +133,6 @@ class AuthNotifier extends ChangeNotifier {
     }
   }
 
-  Future<bool> register({
-    required String username,
-    required String email,
-    required String password,
-    required String fullName,
-  }) async {
-    _status = AuthStatus.loading;
-    _errorMessage = null;
-    _validationErrors = null;
-    notifyListeners();
-
-    try {
-      final response = await _repository.register(
-        username: username,
-        email: email,
-        password: password,
-        fullName: fullName,
-      );
-
-      final token = response['token'] as String;
-      final user = response['user'] as Map<String, dynamic>;
-      final role = user['role']?.toString().toUpperCase();
-
-      if (role != 'ADMIN') {
-        _status = AuthStatus.error;
-        _errorMessage = 'Tài khoản không có quyền truy cập trang quản trị';
-        notifyListeners();
-        return false;
-      }
-
-      await _storage.saveToken(token);
-      await _storage.saveUser(user);
-
-      _token = token;
-      _currentUser = user;
-      _status = AuthStatus.authenticated;
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      _status = AuthStatus.error;
-      _errorMessage = e.message;
-      _validationErrors = e.validationErrors;
-      notifyListeners();
-      return false;
-    } catch (_) {
-      _status = AuthStatus.error;
-      _errorMessage = 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
-      notifyListeners();
-      return false;
-    }
-  }
-
   bool _isHandlingSessionExpired = false;
 
   Future<void> handleSessionExpired() async {

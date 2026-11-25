@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -52,8 +54,9 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
   String? _errorMessage;
 
   bool get isAdmin {
-    final role =
-        widget.authNotifier.currentUser?['role']?.toString().toUpperCase();
+    final role = widget.authNotifier.currentUser?['role']
+        ?.toString()
+        .toUpperCase();
     return role == 'ADMIN';
   }
 
@@ -130,10 +133,7 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
       if (mounted) {
         setState(() => _errorMessage = msg);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -165,10 +165,7 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
       final msg = _parseErrorMessage(e, 'Không thể thử lại xóa media');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
         );
       }
     }
@@ -220,11 +217,18 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                       child: const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.broken_image, size: 48, color: AppColors.textMuted),
+                          Icon(
+                            Icons.broken_image,
+                            size: 48,
+                            color: AppColors.textMuted,
+                          ),
                           SizedBox(height: 8),
                           Text(
                             'Không thể tải hình ảnh từ Cloudinary',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
@@ -241,19 +245,29 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
               children: [
                 OutlinedButton.icon(
                   icon: const Icon(Icons.copy, size: 13),
-                  label: const Text('Sao chép URL', style: TextStyle(fontSize: 12)),
+                  label: const Text(
+                    'Sao chép URL',
+                    style: TextStyle(fontSize: 12),
+                  ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
                     side: const BorderSide(color: AppColors.border),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: asset.secureUrl));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Đã sao chép liên kết ảnh vào bộ nhớ tạm.'),
+                        content: Text(
+                          'Đã sao chép liên kết ảnh vào bộ nhớ tạm.',
+                        ),
                         duration: Duration(seconds: 2),
                       ),
                     );
@@ -264,9 +278,20 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
             const SizedBox(height: AppSpacing.md),
 
             // Asset Metadata Details Table
-            _buildDetailRow('Người tải lên:', '${asset.uploadedByUsername} (ID: ${asset.uploadedByUserId})'),
-            _buildDetailRow('Cloudinary Public ID:', asset.cloudinaryPublicId, isSelectable: true),
-            _buildDetailRow('URL an toàn:', asset.secureUrl, isSelectable: true),
+            _buildDetailRow(
+              'Người tải lên:',
+              '${asset.uploadedByUsername} (ID: ${asset.uploadedByUserId})',
+            ),
+            _buildDetailRow(
+              'Cloudinary Public ID:',
+              asset.cloudinaryPublicId,
+              isSelectable: true,
+            ),
+            _buildDetailRow(
+              'URL an toàn:',
+              asset.secureUrl,
+              isSelectable: true,
+            ),
             _buildDetailRow('Định dạng:', asset.mediaType ?? '-'),
             _buildDetailRow('Số lần thử lại:', '${asset.retryCount}'),
             if (asset.isDeadLettered)
@@ -300,7 +325,10 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                       const SizedBox(height: 4),
                       SelectableText(
                         asset.lastError!,
-                        style: const TextStyle(fontSize: 12, color: AppColors.error),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.error,
+                        ),
                       ),
                     ],
                   ),
@@ -309,7 +337,10 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
             const SizedBox(height: AppSpacing.xs),
             _buildDetailRow('Ngày tạo:', _formatDateTime(asset.createdAt)),
             if (asset.updatedAt != null)
-              _buildDetailRow('Cập nhật gần nhất:', _formatDateTime(asset.updatedAt!)),
+              _buildDetailRow(
+                'Cập nhật gần nhất:',
+                _formatDateTime(asset.updatedAt!),
+              ),
           ],
         ),
       ),
@@ -321,29 +352,43 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
             ),
             onPressed: () {
               Navigator.of(context).pop();
               _retryMedia(asset.mediaAssetId);
             },
-            child: const Text('Thử lại xóa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Thử lại xóa',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ),
         OutlinedButton(
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: AppColors.borderStrong),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
           ),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Đóng', style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+          child: const Text(
+            'Đóng',
+            style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildDetailRow(String label, String value,
-      {bool isSelectable = false, Color? color}) {
+  Widget _buildDetailRow(
+    String label,
+    String value, {
+    bool isSelectable = false,
+    Color? color,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -411,20 +456,19 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
       backgroundColor: AppColors.background,
       appBar: widget.embedded
           ? null
-          : AppBar(
-              title: const Text('Quản lý Media Assets'),
-            ),
+          : AppBar(title: const Text('Quản lý Media Assets')),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Standalone Enterprise Page Header
           AdminPageHeader(
-            title: 'Quản lý tài nguyên Media',
-            subtitle:
-                'Giám sát tài nguyên tải lên Cloudinary, xử lý dead-letter và retry dọn dẹp file rác.',
+            title: 'Quản lý Hình ảnh',
             actions: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceSubtle,
                   borderRadius: BorderRadius.circular(AppRadius.input),
@@ -454,8 +498,15 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                   style: const TextStyle(fontSize: 12.5),
                   decoration: InputDecoration(
                     hintText: 'Tìm kiếm ID, uploader, public ID...',
-                    hintStyle: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-                    prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.textMuted),
+                    hintStyle: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      size: 16,
+                      color: AppColors.textMuted,
+                    ),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear, size: 14),
@@ -467,7 +518,10 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                             },
                           )
                         : null,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 0,
+                      horizontal: 8,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.input),
                       borderSide: const BorderSide(color: AppColors.border),
@@ -478,7 +532,9 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppRadius.input),
-                      borderSide: const BorderSide(color: AppColors.primaryAccessible),
+                      borderSide: const BorderSide(
+                        color: AppColors.primaryAccessible,
+                      ),
                     ),
                   ),
                   onChanged: (val) {
@@ -491,11 +547,14 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Trạng thái: ',
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary)),
+                  const Text(
+                    'Trạng thái: ',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   Container(
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -508,13 +567,30 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                       child: DropdownButton<String>(
                         value: _statusFilter,
                         style: const TextStyle(
-                            fontSize: 12.5, color: AppColors.textPrimary),
+                          fontSize: 12.5,
+                          color: AppColors.textPrimary,
+                        ),
                         items: const [
-                          DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
-                          DropdownMenuItem(value: 'UNATTACHED', child: Text('Chưa gán')),
-                          DropdownMenuItem(value: 'ATTACHED', child: Text('Đã gán')),
-                          DropdownMenuItem(value: 'DELETING', child: Text('Đang xóa')),
-                          DropdownMenuItem(value: 'DELETED', child: Text('Đã xóa')),
+                          DropdownMenuItem(
+                            value: 'ALL',
+                            child: Text('Tất cả trạng thái'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'UNATTACHED',
+                            child: Text('Chưa gán'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'ATTACHED',
+                            child: Text('Đã gán'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'DELETING',
+                            child: Text('Đang xóa'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'DELETED',
+                            child: Text('Đã xóa'),
+                          ),
                         ],
                         onChanged: (val) {
                           if (val != null && val != _statusFilter) {
@@ -549,7 +625,10 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                   ),
                   const Text(
                     'Chỉ hiện lỗi đình trệ (Quá số lần thử lại)',
-                    style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ],
               ),
@@ -570,12 +649,17 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                       icon: Icon(
                         Icons.table_rows_outlined,
                         size: 16,
-                        color: !_isGridView ? AppColors.primary : AppColors.textMuted,
+                        color: !_isGridView
+                            ? AppColors.primary
+                            : AppColors.textMuted,
                       ),
                       tooltip: 'Xem dạng bảng',
                       splashRadius: 16,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       onPressed: () {
                         if (_isGridView) setState(() => _isGridView = false);
                       },
@@ -585,12 +669,17 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                       icon: Icon(
                         Icons.grid_view_outlined,
                         size: 16,
-                        color: _isGridView ? AppColors.primary : AppColors.textMuted,
+                        color: _isGridView
+                            ? AppColors.primary
+                            : AppColors.textMuted,
                       ),
                       tooltip: 'Xem dạng lưới ảnh',
                       splashRadius: 16,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       onPressed: () {
                         if (!_isGridView) setState(() => _isGridView = true);
                       },
@@ -607,8 +696,13 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textPrimary,
                   side: const BorderSide(color: AppColors.borderStrong),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
                 ),
                 onPressed: _loadMediaAssets,
               ),
@@ -617,22 +711,35 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
 
           // Operational Technical Note Callout
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.xs,
+            ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.infoLight.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
-                border: Border.all(color: AppColors.infoBorder.withValues(alpha: 0.7), width: 1),
+                border: Border.all(
+                  color: AppColors.infoBorder.withValues(alpha: 0.7),
+                  width: 1,
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, size: 14, color: AppColors.info),
+                  const Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: AppColors.info,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   const Expanded(
                     child: Text(
                       'Tài nguyên Cloudinary được dọn dẹp tự động khi bài viết bị xóa vĩnh viễn (purge) hoặc qua tác vụ unattached sweep. "Retry xóa" kích hoạt lại quy trình dọn dẹp cho tài nguyên bị kẹt hoặc dead-letter.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ],
@@ -643,9 +750,15 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
           // Error Banner if server/network failure
           if (_errorMessage != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+                vertical: AppSpacing.sm,
+              ),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.errorLight,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -653,12 +766,20 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 16,
+                      color: AppColors.error,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(fontSize: 12.5, color: AppColors.error, fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     TextButton(
@@ -667,7 +788,13 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                         visualDensity: VisualDensity.compact,
                         foregroundColor: AppColors.error,
                       ),
-                      child: const Text('Thử lại', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Thử lại',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -692,14 +819,20 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
   Widget _buildDataTableView(List<AdminMediaAssetModel> assets) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final dynamicCloudinaryWidth =
-            (constraints.maxWidth - 750).clamp(180.0, 500.0);
-        final dynamicErrorWidth =
-            (constraints.maxWidth - 820).clamp(160.0, 420.0);
+        final dynamicCloudinaryWidth = (constraints.maxWidth - 750).clamp(
+          180.0,
+          500.0,
+        );
+        final dynamicErrorWidth = (constraints.maxWidth - 820).clamp(
+          160.0,
+          420.0,
+        );
 
         return AdminDataTable(
           isLoading: _loading,
-          minWidth: constraints.maxWidth.isFinite ? constraints.maxWidth : 880.0,
+          minWidth: constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : 880.0,
           emptyMessage: _searchQuery.isNotEmpty
               ? 'Không tìm thấy media nào khớp với từ khóa "$_searchQuery".'
               : 'Không có tài nguyên media nào.',
@@ -726,11 +859,17 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
               cells: [
                 Text(
                   '#${asset.mediaAssetId}',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
                 ),
                 Text(
                   asset.uploadedByUsername,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 Container(
                   width: 34,
@@ -745,13 +884,19 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                     child: Image.network(
                       fullImageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.broken_image, size: 20, color: AppColors.textMuted),
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.broken_image,
+                        size: 20,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ),
                 ),
                 ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: 180, maxWidth: dynamicCloudinaryWidth),
+                  constraints: BoxConstraints(
+                    minWidth: 180,
+                    maxWidth: dynamicCloudinaryWidth,
+                  ),
                   child: Tooltip(
                     message: asset.cloudinaryPublicId,
                     waitDuration: const Duration(milliseconds: 400),
@@ -759,20 +904,35 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                       asset.cloudinaryPublicId,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
                 ),
                 AdminStatusBadge(status: asset.status),
                 Text(
                   '${asset.retryCount}',
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 asset.isDeadLettered
-                    ? const AdminStatusBadge(status: 'DEAD_LETTER', customLabel: 'LỖI ĐÌNH TRỆ')
-                    : const Text('-', style: TextStyle(color: AppColors.textMuted)),
+                    ? const AdminStatusBadge(
+                        status: 'DEAD_LETTER',
+                        customLabel: 'LỖI ĐÌNH TRỆ',
+                      )
+                    : const Text(
+                        '-',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
                 ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: 160, maxWidth: dynamicErrorWidth),
+                  constraints: BoxConstraints(
+                    minWidth: 160,
+                    maxWidth: dynamicErrorWidth,
+                  ),
                   child: Tooltip(
                     message: asset.lastError ?? '-',
                     waitDuration: const Duration(milliseconds: 400),
@@ -782,7 +942,9 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11.5,
-                        color: asset.lastError != null ? AppColors.error : AppColors.textMuted,
+                        color: asset.lastError != null
+                            ? AppColors.error
+                            : AppColors.textMuted,
                       ),
                     ),
                   ),
@@ -800,7 +962,10 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                             visualDensity: VisualDensity.compact,
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                           ),
-                          child: const Text('Chi tiết', style: TextStyle(fontSize: 12)),
+                          child: const Text(
+                            'Chi tiết',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                       ),
                     ),
@@ -814,10 +979,17 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                             style: TextButton.styleFrom(
                               foregroundColor: AppColors.primaryAccessible,
                               visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                             ),
-                            child: const Text('Thử lại xóa',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            child: const Text(
+                              'Thử lại xóa',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -835,7 +1007,9 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
   /// Modern Responsive Media Gallery Grid View
   Widget _buildGalleryGridView(List<AdminMediaAssetModel> assets) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
 
     if (assets.isEmpty) {
@@ -850,7 +1024,10 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
             _searchQuery.isNotEmpty
                 ? 'Không tìm thấy media nào khớp với từ khóa "$_searchQuery".'
                 : 'Không có tài nguyên media nào.',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
           ),
         ),
       );
@@ -888,140 +1065,185 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Top Image Preview with Header Overlay
-                      Expanded(
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ClipRRect(
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.card - 1)),
-                              child: Container(
-                                color: AppColors.surfaceSubtle,
-                                child: Image.network(
-                                  fullImageUrl,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, progress) {
-                                    if (progress == null) return child;
-                                    return const Center(
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) => const Center(
-                                    child: Icon(Icons.broken_image, size: 36, color: AppColors.textMuted),
+                      children: [
+                        // Top Image Preview with Header Overlay
+                        Expanded(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(AppRadius.card - 1),
+                                ),
+                                child: Container(
+                                  color: AppColors.surfaceSubtle,
+                                  child: Image.network(
+                                    fullImageUrl,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.primary,
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Center(
+                                              child: Icon(
+                                                Icons.broken_image,
+                                                size: 36,
+                                                color: AppColors.textMuted,
+                                              ),
+                                            ),
                                   ),
                                 ),
                               ),
-                            ),
-                            // Top Badges
-                            Positioned(
-                              top: 6,
-                              left: 6,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.black87,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: Text(
-                                  '#${asset.mediaAssetId}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: AdminStatusBadge(status: asset.status),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Card Details
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              asset.cloudinaryPublicId,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                const Icon(Icons.person_outline, size: 12, color: AppColors.textMuted),
-                                const SizedBox(width: 4),
-                                Expanded(
+                              // Top Badges
+                              Positioned(
+                                top: 6,
+                                left: 6,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black87,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
                                   child: Text(
-                                    asset.uploadedByUsername,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                                    '#${asset.mediaAssetId}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 6,
+                                right: 6,
+                                child: AdminStatusBadge(status: asset.status),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Card Details
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                asset.cloudinaryPublicId,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.person_outline,
+                                    size: 12,
+                                    color: AppColors.textMuted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      asset.uploadedByUsername,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (asset.isDeadLettered) ...[
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'LỖI ĐÌNH TRỆ QUÁ HẠN',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.error,
                                   ),
                                 ),
                               ],
-                            ),
-                            if (asset.isDeadLettered) ...[
-                              const SizedBox(height: 2),
-                              const Text(
-                                'LỖI ĐÌNH TRỆ QUÁ HẠN',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.error,
-                                ),
-                              ),
                             ],
-                          ],
+                          ),
                         ),
-                      ),
 
-                      // Card Action Row
-                      Container(
-                        decoration: const BoxDecoration(
-                          border: Border(top: BorderSide(color: AppColors.border, width: 1)),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextButton(
-                                onPressed: () => _showMediaDetailDialog(asset),
-                                style: TextButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: EdgeInsets.zero,
-                                ),
-                                child: const Text('Chi tiết', style: TextStyle(fontSize: 11.5)),
+                        // Card Action Row
+                        Container(
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: AppColors.border,
+                                width: 1,
                               ),
                             ),
-                            if (asset.status == 'DELETING' || asset.isDeadLettered)
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            children: [
                               Expanded(
                                 child: TextButton(
-                                  onPressed: () => _retryMedia(asset.mediaAssetId),
+                                  onPressed: () =>
+                                      _showMediaDetailDialog(asset),
                                   style: TextButton.styleFrom(
-                                    foregroundColor: AppColors.primary,
                                     visualDensity: VisualDensity.compact,
                                     padding: EdgeInsets.zero,
                                   ),
-                                  child: const Text('Thử lại xóa', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                  child: const Text(
+                                    'Chi tiết',
+                                    style: TextStyle(fontSize: 11.5),
+                                  ),
                                 ),
                               ),
-                          ],
+                              if (asset.status == 'DELETING' ||
+                                  asset.isDeadLettered)
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        _retryMedia(asset.mediaAssetId),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.primary,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                    child: const Text(
+                                      'Thử lại xóa',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
             ),
           ),
 
@@ -1029,7 +1251,9 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.border, width: 1)),
+              border: Border(
+                top: BorderSide(color: AppColors.border, width: 1),
+              ),
               color: AppColors.surfaceSubtle,
             ),
             child: Row(
@@ -1037,7 +1261,10 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
               children: [
                 Text(
                   'Tổng số: $_totalElements tài nguyên',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1045,16 +1272,23 @@ class _AdminMediaScreenState extends State<AdminMediaScreen> {
                     IconButton(
                       icon: const Icon(Icons.chevron_left, size: 18),
                       tooltip: 'Trang trước',
-                      onPressed: _page > 0 ? () => _onPageChanged(_page - 1) : null,
+                      onPressed: _page > 0
+                          ? () => _onPageChanged(_page - 1)
+                          : null,
                     ),
                     Text(
                       'Trang ${_page + 1} / ${math.max(1, _totalPages)}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.chevron_right, size: 18),
                       tooltip: 'Trang kế',
-                      onPressed: (_page + 1 < _totalPages) ? () => _onPageChanged(_page + 1) : null,
+                      onPressed: (_page + 1 < _totalPages)
+                          ? () => _onPageChanged(_page + 1)
+                          : null,
                     ),
                   ],
                 ),

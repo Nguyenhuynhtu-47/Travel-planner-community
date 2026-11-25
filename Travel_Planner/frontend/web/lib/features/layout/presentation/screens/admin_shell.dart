@@ -4,17 +4,26 @@ import 'package:travel_planner_web/core/constants/api_constants.dart';
 import 'package:travel_planner_web/core/network/api_client.dart';
 import 'package:travel_planner_web/core/theme/app_colors.dart';
 import 'package:travel_planner_web/features/auth/presentation/auth_notifier.dart';
+import 'package:travel_planner_web/features/administrative_areas/data/administrative_area_repository.dart';
+import 'package:travel_planner_web/features/administrative_areas/presentation/screens/admin_administrative_areas_screen.dart';
+import 'package:travel_planner_web/features/audit_logs/data/audit_log_repository.dart';
+import 'package:travel_planner_web/features/audit_logs/presentation/screens/admin_audit_logs_screen.dart';
 import 'package:travel_planner_web/features/dashboard/presentation/screens/admin_dashboard_screen.dart';
+import 'package:travel_planner_web/features/itineraries/data/itinerary_admin_repository.dart';
+import 'package:travel_planner_web/features/itineraries/presentation/screens/admin_itineraries_screen.dart';
 import 'package:travel_planner_web/features/locations/data/place_repository.dart';
 import 'package:travel_planner_web/features/locations/presentation/screens/admin_places_screen.dart';
 import 'package:travel_planner_web/features/moderation/data/moderation_repository.dart';
 import 'package:travel_planner_web/features/moderation/presentation/screens/admin_moderation_screen.dart';
 import 'package:travel_planner_web/features/profile/data/profile_repository.dart';
 import 'package:travel_planner_web/features/profile/presentation/screens/profile_screen.dart';
+import 'package:travel_planner_web/features/settings/data/settings_repository.dart';
+import 'package:travel_planner_web/features/settings/presentation/screens/admin_settings_screen.dart';
+import 'package:travel_planner_web/features/users/data/admin_user_repository.dart';
+import 'package:travel_planner_web/features/users/presentation/screens/admin_users_screen.dart';
 import 'package:travel_planner_web/features/layout/domain/admin_tab.dart';
 import 'package:travel_planner_web/features/layout/presentation/widgets/admin_header.dart';
 import 'package:travel_planner_web/features/layout/presentation/widgets/admin_sidebar.dart';
-import 'package:travel_planner_web/features/layout/presentation/widgets/placeholder_feature_view.dart';
 
 class AdminShell extends StatefulWidget {
   final AuthNotifier authNotifier;
@@ -303,13 +312,39 @@ class _AdminShellState extends State<AdminShell> {
           embedded: true,
         );
       case AdminTab.users:
+        return AdminUsersScreen(
+          key: const ValueKey(AdminTab.users),
+          authNotifier: widget.authNotifier,
+          repository: AdminUserRepository(apiClient: _apiClient),
+          embedded: true,
+        );
       case AdminTab.itineraries:
+        return AdminItinerariesScreen(
+          key: const ValueKey(AdminTab.itineraries),
+          authNotifier: widget.authNotifier,
+          repository: ItineraryAdminRepository(apiClient: _apiClient),
+          embedded: true,
+        );
       case AdminTab.administrativeAreas:
+        return AdminAdministrativeAreasScreen(
+          key: const ValueKey(AdminTab.administrativeAreas),
+          authNotifier: widget.authNotifier,
+          repository: AdministrativeAreaRepository(apiClient: _apiClient),
+          placeRepository: PlaceRepository(apiClient: _apiClient),
+        );
       case AdminTab.auditLogs:
+        return AdminAuditLogsScreen(
+          key: const ValueKey(AdminTab.auditLogs),
+          authNotifier: widget.authNotifier,
+          repository: AuditLogRepository(apiClient: _apiClient),
+          embedded: true,
+        );
       case AdminTab.settings:
-        return PlaceholderFeatureView(
-          tab: _currentTab,
-          onGoToDashboard: () => _onSelectTab(AdminTab.dashboard),
+        return AdminSettingsScreen(
+          key: const ValueKey(AdminTab.settings),
+          authNotifier: widget.authNotifier,
+          repository: SettingsRepository(apiClient: _apiClient),
+          embedded: true,
         );
     }
   }

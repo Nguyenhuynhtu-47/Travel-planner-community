@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:travel_planner_web/core/network/api_exception.dart';
 import 'package:travel_planner_web/core/theme/app_colors.dart';
+import 'package:travel_planner_web/features/administrative_areas/data/administrative_area_repository.dart';
+import 'package:travel_planner_web/features/administrative_areas/presentation/widgets/place_administrative_area_dialog.dart';
 import 'package:travel_planner_web/features/auth/presentation/auth_notifier.dart';
 import 'package:travel_planner_web/features/locations/data/models/place_model.dart';
 import 'package:travel_planner_web/features/locations/data/place_repository.dart';
@@ -23,12 +25,14 @@ import 'package:travel_planner_web/shared/widgets/web_map_view.dart';
 class AdminPlacesScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
   final PlaceRepository? repository;
+  final AdministrativeAreaRepository? administrativeAreaRepository;
   final bool embedded;
 
   const AdminPlacesScreen({
     super.key,
     required this.authNotifier,
     this.repository,
+    this.administrativeAreaRepository,
     this.embedded = false,
   });
 
@@ -193,7 +197,7 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Thêm địa điểm chuẩn hóa thành công!'),
+            content: Text('Thêm địa điểm thành công!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -375,6 +379,22 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
                   'Cập nhật gần nhất:', _formatDateTime(place.updatedAt!),
                   icon: Icons.update_outlined),
 
+            // Administrative area quick assignment
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                icon: const Icon(Icons.location_city_outlined, size: 15),
+                label: const Text(
+                  'Quản lý / Gán mã khu vực hành chính',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _handleAssignAdministrativeArea(place);
+                },
+              ),
+            ),
+
             // Provider mappings if present
             if (place.providerMappings.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -414,7 +434,7 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
             if (place.hasCoordinates) ...[
               const SizedBox(height: AppSpacing.md),
               const Text(
-                'Vị trí trên bản đồ chuẩn hóa:',
+                'Vị trí trên bản đồ:',
                 style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -556,7 +576,7 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
   Widget build(BuildContext context) {
     if (!isAdmin) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quản lý Địa điểm Chuẩn hóa')),
+        appBar: AppBar(title: const Text('Quản lý Địa điểm')),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
@@ -617,9 +637,7 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
         children: [
           // Standalone Enterprise Page Header
           AdminPageHeader(
-            title: 'Quản lý Địa điểm Chuẩn hóa (Places)',
-            subtitle:
-                'Cơ sở dữ liệu địa điểm du lịch, ẩm thực, lưu trú đã được định danh và tọa độ hóa.',
+            title: 'Quản lý Địa điểm',
             actions: [
               Container(
                 padding:
@@ -859,16 +877,26 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final dynamicAddressWidth =
-                      (constraints.maxWidth - 780).clamp(200.0, 600.0);
-                  final dynamicNameWidth =
-                      (constraints.maxWidth > 1200) ? 260.0 : 180.0;
+                  final availableWidth =
+                      constraints.maxWidth.isFinite ? constraints.maxWidth : 1080.0;
+                  final tableMinWidth =
+                      availableWidth > 980.0 ? availableWidth : 980.0;
+                  final areaColWidth = tableMinWidth >= 1220.0 ? 114.0 : 88.0;
+                  final fixedAndOverheadWidth =
+                      108.0 + 40.0 + 102.0 + areaColWidth + 106.0 + 86.0 + 214.0;
+                  final flexBudget =
+                      (tableMinWidth - fixedAndOverheadWidth).clamp(290.0, 760.0);
+                  final nameColWidth =
+                      (flexBudget * 0.46).clamp(148.0, 320.0);
+                  final addressColWidth =
+                      (flexBudget * 0.54).clamp(168.0, 440.0);
 
                   return AdminDataTable(
                     isLoading: _isLoading,
-                    minWidth: constraints.maxWidth.isFinite
-                        ? constraints.maxWidth
-                        : 880.0,
+                    minWidth: tableMinWidth,
+                    columnSpacing: 12,
+                    horizontalMargin: 12,
+                    dataRowHeight: AppHeights.tableRowComfortable,
                     emptyMessage: _searchController.text.isNotEmpty
                         ? 'Không tìm thấy địa điểm nào khớp với từ khóa "${_searchController.text}".'
                         : 'Không tìm thấy địa điểm nào',
@@ -878,107 +906,167 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
                     pageSize: _pageSize,
                     onPageChanged: _onPageChanged,
                     columns: [
-                      AdminDataColumn.text('ID', numeric: true),
-                      AdminDataColumn.text('TÊN ĐỊA ĐIỂM'),
-                      AdminDataColumn.text('DANH MỤC'),
-                      AdminDataColumn.text('ĐỊA CHỈ'),
-                      AdminDataColumn.text('KHU VỰC'),
-                      AdminDataColumn.text('TỌA ĐỘ'),
-                      AdminDataColumn.text('TRẠNG THÁI'),
+                      const AdminDataColumn(
+                        label: SizedBox(width: 40, child: Text('ID')),
+                      ),
+                      AdminDataColumn(
+                        label: SizedBox(
+                          width: nameColWidth,
+                          child: const Text('TÊN ĐỊA ĐIỂM'),
+                        ),
+                      ),
+                      const AdminDataColumn(
+                        label: SizedBox(width: 102, child: Text('DANH MỤC')),
+                      ),
+                      AdminDataColumn(
+                        label: SizedBox(
+                          width: addressColWidth,
+                          child: const Text('ĐỊA CHỈ'),
+                        ),
+                      ),
+                      AdminDataColumn(
+                        label: SizedBox(
+                          width: areaColWidth,
+                          child: const Text('KHU VỰC'),
+                        ),
+                      ),
+                      const AdminDataColumn(
+                        label: SizedBox(width: 106, child: Text('TỌA ĐỘ')),
+                      ),
+                      const AdminDataColumn(
+                        label: SizedBox(width: 86, child: Text('TRẠNG THÁI')),
+                      ),
                       AdminDataColumn.text('THAO TÁC'),
                     ],
                     rows: _places.map((place) {
                       return AdminDataRow(
                         onTap: () => _showPlaceDetailDialog(place),
                         cells: [
-                          Text(
-                            '#${place.id}',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600, fontSize: 12.5),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ClipRRect(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.sm),
-                                child: Container(
-                                  width: 28,
-                                  height: 28,
-                                  color: AppColors.surfaceSubtle,
-                                  child: place.imageUrl != null &&
-                                          place.imageUrl!.isNotEmpty
-                                      ? Image.network(
-                                          place.imageUrl!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error,
-                                                  stackTrace) =>
-                                              const Icon(Icons.broken_image,
-                                                  size: 16,
-                                                  color: AppColors.textMuted),
-                                        )
-                                      : const Icon(Icons.place_outlined,
-                                          size: 16, color: AppColors.textMuted),
-                                ),
+                          SizedBox(
+                            width: 40,
+                            child: Text(
+                              '#${place.id}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12.5,
                               ),
-                              const SizedBox(width: AppSpacing.sm),
-                              ConstrainedBox(
-                                constraints: BoxConstraints(
-                                    minWidth: 140, maxWidth: dynamicNameWidth),
-                                child: Tooltip(
-                                  message: place.name,
-                                  waitDuration:
-                                      const Duration(milliseconds: 400),
-                                  child: Text(
-                                    place.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12.5),
+                            ),
+                          ),
+                          SizedBox(
+                            width: nameColWidth,
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.sm),
+                                  child: Container(
+                                    width: 26,
+                                    height: 26,
+                                    color: AppColors.surfaceSubtle,
+                                    child: place.imageUrl != null &&
+                                            place.imageUrl!.isNotEmpty
+                                        ? Image.network(
+                                            place.imageUrl!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error,
+                                                    stackTrace) =>
+                                                const Icon(Icons.broken_image,
+                                                    size: 15,
+                                                    color: AppColors.textMuted),
+                                          )
+                                        : const Icon(Icons.place_outlined,
+                                            size: 15,
+                                            color: AppColors.textMuted),
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Tooltip(
+                                    message: place.name,
+                                    waitDuration:
+                                        const Duration(milliseconds: 400),
+                                    child: Text(
+                                      place.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          _buildCategoryBadge(place.categoryDisplay),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                                minWidth: 200, maxWidth: dynamicAddressWidth),
+                          SizedBox(
+                            width: 102,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: _buildCategoryBadge(place.categoryDisplay),
+                            ),
+                          ),
+                          SizedBox(
+                            width: addressColWidth,
                             child: Tooltip(
                               message: place.address,
-                              waitDuration:
-                                  const Duration(milliseconds: 400),
+                              waitDuration: const Duration(milliseconds: 400),
                               child: Text(
                                 place.address,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary),
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                             ),
                           ),
-                          Text(
-                            place.administrativeAreaName ?? '-',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                          Tooltip(
-                            message: place.hasCoordinates
-                                ? 'Tọa độ: ${place.latitude}, ${place.longitude}'
-                                : 'Chưa có tọa độ',
-                            child: Text(
-                              place.hasCoordinates
-                                  ? '${place.latitude!.toStringAsFixed(4)}, ${place.longitude!.toStringAsFixed(4)}'
-                                  : '-',
-                              style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontFamily: 'monospace',
-                                  color: AppColors.textSecondary),
+                          SizedBox(
+                            width: areaColWidth,
+                            child: Tooltip(
+                              message: place.administrativeAreaName ?? '-',
+                              waitDuration: const Duration(milliseconds: 400),
+                              child: Text(
+                                place.administrativeAreaName ?? '-',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                             ),
                           ),
-                          AdminStatusBadge(status: place.status),
+                          SizedBox(
+                            width: 106,
+                            child: Tooltip(
+                              message: place.hasCoordinates
+                                  ? 'Tọa độ: ${place.latitude}, ${place.longitude}'
+                                  : 'Chưa có tọa độ',
+                              child: Text(
+                                place.hasCoordinates
+                                    ? '${place.latitude!.toStringAsFixed(4)}, ${place.longitude!.toStringAsFixed(4)}'
+                                    : '-',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 86,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: AdminStatusBadge(status: place.status),
+                            ),
+                          ),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -989,13 +1077,20 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
                                     onPressed: () =>
                                         _showPlaceDetailDialog(place),
                                     style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.textSecondary,
-                                      visualDensity: VisualDensity.compact,
+                                      foregroundColor:
+                                          AppColors.textSecondary,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 6),
+                                        horizontal: 5,
+                                        vertical: 4,
+                                      ),
                                     ),
-                                    child: const Text('Chi tiết',
-                                        style: TextStyle(fontSize: 12)),
+                                    child: const Text(
+                                      'Chi tiết',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1007,14 +1102,21 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
                                     style: TextButton.styleFrom(
                                       foregroundColor:
                                           AppColors.primaryAccessible,
-                                      visualDensity: VisualDensity.compact,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 6),
+                                        horizontal: 5,
+                                        vertical: 4,
+                                      ),
                                     ),
-                                    child: const Text('Sửa',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600)),
+                                    child: const Text(
+                                      'Sửa',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1030,15 +1132,46 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
                                       foregroundColor: place.isActive
                                           ? AppColors.warning
                                           : AppColors.success,
-                                      visualDensity: VisualDensity.compact,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 6),
+                                        horizontal: 5,
+                                        vertical: 4,
+                                      ),
                                     ),
                                     child: Text(
                                       place.isActive ? 'Ẩn' : 'Kích hoạt',
                                       style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              HoverMovement.button(
+                                child: Tooltip(
+                                  message: 'Gán mã khu vực hành chính',
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        _handleAssignAdministrativeArea(place),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.primary,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 4,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'ĐVHC',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1058,20 +1191,41 @@ class _AdminPlacesScreenState extends State<AdminPlacesScreen> {
     );
   }
 
-  Widget _buildCategoryBadge(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.border),
+  Future<void> _handleAssignAdministrativeArea(PlaceModel place) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) => PlaceAdministrativeAreaDialog(
+        place: place,
+        token: widget.authNotifier.token,
+        repository: widget.administrativeAreaRepository,
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textSecondary,
+    );
+    if (updated == true && mounted) {
+      await _loadPlaces();
+    }
+  }
+
+  Widget _buildCategoryBadge(String label) {
+    return Tooltip(
+      message: label,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 102),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceSubtle,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textSecondary,
+          ),
         ),
       ),
     );

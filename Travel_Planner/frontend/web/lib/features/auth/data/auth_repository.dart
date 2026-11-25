@@ -6,24 +6,6 @@ class AuthRepository {
 
   AuthRepository({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
-  Future<Map<String, dynamic>> register({
-    required String username,
-    required String email,
-    required String password,
-    required String fullName,
-  }) async {
-    final response = await _apiClient.post(
-      ApiConstants.registerEndpoint,
-      body: {
-        'username': username,
-        'email': email,
-        'password': password,
-        'fullName': fullName,
-      },
-    );
-    return response as Map<String, dynamic>;
-  }
-
   Future<Map<String, dynamic>> login({
     required String usernameOrEmail,
     required String password,

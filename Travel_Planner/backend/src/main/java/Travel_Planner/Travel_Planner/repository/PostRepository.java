@@ -128,5 +128,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     Page<Post> findUserPostsPublicOnly(@Param("userId") Integer userId, Pageable pageable);
 
     Page<Post> findByStatus(PostStatus status, Pageable pageable);
+
+    long countByAuthor_UserId(Integer userId);
 }
 

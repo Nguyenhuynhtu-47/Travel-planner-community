@@ -17,6 +17,9 @@ class AppTextField extends StatefulWidget {
   final int? minLines;
   final String? Function(String?)? validator;
   final List<TextInputFormatter>? inputFormatters;
+  final TextStyle? labelStyle;
+  final TextStyle? inputStyle;
+  final TextStyle? hintStyle;
 
   const AppTextField({
     super.key,
@@ -33,6 +36,9 @@ class AppTextField extends StatefulWidget {
     this.minLines,
     this.validator,
     this.inputFormatters,
+    this.labelStyle,
+    this.inputStyle,
+    this.hintStyle,
   });
 
   @override
@@ -55,11 +61,12 @@ class _AppTextFieldState extends State<AppTextField> {
       children: [
         Text(
           widget.label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textSecondary,
-          ),
+          style: widget.labelStyle ??
+              const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -73,13 +80,15 @@ class _AppTextFieldState extends State<AppTextField> {
           onChanged: widget.onChanged,
           onFieldSubmitted: widget.onFieldSubmitted,
           validator: widget.validator,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: AppColors.textPrimary,
-          ),
+          style: widget.inputStyle ??
+              const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: AppColors.textPrimary,
+              ),
           decoration: InputDecoration(
             hintText: widget.hint,
+            hintStyle: widget.hintStyle,
             errorText: widget.errorText,
             suffixIcon: widget.isPassword
                 ? IconButton(

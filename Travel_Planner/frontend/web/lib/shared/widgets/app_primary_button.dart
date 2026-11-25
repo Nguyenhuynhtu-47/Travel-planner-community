@@ -11,6 +11,8 @@ class AppPrimaryButton extends StatelessWidget {
   final bool isLoading;
   final IconData? icon;
   final double? width;
+  final double? height;
+  final double fontSize;
 
   const AppPrimaryButton({
     super.key,
@@ -19,6 +21,8 @@ class AppPrimaryButton extends StatelessWidget {
     this.isLoading = false,
     this.icon,
     this.width,
+    this.height,
+    this.fontSize = 13,
   });
 
   @override
@@ -54,8 +58,8 @@ class AppPrimaryButton extends StatelessWidget {
                 ],
                 Text(
                   text,
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: TextStyle(
+                    fontSize: fontSize,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -81,7 +85,9 @@ class AppPrimaryButton extends StatelessWidget {
           return AppColors.primary;
         }),
         foregroundColor: const WidgetStatePropertyAll<Color>(Colors.white),
-        minimumSize: const WidgetStatePropertyAll<Size>(Size(64, AppHeights.buttonStandard)),
+        minimumSize: WidgetStatePropertyAll<Size>(
+          Size(64, height ?? AppHeights.buttonStandard),
+        ),
         padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
           EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         ),
@@ -103,8 +109,8 @@ class AppPrimaryButton extends StatelessWidget {
       child: btn,
     );
 
-    if (width != null) {
-      return SizedBox(width: width, child: animatedBtn);
+    if (width != null || height != null) {
+      return SizedBox(width: width, height: height, child: animatedBtn);
     }
     return animatedBtn;
   }

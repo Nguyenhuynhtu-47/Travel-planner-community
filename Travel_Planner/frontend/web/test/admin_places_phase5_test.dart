@@ -523,5 +523,76 @@ void main() {
       expect(find.text('Quản lý Địa điểm Chuẩn hóa (Places)'), findsOneWidget);
       expect(find.text('Địa Điểm Shell Test'), findsOneWidget);
     });
+
+    testWidgets('Action column remains visible inside viewport with expanded sidebar at 1366x768', (tester) async {
+      tester.view.physicalSize = const Size(1366, 768);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize);
+
+      SharedPreferences.setMockInitialValues({'auth_token': 'jwt'});
+      final validToken = _createMockJwt(expSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600);
+      final authStorage = AuthStorage();
+      await authStorage.saveToken(validToken);
+      await authStorage.saveUser({'userId': 1, 'username': 'admin_root', 'role': 'ADMIN'});
+
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/api/auth/me') {
+          return http.Response(jsonEncode({'username': 'admin_root', 'role': 'ADMIN'}), 200, headers: jsonHeaders);
+        }
+        if (request.url.path == '/api/admin/places') {
+          return http.Response(
+            jsonEncode({
+              'content': [
+                {
+                  'placeId': 321,
+                  'name': 'Chợ Bến Thành Sài Gòn Rất Dài Để Kiểm Tra Truncation',
+                  'address': 'Đường Lê Lợi, Phường Bến Thành, Quận 1, Thành phố Hồ Chí Minh, Việt Nam',
+                  'category': 'ATTRACTION',
+                  'status': 'ACTIVE',
+                  'latitude': 10.7725,
+                  'longitude': 106.6980,
+                  'administrativeArea': {'name': 'Thành phố Hồ Chí Minh'},
+                }
+              ],
+              'pageNumber': 0,
+              'pageSize': 20,
+              'totalElements': 1,
+              'totalPages': 1,
+            }),
+            200,
+            headers: jsonHeaders,
+          );
+        }
+        return http.Response(jsonEncode({'content': []}), 200, headers: jsonHeaders);
+      });
+
+      final authNotifier = AuthNotifier(
+        storage: authStorage,
+        repository: AuthRepository(apiClient: ApiClient(client: mockClient)),
+      );
+      await authNotifier.checkAuthStatus();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminShell(
+            authNotifier: authNotifier,
+            apiClient: ApiClient(client: mockClient),
+            initialTab: AdminTab.places,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('THAO TÁC'), findsOneWidget);
+      expect(find.text('Chi tiết'), findsOneWidget);
+      expect(find.text('Sửa'), findsOneWidget);
+      expect(find.text('Ẩn'), findsOneWidget);
+
+      // Verify the entire action group fits within 1366px viewport even with expanded 252px sidebar
+      final hideButtonRect = tester.getRect(find.text('Ẩn'));
+      expect(hideButtonRect.right, lessThanOrEqualTo(1366.0));
+      expect(hideButtonRect.left, greaterThan(252.0));
+    });
   });
 }
