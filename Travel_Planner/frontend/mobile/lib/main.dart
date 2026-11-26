@@ -122,6 +122,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: 'Travel Planner',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      builder: (context, child) {
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: child,
+        );
+      },
       home: SplashScreen(
         authNotifier: _authNotifier,
       ),

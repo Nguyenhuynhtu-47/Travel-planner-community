@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 
 class GoogleLogo extends StatelessWidget {
   final double size;
@@ -77,52 +78,55 @@ class GoogleSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: isLoading ? null : onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.textPrimary,
-        backgroundColor: Colors.white,
-        disabledBackgroundColor: Colors.white.withValues(alpha: 0.8),
-        minimumSize: const Size.fromHeight(50),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        side: const BorderSide(color: AppColors.border, width: 1.2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+    return BounceTap(
+      enabled: !isLoading && onPressed != null,
+      child: OutlinedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textPrimary,
+          backgroundColor: Colors.white,
+          disabledBackgroundColor: Colors.white.withValues(alpha: 0.8),
+          minimumSize: const Size.fromHeight(50),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          side: const BorderSide(color: AppColors.border, width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
-      ),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 150),
-        child: isLoading
-            ? const SizedBox(
-                key: ValueKey('google_loading'),
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.textPrimary,
-                ),
-              )
-            : Row(
-                key: const ValueKey('google_content'),
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const GoogleLogo(size: 20),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: Text(
-                      text,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.2,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 150),
+          child: isLoading
+              ? const SizedBox(
+                  key: ValueKey('google_loading'),
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textPrimary,
+                  ),
+                )
+              : Row(
+                  key: const ValueKey('google_content'),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const GoogleLogo(size: 20),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        text,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -0.2,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -130,13 +134,18 @@ class GoogleSignInButton extends StatelessWidget {
 
 class AuthDividerWithText extends StatelessWidget {
   final String text;
+  final double verticalPadding;
 
-  const AuthDividerWithText({super.key, this.text = 'Hoặc'});
+  const AuthDividerWithText({
+    super.key,
+    this.text = 'Hoặc',
+    this.verticalPadding = 20,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: EdgeInsets.symmetric(vertical: verticalPadding),
       child: Row(
         children: [
           const Expanded(child: Divider(color: AppColors.border, thickness: 1)),

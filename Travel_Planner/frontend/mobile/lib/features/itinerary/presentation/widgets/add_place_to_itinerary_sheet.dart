@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../location/data/location_repository.dart';
@@ -20,10 +23,8 @@ Future<bool?> showAddPlaceToItinerarySheet(
   ItinerarySummary? initialItinerary,
   List<ItinerarySummary>? availableItineraries,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+  return AppBottomSheet.show<bool>(
+    context,
     builder: (ctx) => AddPlaceToItinerarySheet(
       authNotifier: authNotifier,
       repository: repository,
@@ -186,19 +187,18 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
     if (mounted) {
       setState(() => _isSavingFromItinerary = false);
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã thêm $addedCount địa điểm vào lịch trình ${_selectedTargetItinerary!.title}'),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã thêm $addedCount địa điểm vào lịch trình ${_selectedTargetItinerary!.title}',
       );
     }
   }
 
   Future<void> _searchAndSaveNewPlace() async {
     if (_selectedTargetItinerary == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn lịch trình trước khi thêm địa điểm')),
+      AppToast.showInfo(
+        context,
+        'Vui lòng chọn lịch trình trước khi thêm địa điểm',
       );
       return;
     }
@@ -246,13 +246,9 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
       if (mounted) {
         setState(() => _isResolvingAndSaving = false);
         Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Đã lưu "${pickedLocation.locationName}" vào lịch trình ${_selectedTargetItinerary!.title}',
-            ),
-            backgroundColor: AppColors.success,
-          ),
+        AppToast.showSuccess(
+          context,
+          'Đã lưu "${pickedLocation.locationName}" vào lịch trình ${_selectedTargetItinerary!.title}',
         );
       }
     } on ApiException catch (e) {
@@ -261,18 +257,14 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
         final msg = e.statusCode == 409
             ? 'Địa điểm này đã có trong lịch trình'
             : e.message;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
-        );
+        AppToast.showError(context, msg);
       }
     } catch (_) {
       if (mounted) {
         setState(() => _isResolvingAndSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể lưu địa điểm. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Không thể lưu địa điểm. Vui lòng thử lại.',
         );
       }
     }
@@ -280,16 +272,12 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
     return Material(
-      color: AppColors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: Container(
+      type: MaterialType.transparency,
+      child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.88,
         ),
-        margin: EdgeInsets.only(bottom: bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -306,9 +294,11 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () => Navigator.of(context).pop(),
+                BounceTap.icon(
+                  child: IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
                 ),
               ],
             ),
@@ -388,14 +378,20 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
             indicatorWeight: 2.5,
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             unselectedLabelStyle: const TextStyle(fontSize: 13),
-            tabs: const [
-              Tab(
-                icon: Icon(Icons.copy_rounded, size: 18),
-                text: 'Từ lịch trình khác',
+            tabs: [
+              BounceTap(
+                useSelectionHaptic: true,
+                child: const Tab(
+                  icon: Icon(Icons.copy_rounded, size: 18),
+                  text: 'Từ lịch trình khác',
+                ),
               ),
-              Tab(
-                icon: Icon(Icons.search_rounded, size: 18),
-                text: 'Tìm địa điểm mới',
+              BounceTap(
+                useSelectionHaptic: true,
+                child: const Tab(
+                  icon: Icon(Icons.search_rounded, size: 18),
+                  text: 'Tìm địa điểm mới',
+                ),
               ),
             ],
           ),
@@ -572,25 +568,28 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
           if (_sourcePlaces.isNotEmpty)
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: _isSavingFromItinerary
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.add_rounded),
-                label: Text(
-                  _isSavingFromItinerary
-                      ? 'Đang thêm...'
-                      : 'Thêm ${_selectedPlaceIds.length} địa điểm vào lịch trình',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+              child: BounceTap(
+                enabled: !(_isSavingFromItinerary || _selectedPlaceIds.isEmpty),
+                child: ElevatedButton.icon(
+                  icon: _isSavingFromItinerary
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.add_rounded),
+                  label: Text(
+                    _isSavingFromItinerary
+                        ? 'Đang thêm...'
+                        : 'Thêm ${_selectedPlaceIds.length} địa điểm vào lịch trình',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: (_isSavingFromItinerary || _selectedPlaceIds.isEmpty)
+                      ? null
+                      : _saveSelectedPlacesFromItinerary,
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: (_isSavingFromItinerary || _selectedPlaceIds.isEmpty)
-                    ? null
-                    : _saveSelectedPlacesFromItinerary,
               ),
             ),
         ],
@@ -628,23 +627,26 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: _isResolvingAndSaving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.search_rounded),
-              label: Text(
-                _isResolvingAndSaving
-                    ? 'Đang lưu vào lịch trình...'
-                    : 'Mở tìm kiếm địa điểm',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+            child: BounceTap(
+              enabled: !_isResolvingAndSaving,
+              child: ElevatedButton.icon(
+                icon: _isResolvingAndSaving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.search_rounded),
+                label: Text(
+                  _isResolvingAndSaving
+                      ? 'Đang lưu vào lịch trình...'
+                      : 'Mở tìm kiếm địa điểm',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: _isResolvingAndSaving ? null : _searchAndSaveNewPlace,
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: _isResolvingAndSaving ? null : _searchAndSaveNewPlace,
             ),
           ),
         ],

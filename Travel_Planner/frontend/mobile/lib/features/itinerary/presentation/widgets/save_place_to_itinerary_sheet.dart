@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/place_category_helper.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../data/itinerary_crud_repository.dart';
@@ -22,10 +25,8 @@ Future<bool?> showSavePlaceToItinerarySheet(
   String? imageUrl,
   List<ItinerarySummary>? availableItineraries,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+  return AppBottomSheet.show<bool>(
+    context,
     builder: (ctx) => SavePlaceToItinerarySheet(
       authNotifier: authNotifier,
       repository: repository,
@@ -130,12 +131,7 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
 
     final token = widget.authNotifier.token;
     if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để lưu địa điểm.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Vui lòng đăng nhập để lưu địa điểm.');
       return;
     }
 
@@ -171,13 +167,9 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
         _savingItineraryId = null;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã lưu "${widget.locationName}" vào lịch trình "${itinerary.title}"',
-          ),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã lưu "${widget.locationName}" vào lịch trình "${itinerary.title}"',
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -187,60 +179,29 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
           e.message.contains('đã được lưu') ||
           e.message.contains('tồn tại')) {
         setState(() => _savedItineraryIds.add(itinerary.itineraryId));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Địa điểm này đã có trong lịch trình "${itinerary.title}"',
-            ),
-            backgroundColor: AppColors.info,
-          ),
+        AppToast.showInfo(
+          context,
+          'Địa điểm này đã có trong lịch trình "${itinerary.title}"',
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, e.message);
       }
     } catch (_) {
       if (!mounted) return;
       setState(() => _savingItineraryId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể lưu địa điểm. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Không thể lưu địa điểm. Vui lòng thử lại.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ConstrainedBox(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 38,
-              height: 4,
-              margin: const EdgeInsets.only(top: 10, bottom: 8),
-              decoration: BoxDecoration(
-                color: AppColors.hairline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
           // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -262,10 +223,12 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                  onPressed: () =>
-                      Navigator.of(context).pop(_savedItineraryIds.isNotEmpty),
+                BounceTap.icon(
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () =>
+                        Navigator.of(context).pop(_savedItineraryIds.isNotEmpty),
+                  ),
                 ),
               ],
             ),
@@ -423,9 +386,11 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: _loadMyItineraries,
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: _loadMyItineraries,
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),
@@ -557,16 +522,18 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                           ),
                         ],
                       )
-                    : FilledButton.tonal(
-                        onPressed: () => _saveToItinerary(it),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
+                    : BounceTap(
+                        child: FilledButton.tonal(
+                          onPressed: () => _saveToItinerary(it),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            visualDensity: VisualDensity.compact,
                           ),
-                          visualDensity: VisualDensity.compact,
+                          child: const Text('Lưu'),
                         ),
-                        child: const Text('Lưu'),
                       ),
             ),
           ),

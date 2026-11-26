@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 
 class SearchBarPill extends StatelessWidget {
   final TextEditingController controller;
@@ -99,15 +100,17 @@ class SearchBarPill extends StatelessWidget {
                   child: ScaleTransition(scale: animation, child: child),
                 ),
                 child: hasText
-                    ? IconButton(
+                    ? BounceTap.icon(
                         key: const ValueKey('clear_btn'),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        color: AppColors.muted,
-                        splashRadius: 18,
-                        onPressed: () {
-                          controller.clear();
-                          if (onClear != null) onClear!();
-                        },
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          color: AppColors.muted,
+                          splashRadius: 18,
+                          onPressed: () {
+                            controller.clear();
+                            if (onClear != null) onClear!();
+                          },
+                        ),
                       )
                     : const SizedBox.shrink(key: ValueKey('empty_clear')),
               );
@@ -126,15 +129,17 @@ class SearchBarPill extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.tune_rounded,
-                  size: 20,
-                  color: AppColors.textPrimary,
+              BounceTap.icon(
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.tune_rounded,
+                    size: 20,
+                    color: AppColors.textPrimary,
+                  ),
+                  splashRadius: 20,
+                  tooltip: 'Bộ lọc',
+                  onPressed: onFilterTap,
                 ),
-                splashRadius: 20,
-                tooltip: 'Bộ lọc',
-                onPressed: onFilterTap,
               ),
               Positioned(
                 top: 6,

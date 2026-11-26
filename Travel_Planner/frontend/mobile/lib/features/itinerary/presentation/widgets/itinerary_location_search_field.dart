@@ -228,27 +228,85 @@ class _ItineraryLocationSearchFieldState
 
   @override
   Widget build(BuildContext context) {
+    final isFocused = _focusNode.hasFocus;
     return CompositedTransformTarget(
       link: _layerLink,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Text(
+            'Điểm đến / Địa điểm *',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1E1E1E),
+            ),
+          ),
+          const SizedBox(height: 6),
           TextFormField(
             controller: widget.controller,
             focusNode: _focusNode,
             onChanged: _onChanged,
             validator: widget.validator,
             textInputAction: TextInputAction.next,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF1E1E1E),
+            ),
             decoration: InputDecoration(
-              labelText: 'Điểm đến / Địa điểm *',
               hintText: 'Ví dụ: Đà Lạt, Lâm Đồng',
+              hintStyle: const TextStyle(
+                fontSize: 14.5,
+                color: Color(0xFF8E8E93),
+              ),
+              prefixIcon: const Icon(
+                Icons.place_outlined,
+                size: 20,
+                color: Color(0xFF6E6E73),
+              ),
+              filled: true,
+              fillColor: isFocused ? Colors.white : const Color(0xFFF7F8FA),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFEBEBEF)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFEBEBEF)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFFFA3E62),
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFEF4444)),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFFEF4444),
+                  width: 1.5,
+                ),
+              ),
               suffixIcon: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(12),
                       child: SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFFFA3E62),
+                        ),
                       ),
                     )
                   : null,

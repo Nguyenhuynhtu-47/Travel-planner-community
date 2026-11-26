@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../data/models/activity_detail.dart';
 
-/// Reveals a visit-status action when the activity row is swiped to the right.
+/// Reveals a unified left-to-right swipe action for checking in or unchecking an activity.
 class ActivityVisitSwipeAction extends StatefulWidget {
   final ActivityDetail activity;
   final Widget child;
@@ -22,7 +23,7 @@ class ActivityVisitSwipeAction extends StatefulWidget {
 }
 
 class _ActivityVisitSwipeActionState extends State<ActivityVisitSwipeAction> {
-  static const double _actionWidth = 132;
+  static const double _actionWidth = 100;
   double _offset = 0;
   double _dragStartOffset = 0;
   double _dragStartX = 0;
@@ -47,28 +48,22 @@ class _ActivityVisitSwipeActionState extends State<ActivityVisitSwipeAction> {
     if (_isUpdating) return;
     setState(() {
       final dragDistance = details.globalPosition.dx - _dragStartX;
-      final minimumOffset = widget.activity.visited ? -_actionWidth : 0.0;
-      final maximumOffset = widget.activity.visited ? 0.0 : _actionWidth;
-      _offset = (_dragStartOffset + dragDistance).clamp(
-        minimumOffset,
-        maximumOffset,
-      );
+      _offset = (_dragStartOffset + dragDistance).clamp(0.0, _actionWidth);
     });
   }
 
   void _handleDragEnd(DragEndDetails details) {
     if (_isUpdating) return;
-    final shouldReveal = _offset.abs() >= _actionWidth * 0.35;
+    final shouldReveal = _offset >= _actionWidth * 0.35;
     setState(() {
       _isDragging = false;
-      _offset = shouldReveal
-          ? (widget.activity.visited ? -_actionWidth : _actionWidth)
-          : 0;
+      _offset = shouldReveal ? _actionWidth : 0;
     });
   }
 
   Future<void> _updateVisitStatus() async {
     if (_isUpdating) return;
+    HapticFeedback.mediumImpact();
     setState(() => _isUpdating = true);
     final success = await widget.onUpdate(!widget.activity.visited);
     if (!mounted) return;
@@ -81,82 +76,103 @@ class _ActivityVisitSwipeActionState extends State<ActivityVisitSwipeAction> {
   @override
   Widget build(BuildContext context) {
     final visited = widget.activity.visited;
-    final actionAlignment = visited
-        ? Alignment.centerRight
-        : Alignment.centerLeft;
     final actionLabel = visited ? 'Chưa ghé thăm' : 'Đã ghé thăm';
-    final actionIcon = visited ? Icons.undo_rounded : Icons.check_rounded;
-    final backgroundColor = AppColors.primaryLight;
+    final actionIcon = visited ? Icons.close_rounded : Icons.check_rounded;
+    final backgroundColor = visited
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF2563EB);
+    final disableAnimations =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
     return LayoutBuilder(
       builder: (context, constraints) => SizedBox(
         width: constraints.maxWidth,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned.fill(
-              child: Align(
-                alignment: actionAlignment,
-                child: SizedBox(
-                  width: _actionWidth,
-                  child: Material(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(8),
-                    child: TextButton.icon(
-                      onPressed: _isUpdating ? null : _updateVisitStatus,
-                      icon: _isUpdating
-                          ? const SizedBox.square(
-                              dimension: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primary,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned.fill(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: IgnorePointer(
+                    ignoring: _offset <= 0.5 && !_isUpdating,
+                    child: SizedBox(
+                      width: _actionWidth,
+                      height: double.infinity,
+                      child: BounceTap(
+                        enabled: !_isUpdating,
+                        child: Material(
+                          color: backgroundColor,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            onTap: _isUpdating ? null : _updateVisitStatus,
+                            borderRadius: BorderRadius.circular(14),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_isUpdating)
+                                    const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  else
+                                    Icon(
+                                      actionIcon,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    actionLabel,
+                                    maxLines: 2,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            )
-                          : Icon(actionIcon, size: 18),
-                      label: Text(actionLabel, maxLines: 1),
-                      style: TextButton.styleFrom(
-                        backgroundColor: backgroundColor,
-                        foregroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: _handleDragStart,
-              onHorizontalDragUpdate: _handleDragUpdate,
-              onHorizontalDragEnd: _handleDragEnd,
-              child: SizedBox(
-                width: constraints.maxWidth,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(end: _offset),
-                  duration:
-                      _isDragging || MediaQuery.of(context).disableAnimations
-                      ? Duration.zero
-                      : const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, offset, child) => Transform.translate(
-                    offset: Offset(offset, 0),
-                    child: child,
-                  ),
-                  child: Material(
-                    color: AppColors.surface,
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragStart: _handleDragStart,
+                onHorizontalDragUpdate: _handleDragUpdate,
+                onHorizontalDragEnd: _handleDragEnd,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(end: _offset),
+                    duration: _isDragging || disableAnimations
+                        ? Duration.zero
+                        : const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, offset, child) => Transform.translate(
+                      offset: Offset(offset, 0),
+                      child: child,
+                    ),
                     child: widget.child,
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

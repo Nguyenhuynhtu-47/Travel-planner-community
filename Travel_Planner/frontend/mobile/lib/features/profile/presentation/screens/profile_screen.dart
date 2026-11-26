@@ -7,16 +7,25 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/navigation/main_navigation_shell.dart';
+import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_dialog.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
+import '../../../itinerary/data/itinerary_crud_repository.dart';
+import '../../../itinerary/data/models/update_itinerary_request.dart';
+import '../../../itinerary/presentation/screens/edit_itinerary_screen.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
 import '../../../messaging/data/messaging_repository.dart';
@@ -27,8 +36,8 @@ import '../../../social/data/community_post_repository.dart';
 import '../../../social/data/models/post_model.dart';
 import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import '../../../social/presentation/screens/create_post_screen.dart';
-import '../../../social/presentation/widgets/post_card_widget.dart';
-import '../../../social/presentation/widgets/post_comments_sheet.dart';
+import '../../../social/presentation/screens/post_detail_screen.dart';
+import '../../../social/presentation/widgets/feed_post_item.dart';
 import 'personal_info_screen.dart';
 import 'public_profile_screen.dart';
 import 'public_user_list_screen.dart';
@@ -209,9 +218,22 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _logout() async {
     await widget.authNotifier.logout();
-    if (mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => MainNavigationShell(
+          authNotifier: widget.authNotifier,
+          initialIndex: 0,
+        ),
+      ),
+      (route) => false,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigator.context.mounted) {
+        AppToast.showInfo(navigator.context, 'Đã đăng xuất');
+      }
+    });
   }
 
   void _fillFields(Map<String, dynamic> p) {
@@ -231,9 +253,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       final bytes = await image.readAsBytes();
       if (bytes.length > 5 * 1024 * 1024) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ảnh không được vượt quá 5 MB')),
-          );
+          AppToast.showWarning(context, 'Ảnh không được vượt quá 5 MB');
         }
         return;
       }
@@ -245,10 +265,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể mở thư viện ảnh. Vui lòng thử lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể mở thư viện ảnh. Vui lòng thử lại.',
         );
       }
     }
@@ -407,26 +426,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         _editing = false;
         _saving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã cập nhật hồ sơ'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã cập nhật hồ sơ');
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể lưu thông tin hồ sơ. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Không thể lưu thông tin hồ sơ. Vui lòng thử lại.',
       );
     }
   }
@@ -434,6 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openSettings() async {
     final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
+        fullscreenDialog: true,
         builder: (_) => PersonalInfoScreen(
           authNotifier: widget.authNotifier,
           repository: _repository,
@@ -504,6 +515,14 @@ class _ProfileScreenState extends State<ProfileScreen>
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leadingWidth: Navigator.of(context).canPop() ? 58 : null,
+          leading: Navigator.of(context).canPop()
+              ? const Padding(
+                  padding: EdgeInsets.only(left: 12),
+                  child: Center(child: AppHeaderBackButton()),
+                )
+              : null,
           title: const AppPageTitle(title: 'Hồ sơ cá nhân'),
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.textPrimary,
@@ -535,20 +554,28 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leadingWidth: Navigator.of(context).canPop() ? 58 : null,
+        leading: Navigator.of(context).canPop()
+            ? const Padding(
+                padding: EdgeInsets.only(left: 12),
+                child: Center(child: AppHeaderBackButton()),
+              )
+            : null,
         title: const AppPageTitle(title: 'Hồ sơ cá nhân'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
+          AppHeaderIconButton(
             tooltip: 'Quyền riêng tư tin nhắn',
-            icon: const Icon(Icons.forum_outlined, size: 22),
+            icon: Icons.forum_outlined,
             onPressed: _openMessagingPrivacy,
           ),
           IconButton(
             tooltip: 'Cài đặt hồ sơ',
-            icon: const Icon(Icons.settings_outlined, size: 24),
+            icon: Icons.settings_outlined,
             onPressed: _openSettings,
           ),
           const SizedBox(width: 8),
@@ -605,9 +632,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
             const SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: _loadProfile,
-              child: const Text('Thử lại'),
+            BounceTap(
+              child: OutlinedButton(
+                onPressed: _loadProfile,
+                child: const Text('Thử lại'),
+              ),
             ),
           ],
         ),
@@ -667,35 +696,40 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _statItem(String label, int count, {VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '$count',
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+    return BounceTap(
+      enabled: onTap != null,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w400,
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -866,24 +900,26 @@ class _ProfileScreenState extends State<ProfileScreen>
           // Action: Edit Profile
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () {
-                setState(() => _editing = true);
-              },
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(38),
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            child: BounceTap(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() => _editing = true);
+                },
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(38),
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  backgroundColor: AppColors.surface,
                 ),
-                backgroundColor: AppColors.surface,
-              ),
-              child: const Text(
-                'Chỉnh sửa hồ sơ',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                child: const Text(
+                  'Chỉnh sửa hồ sơ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
             ),
@@ -896,97 +932,103 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildTabBar() {
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.background,
+        color: Colors.white,
         border: Border(
-          top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
-          bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
+          top: BorderSide(color: Color(0xFFEBEBEF), width: 1),
+          bottom: BorderSide(color: Color(0xFFEBEBEF), width: 1),
         ),
       ),
       child: Row(
         children: [
           Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _selectedProfileTab = 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _selectedProfileTab == 0
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      width: 2,
+            child: BounceTap(
+              useSelectionHaptic: true,
+              child: InkWell(
+                onTap: () => setState(() => _selectedProfileTab = 0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _selectedProfileTab == 0
+                            ? AppColors.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.map_outlined,
-                      size: 18,
-                      color: _selectedProfileTab == 0
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Lịch trình',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        size: 18,
                         color: _selectedProfileTab == 0
                             ? AppColors.primary
                             : AppColors.textSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        'Lịch trình',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: _selectedProfileTab == 0
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           Expanded(
-            child: InkWell(
-              onTap: () {
-                setState(() => _selectedProfileTab = 1);
-                if (_myPosts.isEmpty && !_loadingPosts) {
-                  _loadMyPosts();
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _selectedProfileTab == 1
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      width: 2,
+            child: BounceTap(
+              useSelectionHaptic: true,
+              child: InkWell(
+                onTap: () {
+                  setState(() => _selectedProfileTab = 1);
+                  if (_myPosts.isEmpty && !_loadingPosts) {
+                    _loadMyPosts();
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _selectedProfileTab == 1
+                            ? AppColors.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.article_outlined,
-                      size: 18,
-                      color: _selectedProfileTab == 1
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Bài viết',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.article_outlined,
+                        size: 18,
                         color: _selectedProfileTab == 1
                             ? AppColors.primary
                             : AppColors.textSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        'Bài viết',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: _selectedProfileTab == 1
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1076,25 +1118,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _openPostComments(PostModel post) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => PostCommentsSheet(
-        postId: post.postId,
-        token: widget.authNotifier.token,
-        repository: _postRepository,
-        onCommentCountChanged: (delta) {
-          setState(() {
-            final idx = _myPosts.indexWhere((p) => p.postId == post.postId);
-            if (idx != -1) {
-              final newCount = (_myPosts[idx].commentCount + delta) < 0
-                  ? 0
-                  : _myPosts[idx].commentCount + delta;
-              _myPosts[idx] = _myPosts[idx].copyWith(commentCount: newCount);
-            }
-          });
-        },
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PostDetailScreen(
+          postId: post.postId,
+          authNotifier: widget.authNotifier,
+          repository: _postRepository,
+        ),
       ),
     );
   }
@@ -1119,6 +1149,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openEditMyPost(PostModel post) async {
     final updated = await Navigator.of(context).push<PostModel>(
       MaterialPageRoute(
+        fullscreenDialog: true,
         builder: (_) => CreatePostScreen(
           authNotifier: widget.authNotifier,
           editingPost: post,
@@ -1137,22 +1168,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _deleteMyPost(PostModel post) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận xóa'),
-        content: const Text('Bạn có chắc chắn muốn xóa bài viết này không?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa bài viết này không?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
     );
 
     if (confirmed != true) return;
@@ -1166,15 +1188,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           _myPosts.removeWhere((p) => p.postId == post.postId);
         });
         AppSyncBus.emitPostDeleted(post.postId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa bài viết thành công')),
-        );
+        AppToast.showSuccess(context, 'Đã xóa bài viết thành công');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Không thể xóa bài viết')));
+        AppToast.showError(context, 'Không thể xóa bài viết');
       }
     }
   }
@@ -1191,9 +1209,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           children: [
             Text(_postsError!, style: const TextStyle(color: AppColors.muted)),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _loadMyPosts(refresh: true),
-              child: const Text('Thử lại'),
+            BounceTap(
+              child: ElevatedButton(
+                onPressed: () => _loadMyPosts(refresh: true),
+                child: const Text('Thử lại'),
+              ),
             ),
           ],
         ),
@@ -1229,31 +1249,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                ),
-                onPressed: () async {
-                  final newPost = await Navigator.of(context).push<PostModel>(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          CreatePostScreen(authNotifier: widget.authNotifier),
+              BounceTap(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                  );
-                  if (newPost != null) {
-                    _loadMyPosts(refresh: true);
-                  }
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Tạo bài viết mới'),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  onPressed: () async {
+                    final newPost = await Navigator.of(context).push<PostModel>(
+                      MaterialPageRoute(
+                        builder: (_) => CreatePostScreen(
+                          authNotifier: widget.authNotifier,
+                        ),
+                      ),
+                    );
+                    if (newPost != null) {
+                      _loadMyPosts(refresh: true);
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Tạo bài viết mới'),
+                ),
               ),
             ],
           ),
@@ -1274,9 +1294,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: ListView.separated(
         key: const PageStorageKey('profile_my_posts_list'),
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(top: 8, bottom: 24),
+        padding: const EdgeInsets.only(bottom: 24),
         itemCount: _myPosts.length + (_hasMorePosts ? 1 : 0),
-        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const FeedSectionDivider(),
         itemBuilder: (context, index) {
           if (index >= _myPosts.length) {
             return const Padding(
@@ -1292,9 +1312,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           }
 
           final post = _myPosts[index];
-          return PostCardWidget(
+          final item = FeedPostItem(
             post: post,
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             onLike: () => _likeMyPost(post),
             onComment: () => _openPostComments(post),
             onShare: () => _openSharePost(post),
@@ -1312,6 +1331,15 @@ class _ProfileScreenState extends State<ProfileScreen>
               );
             },
           );
+          if (index == 0) {
+            return Column(
+              children: [
+                const FeedSectionDivider(),
+                item,
+              ],
+            );
+          }
+          return item;
         },
       ),
     );
@@ -1347,18 +1375,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => MyItinerariesScreen(
-                        authNotifier: widget.authNotifier,
+              BounceTap(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => MyItinerariesScreen(
+                          authNotifier: widget.authNotifier,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.luggage_outlined, size: 18),
-                label: const Text('Xem tất cả lịch trình của tôi'),
+                    );
+                  },
+                  icon: const Icon(Icons.luggage_outlined, size: 18),
+                  label: const Text('Xem tất cả lịch trình của tôi'),
+                ),
               ),
             ],
           ),
@@ -1366,32 +1396,168 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    return ListView.builder(
-      key: const PageStorageKey('profile_itineraries_list'),
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: _itineraries.length,
-      itemBuilder: (context, index) {
-        final item = _itineraries[index];
-        return ItineraryCard(
-          itinerary: item,
-          showFavorite: false,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ItineraryDetailScreen(
-                  itineraryId: item.itineraryId,
-                  initialSummary: item,
-                  isOwner: true,
-                  token: widget.authNotifier.token,
-                  authNotifier: widget.authNotifier,
+    return ColoredBox(
+      color: Colors.white,
+      child: ListView.separated(
+        key: const PageStorageKey('profile_itineraries_list'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(top: 4, bottom: 24),
+        itemCount: _itineraries.length,
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          thickness: 1,
+          indent: 110,
+          color: Color(0xFFF0F0F5),
+        ),
+        itemBuilder: (context, index) {
+          final item = _itineraries[index];
+          return ItineraryCard(
+            itinerary: item,
+            isCompactHorizontal: true,
+            showFavorite: false,
+            showCreator: false,
+            showVisibilityBadge: true,
+            showThemeTag: true,
+            showRatingWhenEmpty: true,
+            actionIcon: Icons.more_horiz,
+            actionIconColor: const Color(0xFF6E6E73),
+            actionBgColor: const Color(0xFFF4F5F7),
+            onActionTap: () => _openItineraryOptions(item),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ItineraryDetailScreen(
+                    itineraryId: item.itineraryId,
+                    initialSummary: item,
+                    isOwner: true,
+                    token: widget.authNotifier.token,
+                    authNotifier: widget.authNotifier,
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
+  }
+
+  Future<void> _openItineraryOptions(ItinerarySummary item) async {
+    final isPublic = (item.visibility ?? '').toUpperCase() == 'PUBLIC';
+    final selected = await AppBottomSheet.showOptions<String>(
+      context,
+      title: item.title,
+      options: [
+        const AppBottomSheetOption(
+          value: 'edit',
+          icon: Icons.edit_outlined,
+          label: 'Chỉnh sửa lịch trình',
+        ),
+        const AppBottomSheetOption(
+          value: 'share',
+          icon: Icons.share_outlined,
+          label: 'Chia sẻ lịch trình',
+        ),
+        AppBottomSheetOption(
+          value: 'toggle_visibility',
+          icon: isPublic ? Icons.lock_outline : Icons.public,
+          label: isPublic ? 'Chuyển sang Riêng tư' : 'Chuyển sang Công khai',
+        ),
+        const AppBottomSheetOption(
+          value: 'delete',
+          icon: Icons.delete_outline,
+          label: 'Xóa lịch trình',
+          isDestructive: true,
+        ),
+      ],
+    );
+    if (!mounted || selected == null) return;
+    final token = widget.authNotifier.token;
+    if (token == null || token.isEmpty) return;
+
+    switch (selected) {
+      case 'edit':
+        final updated = await Navigator.of(context).push(
+          MaterialPageRoute<dynamic>(
+            builder: (_) => EditItineraryScreen.fromSummary(
+              item,
+              authNotifier: widget.authNotifier,
+            ),
+          ),
+        );
+        if (updated != null && mounted) {
+          _loadProfile();
+        }
+      case 'share':
+        ShareBottomSheet.show(
+          context,
+          targetType: 'ITINERARY',
+          targetId: item.itineraryId,
+          title: item.title,
+          coverImage: item.coverImage,
+          subtitle: item.location.isNotEmpty
+              ? item.location
+              : '${item.totalDays} ngày',
+          authNotifier: widget.authNotifier,
+        );
+      case 'toggle_visibility':
+        final newVis = isPublic ? 'PRIVATE' : 'PUBLIC';
+        try {
+          await ItineraryCrudRepository().updateItinerary(
+            item.itineraryId,
+            UpdateItineraryRequest(
+              title: item.title,
+              description: item.description,
+              location: item.location,
+              coverImage: item.coverImage,
+              budget: item.budget,
+              theme: item.theme,
+              visibility: newVis,
+            ),
+            token: token,
+          );
+          if (mounted) {
+            AppToast.showSuccess(
+              context,
+              newVis == 'PUBLIC'
+                  ? 'Đã chuyển sang Công khai'
+                  : 'Đã chuyển sang Riêng tư',
+            );
+            _loadProfile();
+          }
+        } catch (_) {
+          if (mounted) {
+            AppToast.showError(context, 'Không thể đổi chế độ hiển thị.');
+          }
+        }
+      case 'delete':
+        final confirmed = await AppDialog.showConfirm(
+          context,
+          type: AppDialogType.danger,
+          title: 'Xóa lịch trình?',
+          message:
+              'Bạn có chắc chắn muốn xóa lịch trình "${item.title}"? Hành động này không thể hoàn tác.',
+          confirmText: 'Xóa',
+          cancelText: 'Hủy',
+        );
+        if (confirmed != true || !mounted) return;
+        try {
+          await ItineraryCrudRepository().deleteItinerary(
+            item.itineraryId,
+            token: token,
+          );
+          if (mounted) {
+            setState(() {
+              _itineraries.removeWhere((e) => e.itineraryId == item.itineraryId);
+            });
+            AppToast.showSuccess(context, 'Đã xóa lịch trình');
+          }
+        } catch (_) {
+          if (mounted) {
+            AppToast.showError(context, 'Không thể xóa lịch trình lúc này.');
+          }
+        }
+    }
   }
 
   Widget _editor() {
@@ -1499,14 +1665,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                 onPressed: _saveProfile,
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _saving
-                    ? null
-                    : () {
-                        _fillFields(_profile!);
-                        setState(() => _editing = false);
-                      },
-                child: const Text('Hủy'),
+              BounceTap(
+                enabled: !_saving,
+                child: OutlinedButton(
+                  onPressed: _saving
+                      ? null
+                      : () {
+                          _fillFields(_profile!);
+                          setState(() => _editing = false);
+                        },
+                  child: const Text('Hủy'),
+                ),
               ),
               const SizedBox(height: 16),
             ],

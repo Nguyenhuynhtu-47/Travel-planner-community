@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_bottom_sheet.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/data/models/public_user_summary.dart';
 import '../../data/messaging_repository.dart';
@@ -70,11 +73,9 @@ class ShareBottomSheet extends StatefulWidget {
     AuthNotifier? authNotifier,
     MessagingRepository? messagingRepository,
   }) {
-    return showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
+    return AppBottomSheet.show<bool>(
+      context,
+      showDragHandle: false,
       builder: (_) => ShareBottomSheet(
         targetType: targetType,
         targetId: targetId,
@@ -211,11 +212,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
         _selectedUsersMap.remove(item.userId);
       } else {
         if (_selectedUserIds.length >= 10) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Chỉ được chọn tối đa 10 người nhận mỗi lần'),
-              duration: Duration(seconds: 2),
-            ),
+          AppToast.showWarning(
+            context,
+            'Chỉ được chọn tối đa 10 người nhận mỗi lần',
+            duration: const Duration(seconds: 2),
           );
           return;
         }
@@ -339,11 +339,13 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 20),
-            tooltip: 'Đóng',
-            onPressed: () =>
-                Navigator.of(context).pop(_hasSentAnySuccess ? true : null),
+          BounceTap.icon(
+            child: IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              tooltip: 'Đóng',
+              onPressed: () =>
+                  Navigator.of(context).pop(_hasSentAnySuccess ? true : null),
+            ),
           ),
         ],
       ),
@@ -461,12 +463,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           hintStyle: const TextStyle(fontSize: 13, color: AppColors.muted),
           prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.muted),
           suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, size: 16),
-                  onPressed: () {
-                    _searchController.clear();
-                    _loadFriends();
-                  },
+              ? BounceTap.icon(
+                  child: IconButton(
+                    icon: const Icon(Icons.clear, size: 16),
+                    onPressed: () {
+                      _searchController.clear();
+                      _loadFriends();
+                    },
+                  ),
                 )
               : null,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -533,12 +537,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     ),
                   ),
                   const SizedBox(width: 2),
-                  GestureDetector(
-                    onTap: () => _removeSelectedUser(user.userId),
-                    child: const Icon(
-                      Icons.close,
-                      size: 14,
-                      color: AppColors.primary,
+                  BounceTap.icon(
+                    child: GestureDetector(
+                      onTap: () => _removeSelectedUser(user.userId),
+                      child: const Icon(
+                        Icons.close,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -609,8 +615,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           final item = displayList[index];
           final isSelected = _selectedUserIds.contains(item.userId);
 
-          return GestureDetector(
-            onTap: () => _toggleSelection(item),
+          return BounceTap(
+            useSelectionHaptic: true,
+            child: GestureDetector(
+              onTap: () => _toggleSelection(item),
             behavior: HitTestBehavior.opaque,
             child: SizedBox(
               width: 66,
@@ -695,6 +703,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 ],
               ),
             ),
+          ),
           );
         },
       ),
@@ -738,7 +747,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
       child: SizedBox(
         width: double.infinity,
         height: 44,
-        child: FilledButton(
+        child: BounceTap(
+          enabled: isEnabled,
+          child: FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.primary,
             disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.35),
@@ -771,6 +782,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     ),
                   ],
                 ),
+          ),
         ),
       ),
     );

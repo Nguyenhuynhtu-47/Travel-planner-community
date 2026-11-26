@@ -437,7 +437,7 @@ void main() {
         expect(find.text('Lịch trình Đà Nẵng - Hội An'), findsOneWidget);
 
         // Verify action attachment buttons are available
-        expect(find.text('Thêm ảnh (1/5)'), findsOneWidget);
+        expect(find.text('Thêm ảnh'), findsOneWidget);
         expect(find.text('Thay đổi lịch trình'), findsOneWidget);
 
         // Detach itinerary by tapping close icon on existing itinerary
@@ -507,8 +507,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Verify initial state: 1 photo displayed, counter shows 1/5
-        expect(find.text('Thêm ảnh (1/5)'), findsOneWidget);
+        // Verify initial state: 1 photo displayed
         expect(
           find.text('Thêm ảnh'),
           findsOneWidget,
@@ -524,7 +523,7 @@ void main() {
         expect(postRepo.lastUploadedFilename, 'beach_photo.jpg');
 
         // UI is updated: now shows 2 photos
-        expect(find.text('Thêm ảnh (2/5)'), findsOneWidget);
+        expect(find.text('Thêm ảnh'), findsOneWidget);
 
         // Tap 'Lưu' button
         await tester.tap(find.text('Lưu'));
@@ -605,11 +604,11 @@ void main() {
         expect(postRepo.getPostByIdCallCount, greaterThanOrEqualTo(1));
 
         // Add another photo
-        await tester.tap(find.text('Thêm ảnh (1/5)'));
+        await tester.tap(find.text('Thêm ảnh'));
         await tester.pumpAndSettle();
 
         expect(postRepo.uploadImageCallCount, 1);
-        expect(find.text('Thêm ảnh (2/5)'), findsOneWidget);
+        expect(find.text('Thêm ảnh'), findsOneWidget);
 
         // Save post
         await tester.tap(find.text('Lưu'));
@@ -665,7 +664,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Thêm ảnh (2/5)'), findsOneWidget);
+      expect(find.text('Thêm ảnh'), findsOneWidget);
 
       // Replace first image (tap swap icon)
       final swapIcons = find.byIcon(Icons.swap_horiz);
@@ -684,7 +683,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Now only 1 photo remains
-      expect(find.text('Thêm ảnh (1/5)'), findsOneWidget);
+      expect(find.text('Thêm ảnh'), findsOneWidget);
 
       // Save
       await tester.tap(find.text('Lưu'));

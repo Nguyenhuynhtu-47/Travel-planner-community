@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/activity_detail.dart';
@@ -16,10 +19,8 @@ Future<bool?> showReorderActivitiesDialog(
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+  return AppBottomSheet.show<bool>(
+    context,
     builder: (ctx) => _ReorderActivitiesBottomSheet(
       itineraryId: itineraryId,
       dayId: dayId,
@@ -77,11 +78,9 @@ class _ReorderActivitiesBottomSheetState
   Future<void> _saveOrder() async {
     final token = widget.authNotifier.token;
     if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để lưu thứ tự hoạt động.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Vui lòng đăng nhập để lưu thứ tự hoạt động.',
       );
       return;
     }
@@ -111,17 +110,13 @@ class _ReorderActivitiesBottomSheetState
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể lưu thứ tự hoạt động. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Không thể lưu thứ tự hoạt động. Vui lòng thử lại.',
       );
     }
   }
@@ -131,39 +126,13 @@ class _ReorderActivitiesBottomSheetState
     final mediaQuery = MediaQuery.of(context);
     final maxHeight = mediaQuery.size.height * 0.75;
 
-    return Container(
+    return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x1E000000),
-            blurRadius: 16,
-            offset: Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Drag handle pill
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.hairline,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-
-            // Header
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
               child: Row(
@@ -204,11 +173,14 @@ class _ReorderActivitiesBottomSheetState
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.muted),
-                    onPressed: _isSaving
-                        ? null
-                        : () => Navigator.of(context).pop(false),
+                  BounceTap.icon(
+                    enabled: !_isSaving,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.muted),
+                      onPressed: _isSaving
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                    ),
                   ),
                 ],
               ),
@@ -284,17 +256,22 @@ class _ReorderActivitiesBottomSheetState
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: _isSaving
-                        ? null
-                        : () => Navigator.of(context).pop(false),
-                    child: const Text(
-                      'Hủy',
-                      style: TextStyle(color: AppColors.textSecondary),
+                  BounceTap(
+                    enabled: !_isSaving,
+                    child: TextButton(
+                      onPressed: _isSaving
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: const Text(
+                        'Hủy',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
+                  BounceTap(
+                    enabled: !_isSaving,
+                    child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
@@ -321,13 +298,13 @@ class _ReorderActivitiesBottomSheetState
                             'Lưu thứ tự',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
+                    ),
                   ),
                 ],
               ),
             ),
           ],
         ),
-      ),
     );
   }
 }

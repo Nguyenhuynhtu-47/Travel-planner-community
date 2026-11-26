@@ -5,7 +5,10 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -148,21 +151,15 @@ class _CollectionScreenState extends State<CollectionScreen>
       await _notifier.removeSaved(item.itineraryId, token: _effectiveToken);
       AppSyncBus.emitItinerarySaved(item.itineraryId, false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã bỏ lưu lịch trình'),
-            duration: Duration(seconds: 2),
-          ),
+        AppToast.showInfo(
+          context,
+          'Đã bỏ lưu lịch trình',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể bỏ lưu: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, 'Không thể bỏ lưu: $e');
       }
     }
   }
@@ -172,21 +169,15 @@ class _CollectionScreenState extends State<CollectionScreen>
       await _notifier.removeFavorite(item.itineraryId, token: _effectiveToken);
       AppSyncBus.emitItineraryFavorited(item.itineraryId, false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã bỏ yêu thích lịch trình'),
-            duration: Duration(seconds: 2),
-          ),
+        AppToast.showInfo(
+          context,
+          'Đã bỏ yêu thích lịch trình',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể bỏ yêu thích: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, 'Không thể bỏ yêu thích: $e');
       }
     }
   }
@@ -241,6 +232,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                 );
               },
             ),
+          ],
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
@@ -262,8 +254,14 @@ class _CollectionScreenState extends State<CollectionScreen>
                 fontSize: 14,
               ),
               tabs: const [
-                Tab(text: 'Đã lưu'),
-                Tab(text: 'Yêu thích'),
+                BounceTap(
+                  useSelectionHaptic: true,
+                  child: Tab(text: 'Đã lưu'),
+                ),
+                BounceTap(
+                  useSelectionHaptic: true,
+                  child: Tab(text: 'Yêu thích'),
+                ),
               ],
             ),
           ),
@@ -274,7 +272,10 @@ class _CollectionScreenState extends State<CollectionScreen>
         builder: (context, _) {
           return TabBarView(
             controller: _tabController,
-            children: [_buildSavedTab(), _buildFavoriteTab()],
+            children: [
+              _KeepAliveCollectionTab(child: _buildSavedTab()),
+              _KeepAliveCollectionTab(child: _buildFavoriteTab()),
+            ],
           );
         },
       ),
@@ -315,11 +316,18 @@ class _CollectionScreenState extends State<CollectionScreen>
         await _notifier.refreshSaved(token: _effectiveToken);
         recordRefreshedNow();
       },
-      child: ListView.builder(
+      child: ListView.separated(
         key: const PageStorageKey<String>('saved_collection_list'),
         controller: _savedScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          thickness: 1,
+          indent: 110,
+          endIndent: 16,
+          color: Color(0xFFF0F0F5),
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= state.items.length) {
@@ -342,8 +350,9 @@ class _CollectionScreenState extends State<CollectionScreen>
           final isOwner = _isItineraryOwner(item);
           return ItineraryCard(
             itinerary: item,
+            isCompactHorizontal: true,
             actionIcon: isOwner ? null : Icons.bookmark,
-            actionIconColor: AppColors.savedActive,
+            actionIconColor: const Color(0xFFFA3E62),
             onActionTap: isOwner ? null : () => _handleRemoveSaved(item),
             showFavorite: !isOwner,
             onTap: () => _openDetail(item, isSaved: true),
@@ -387,11 +396,18 @@ class _CollectionScreenState extends State<CollectionScreen>
         await _notifier.refreshFavorite(token: _effectiveToken);
         recordRefreshedNow();
       },
-      child: ListView.builder(
+      child: ListView.separated(
         key: const PageStorageKey<String>('favorite_collection_list'),
         controller: _favoriteScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          thickness: 1,
+          indent: 110,
+          endIndent: 16,
+          color: Color(0xFFF0F0F5),
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= state.items.length) {
@@ -414,8 +430,10 @@ class _CollectionScreenState extends State<CollectionScreen>
           final isOwner = _isItineraryOwner(item);
           return ItineraryCard(
             itinerary: item,
+            isCompactHorizontal: true,
+            heroTag: 'collection_fav_${item.itineraryId}',
             actionIcon: isOwner ? null : Icons.favorite,
-            actionIconColor: Colors.redAccent,
+            actionIconColor: const Color(0xFFFA3E62),
             onActionTap: isOwner ? null : () => _handleRemoveFavorite(item),
             showFavorite: !isOwner,
             onTap: () => _openDetail(item, isFavorited: true),
@@ -425,3 +443,26 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
   }
 }
+
+class _KeepAliveCollectionTab extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveCollectionTab({required this.child});
+
+  @override
+  State<_KeepAliveCollectionTab> createState() =>
+      _KeepAliveCollectionTabState();
+}
+
+class _KeepAliveCollectionTabState extends State<_KeepAliveCollectionTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+

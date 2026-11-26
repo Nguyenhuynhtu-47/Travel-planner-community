@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 /// Fullscreen Image Viewer similar to Facebook's media preview.
 /// Supports pinch-to-zoom via [InteractiveViewer] and horizontal paging via [PageView].
 class FullscreenImageViewer extends StatefulWidget {
   final List<String> imageUrls;
   final int initialIndex;
+  final List<String>? heroTags;
 
   const FullscreenImageViewer({
     super.key,
     required this.imageUrls,
     this.initialIndex = 0,
+    this.heroTags,
   });
 
   static Future<void> open(
     BuildContext context, {
     required List<String> urls,
     int initialIndex = 0,
+    List<String>? heroTags,
   }) {
     if (urls.isEmpty) return Future.value();
     return Navigator.of(context).push(
@@ -24,6 +28,7 @@ class FullscreenImageViewer extends StatefulWidget {
         builder: (_) => FullscreenImageViewer(
           imageUrls: urls,
           initialIndex: initialIndex,
+          heroTags: heroTags,
         ),
       ),
     );
@@ -67,40 +72,49 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
             },
             itemBuilder: (context, index) {
               final url = widget.imageUrls[index];
+              final heroTag =
+                  (widget.heroTags != null && index < widget.heroTags!.length)
+                      ? widget.heroTags![index]
+                      : null;
+
+              Widget imageWidget = Image.network(
+                url,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                height: double.infinity,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.white70,
+                      strokeWidth: 2,
+                    ),
+                  );
+                },
+                errorBuilder: (_, _, _) => const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image_outlined,
+                          color: Colors.white54, size: 48),
+                      SizedBox(height: 8),
+                      Text('Không thể tải ảnh',
+                          style: TextStyle(color: Colors.white54)),
+                    ],
+                  ),
+                ),
+              );
+
+              if (heroTag != null) {
+                imageWidget = Hero(tag: heroTag, child: imageWidget);
+              }
+
               return Center(
                 child: InteractiveViewer(
                   minScale: 1.0,
                   maxScale: 4.0,
                   clipBehavior: Clip.none,
-                  child: Image.network(
-                    url,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white70,
-                          strokeWidth: 2,
-                        ),
-                      );
-                    },
-                    errorBuilder: (_, _, _) => const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.broken_image_outlined,
-                              color: Colors.white54, size: 48),
-                          SizedBox(height: 8),
-                          Text(
-                            'Không thể tải ảnh',
-                            style: TextStyle(color: Colors.white54, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  child: imageWidget,
                 ),
               );
             },
@@ -112,10 +126,12 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 26),
-                    tooltip: 'Đóng',
-                    onPressed: () => Navigator.of(context).pop(),
+                  BounceTap.icon(
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 26),
+                      tooltip: 'Đóng',
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
                   ),
                   const Spacer(),
                   if (count > 1)

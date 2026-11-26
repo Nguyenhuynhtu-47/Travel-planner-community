@@ -4,6 +4,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_dialog.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_date_time.dart';
@@ -435,10 +439,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           );
         }
         _input.text = text;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Gửi chưa thành công. Bạn có thể nhấn thử gửi lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Gửi chưa thành công. Bạn có thể nhấn thử gửi lại.',
         );
       }
     } finally {
@@ -524,11 +527,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
     } else {
       bubbleContent = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(maxWidth: maxBubbleWidth),
         decoration: BoxDecoration(
-          color: own ? AppColors.primaryLight : AppColors.surfaceStrong,
-          borderRadius: BorderRadius.circular(16),
+          color: own ? const Color(0xFFFFF0F3) : const Color(0xFFF4F5F7),
+          border: own ? Border.all(color: const Color(0xFFFAD2DA)) : null,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(own ? 18 : 4),
+            bottomRight: Radius.circular(own ? 4 : 18),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -542,9 +551,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ),
             ),
             if (message.failed)
-              TextButton(
-                onPressed: () => _send(retryId: message.clientMessageId),
-                child: const Text('Thử gửi lại'),
+              BounceTap(
+                child: TextButton(
+                  onPressed: () => _send(retryId: message.clientMessageId),
+                  child: const Text('Thử gửi lại'),
+                ),
               )
             else if (message.sending)
               const Text('Đang gửi…', style: TextStyle(fontSize: 10))
@@ -602,24 +613,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _blockPeer() async {
     if (_blockedPeer || _blockingPeer) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Chặn người dùng?'),
-        content: Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Chặn người dùng?',
+      message:
           'Bạn sẽ không thể nhắn tin hoặc kết bạn với ${widget.conversation.peer.fullName?.trim().isNotEmpty == true ? widget.conversation.peer.fullName : '@${widget.conversation.peer.effectiveHandle}'}. Lịch sử trò chuyện vẫn được giữ.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Chặn'),
-          ),
-        ],
-      ),
+      confirmText: 'Chặn',
+      cancelText: 'Hủy',
     );
     if (confirmed != true || !mounted) return;
     final token = widget.authNotifier.token;
@@ -632,14 +633,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           _blockedPeer = true;
           _canSendOverride = false;
         });
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Đã chặn người dùng.')));
+        AppToast.showSuccess(context, 'Đã chặn người dùng.');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể chặn người dùng lúc này.')),
-        );
+        AppToast.showError(context, 'Không thể chặn người dùng lúc này.');
       }
     } finally {
       if (mounted) setState(() => _blockingPeer = false);
@@ -648,24 +646,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _unblockPeer() async {
     if (!_blockedPeer || _unblockingPeer) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Bỏ chặn người dùng?'),
-        content: const Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.warning,
+      title: 'Bỏ chặn người dùng?',
+      message:
           'Sau khi bỏ chặn, hai bên có thể nhắn tin theo cài đặt quyền riêng tư hiện tại. Lịch sử trò chuyện vẫn được giữ.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Giữ chặn'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Bỏ chặn'),
-          ),
-        ],
-      ),
+      confirmText: 'Bỏ chặn',
+      cancelText: 'Giữ chặn',
     );
     if (confirmed != true || !mounted) return;
     final token = widget.authNotifier.token;
@@ -684,17 +672,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           _blockedPeer = false;
           if (current != null) _canSendOverride = current.canSendMessage;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Đã bỏ chặn người dùng.')));
+        AppToast.showSuccess(context, 'Đã bỏ chặn người dùng.');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể bỏ chặn người dùng lúc này.'),
-          ),
-        );
+        AppToast.showError(context, 'Không thể bỏ chặn người dùng lúc này.');
       }
     } finally {
       if (mounted) setState(() => _unblockingPeer = false);
@@ -737,10 +719,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (!accept && mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể cập nhật yêu cầu tin nhắn. Hãy tải lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể cập nhật yêu cầu tin nhắn. Hãy tải lại.',
         );
       }
     } finally {
@@ -755,17 +736,83 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ? peer.fullName!
         : '@${peer.effectiveHandle}';
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1E1E1E),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: const Color(0xFFEBEBEF)),
+        ),
         titleSpacing: 0,
-        title: Row(
-          children: [
-            _avatarFromUrl(peer.avatar, size: 36),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _openPeerProfile,
+          child: Row(
+            children: [
+              _avatarFromUrl(peer.avatar, size: 38),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E1E1E),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Row(
+                      children: [
+                        if (_realtimeStatus == RealtimeStatus.connected) ...[
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Đang hoạt động',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6E6E73),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ] else
+                          Text(
+                            '@${peer.effectiveHandle}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6E6E73),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -830,25 +877,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   final actions = Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                      BounceTap(
+                        enabled: !_messageRequestBusy,
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: _messageRequestBusy
+                              ? null
+                              : () => _respondToMessageRequest(accept: false),
+                          child: const Text('Từ chối'),
                         ),
-                        onPressed: _messageRequestBusy
-                            ? null
-                            : () => _respondToMessageRequest(accept: false),
-                        child: const Text('Từ chối'),
                       ),
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                      BounceTap(
+                        enabled: !_messageRequestBusy,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: _messageRequestBusy
+                              ? null
+                              : () => _respondToMessageRequest(accept: true),
+                          child: const Text('Chấp nhận'),
                         ),
-                        onPressed: _messageRequestBusy
-                            ? null
-                            : () => _respondToMessageRequest(accept: true),
-                        child: const Text('Chấp nhận'),
                       ),
                     ],
                   );
@@ -925,15 +978,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                 ? Center(
-                    child: TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _loading = true;
-                          _error = null;
-                        });
-                        _load();
-                      },
-                      child: Text(_error!),
+                    child: BounceTap(
+                      child: TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _loading = true;
+                            _error = null;
+                          });
+                          _load();
+                        },
+                        child: Text(_error!),
+                      ),
                     ),
                   )
                 : ListView.builder(
@@ -949,33 +1004,75 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     },
                   ),
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      maxLength: 4000,
-                      minLines: 1,
-                      maxLines: 5,
-                      enabled: _canSendMessage,
-                      decoration: const InputDecoration(
-                        hintText: 'Nhập tin nhắn',
-                        counterText: '',
-                        border: OutlineInputBorder(),
+          Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(color: Color(0xFFEBEBEF), width: 1),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _input,
+                        maxLength: 4000,
+                        minLines: 1,
+                        maxLines: 5,
+                        enabled: _canSendMessage,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFF1E1E1E),
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Nhập tin nhắn...',
+                          hintStyle: const TextStyle(
+                            fontSize: 14.5,
+                            color: Color(0xFF8E8E93),
+                          ),
+                          counterText: '',
+                          filled: true,
+                          fillColor: const Color(0xFFF4F5F7),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: _sending || !_canSendMessage ? null : _send,
-                    icon: const Icon(Icons.send),
-                    color: AppColors.primary,
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    BounceTap.icon(
+                      enabled: !_sending && _canSendMessage,
+                      child: Material(
+                        color: (!_sending && _canSendMessage)
+                            ? const Color(0xFFFA3E62)
+                            : const Color(0xFFE5E7EB),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          onTap: _sending || !_canSendMessage ? null : _send,
+                          customBorder: const CircleBorder(),
+                          child: const SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Icon(
+                              Icons.send_rounded,
+                              size: 19,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

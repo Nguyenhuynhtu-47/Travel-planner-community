@@ -279,7 +279,7 @@ void main() {
       expect(updateCount, 0, reason: 'A hidden action must not receive taps');
     });
 
-    testWidgets('visited action opens from the right by swiping left', (
+    testWidgets('visited action opens from the left by swiping right', (
       tester,
     ) async {
       var updatedVisited = true;
@@ -309,7 +309,7 @@ void main() {
         ),
       );
 
-      await tester.drag(find.text('Visited row'), const Offset(-180, 0));
+      await tester.drag(find.text('Visited row'), const Offset(180, 0));
       await tester.pumpAndSettle();
       expect(find.text('Chưa ghé thăm'), findsOneWidget);
       expect(updatedVisited, isTrue);

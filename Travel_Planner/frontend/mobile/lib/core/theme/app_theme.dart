@@ -2,10 +2,77 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 
+class AppSlideFadePageTransitionsBuilder extends PageTransitionsBuilder {
+  const AppSlideFadePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return child;
+    }
+
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    // Fullscreen modal routes slide up from the bottom + fade in
+    if (route.fullscreenDialog) {
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.0, 1.0),
+          end: Offset.zero,
+        ).animate(curved),
+        child: FadeTransition(
+          opacity: curved,
+          child: child,
+        ),
+      );
+    }
+
+    // Standard routes slide horizontally + subtle fade + secondary parallax
+    final secondaryCurved = CurvedAnimation(
+      parent: secondaryAnimation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(-0.08, 0.0),
+      ).animate(secondaryCurved),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.24, 0.0),
+          end: Offset.zero,
+        ).animate(curved),
+        child: FadeTransition(
+          opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          for (final platform in TargetPlatform.values)
+            platform: const AppSlideFadePageTransitionsBuilder(),
+        },
+      ),
       colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         onPrimary: Colors.white,
@@ -105,6 +172,11 @@ class AppTheme {
           minimumSize: const Size(48, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(44, 44),
         ),
       ),
     );

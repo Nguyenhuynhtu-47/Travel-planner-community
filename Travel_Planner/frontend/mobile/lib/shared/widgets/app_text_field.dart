@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'bounce_tap.dart';
 
 class AppTextField extends StatefulWidget {
   final String label;
@@ -20,6 +21,9 @@ class AppTextField extends StatefulWidget {
   final TextStyle? labelStyle;
   final TextStyle? inputStyle;
   final TextStyle? hintStyle;
+  final IconData? prefixIcon;
+  final double? borderRadius;
+  final Color? focusedBorderColor;
 
   const AppTextField({
     super.key,
@@ -39,6 +43,9 @@ class AppTextField extends StatefulWidget {
     this.labelStyle,
     this.inputStyle,
     this.hintStyle,
+    this.prefixIcon,
+    this.borderRadius,
+    this.focusedBorderColor,
   });
 
   @override
@@ -90,31 +97,73 @@ class _AppTextFieldState extends State<AppTextField> {
             hintText: widget.hint,
             hintStyle: widget.hintStyle,
             errorText: widget.errorText,
-            suffixIcon: widget.isPassword
-                ? IconButton(
-                    icon: AnimatedSwitcher(
-                      duration:
-                          MediaQuery.maybeOf(context)?.disableAnimations ??
-                              false
-                          ? Duration.zero
-                          : const Duration(milliseconds: 150),
-                      transitionBuilder: (child, animation) =>
-                          FadeTransition(opacity: animation, child: child),
-                      child: Icon(
-                        _obscureText
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        key: ValueKey(_obscureText),
-                        color: AppColors.textSecondary,
-                        size: 20,
-                      ),
+            prefixIcon: widget.prefixIcon != null
+                ? Icon(
+                    widget.prefixIcon,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  )
+                : null,
+            border: widget.borderRadius != null
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(widget.borderRadius!),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  )
+                : null,
+            enabledBorder: widget.borderRadius != null
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(widget.borderRadius!),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  )
+                : null,
+            focusedBorder: (widget.borderRadius != null || widget.focusedBorderColor != null)
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(widget.borderRadius ?? 8),
+                    borderSide: BorderSide(
+                      color: widget.focusedBorderColor ?? AppColors.textPrimary,
+                      width: 2.0,
                     ),
-                    tooltip: _obscureText ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
-                    onPressed: () {
-                      setState(() {
-                        _obscureText = !_obscureText;
-                      });
-                    },
+                  )
+                : null,
+            errorBorder: widget.borderRadius != null
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(widget.borderRadius!),
+                    borderSide: const BorderSide(color: AppColors.error),
+                  )
+                : null,
+            focusedErrorBorder: widget.borderRadius != null
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(widget.borderRadius!),
+                    borderSide: const BorderSide(color: AppColors.error, width: 2.0),
+                  )
+                : null,
+            suffixIcon: widget.isPassword
+                ? BounceTap.icon(
+                    child: IconButton(
+                      icon: AnimatedSwitcher(
+                        duration:
+                            MediaQuery.maybeOf(context)?.disableAnimations ??
+                                false
+                            ? Duration.zero
+                            : const Duration(milliseconds: 150),
+                        transitionBuilder: (child, animation) =>
+                            FadeTransition(opacity: animation, child: child),
+                        child: Icon(
+                          _obscureText
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          key: ValueKey(_obscureText),
+                          color: AppColors.textSecondary,
+                          size: 20,
+                        ),
+                      ),
+                      tooltip: _obscureText ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
+                      onPressed: () {
+                        setState(() {
+                          _obscureText = !_obscureText;
+                        });
+                      },
+                    ),
                   )
                 : null,
           ),

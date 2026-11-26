@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 
 typedef UrlLauncherFn = Future<bool> Function(Uri uri, {LaunchMode mode});
 
@@ -162,11 +162,9 @@ class NavigationLauncherHelper {
     final uri = buildGoogleMapsUri(stops: effectiveStops, mode: mode);
     if (uri == null) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không có điểm dừng nào có tọa độ để chỉ đường.'),
-            backgroundColor: AppColors.textSecondary,
-          ),
+        AppToast.showInfo(
+          context,
+          'Không có điểm dừng nào có tọa độ để chỉ đường.',
         );
       }
       return false;
@@ -174,14 +172,10 @@ class NavigationLauncherHelper {
 
     if (effectiveStops.length > 2 + maxIntermediateWaypoints &&
         context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Google Maps giới hạn tối đa 9 điểm trung gian. Đã chọn 11 điểm đầu tiên.',
-          ),
-          backgroundColor: Color(0xFFD97706),
-          duration: Duration(seconds: 3),
-        ),
+      AppToast.showWarning(
+        context,
+        'Google Maps giới hạn tối đa 9 điểm trung gian. Đã chọn 11 điểm đầu tiên.',
+        duration: const Duration(seconds: 3),
       );
     }
 
@@ -192,24 +186,18 @@ class NavigationLauncherHelper {
       );
 
       if (!launched && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Không thể mở ứng dụng Google Maps trên thiết bị này.',
-            ),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Không thể mở ứng dụng Google Maps trên thiết bị này.',
         );
       }
 
       return launched;
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã xảy ra lỗi khi mở Google Maps.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Đã xảy ra lỗi khi mở Google Maps.',
         );
       }
       return false;

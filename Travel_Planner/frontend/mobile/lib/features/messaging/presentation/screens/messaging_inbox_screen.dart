@@ -3,7 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_date_time.dart';
@@ -127,15 +131,21 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const Text('Tin nhắn'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
+          AppHeaderIconButton(
             tooltip: 'Tin nhắn người lạ',
-            icon: Badge(
+            icon: Icons.markunread_mailbox_outlined,
+            badge: Badge(
               isLabelVisible: _unreadMessageRequestCount > 0,
               label: _unreadMessageRequestCount > 0
                   ? Text(
@@ -144,7 +154,11 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
                           : '$_unreadMessageRequestCount',
                     )
                   : null,
-              child: const Icon(Icons.markunread_mailbox_outlined),
+              child: const Icon(
+                Icons.markunread_mailbox_outlined,
+                size: 20,
+                color: Color(0xFF1E1E1E),
+              ),
             ),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
@@ -155,9 +169,10 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
               ),
             ),
           ),
-          IconButton(
+          const SizedBox(width: 8),
+          AppHeaderIconButton(
             tooltip: 'Bạn bè',
-            icon: const Icon(Icons.people_outline),
+            icon: Icons.people_outline,
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => FriendsScreen(
@@ -167,6 +182,7 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -192,7 +208,9 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null && _items.isEmpty
                 ? Center(
-                    child: TextButton(onPressed: _load, child: Text(_error!)),
+                    child: BounceTap(
+                      child: TextButton(onPressed: _load, child: Text(_error!)),
+                    ),
                   )
                 : filtered.isEmpty
                 ? const AppEmptyState(
@@ -278,24 +296,14 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
       );
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Chặn người dùng?'),
-        content: const Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Chặn người dùng?',
+      message:
           'Bạn và người này sẽ không thể xem nội dung hoặc nhắn tin cho nhau.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Chặn'),
-          ),
-        ],
-      ),
+      confirmText: 'Chặn',
+      cancelText: 'Hủy',
     );
     if (confirmed != true || !mounted) return;
     final token = _token;
@@ -305,9 +313,7 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể chặn người dùng lúc này.')),
-        );
+        AppToast.showError(context, 'Không thể chặn người dùng lúc này.');
       }
     }
   }

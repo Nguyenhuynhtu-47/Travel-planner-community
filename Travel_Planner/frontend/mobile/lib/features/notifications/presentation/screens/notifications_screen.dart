@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -321,6 +322,11 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const AppPageTitle(title: 'Thông báo', fontSize: 18),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,

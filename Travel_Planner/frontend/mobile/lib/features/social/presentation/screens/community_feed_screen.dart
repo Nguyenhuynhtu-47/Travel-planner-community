@@ -7,6 +7,12 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
+
+import 'package:mobile/shared/widgets/app_dialog.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
+
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
@@ -18,8 +24,8 @@ import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../community_feed_notifier.dart';
 import '../../data/community_post_repository.dart';
 import '../../data/models/post_model.dart';
-import '../widgets/post_card_widget.dart';
-import '../widgets/post_comments_sheet.dart';
+import '../widgets/feed_post_item.dart';
+import 'post_detail_screen.dart';
 import '../widgets/report_post_dialog.dart';
 import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import 'create_post_screen.dart';
@@ -186,8 +192,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => switch (initialTab) {
-          1 => FriendsScreen(authNotifier: widget.authNotifier!),
-          2 => FriendsScreen(authNotifier: widget.authNotifier!, initialTab: 1),
+          1 => FriendsScreen(
+            authNotifier: widget.authNotifier!,
+            initialTab: 1,
+          ), // Mở thẳng tab Bạn bè
+          2 => FriendsScreen(
+            authNotifier: widget.authNotifier!,
+            initialTab: 0,
+          ), // Mở tab Lời mời
           _ => MessagingInboxScreen(authNotifier: widget.authNotifier!),
         },
       ),
@@ -196,16 +208,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   }
 
   void _showLoginRequiredPrompt(String action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Vui lòng đăng nhập để $action'),
-        action: SnackBarAction(
-          label: 'Đăng nhập',
-          onPressed: () {
-            // Optional trigger
-          },
-        ),
-      ),
+    AppToast.showWarning(
+      context,
+      'Vui lòng đăng nhập để $action',
+      actionLabel: 'Đăng nhập',
+      onAction: () {
+        // Optional trigger
+      },
     );
   }
 
@@ -216,6 +225,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        fullscreenDialog: true,
         builder: (_) => CreatePostScreen(
           authNotifier: widget.authNotifier!,
           repository: _repo,
@@ -228,6 +238,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   void _openEditPost(PostModel post) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        fullscreenDialog: true,
         builder: (_) => CreatePostScreen(
           authNotifier: widget.authNotifier!,
           repository: _repo,
@@ -239,24 +250,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   }
 
   Future<void> _confirmDeletePost(PostModel post) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận xóa bài viết'),
-        content: const Text(
-          'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Xác nhận xóa bài viết',
+      message: 'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
     );
 
     if (confirmed == true && _token != null) {
@@ -265,30 +265,24 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         _notifier.removePost(post.postId);
         AppSyncBus.emitPostDeleted(post.postId);
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Đã xóa bài viết')));
+          AppToast.showSuccess(context, 'Đã xóa bài viết');
         }
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Không thể xóa bài viết')),
-          );
+          AppToast.showError(context, 'Không thể xóa bài viết');
         }
       }
     }
   }
 
   void _openComments(PostModel post) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => PostCommentsSheet(
-        postId: post.postId,
-        token: _token,
-        repository: _repo,
-        notifier: _notifier,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PostDetailScreen(
+          postId: post.postId,
+          authNotifier: widget.authNotifier,
+          repository: _repo,
+        ),
       ),
     );
   }
@@ -310,12 +304,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     ).then((shared) {
       if (shared == true && mounted) {
         _notifier.refresh(_token);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã chia sẻ bài viết thành công!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        AppToast.showSuccess(context, 'Đã chia sẻ bài viết thành công!');
       }
     });
   }
@@ -325,13 +314,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       _showLoginRequiredPrompt('báo cáo bài viết');
       return;
     }
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => ReportPostDialog(
-        postId: post.postId,
-        token: _token!,
-        repository: _repo,
-      ),
+    ReportPostDialog.show(
+      context,
+      postId: post.postId,
+      token: _token!,
+      repository: _repo,
     );
   }
 
@@ -379,18 +366,25 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
             elevation: 0,
             actions: [
               // Chat Inbox Shortcut
-              IconButton(
+              AppHeaderIconButton(
                 tooltip: 'Bạn bè và lời mời',
-                icon: Badge(
+                icon: Icons.people_alt_outlined,
+                badge: Badge(
                   isLabelVisible: _notifier.friendRequestsCount > 0,
                   label: Text('${_notifier.friendRequestsCount}'),
-                  child: const Icon(Icons.person_add_alt_1_outlined, size: 22),
+                  child: const Icon(
+                    Icons.people_alt_outlined,
+                    size: 20,
+                    color: Color(0xFF1E1E1E),
+                  ),
                 ),
                 onPressed: () => _openChatInbox(initialTab: 2),
               ),
-              IconButton(
+              const SizedBox(width: 8),
+              AppHeaderIconButton(
                 tooltip: 'Tin nhắn',
-                icon: Badge(
+                icon: Icons.chat_bubble_outline,
+                badge: Badge(
                   isLabelVisible: _notifier.unreadMessagesTotal > 0,
                   label: _notifier.unreadMessagesTotal > 0
                       ? Text(
@@ -399,10 +393,15 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                               : '${_notifier.unreadMessagesTotal}',
                         )
                       : null,
-                  child: const Icon(Icons.chat_bubble_outline, size: 22),
+                  child: const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 20,
+                    color: Color(0xFF1E1E1E),
+                  ),
                 ),
                 onPressed: _openChatInbox,
               ),
+              const SizedBox(width: 8),
 
               if (_isAuthenticated && widget.authNotifier != null)
                 CurrentUserAvatarButton(
@@ -417,6 +416,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                     );
                   },
                 ),
+              ],
               const SizedBox(width: 8),
             ],
             bottom: PreferredSize(
@@ -438,32 +438,50 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                     fontSize: 14,
                   ),
                   tabs: const [
-                    Tab(text: 'Dành cho bạn'),
-                    Tab(text: 'Đang theo dõi'),
+                    BounceTap(
+                      useSelectionHaptic: true,
+                      child: Tab(text: 'Dành cho bạn'),
+                    ),
+                    BounceTap(
+                      useSelectionHaptic: true,
+                      child: Tab(text: 'Đang theo dõi'),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            elevation: 3,
-            onPressed: _openCreatePost,
-            icon: const Icon(Icons.edit_note, size: 24),
-            label: const Text(
-              'Đăng bài',
-              style: TextStyle(fontWeight: FontWeight.w700),
+          floatingActionButton: BounceTap(
+            child: FloatingActionButton.extended(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 3,
+              onPressed: _openCreatePost,
+              icon: const Icon(Icons.edit_note, size: 24),
+              label: const Text(
+                'Đăng bài',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
           body: TabBarView(
             controller: _tabController,
             children: [
               // Tab 1: Public Feed ("Dành cho bạn")
-              _buildFeedStream(_notifier.publicPosts, isFollowingTab: false),
+              _KeepAliveTabPage(
+                child: _buildFeedStream(
+                  _notifier.publicPosts,
+                  isFollowingTab: false,
+                ),
+              ),
 
               // Tab 2: Following Feed ("Đang theo dõi")
-              _buildFeedStream(_notifier.followingPosts, isFollowingTab: true),
+              _KeepAliveTabPage(
+                child: _buildFeedStream(
+                  _notifier.followingPosts,
+                  isFollowingTab: true,
+                ),
+              ),
             ],
           ),
         );
@@ -491,9 +509,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               style: const TextStyle(color: AppColors.muted),
             ),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _notifier.refresh(_token),
-              child: const Text('Thử lại'),
+            BounceTap(
+              child: ElevatedButton(
+                onPressed: () => _notifier.refresh(_token),
+                child: const Text('Thử lại'),
+              ),
             ),
           ],
         ),
@@ -525,10 +545,15 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         await _notifier.refresh(_token);
         recordRefreshedNow();
       },
-      child: ListView.builder(
+      child: ListView.separated(
+        key: PageStorageKey<String>(
+          isFollowingTab ? 'community_following_feed' : 'community_public_feed',
+        ),
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
         itemCount: posts.length + (_notifier.isLoadingMore ? 1 : 0),
+        separatorBuilder: (context, index) => const FeedSectionDivider(),
         itemBuilder: (context, index) {
           if (index == posts.length) {
             return const Padding(
@@ -544,8 +569,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
           }
 
           final post = posts[index];
-          return PostCardWidget(
+          return FeedPostItem(
             post: post,
+            heroScope: isFollowingTab ? 'following' : 'public',
             onLike: () {
               if (!_isAuthenticated || _token == null) {
                 _showLoginRequiredPrompt('thích bài viết');
@@ -564,5 +590,26 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         },
       ),
     );
+  }
+}
+
+class _KeepAliveTabPage extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveTabPage({required this.child});
+
+  @override
+  State<_KeepAliveTabPage> createState() => _KeepAliveTabPageState();
+}
+
+class _KeepAliveTabPageState extends State<_KeepAliveTabPage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

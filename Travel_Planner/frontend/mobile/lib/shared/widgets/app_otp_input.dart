@@ -18,6 +18,7 @@ class AppOtpInput extends StatefulWidget {
   final bool autoFocus;
   final String? errorText;
   final TextEditingController? controller;
+  final Color? activeBorderColor;
 
   const AppOtpInput({
     super.key,
@@ -28,6 +29,7 @@ class AppOtpInput extends StatefulWidget {
     this.autoFocus = true,
     this.errorText,
     this.controller,
+    this.activeBorderColor,
   });
 
   @override
@@ -223,19 +225,28 @@ class _AppOtpInputState extends State<AppOtpInput> {
                               color: widget.enabled
                                   ? Colors.white
                                   : AppColors.surfaceSoft,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: hasError
                                     ? AppColors.error
                                     : _focusedIndex == i
-                                        ? AppColors.primary
+                                        ? (widget.activeBorderColor ?? AppColors.primary)
                                         : _boxControllers[i].text.isNotEmpty
-                                            ? AppColors.primary.withValues(alpha: 0.4)
+                                            ? (widget.activeBorderColor ?? AppColors.primary).withValues(alpha: 0.45)
                                             : AppColors.border,
                                 width: _focusedIndex == i
                                     ? 2.0
                                     : (hasError ? 1.5 : 1.0),
                               ),
+                              boxShadow: _focusedIndex == i
+                                  ? [
+                                      BoxShadow(
+                                        color: (widget.activeBorderColor ?? AppColors.primary).withValues(alpha: 0.16),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ]
+                                  : null,
                             ),
                             alignment: Alignment.center,
                             child: Theme(

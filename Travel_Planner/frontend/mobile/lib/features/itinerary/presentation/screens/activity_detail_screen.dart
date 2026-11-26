@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_map_view.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/services/device_location_service.dart';
 import '../../data/models/activity_detail.dart';
 import '../widgets/navigation_launcher_helper.dart';
@@ -100,6 +103,11 @@ class ActivityDetailScreen extends StatelessWidget {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
+          leadingWidth: 58,
+          leading: const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: Center(child: AppHeaderBackButton()),
+          ),
           title: const Text('Chi tiết hoạt động'),
           backgroundColor: AppColors.background,
           elevation: 0,
@@ -135,16 +143,42 @@ class ActivityDetailScreen extends StatelessWidget {
               ? act.destination!.description!.trim()
               : null);
 
+    final hasCoverImage = effectiveImage != null && effectiveImage.isNotEmpty;
+
+    if (hasCoverImage) {
+      return _ActivityCollapsingScaffold(
+        title: act.name,
+        imageUrl: effectiveImage,
+        placeholder: _buildImagePlaceholder(),
+        bodyContent: _buildActivityContent(
+          context,
+          act: act,
+          dayNumber: dayNumber,
+          dayTitle: dayTitle,
+          itineraryTitle: itineraryTitle,
+          locationName: locationName,
+          address: address,
+          hasLocation: hasLocation,
+          hasCoords: hasCoords,
+          duration: duration,
+          timeFormatted: timeFormatted,
+          hasDescription: hasDescription,
+          hasCost: hasCost,
+          catalogDescription: catalogDescription,
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
         title: const Text('Chi tiết hoạt động'),
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: 'Quay lại',
-          onPressed: () => Navigator.of(context).pop(),
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
         ),
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
@@ -154,40 +188,45 @@ class ActivityDetailScreen extends StatelessWidget {
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Image Header (if exists)
-            if (effectiveImage != null && effectiveImage.isNotEmpty) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  effectiveImage,
-                  width: double.infinity,
-                  height: 220,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      height: 220,
-                      color: AppColors.surfaceSoft,
-                      alignment: Alignment.center,
-                      child: const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) =>
-                      _buildImagePlaceholder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+        child: _buildActivityContent(
+          context,
+          act: act,
+          dayNumber: dayNumber,
+          dayTitle: dayTitle,
+          itineraryTitle: itineraryTitle,
+          locationName: locationName,
+          address: address,
+          hasLocation: hasLocation,
+          hasCoords: hasCoords,
+          duration: duration,
+          timeFormatted: timeFormatted,
+          hasDescription: hasDescription,
+          hasCost: hasCost,
+          catalogDescription: catalogDescription,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityContent(
+    BuildContext context, {
+    required ActivityDetail act,
+    required int? dayNumber,
+    required String? dayTitle,
+    required String? itineraryTitle,
+    required String? locationName,
+    required String? address,
+    required bool hasLocation,
+    required bool hasCoords,
+    required String? duration,
+    required String? timeFormatted,
+    required bool hasDescription,
+    required bool hasCost,
+    required String? catalogDescription,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
 
             // 2. Day & Order Metadata Chip
             Wrap(
@@ -216,8 +255,8 @@ class ActivityDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          dayTitle != null && dayTitle!.trim().isNotEmpty
-                              ? 'Ngày $dayNumber: ${dayTitle!.trim()}'
+                          dayTitle != null && dayTitle.trim().isNotEmpty
+                              ? 'Ngày $dayNumber: ${dayTitle.trim()}'
                               : 'Ngày $dayNumber',
                           style: const TextStyle(
                             fontSize: 12,
@@ -725,9 +764,7 @@ class ActivityDetailScreen extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
+        );
   }
 
   Widget _buildImagePlaceholder() => Container(
@@ -816,8 +853,7 @@ class _ActivityDirectionsButtonState extends State<ActivityDirectionsButton> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    AppToast.showInfo(context, message);
   }
 
   void _showLocationError(DeviceLocationException error) {
@@ -827,46 +863,187 @@ class _ActivityDirectionsButtonState extends State<ActivityDirectionsButton> {
         : error.canOpenLocationSettings
         ? Geolocator.openLocationSettings
         : null;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.message),
-        action: settingsAction == null
-            ? null
-            : SnackBarAction(
-                label: 'Cài đặt',
-                onPressed: () => settingsAction(),
-              ),
-      ),
+    AppToast.showError(
+      context,
+      error.message,
+      actionLabel: settingsAction == null ? null : 'Cài đặt',
+      onAction: settingsAction == null ? null : () => settingsAction(),
     );
   }
 
   @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
-    style: OutlinedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      visualDensity: VisualDensity.compact,
-      side: const BorderSide(color: AppColors.hairline),
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-    ),
-    icon: _isLoading
-        ? const SizedBox.square(
-            dimension: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        : const Icon(
-            Icons.directions_outlined,
-            size: 14,
-            color: AppColors.primary,
-          ),
-    label: const Text(
-      'Chỉ đường',
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: AppColors.primary,
+  Widget build(BuildContext context) => BounceTap(
+    enabled: !_isLoading,
+    child: OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        visualDensity: VisualDensity.compact,
+        side: const BorderSide(color: AppColors.hairline),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
+      icon: _isLoading
+          ? const SizedBox.square(
+              dimension: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(
+              Icons.directions_outlined,
+              size: 14,
+              color: AppColors.primary,
+            ),
+      label: const Text(
+        'Chỉ đường',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
+      ),
+      onPressed: _isLoading ? null : _openDirections,
     ),
-    onPressed: _isLoading ? null : _openDirections,
   );
+}
+
+class _ActivityCollapsingScaffold extends StatefulWidget {
+  final String title;
+  final String imageUrl;
+  final Widget placeholder;
+  final Widget bodyContent;
+
+  const _ActivityCollapsingScaffold({
+    required this.title,
+    required this.imageUrl,
+    required this.placeholder,
+    required this.bodyContent,
+  });
+
+  @override
+  State<_ActivityCollapsingScaffold> createState() =>
+      _ActivityCollapsingScaffoldState();
+}
+
+class _ActivityCollapsingScaffoldState
+    extends State<_ActivityCollapsingScaffold> {
+  final ValueNotifier<bool> _isCollapsed = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _isCollapsed.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const double expandedHeight = 260.0;
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final collapseThreshold = expandedHeight - kToolbarHeight - topPadding - 16;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification.depth == 0) {
+            final collapsed = notification.metrics.pixels >= collapseThreshold;
+            if (collapsed != _isCollapsed.value) {
+              _isCollapsed.value = collapsed;
+            }
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            ValueListenableBuilder<bool>(
+              valueListenable: _isCollapsed,
+              builder: (context, isCollapsed, _) {
+                return SliverAppBar(
+                  pinned: true,
+                  expandedHeight: expandedHeight,
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF1E1E1E),
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  leadingWidth: 58,
+                  titleSpacing: 4,
+                  leading: Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Center(
+                      child: AppHeaderBackButton(isOverlay: !isCollapsed),
+                    ),
+                  ),
+                  title: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: isCollapsed ? 1.0 : 0.0,
+                    child: const Text(
+                      'Chi tiết hoạt động',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E1E1E),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  flexibleSpace: FlexibleSpaceBar(
+                    collapseMode: CollapseMode.parallax,
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          widget.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => widget.placeholder,
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: const [0.0, 0.45, 1.0],
+                              colors: [
+                                Colors.black.withValues(alpha: 0.18),
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.65),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 16,
+                          child: Text(
+                            widget.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+                child: widget.bodyContent,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

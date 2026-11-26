@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_dialog.dart';
 
 Future<bool?> showDeleteDayConfirmationDialog(
   BuildContext context, {
@@ -16,27 +16,13 @@ Future<bool?> showDeleteDayConfirmationDialog(
       ? '\n\nLưu ý: Tất cả các hoạt động thuộc ngày này cũng sẽ bị xóa. Các ngày tiếp theo sẽ được tự động đánh số lại.'
       : '\n\nCác ngày tiếp theo sẽ được tự động đánh số lại.';
 
-  return showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Xác nhận xóa Ngày $dayNumber'),
-      content: Text(
+  return AppDialog.showConfirm(
+    context,
+    type: AppDialogType.danger,
+    title: 'Xác nhận xóa Ngày $dayNumber',
+    message:
         'Bạn có chắc chắn muốn xóa Ngày $dayNumber$titleSuffix không?$warningNotice',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.error,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Xóa ngày'),
-        ),
-      ],
-    ),
+    confirmText: 'Xóa ngày',
+    cancelText: 'Hủy',
   );
 }

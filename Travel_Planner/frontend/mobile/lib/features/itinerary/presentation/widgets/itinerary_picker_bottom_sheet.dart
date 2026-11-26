@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../location/data/models/location_search_result.dart';
@@ -51,12 +54,8 @@ class ItineraryPickerBottomSheet extends StatefulWidget {
     AuthNotifier? authNotifier,
     VoidCallback? onCreateItinerary,
   }) {
-    return showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      isDismissible: true,
-      enableDrag: true,
+    return AppBottomSheet.show<bool>(
+      context,
       builder: (ctx) => ItineraryPickerBottomSheet(
         place: place,
         token: token,
@@ -80,12 +79,8 @@ class ItineraryPickerBottomSheet extends StatefulWidget {
     VoidCallback? onCreateItinerary,
     ValueChanged<ItinerarySummary>? onItinerarySelected,
   }) {
-    return showModalBottomSheet<ItinerarySummary>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      isDismissible: true,
-      enableDrag: true,
+    return AppBottomSheet.show<ItinerarySummary>(
+      context,
       builder: (ctx) => ItineraryPickerBottomSheet(
         place: place,
         token: token,
@@ -210,11 +205,9 @@ class _ItineraryPickerBottomSheetState
   Future<void> _handleSaveToItinerary(ItinerarySummary itinerary) async {
     final targetPlaceId = widget.place.internalPlaceId;
     if (targetPlaceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Địa điểm không hợp lệ để lưu vào lịch trình.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Địa điểm không hợp lệ để lưu vào lịch trình.',
       );
       return;
     }
@@ -245,28 +238,10 @@ class _ItineraryPickerBottomSheetState
 
       widget.onSaved?.call(itinerary.itineraryId);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: Colors.white,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Đã lưu "${widget.place.name}" vào "${itinerary.title}"!',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 3),
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã lưu "${widget.place.name}" vào "${itinerary.title}"!',
+        duration: const Duration(seconds: 3),
       );
 
       // Smooth dismiss
@@ -286,58 +261,30 @@ class _ItineraryPickerBottomSheetState
         setState(() {
           _savedItineraryIds.add(itinerary.itineraryId);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Địa điểm này đã được lưu trong lịch trình "${itinerary.title}".',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.textPrimary,
-            duration: const Duration(seconds: 3),
-          ),
+        AppToast.showInfo(
+          context,
+          'Địa điểm này đã được lưu trong lịch trình "${itinerary.title}".',
+          duration: const Duration(seconds: 3),
         );
       } else if (e.statusCode == 401) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
         );
       } else if (e.statusCode == 403) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bạn không có quyền chỉnh sửa lịch trình này.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Bạn không có quyền chỉnh sửa lịch trình này.',
         );
       } else if (e.statusCode == 404) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lịch trình hoặc địa điểm không tồn tại.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Lịch trình hoặc địa điểm không tồn tại.',
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.message.isNotEmpty ? e.message : 'Lỗi khi lưu địa điểm.',
-            ),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          e.message.isNotEmpty ? e.message : 'Lỗi khi lưu địa điểm.',
         );
       }
     } catch (_) {
@@ -345,24 +292,18 @@ class _ItineraryPickerBottomSheetState
       setState(() {
         _savingItineraryId = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lỗi kết nối máy chủ. Vui lòng kiểm tra mạng.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Lỗi kết nối máy chủ. Vui lòng kiểm tra mạng.',
       );
     }
   }
 
   void _handleSelectForSchedule(ItinerarySummary item) {
     if (item.totalDays == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lịch trình này chưa có ngày nào. Vui lòng mở chi tiết lịch trình để thêm ngày trước.',
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Lịch trình này chưa có ngày nào. Vui lòng mở chi tiết lịch trình để thêm ngày trước.',
       );
       return;
     }
@@ -380,6 +321,7 @@ class _ItineraryPickerBottomSheetState
     if (widget.authNotifier != null) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
+          fullscreenDialog: true,
           builder: (_) => CreateItineraryScreen(
             authNotifier: widget.authNotifier!,
             repository: _repository,
@@ -388,10 +330,9 @@ class _ItineraryPickerBottomSheetState
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Vui lòng tạo lịch trình mới từ thanh điều hướng bên dưới.'),
-      ),
+    AppToast.showInfo(
+      context,
+      'Vui lòng tạo lịch trình mới từ thanh điều hướng bên dưới.',
     );
   }
 
@@ -401,30 +342,13 @@ class _ItineraryPickerBottomSheetState
     final maxHeight = mediaQuery.size.height * 0.85;
 
     return Material(
-      color: AppColors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      clipBehavior: Clip.antiAlias,
+      type: MaterialType.transparency,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Top Drag Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             // Header Section
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
@@ -472,13 +396,15 @@ class _ItineraryPickerBottomSheetState
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: AppColors.textSecondary,
+                  BounceTap.icon(
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.textSecondary,
+                      ),
+                      tooltip: 'Đóng',
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                    tooltip: 'Đóng',
-                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
@@ -492,9 +418,8 @@ class _ItineraryPickerBottomSheetState
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildContent() {
     if (_isLoading) {
@@ -528,9 +453,11 @@ class _ItineraryPickerBottomSheetState
                 ),
               ),
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: () => _loadItineraries(isRefresh: true),
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: () => _loadItineraries(isRefresh: true),
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),
@@ -577,22 +504,24 @@ class _ItineraryPickerBottomSheetState
                 ),
               ),
               const SizedBox(height: 20),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+              BounceTap(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                  onPressed: _navigateToCreateItinerary,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text(
+                    'Tạo lịch trình mới',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                ),
-                onPressed: _navigateToCreateItinerary,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text(
-                  'Tạo lịch trình mới',
-                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -741,24 +670,26 @@ class _ItineraryPickerBottomSheetState
             ],
           ),
           trailing: isScheduleMode
-              ? FilledButton.tonal(
-                  key: Key('select_itinerary_${item.itineraryId}'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
+              ? BounceTap(
+                  child: FilledButton.tonal(
+                    key: Key('select_itinerary_${item.itineraryId}'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () => _handleSelectForSchedule(item),
-                  child: const Text(
-                    'Chọn',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    onPressed: () => _handleSelectForSchedule(item),
+                    child: const Text(
+                      'Chọn',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 )
@@ -801,25 +732,28 @@ class _ItineraryPickerBottomSheetState
                         ],
                       ),
                     )
-                  : FilledButton.tonal(
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
+                  : BounceTap(
+                      enabled: _savingItineraryId == null,
+                      child: FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: _savingItineraryId != null
-                          ? null
-                          : () => _handleSaveToItinerary(item),
-                      child: const Text(
-                        'Lưu',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        onPressed: _savingItineraryId != null
+                            ? null
+                            : () => _handleSaveToItinerary(item),
+                        child: const Text(
+                          'Lưu',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),

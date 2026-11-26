@@ -7,6 +7,7 @@ public interface PublicUserService {
     PublicProfileResponse getProfile(Integer userId, String viewerUsername);
     PublicProfileResponse getProfileByHandle(String handle, String viewerUsername);
     PageResponse<UserSearchResultResponse> searchUsers(String query, int page, int size, String viewerUsername);
+    PageResponse<UserSearchResultResponse> getSuggestions(int size, String viewerUsername);
     PageResponse<ItinerarySummaryResponse> getItineraries(Integer userId, int page, int size, String viewerUsername);
     void follow(Integer userId, String username);
     void unfollow(Integer userId, String username);

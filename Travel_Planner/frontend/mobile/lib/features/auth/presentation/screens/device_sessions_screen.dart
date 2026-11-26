@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_dialog.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 
 class DeviceSessionsScreen extends StatefulWidget {
@@ -58,24 +62,13 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
   }
 
   Future<void> _revokeSession(String sessionId, String deviceInfo) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.background,
-        title: const Text('Đăng xuất thiết bị'),
-        content: Text('Bạn có chắc chắn muốn đăng xuất khỏi thiết bị "$deviceInfo"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Đăng xuất'),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.logout,
+      title: 'Đăng xuất thiết bị',
+      message: 'Bạn có chắc chắn muốn đăng xuất khỏi thiết bị "$deviceInfo"?',
+      confirmText: 'Đăng xuất',
+      cancelText: 'Hủy',
     );
 
     if (confirmed != true) return;
@@ -84,26 +77,14 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
     try {
       await widget.authNotifier.revokeSession(sessionId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã thu hồi phiên đăng nhập thành công'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã thu hồi phiên đăng nhập thành công');
       await _loadSessions();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã có lỗi xảy ra. Vui lòng thử lại sau.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Đã có lỗi xảy ra. Vui lòng thử lại sau.');
     } finally {
       if (mounted) {
         setState(() => _isRevoking = false);
@@ -112,26 +93,14 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
   }
 
   Future<void> _revokeOtherSessions() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.background,
-        title: const Text('Đăng xuất tất cả thiết bị khác'),
-        content: const Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.logout,
+      title: 'Đăng xuất tất cả thiết bị khác',
+      message:
           'Tất cả các phiên đăng nhập khác sẽ bị đăng xuất ngay lập tức. Thiết bị hiện tại vẫn được giữ nguyên.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Đăng xuất tất cả'),
-          ),
-        ],
-      ),
+      confirmText: 'Đăng xuất tất cả',
+      cancelText: 'Hủy',
     );
 
     if (confirmed != true) return;
@@ -140,26 +109,17 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
     try {
       final count = await widget.authNotifier.revokeOtherSessions();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã đăng xuất thành công khỏi $count thiết bị khác'),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã đăng xuất thành công khỏi $count thiết bị khác',
       );
       await _loadSessions();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã có lỗi xảy ra. Vui lòng thử lại sau.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Đã có lỗi xảy ra. Vui lòng thử lại sau.');
     } finally {
       if (mounted) {
         setState(() => _isRevoking = false);
@@ -185,6 +145,11 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const AppPageTitle(title: 'Thiết bị & Phiên đăng nhập'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
@@ -224,9 +189,11 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               ),
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: _loadSessions,
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: _loadSessions,
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),
@@ -279,16 +246,19 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
 
           // Revoke other sessions button
           if (otherActiveSessions.isNotEmpty)
-            OutlinedButton.icon(
-              onPressed: _isRevoking ? null : _revokeOtherSessions,
-              icon: const Icon(Icons.devices_other, size: 20),
-              label: const Text('Đăng xuất tất cả thiết bị khác'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            BounceTap(
+              enabled: !_isRevoking,
+              child: OutlinedButton.icon(
+                onPressed: _isRevoking ? null : _revokeOtherSessions,
+                icon: const Icon(Icons.devices_other, size: 20),
+                label: const Text('Đăng xuất tất cả thiết bị khác'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
@@ -403,17 +373,20 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _isRevoking ? null : () => _revokeSession(sessionId, deviceInfo),
-                icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
-                label: const Text(
-                  'Đăng xuất thiết bị này',
-                  style: TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w600),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              child: BounceTap(
+                enabled: !_isRevoking,
+                child: TextButton.icon(
+                  onPressed: _isRevoking ? null : () => _revokeSession(sessionId, deviceInfo),
+                  icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
+                  label: const Text(
+                    'Đăng xuất thiết bị này',
+                    style: TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w600),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
             ),

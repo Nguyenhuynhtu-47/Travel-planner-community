@@ -2,13 +2,16 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -133,9 +136,7 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
       final bytes = await image.readAsBytes();
       if (bytes.length > 5 * 1024 * 1024) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ảnh không được vượt quá 5 MB')),
-          );
+          AppToast.showWarning(context, 'Ảnh không được vượt quá 5 MB');
         }
         return;
       }
@@ -147,10 +148,9 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể mở thư viện ảnh. Vui lòng thử lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể mở thư viện ảnh. Vui lòng thử lại.',
         );
       }
     }
@@ -223,12 +223,7 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tạo lịch trình thành công!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Tạo lịch trình thành công!');
 
       // Navigate to detail screen so user can review the new itinerary
       await Navigator.of(context).push(
@@ -255,18 +250,11 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể tạo lịch trình. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Không thể tạo lịch trình. Vui lòng thử lại.');
     }
   }
 
@@ -290,23 +278,30 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
           foregroundColor: AppColors.textPrimary,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
+          leadingWidth: 58,
           leading: _showIntro
               ? (Navigator.of(context).canPop()
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.of(context).pop(),
+                  ? const Padding(
+                      padding: EdgeInsets.only(left: 12),
+                      child: Center(child: AppHeaderBackButton()),
                     )
                   : null)
-              : IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: _currentStep > 0 ? 'Quay lại bước trước' : 'Quay lại',
-                  onPressed: _previousStep,
+              : Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Center(
+                    child: AppHeaderIconButton(
+                      icon: Icons.arrow_back,
+                      tooltip:
+                          _currentStep > 0 ? 'Quay lại bước trước' : 'Quay lại',
+                      onPressed: _previousStep,
+                    ),
+                  ),
                 ),
           actions: [
             if (!_showIntro) ...[
-              IconButton(
+              AppHeaderIconButton(
+                icon: Icons.refresh_rounded,
                 tooltip: 'Làm mới biểu mẫu',
-                icon: const Icon(Icons.refresh_rounded, size: 22),
                 onPressed: _resetForm,
               ),
               const SizedBox(width: 8),
@@ -622,21 +617,23 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _previousStep,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _previousStep,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Quay lại',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      child: const Text(
+                        'Quay lại',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -742,21 +739,23 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _previousStep,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _previousStep,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Quay lại',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      child: const Text(
+                        'Quay lại',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -824,28 +823,31 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
               runSpacing: 4,
               children: _suggestedThemes.map((t) {
                 final isSelected = _themeController.text.trim() == t;
-                return ChoiceChip(
-                  label: Text(
-                    t,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isSelected
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                return BounceTap(
+                  useSelectionHaptic: true,
+                  child: ChoiceChip(
+                    label: Text(
+                      t,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
                     ),
+                    selected: isSelected,
+                    selectedColor: AppColors.primary,
+                    backgroundColor: AppColors.surfaceSoft,
+                    showCheckmark: false,
+                    onSelected: (selected) {
+                      setState(() {
+                        _themeController.text = selected ? t : '';
+                      });
+                    },
                   ),
-                  selected: isSelected,
-                  selectedColor: AppColors.primary,
-                  backgroundColor: AppColors.surfaceSoft,
-                  showCheckmark: false,
-                  onSelected: (selected) {
-                    setState(() {
-                      _themeController.text = selected ? t : '';
-                    });
-                  },
                 );
               }).toList(),
             ),
@@ -910,21 +912,23 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _previousStep,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _previousStep,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Quay lại',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      child: const Text(
+                        'Quay lại',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -953,9 +957,11 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
   }) {
     final isSelected = _visibility == value;
 
-    return InkWell(
-      onTap: () => setState(() => _visibility = value),
-      borderRadius: BorderRadius.circular(12),
+    return BounceTap(
+      useSelectionHaptic: true,
+      child: InkWell(
+        onTap: () => setState(() => _visibility = value),
+        borderRadius: BorderRadius.circular(12),
       child: Container(
         height: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -1008,6 +1014,7 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -6,6 +6,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../data/messaging_date_time.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/messaging_repository.dart';
@@ -194,7 +197,9 @@ class _CommunityScreenState extends State<CommunityScreen>
     }
     if (_error != null && _conversations.isEmpty) {
       return Center(
-        child: TextButton(onPressed: _load, child: Text(_error!)),
+        child: BounceTap(
+          child: TextButton(onPressed: _load, child: Text(_error!)),
+        ),
       );
     }
     if (_conversations.isEmpty) {
@@ -262,23 +267,24 @@ class _CommunityScreenState extends State<CommunityScreen>
                 leading: _avatar(u.avatar),
                 title: Text(_name(u)),
                 onTap: () => _openProfile(u.userId),
-                trailing: IconButton(
-                  tooltip: 'Nhắn tin',
-                  icon: const Icon(Icons.chat_outlined),
-                  onPressed: () async {
-                    try {
-                      final c = await _repo.openDirect(u.userId, _token!);
-                      if (mounted) _open(c);
-                    } catch (_) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Không thể mở cuộc trò chuyện.'),
-                          ),
-                        );
+                trailing: BounceTap.icon(
+                  child: IconButton(
+                    tooltip: 'Nhắn tin',
+                    icon: const Icon(Icons.chat_outlined),
+                    onPressed: () async {
+                      try {
+                        final c = await _repo.openDirect(u.userId, _token!);
+                        if (mounted) _open(c);
+                      } catch (_) {
+                        if (mounted) {
+                          AppToast.showError(
+                            context,
+                            'Không thể mở cuộc trò chuyện.',
+                          );
+                        }
                       }
-                    }
-                  },
+                    },
+                  ),
                 ),
               ),
             )
@@ -307,29 +313,35 @@ class _CommunityScreenState extends State<CommunityScreen>
             ),
           ..._incoming.map(
             (r) => ListTile(
-              leading: GestureDetector(
-                onTap: () => _openProfile(r.otherUser.userId),
-                child: _avatar(r.otherUser.avatar),
+              leading: BounceTap(
+                child: GestureDetector(
+                  onTap: () => _openProfile(r.otherUser.userId),
+                  child: _avatar(r.otherUser.avatar),
+                ),
               ),
               title: Text(_name(r.otherUser)),
               onTap: () => _openProfile(r.otherUser.userId),
               trailing: Wrap(
                 children: [
-                  IconButton(
-                    tooltip: 'Chấp nhận',
-                    onPressed: () async {
-                      await _repo.acceptFriendRequest(r.friendshipId, _token!);
-                      _load();
-                    },
-                    icon: const Icon(Icons.check, color: AppColors.primary),
+                  BounceTap.icon(
+                    child: IconButton(
+                      tooltip: 'Chấp nhận',
+                      onPressed: () async {
+                        await _repo.acceptFriendRequest(r.friendshipId, _token!);
+                        _load();
+                      },
+                      icon: const Icon(Icons.check, color: AppColors.primary),
+                    ),
                   ),
-                  IconButton(
-                    tooltip: 'Từ chối',
-                    onPressed: () async {
-                      await _repo.declineFriendRequest(r.friendshipId, _token!);
-                      _load();
-                    },
-                    icon: const Icon(Icons.close),
+                  BounceTap.icon(
+                    child: IconButton(
+                      tooltip: 'Từ chối',
+                      onPressed: () async {
+                        await _repo.declineFriendRequest(r.friendshipId, _token!);
+                        _load();
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
                   ),
                 ],
               ),
@@ -344,19 +356,23 @@ class _CommunityScreenState extends State<CommunityScreen>
             ),
           ..._outgoing.map(
             (r) => ListTile(
-              leading: GestureDetector(
-                onTap: () => _openProfile(r.otherUser.userId),
-                child: _avatar(r.otherUser.avatar),
+              leading: BounceTap(
+                child: GestureDetector(
+                  onTap: () => _openProfile(r.otherUser.userId),
+                  child: _avatar(r.otherUser.avatar),
+                ),
               ),
               title: Text(_name(r.otherUser)),
               onTap: () => _openProfile(r.otherUser.userId),
               subtitle: const Text('Đang chờ phản hồi'),
-              trailing: TextButton(
-                onPressed: () async {
-                  await _repo.cancelFriendRequest(r.friendshipId, _token!);
-                  _load();
-                },
-                child: const Text('Hủy'),
+              trailing: BounceTap(
+                child: TextButton(
+                  onPressed: () async {
+                    await _repo.cancelFriendRequest(r.friendshipId, _token!);
+                    _load();
+                  },
+                  child: const Text('Hủy'),
+                ),
               ),
             ),
           ),
@@ -382,9 +398,11 @@ class _CommunityScreenState extends State<CommunityScreen>
         children: _messageRequests.map((request) {
           final peer = request.peer;
           return ListTile(
-            leading: GestureDetector(
-              onTap: () => _openProfile(peer.userId),
-              child: _avatar(peer.avatar),
+            leading: BounceTap(
+              child: GestureDetector(
+                onTap: () => _openProfile(peer.userId),
+                child: _avatar(peer.avatar),
+              ),
             ),
             title: Text(_name(peer)),
             subtitle: Column(
@@ -410,10 +428,12 @@ class _CommunityScreenState extends State<CommunityScreen>
               ],
             ),
             onTap: () => _open(request),
-            trailing: IconButton(
-              tooltip: 'Xem yêu cầu',
-              icon: const Icon(Icons.chevron_right),
-              onPressed: () => _open(request),
+            trailing: BounceTap.icon(
+              child: IconButton(
+                tooltip: 'Xem yêu cầu',
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => _open(request),
+              ),
             ),
           );
         }).toList(),
@@ -433,10 +453,10 @@ class _CommunityScreenState extends State<CommunityScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (auth?.isAuthenticated == true)
-            IconButton(
+          if (auth?.isAuthenticated == true) ...[
+            AppHeaderIconButton(
               tooltip: 'Tìm người dùng',
-              icon: const Icon(Icons.person_search_outlined),
+              icon: Icons.person_search_outlined,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) =>
@@ -444,10 +464,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
               ),
             ),
-          if (auth?.isAuthenticated == true)
-            IconButton(
+            const SizedBox(width: 8),
+            AppHeaderIconButton(
               tooltip: 'Quyền riêng tư tin nhắn',
-              icon: const Icon(Icons.settings_outlined),
+              icon: Icons.settings_outlined,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => MessagingSettingsScreen(
@@ -466,6 +486,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
               ),
             ),
+          ],
           const SizedBox(width: 8),
         ],
       ),
@@ -482,20 +503,32 @@ class _CommunityScreenState extends State<CommunityScreen>
                   labelColor: AppColors.primary,
                   isScrollable: true,
                   tabs: [
-                    Tab(
-                      text:
-                          'Tin nhắn${_conversations.isNotEmpty ? ' (${_conversations.length})' : ''}',
+                    BounceTap(
+                      useSelectionHaptic: true,
+                      child: Tab(
+                        text:
+                            'Tin nhắn${_conversations.isNotEmpty ? ' (${_conversations.length})' : ''}',
+                      ),
                     ),
-                    const Tab(text: 'Bạn bè'),
-                    Tab(
-                      text: _incomingTotal > 0
-                          ? 'Lời mời ($_incomingTotal)'
-                          : 'Lời mời',
+                    const BounceTap(
+                      useSelectionHaptic: true,
+                      child: Tab(text: 'Bạn bè'),
                     ),
-                    Tab(
-                      text: _messageRequestTotal > 0
-                          ? 'Người lạ ($_messageRequestTotal)'
-                          : 'Người lạ',
+                    BounceTap(
+                      useSelectionHaptic: true,
+                      child: Tab(
+                        text: _incomingTotal > 0
+                            ? 'Lời mời ($_incomingTotal)'
+                            : 'Lời mời',
+                      ),
+                    ),
+                    BounceTap(
+                      useSelectionHaptic: true,
+                      child: Tab(
+                        text: _messageRequestTotal > 0
+                            ? 'Người lạ ($_messageRequestTotal)'
+                            : 'Người lạ',
+                      ),
                     ),
                   ],
                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 
 class SectionErrorView extends StatelessWidget {
   final String message;
@@ -41,20 +42,22 @@ class SectionErrorView extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          OutlinedButton(
-            onPressed: onRetry,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.primary, width: 1.0),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              minimumSize: const Size(0, 30),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          BounceTap(
+            child: OutlinedButton(
+              onPressed: onRetry,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary, width: 1.0),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: const Size(0, 30),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-            ),
-            child: const Text(
-              'Thử lại',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              child: const Text(
+                'Thử lại',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],

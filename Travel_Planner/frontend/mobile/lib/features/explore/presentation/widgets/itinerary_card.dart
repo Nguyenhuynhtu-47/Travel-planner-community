@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../../data/models/itinerary_summary.dart';
 
 class ItineraryCard extends StatelessWidget {
@@ -14,6 +15,13 @@ class ItineraryCard extends StatelessWidget {
   final Color? actionIconColor;
   final VoidCallback? onActionTap;
   final VoidCallback? onCreatorTap;
+  final String? heroTag;
+  final bool isCompactHorizontal;
+  final bool showCreator;
+  final bool showVisibilityBadge;
+  final bool showThemeTag;
+  final bool showRatingWhenEmpty;
+  final Color? actionBgColor;
 
   const ItineraryCard({
     super.key,
@@ -27,6 +35,13 @@ class ItineraryCard extends StatelessWidget {
     this.actionIconColor,
     this.onActionTap,
     this.onCreatorTap,
+    this.heroTag,
+    this.isCompactHorizontal = false,
+    this.showCreator = true,
+    this.showVisibilityBadge = false,
+    this.showThemeTag = false,
+    this.showRatingWhenEmpty = false,
+    this.actionBgColor,
   });
 
   String _formatBudget(double budget) {
@@ -44,74 +59,83 @@ class ItineraryCard extends StatelessWidget {
     final isTopRated =
         itinerary.averageRating >= 4.5 && itinerary.ratingCount >= 2;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+    if (isCompactHorizontal) {
+      return _buildCompactHorizontal(context, hasRating);
+    }
+
+    return BounceTap(
+      enabled: onTap != null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.hairline),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x08000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Cover Photo Container
             Stack(
               children: [
-                AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child:
-                      itinerary.coverImage != null &&
-                          itinerary.coverImage!.trim().isNotEmpty
-                      ? Image.network(
-                          itinerary.coverImage!.trim(),
-                          fit: BoxFit.cover,
-                          frameBuilder:
-                              (context, child, frame, wasSynchronouslyLoaded) {
-                                if (wasSynchronouslyLoaded) return child;
-                                final disableMotion =
-                                    MediaQuery.maybeOf(context)
-                                        ?.disableAnimations ??
-                                    false;
-                                return AnimatedOpacity(
-                                  opacity: frame == null ? 0 : 1,
-                                  duration: disableMotion
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 200),
-                                  curve: Curves.easeOutCubic,
-                                  child: child,
-                                );
-                              },
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildImagePlaceholder(),
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: AppColors.surfaceSoft,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primary,
+                Hero(
+                  tag: heroTag ?? 'itinerary_card_${itinerary.itineraryId}',
+                  child: AspectRatio(
+                    aspectRatio: 16 / 10,
+                    child:
+                        itinerary.coverImage != null &&
+                            itinerary.coverImage!.trim().isNotEmpty
+                        ? Image.network(
+                            itinerary.coverImage!.trim(),
+                            fit: BoxFit.cover,
+                            frameBuilder:
+                                (context, child, frame, wasSynchronouslyLoaded) {
+                                  if (wasSynchronouslyLoaded) return child;
+                                  final disableMotion =
+                                      MediaQuery.maybeOf(context)
+                                          ?.disableAnimations ??
+                                      false;
+                                  return AnimatedOpacity(
+                                    opacity: frame == null ? 0 : 1,
+                                    duration: disableMotion
+                                        ? Duration.zero
+                                        : const Duration(milliseconds: 200),
+                                    curve: Curves.easeOutCubic,
+                                    child: child,
+                                  );
+                                },
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildImagePlaceholder(),
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: AppColors.surfaceSoft,
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
-                        )
-                      : _buildImagePlaceholder(),
+                              );
+                            },
+                          )
+                        : _buildImagePlaceholder(),
+                  ),
                 ),
 
                 // Top Badge (Guest Favorite)
@@ -298,48 +322,270 @@ class ItineraryCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Divider(height: 1, color: AppColors.hairlineSoft),
                     const SizedBox(height: 8),
-                    InkWell(
-                      onTap: onCreatorTap,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 10,
-                          backgroundColor: AppColors.surfaceSoft,
-                          backgroundImage:
-                              itinerary.creator!.avatar != null &&
-                                  itinerary.creator!.avatar!.trim().isNotEmpty
-                              ? NetworkImage(itinerary.creator!.avatar!.trim())
-                              : null,
-                          child:
-                              itinerary.creator!.avatar == null ||
-                                  itinerary.creator!.avatar!.trim().isEmpty
-                              ? const Icon(
-                                  Icons.person,
-                                  size: 12,
-                                  color: AppColors.muted,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Bởi ${itinerary.creator!.displayName}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    BounceTap(
+                      enabled: onCreatorTap != null,
+                      child: InkWell(
+                        onTap: onCreatorTap,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 10,
+                            backgroundColor: AppColors.surfaceSoft,
+                            backgroundImage:
+                                itinerary.creator!.avatar != null &&
+                                    itinerary.creator!.avatar!.trim().isNotEmpty
+                                ? NetworkImage(itinerary.creator!.avatar!.trim())
+                                : null,
+                            child:
+                                itinerary.creator!.avatar == null ||
+                                    itinerary.creator!.avatar!.trim().isEmpty
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 12,
+                                    color: AppColors.muted,
+                                  )
+                                : null,
                           ),
-                        ),
-                      ],
-                    )),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Bởi ${itinerary.creator!.displayName}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      )),
+                    ),
                   ],
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildCompactHorizontal(BuildContext context, bool hasRating) {
+    final creator = itinerary.creator;
+    final hasCreatorAvatar =
+        creator?.avatar != null && creator!.avatar!.trim().isNotEmpty;
+
+    return BounceTap(
+      enabled: onTap != null,
+      child: Material(
+        color: const Color(0xFFFFFFFF),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  children: [
+                    Hero(
+                      tag: heroTag ?? 'itinerary_card_${itinerary.itineraryId}',
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFFEFEFF4),
+                            width: 1,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child:
+                            itinerary.coverImage != null &&
+                                itinerary.coverImage!.trim().isNotEmpty
+                            ? Image.network(
+                                itinerary.coverImage!.trim(),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    _buildImagePlaceholder(),
+                              )
+                            : _buildImagePlaceholder(),
+                      ),
+                    ),
+                    if (showVisibilityBadge)
+                      Positioned(
+                        left: 4,
+                        bottom: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.52),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            (itinerary.visibility ?? '').toUpperCase() ==
+                                    'PUBLIC'
+                                ? Icons.public
+                                : Icons.lock_outline,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        itinerary.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E1E1E),
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${itinerary.location} • ${itinerary.totalDays} ngày',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF6E6E73),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (showCreator && creator != null)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircleAvatar(
+                                  radius: 9,
+                                  backgroundColor: AppColors.surfaceStrong,
+                                  backgroundImage: hasCreatorAvatar
+                                      ? NetworkImage(creator.avatar!.trim())
+                                      : null,
+                                  child: !hasCreatorAvatar
+                                      ? const Icon(
+                                          Icons.person,
+                                          size: 11,
+                                          color: AppColors.muted,
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 5),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 110,
+                                  ),
+                                  child: Text(
+                                    creator.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF6E6E73),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          if (showThemeTag &&
+                              itinerary.theme != null &&
+                              itinerary.theme!.trim().isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF0F3),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                itinerary.theme!.trim(),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFFA3E62),
+                                ),
+                              ),
+                            ),
+                          if (hasRating || showRatingWhenEmpty)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 14,
+                                  color: Color(0xFFF59E0B),
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  hasRating
+                                      ? itinerary.averageRating.toStringAsFixed(1)
+                                      : 'Mới',
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF4B5563),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          Text(
+                            _formatBudget(itinerary.budget),
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFFA3E62),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (actionIcon != null && onActionTap != null) ...[
+                  const SizedBox(width: 8),
+                  BounceTap.icon(
+                    child: Material(
+                      color: actionBgColor ?? const Color(0xFFFFF0F3),
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        onTap: onActionTap,
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: Icon(
+                            actionIcon,
+                            size: 19,
+                            color: actionIconColor ?? const Color(0xFFFA3E62),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -392,39 +638,42 @@ class _FavoriteHeartButtonState extends State<_FavoriteHeartButton> {
     final disableMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: widget.onTap,
-        onTapDown: (_) {
-          if (!disableMotion) setState(() => _pressed = true);
-        },
-        onTapUp: (_) {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        onTapCancel: () {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        customBorder: const CircleBorder(),
-        child: AnimatedScale(
-          scale: _pressed ? 0.88 : 1.0,
-          duration: disableMotion
-              ? Duration.zero
-              : const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(50),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              widget.isFavorited
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
-              size: 20,
-              color: widget.isFavorited ? Colors.redAccent : Colors.white,
+    return BounceTap.icon(
+      enabled: widget.onTap != null,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: widget.onTap,
+          onTapDown: (_) {
+            if (!disableMotion) setState(() => _pressed = true);
+          },
+          onTapUp: (_) {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          onTapCancel: () {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          customBorder: const CircleBorder(),
+          child: AnimatedScale(
+            scale: _pressed ? 0.88 : 1.0,
+            duration: disableMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(50),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                widget.isFavorited
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                size: 20,
+                color: widget.isFavorited ? Colors.redAccent : Colors.white,
+              ),
             ),
           ),
         ),
@@ -457,37 +706,42 @@ class _CustomCardActionButtonState extends State<_CustomCardActionButton> {
     final disableMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: widget.onTap,
-        onTapDown: (_) {
-          if (!disableMotion) setState(() => _pressed = true);
-        },
-        onTapUp: (_) {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        onTapCancel: () {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        customBorder: const CircleBorder(),
-        child: AnimatedScale(
-          scale: _pressed ? 0.88 : 1.0,
-          duration: disableMotion
-              ? Duration.zero
-              : const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(50),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              widget.icon,
-              size: 20,
-              color: widget.iconColor ?? Colors.white,
+    return BounceTap.icon(
+      enabled: widget.onTap != null,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: widget.onTap,
+          onTapDown: (_) {
+            if (!disableMotion) setState(() => _pressed = true);
+          },
+          onTapUp: (_) {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          onTapCancel: () {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          customBorder: const CircleBorder(),
+          child: AnimatedScale(
+            scale: _pressed ? 0.88 : 1.0,
+            duration: disableMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(50),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                widget.icon,
+                size: 20,
+                color: widget.iconColor ?? Colors.white,
+              ),
             ),
           ),
         ),

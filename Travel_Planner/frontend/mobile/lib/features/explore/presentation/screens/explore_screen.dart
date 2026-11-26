@@ -7,6 +7,9 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_header_button.dart';
+import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
@@ -244,18 +247,11 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Future<void> _handleFavoriteTap(ItinerarySummary itinerary) async {
     if (!widget.authNotifier.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Vui lòng đăng nhập để lưu lịch trình yêu thích.',
-          ),
-          backgroundColor: AppColors.textPrimary,
-          action: SnackBarAction(
-            label: 'Đăng nhập',
-            textColor: AppColors.primary,
-            onPressed: _navigateToLogin,
-          ),
-        ),
+      AppToast.showWarning(
+        context,
+        'Vui lòng đăng nhập để lưu lịch trình yêu thích.',
+        actionLabel: 'Đăng nhập',
+        onAction: _navigateToLogin,
       );
       return;
     }
@@ -263,11 +259,10 @@ class _ExploreScreenState extends State<ExploreScreen>
     final isOwner = _isItineraryOwner(itinerary);
 
     if (isOwner) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bạn không thể tự yêu thích lịch trình của mình'),
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.showWarning(
+        context,
+        'Bạn không thể tự yêu thích lịch trình của mình',
+        duration: const Duration(seconds: 2),
       );
       return;
     }
@@ -281,20 +276,23 @@ class _ExploreScreenState extends State<ExploreScreen>
       );
       AppSyncBus.emitItineraryFavorited(itinerary.itineraryId, nextFav);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình',
-            ),
+        if (nextFav) {
+          AppToast.showSuccess(
+            context,
+            'Đã thêm vào yêu thích',
             duration: const Duration(seconds: 2),
-          ),
-        );
+          );
+        } else {
+          AppToast.showInfo(
+            context,
+            'Đã bỏ yêu thích lịch trình',
+            duration: const Duration(seconds: 2),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
-        );
+        AppToast.showError(context, 'Lỗi: $e');
       }
     }
   }
@@ -343,10 +341,10 @@ class _ExploreScreenState extends State<ExploreScreen>
               ],
             ),
             actions: [
-              if (isAuthenticated)
-                IconButton(
+              if (isAuthenticated) ...[
+                AppHeaderIconButton(
+                  icon: Icons.person_search_outlined,
                   tooltip: 'Tìm người dùng',
-                  icon: const Icon(Icons.person_search_outlined),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) =>
@@ -366,34 +364,39 @@ class _ExploreScreenState extends State<ExploreScreen>
                   );
                 },
               ),
-              if (isAuthenticated)
+              if (isAuthenticated) ...[
+                const SizedBox(width: 8),
                 CurrentUserAvatarButton(
                   avatarUrl: widget.authNotifier.currentUser?['avatar']
                       ?.toString(),
                   onPressed: _navigateToProfile,
                 ),
+                const SizedBox(width: 8),
+              ],
               if (!isAuthenticated)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: OutlinedButton(
-                    onPressed: _navigateToLogin,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
+                  child: BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _navigateToLogin,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        minimumSize: const Size(0, 36),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                       ),
-                      minimumSize: const Size(0, 36),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text(
-                      'Đăng nhập',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                      child: const Text(
+                        'Đăng nhập',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -435,21 +438,23 @@ class _ExploreScreenState extends State<ExploreScreen>
                       padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
                       child: Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              size: 20,
-                            ),
-                            onPressed: () => _exploreNotifier.closeViewingAll(
-                              token: widget.authNotifier.token,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            visualDensity: VisualDensity.compact,
-                            style: IconButton.styleFrom(
-                              minimumSize: Size.zero,
+                          BounceTap.icon(
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.arrow_back_rounded,
+                                size: 20,
+                              ),
+                              onPressed: () => _exploreNotifier.closeViewingAll(
+                                token: widget.authNotifier.token,
+                              ),
                               padding: EdgeInsets.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              style: IconButton.styleFrom(
+                                minimumSize: Size.zero,
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -545,25 +550,27 @@ class _ExploreScreenState extends State<ExploreScreen>
                               ),
                             ),
                           ),
-                          TextButton(
-                            onPressed: () {
-                              _searchController.clear();
-                              _exploreNotifier.resetAllFilters(
-                                token: widget.authNotifier.token,
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(50, 28),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            child: const Text(
-                              'Xóa tất cả',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
+                          BounceTap(
+                            child: TextButton(
+                              onPressed: () {
+                                _searchController.clear();
+                                _exploreNotifier.resetAllFilters(
+                                  token: widget.authNotifier.token,
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(50, 28),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              child: const Text(
+                                'Xóa tất cả',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
@@ -585,22 +592,25 @@ class _ExploreScreenState extends State<ExploreScreen>
   Widget _buildActiveChip(String label, VoidCallback onDeleted) {
     return Container(
       margin: const EdgeInsets.only(right: 6),
-      child: Chip(
-        label: Text(label),
-        onDeleted: onDeleted,
-        deleteIcon: const Icon(Icons.close, size: 14),
-        backgroundColor: AppColors.surfaceSoft,
-        labelStyle: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-        side: const BorderSide(color: AppColors.hairline),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(9999),
+      child: BounceTap(
+        useSelectionHaptic: true,
+        child: Chip(
+          label: Text(label),
+          onDeleted: onDeleted,
+          deleteIcon: const Icon(Icons.close, size: 14),
+          backgroundColor: AppColors.surfaceSoft,
+          labelStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textPrimary,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+          side: const BorderSide(color: AppColors.hairline),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(9999),
+          ),
         ),
       ),
     );
