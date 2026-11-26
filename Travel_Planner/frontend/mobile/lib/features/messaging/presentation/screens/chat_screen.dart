@@ -503,11 +503,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
     } else {
       bubbleContent = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(maxWidth: maxBubbleWidth),
         decoration: BoxDecoration(
-          color: own ? AppColors.primaryLight : AppColors.surfaceStrong,
-          borderRadius: BorderRadius.circular(16),
+          color: own ? const Color(0xFFFFF0F3) : const Color(0xFFF4F5F7),
+          border: own ? Border.all(color: const Color(0xFFFAD2DA)) : null,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(own ? 18 : 4),
+            bottomRight: Radius.circular(own ? 4 : 18),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -706,22 +712,83 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ? peer.fullName!
         : '@${peer.effectiveHandle}';
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         leadingWidth: 58,
         leading: const Padding(
           padding: EdgeInsets.only(left: 12),
           child: Center(child: AppHeaderBackButton()),
         ),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1E1E1E),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: const Color(0xFFEBEBEF)),
+        ),
         titleSpacing: 0,
-        title: Row(
-          children: [
-            _avatarFromUrl(peer.avatar, size: 36),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _openPeerProfile,
+          child: Row(
+            children: [
+              _avatarFromUrl(peer.avatar, size: 38),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E1E1E),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Row(
+                      children: [
+                        if (_realtimeStatus == RealtimeStatus.connected) ...[
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Đang hoạt động',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6E6E73),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ] else
+                          Text(
+                            '@${peer.effectiveHandle}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6E6E73),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -913,36 +980,75 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     },
                   ),
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      maxLength: 4000,
-                      minLines: 1,
-                      maxLines: 5,
-                      enabled: _canSendMessage,
-                      decoration: const InputDecoration(
-                        hintText: 'Nhập tin nhắn',
-                        counterText: '',
-                        border: OutlineInputBorder(),
+          Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(color: Color(0xFFEBEBEF), width: 1),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _input,
+                        maxLength: 4000,
+                        minLines: 1,
+                        maxLines: 5,
+                        enabled: _canSendMessage,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFF1E1E1E),
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Nhập tin nhắn...',
+                          hintStyle: const TextStyle(
+                            fontSize: 14.5,
+                            color: Color(0xFF8E8E93),
+                          ),
+                          counterText: '',
+                          filled: true,
+                          fillColor: const Color(0xFFF4F5F7),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  BounceTap.icon(
-                    enabled: !_sending && _canSendMessage,
-                    child: IconButton(
-                      onPressed: _sending || !_canSendMessage ? null : _send,
-                      icon: const Icon(Icons.send),
-                      color: AppColors.primary,
+                    const SizedBox(width: 8),
+                    BounceTap.icon(
+                      enabled: !_sending && _canSendMessage,
+                      child: Material(
+                        color: (!_sending && _canSendMessage)
+                            ? const Color(0xFFFA3E62)
+                            : const Color(0xFFE5E7EB),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          onTap: _sending || !_canSendMessage ? null : _send,
+                          customBorder: const CircleBorder(),
+                          child: const SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Icon(
+                              Icons.send_rounded,
+                              size: 19,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
