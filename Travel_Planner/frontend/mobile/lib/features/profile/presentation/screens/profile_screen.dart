@@ -11,6 +11,7 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -239,9 +240,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       final bytes = await image.readAsBytes();
       if (bytes.length > 5 * 1024 * 1024) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ảnh không được vượt quá 5 MB')),
-          );
+          AppToast.showWarning(context, 'Ảnh không được vượt quá 5 MB');
         }
         return;
       }
@@ -253,10 +252,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể mở thư viện ảnh. Vui lòng thử lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể mở thư viện ảnh. Vui lòng thử lại.',
         );
       }
     }
@@ -415,26 +413,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         _editing = false;
         _saving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã cập nhật hồ sơ'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã cập nhật hồ sơ');
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể lưu thông tin hồ sơ. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Không thể lưu thông tin hồ sơ. Vui lòng thử lại.',
       );
     }
   }
@@ -1199,15 +1188,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           _myPosts.removeWhere((p) => p.postId == post.postId);
         });
         AppSyncBus.emitPostDeleted(post.postId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa bài viết thành công')),
-        );
+        AppToast.showSuccess(context, 'Đã xóa bài viết thành công');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể xóa bài viết')),
-        );
+        AppToast.showError(context, 'Không thể xóa bài viết');
       }
     }
   }

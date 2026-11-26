@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/models/messaging_settings.dart';
 
@@ -47,9 +48,7 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
         final message = error is ApiException
             ? '${error.message} (HTTP ${error.statusCode})'
             : 'Không thể kết nối đến máy chủ để lưu cài đặt.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể lưu quyền riêng tư: $message')),
-        );
+        AppToast.showError(context, 'Không thể lưu quyền riêng tư: $message');
       }
     }
     if (mounted) setState(() => _saving = false);

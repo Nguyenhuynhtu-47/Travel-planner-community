@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/data/models/public_user_summary.dart';
 import '../../data/messaging_repository.dart';
@@ -211,11 +212,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
         _selectedUsersMap.remove(item.userId);
       } else {
         if (_selectedUserIds.length >= 10) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Chỉ được chọn tối đa 10 người nhận mỗi lần'),
-              duration: Duration(seconds: 2),
-            ),
+          AppToast.showWarning(
+            context,
+            'Chỉ được chọn tối đa 10 người nhận mỗi lần',
+            duration: const Duration(seconds: 2),
           );
           return;
         }

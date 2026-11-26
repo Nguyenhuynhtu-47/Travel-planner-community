@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../data/messaging_date_time.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
@@ -272,10 +273,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                       if (mounted) _open(c);
                     } catch (_) {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Không thể mở cuộc trò chuyện.'),
-                          ),
+                        AppToast.showError(
+                          context,
+                          'Không thể mở cuộc trò chuyện.',
                         );
                       }
                     }

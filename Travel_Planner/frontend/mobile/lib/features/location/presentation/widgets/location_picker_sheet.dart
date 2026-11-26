@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart' hide Path;
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_map_view.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/data/itinerary_crud_repository.dart';
 import '../../../itinerary/presentation/widgets/activity_form_dialog.dart';
@@ -554,12 +555,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   Future<void> _handleScheduleActivity(LocationSearchResult location) async {
     final token = widget.token;
     if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Vui lòng đăng nhập để lên lịch hoạt động vào chuyến đi',
-          ),
-        ),
+      AppToast.showWarning(
+        context,
+        'Vui lòng đăng nhập để lên lịch hoạt động vào chuyến đi',
       );
       return;
     }
@@ -599,13 +597,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     );
 
     if (created == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã thêm hoạt động vào Ngày ${selectedDay.dayNumber} của "${selectedItinerary.title}"!',
-          ),
-          backgroundColor: AppColors.primary,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã thêm hoạt động vào Ngày ${selectedDay.dayNumber} của "${selectedItinerary.title}"!',
       );
     }
   }
@@ -679,12 +673,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
               ),
               onPressed: () {
                 if (widget.token == null || widget.token!.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
-                      ),
-                    ),
+                  AppToast.showWarning(
+                    context,
+                    'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
                   );
                   return;
                 }
@@ -1192,14 +1183,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                                                     null ||
                                                                 widget.token!
                                                                     .isEmpty) {
-                                                              ScaffoldMessenger.of(
+                                                              AppToast.showWarning(
                                                                 context,
-                                                              ).showSnackBar(
-                                                                const SnackBar(
-                                                                  content: Text(
-                                                                    'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
-                                                                  ),
-                                                                ),
+                                                                'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
                                                               );
                                                               return;
                                                             }

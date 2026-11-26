@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -144,21 +145,15 @@ class _CollectionScreenState extends State<CollectionScreen>
       await _notifier.removeSaved(item.itineraryId, token: _effectiveToken);
       AppSyncBus.emitItinerarySaved(item.itineraryId, false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã bỏ lưu lịch trình'),
-            duration: Duration(seconds: 2),
-          ),
+        AppToast.showInfo(
+          context,
+          'Đã bỏ lưu lịch trình',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể bỏ lưu: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, 'Không thể bỏ lưu: $e');
       }
     }
   }
@@ -168,21 +163,15 @@ class _CollectionScreenState extends State<CollectionScreen>
       await _notifier.removeFavorite(item.itineraryId, token: _effectiveToken);
       AppSyncBus.emitItineraryFavorited(item.itineraryId, false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã bỏ yêu thích lịch trình'),
-            duration: Duration(seconds: 2),
-          ),
+        AppToast.showInfo(
+          context,
+          'Đã bỏ yêu thích lịch trình',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể bỏ yêu thích: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, 'Không thể bỏ yêu thích: $e');
       }
     }
   }

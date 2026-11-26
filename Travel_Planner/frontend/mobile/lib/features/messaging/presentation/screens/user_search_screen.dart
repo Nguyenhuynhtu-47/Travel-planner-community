@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_repository.dart';
@@ -186,11 +187,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       if (mounted) await _refresh();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Thao tác không thành công. Hãy thử lại.'),
-          ),
-        );
+        AppToast.showError(context, 'Thao tác không thành công. Hãy thử lại.');
       }
     }
   }
@@ -214,9 +211,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       if (mounted) _refresh();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chưa thể bắt đầu cuộc trò chuyện.')),
-        );
+        AppToast.showError(context, 'Chưa thể bắt đầu cuộc trò chuyện.');
       }
     }
   }

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_date_time.dart';
@@ -411,10 +412,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           );
         }
         _input.text = text;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Gửi chưa thành công. Bạn có thể nhấn thử gửi lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Gửi chưa thành công. Bạn có thể nhấn thử gửi lại.',
         );
       }
     } finally {
@@ -608,14 +608,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           _blockedPeer = true;
           _canSendOverride = false;
         });
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Đã chặn người dùng.')));
+        AppToast.showSuccess(context, 'Đã chặn người dùng.');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể chặn người dùng lúc này.')),
-        );
+        AppToast.showError(context, 'Không thể chặn người dùng lúc này.');
       }
     } finally {
       if (mounted) setState(() => _blockingPeer = false);
@@ -660,17 +657,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           _blockedPeer = false;
           if (current != null) _canSendOverride = current.canSendMessage;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Đã bỏ chặn người dùng.')));
+        AppToast.showSuccess(context, 'Đã bỏ chặn người dùng.');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể bỏ chặn người dùng lúc này.'),
-          ),
-        );
+        AppToast.showError(context, 'Không thể bỏ chặn người dùng lúc này.');
       }
     } finally {
       if (mounted) setState(() => _unblockingPeer = false);
@@ -713,10 +704,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (!accept && mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể cập nhật yêu cầu tin nhắn. Hãy tải lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể cập nhật yêu cầu tin nhắn. Hãy tải lại.',
         );
       }
     } finally {

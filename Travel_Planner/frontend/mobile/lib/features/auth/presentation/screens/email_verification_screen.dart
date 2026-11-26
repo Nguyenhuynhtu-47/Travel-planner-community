@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_otp_input.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -75,14 +75,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     );
 
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Kích hoạt tài khoản thành công! Đang đăng nhập...',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Kích hoạt tài khoản thành công! Đang đăng nhập...',
       );
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
@@ -90,12 +85,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     } else if (mounted) {
       final error = widget.authNotifier.errorMessage;
       if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error, style: const TextStyle(color: Colors.white)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, error);
       }
     }
   }
@@ -112,26 +102,16 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              message ?? 'Đã gửi lại mã xác thực mới vào email.',
-              style: const TextStyle(color: Colors.white),
-            ),
-            backgroundColor: AppColors.primary,
-          ),
+        AppToast.showInfo(
+          context,
+          message ?? 'Đã gửi lại mã xác thực mới vào email.',
         );
         _startCountdown();
       }
     } catch (_) {
       if (mounted) {
         final error = widget.authNotifier.errorMessage ?? 'Không thể gửi lại mã xác thực lúc này.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error, style: const TextStyle(color: Colors.white)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, error);
       }
     } finally {
       if (mounted) {

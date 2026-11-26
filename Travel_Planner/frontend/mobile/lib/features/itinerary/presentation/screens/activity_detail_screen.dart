@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_map_view.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/services/device_location_service.dart';
 import '../../data/models/activity_detail.dart';
 import '../widgets/navigation_launcher_helper.dart';
@@ -816,8 +817,7 @@ class _ActivityDirectionsButtonState extends State<ActivityDirectionsButton> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    AppToast.showInfo(context, message);
   }
 
   void _showLocationError(DeviceLocationException error) {
@@ -827,16 +827,11 @@ class _ActivityDirectionsButtonState extends State<ActivityDirectionsButton> {
         : error.canOpenLocationSettings
         ? Geolocator.openLocationSettings
         : null;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.message),
-        action: settingsAction == null
-            ? null
-            : SnackBarAction(
-                label: 'Cài đặt',
-                onPressed: () => settingsAction(),
-              ),
-      ),
+    AppToast.showError(
+      context,
+      error.message,
+      actionLabel: settingsAction == null ? null : 'Cài đặt',
+      onAction: settingsAction == null ? null : () => settingsAction(),
     );
   }
 

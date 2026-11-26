@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -59,15 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Mật khẩu xác nhận không khớp',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Mật khẩu xác nhận không khớp');
       return;
     }
 
@@ -79,14 +71,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Đăng ký thành công! Vui lòng kiểm tra email để lấy mã xác thực.',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.primary,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đăng ký thành công! Vui lòng kiểm tra email để lấy mã xác thực.',
       );
       Navigator.pushReplacement(
         context,
@@ -100,12 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } else if (mounted) {
       final error = widget.authNotifier.errorMessage;
       if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error, style: const TextStyle(color: Colors.white)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, error);
       }
     }
   }
@@ -137,12 +119,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error, style: const TextStyle(color: Colors.white)),
-              backgroundColor: AppColors.error,
-              duration: const Duration(seconds: 4),
-            ),
+          AppToast.showError(
+            context,
+            error,
+            duration: const Duration(seconds: 4),
           );
         }
       }

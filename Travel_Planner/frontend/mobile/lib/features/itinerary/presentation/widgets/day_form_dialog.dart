@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/models/create_day_request.dart';
@@ -134,32 +135,24 @@ class _DayFormDialogState extends State<DayFormDialog> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.isEditing
-                ? 'Cập nhật Ngày ${widget.initialDay!.dayNumber} thành công!'
-                : 'Thêm Ngày ${widget.nextDayNumber} thành công!',
-          ),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        widget.isEditing
+            ? 'Cập nhật Ngày ${widget.initialDay!.dayNumber} thành công!'
+            : 'Thêm Ngày ${widget.nextDayNumber} thành công!',
       );
 
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể lưu thông tin ngày. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Không thể lưu thông tin ngày. Vui lòng thử lại.',
       );
     }
   }

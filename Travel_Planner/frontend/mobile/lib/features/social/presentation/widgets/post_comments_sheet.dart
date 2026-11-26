@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../data/community_post_repository.dart';
 import '../../data/models/post_comment_model.dart';
 import '../community_feed_notifier.dart';
@@ -231,10 +232,9 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể gửi bình luận. Vui lòng thử lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể gửi bình luận. Vui lòng thử lại.',
         );
       }
     }
@@ -317,9 +317,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể xóa bình luận')),
-        );
+        AppToast.showError(context, 'Không thể xóa bình luận');
       }
     }
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/navigation/main_navigation_shell.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -55,30 +55,25 @@ class _LoginScreenState extends State<LoginScreen> {
       final error = widget.authNotifier.errorMessage;
       if (error != null) {
         final isUnverified = error.contains('chưa được kích hoạt');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error, style: const TextStyle(color: Colors.white)),
-            backgroundColor: AppColors.error,
-            duration: Duration(seconds: isUnverified ? 8 : 4),
-            action: isUnverified
-                ? SnackBarAction(
-                    label: 'Kích hoạt ngay',
-                    textColor: Colors.amber,
-                    onPressed: () {
-                      final input = _usernameOrEmailController.text.trim();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => EmailVerificationScreen(
-                            authNotifier: widget.authNotifier,
-                            email: input.contains('@') ? input : '',
-                          ),
-                        ),
-                      );
-                    },
-                  )
-                : null,
-          ),
+        AppToast.showError(
+          context,
+          error,
+          duration: Duration(seconds: isUnverified ? 8 : 4),
+          actionLabel: isUnverified ? 'Kích hoạt ngay' : null,
+          onAction: isUnverified
+              ? () {
+                  final input = _usernameOrEmailController.text.trim();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EmailVerificationScreen(
+                        authNotifier: widget.authNotifier,
+                        email: input.contains('@') ? input : '',
+                      ),
+                    ),
+                  );
+                }
+              : null,
         );
       }
     }
@@ -119,12 +114,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error, style: const TextStyle(color: Colors.white)),
-              backgroundColor: AppColors.error,
-              duration: const Duration(seconds: 4),
-            ),
+          AppToast.showError(
+            context,
+            error,
+            duration: const Duration(seconds: 4),
           );
         }
       }

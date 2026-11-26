@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../social/presentation/screens/post_detail_screen.dart';
@@ -24,9 +25,7 @@ class ShareMessageCard extends StatelessWidget {
 
   void _handleTap(BuildContext context) {
     if (message.shareTargetId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nội dung được chia sẻ không còn khả dụng')),
-      );
+      AppToast.showWarning(context, 'Nội dung được chia sẻ không còn khả dụng');
       return;
     }
 

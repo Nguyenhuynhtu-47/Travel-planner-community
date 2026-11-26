@@ -7,6 +7,7 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
@@ -243,18 +244,11 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Future<void> _handleFavoriteTap(ItinerarySummary itinerary) async {
     if (!widget.authNotifier.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Vui lòng đăng nhập để lưu lịch trình yêu thích.',
-          ),
-          backgroundColor: AppColors.textPrimary,
-          action: SnackBarAction(
-            label: 'Đăng nhập',
-            textColor: AppColors.primary,
-            onPressed: _navigateToLogin,
-          ),
-        ),
+      AppToast.showWarning(
+        context,
+        'Vui lòng đăng nhập để lưu lịch trình yêu thích.',
+        actionLabel: 'Đăng nhập',
+        onAction: _navigateToLogin,
       );
       return;
     }
@@ -262,11 +256,10 @@ class _ExploreScreenState extends State<ExploreScreen>
     final isOwner = _isItineraryOwner(itinerary);
 
     if (isOwner) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bạn không thể tự yêu thích lịch trình của mình'),
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.showWarning(
+        context,
+        'Bạn không thể tự yêu thích lịch trình của mình',
+        duration: const Duration(seconds: 2),
       );
       return;
     }
@@ -280,20 +273,23 @@ class _ExploreScreenState extends State<ExploreScreen>
       );
       AppSyncBus.emitItineraryFavorited(itinerary.itineraryId, nextFav);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình',
-            ),
+        if (nextFav) {
+          AppToast.showSuccess(
+            context,
+            'Đã thêm vào yêu thích',
             duration: const Duration(seconds: 2),
-          ),
-        );
+          );
+        } else {
+          AppToast.showInfo(
+            context,
+            'Đã bỏ yêu thích lịch trình',
+            duration: const Duration(seconds: 2),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
-        );
+        AppToast.showError(context, 'Lỗi: $e');
       }
     }
   }

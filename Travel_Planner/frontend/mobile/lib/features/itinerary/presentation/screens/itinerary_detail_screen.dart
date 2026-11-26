@@ -8,6 +8,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../data/itinerary_repository.dart';
@@ -260,30 +261,18 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã xóa lịch trình thành công.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã xóa lịch trình thành công.');
 
       // Return true to indicate itinerary was deleted so parent screens can refresh
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _isDeleting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isDeleting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể xóa lịch trình. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Không thể xóa lịch trình. Vui lòng thử lại.');
     }
   }
 
@@ -292,12 +281,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
     final isAuthenticated = widget.authNotifier?.isAuthenticated ?? false;
     if (!isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để sao chép lịch trình'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Vui lòng đăng nhập để sao chép lịch trình');
       return;
     }
 
@@ -339,12 +323,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã sao chép lịch trình thành công!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã sao chép lịch trình thành công!');
 
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -358,17 +337,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể sao chép lịch trình: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Không thể sao chép lịch trình: $e');
     } finally {
       if (mounted) {
         setState(() => _isCloning = false);
@@ -379,11 +351,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   void _handleShare(ItineraryDetail itinerary) {
     final isAuthenticated = widget.authNotifier?.isAuthenticated ?? false;
     if (!isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để chia sẻ lịch trình'),
-        ),
-      );
+      AppToast.showInfo(context, 'Vui lòng đăng nhập để chia sẻ lịch trình');
       return;
     }
 
@@ -399,12 +367,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       authNotifier: widget.authNotifier,
     ).then((shared) {
       if (shared == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã chia sẻ lịch trình thành công!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        AppToast.showSuccess(context, 'Đã chia sẻ lịch trình thành công!');
       }
     });
   }
@@ -455,13 +418,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     if (widget.authNotifier == null) return;
 
     if (itinerary.days.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lịch trình phải có ít nhất 1 ngày. Không thể xóa ngày cuối cùng.',
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Lịch trình phải có ít nhất 1 ngày. Không thể xóa ngày cuối cùng.',
       );
       return;
     }
@@ -484,27 +443,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã xóa Ngày ${day.dayNumber} thành công.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã xóa Ngày ${day.dayNumber} thành công.');
 
       _notifier.loadDetail(token: _effectiveToken);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể xóa ngày. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Không thể xóa ngày. Vui lòng thử lại.');
     }
   }
 
@@ -526,12 +473,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     );
 
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã thêm hoạt động mới thành công.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã thêm hoạt động mới thành công.');
       _notifier.loadDetail(token: _effectiveToken);
       _loadItinerarySavedPlaces();
     }
@@ -557,12 +499,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     );
 
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã cập nhật hoạt động thành công.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã cập nhật hoạt động thành công.');
       _notifier.loadDetail(token: _effectiveToken);
       _loadItinerarySavedPlaces();
     }
@@ -592,26 +529,20 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã xóa hoạt động "${activity.name}" thành công.'),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã xóa hoạt động "${activity.name}" thành công.',
       );
 
       _notifier.loadDetail(token: _effectiveToken);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể xóa hoạt động. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Không thể xóa hoạt động. Vui lòng thử lại.',
       );
     }
   }
@@ -649,12 +580,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     );
 
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã cập nhật thứ tự hoạt động.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã cập nhật thứ tự hoạt động.');
       _notifier.loadDetail(token: _effectiveToken);
     }
   }
@@ -674,13 +600,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       repository: _crudRepository,
     );
     if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Không thể cập nhật trạng thái đã ghé. Vui lòng thử lại.',
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Không thể cập nhật trạng thái đã ghé. Vui lòng thử lại.',
       );
     }
     return success;
@@ -694,12 +616,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     final token = _effectiveToken;
     if (token == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng đăng nhập để sắp xếp hoạt động.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.showError(context, 'Vui lòng đăng nhập để sắp xếp hoạt động.');
       }
       return false;
     }
@@ -712,29 +629,20 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         token: token,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã cập nhật thứ tự hoạt động.'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        AppToast.showSuccess(context, 'Đã cập nhật thứ tự hoạt động.');
         _notifier.loadDetail(token: _effectiveToken);
       }
       return true;
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-        );
+        AppToast.showError(context, e.message);
       }
       return false;
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể lưu thứ tự hoạt động. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Không thể lưu thứ tự hoạt động. Vui lòng thử lại.',
         );
       }
       return false;
@@ -770,11 +678,10 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
   Future<void> _handleToggleSave(ItineraryDetail itinerary) async {
     if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để lưu lịch trình.'),
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.showInfo(
+        context,
+        'Vui lòng đăng nhập để lưu lịch trình.',
+        duration: const Duration(seconds: 2),
       );
       return;
     }
@@ -806,20 +713,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       widget.onSocialUpdate?.call(update);
       AppSyncBus.emitItinerarySaved(itinerary.itineraryId, nextSaved);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              nextSaved ? 'Đã lưu lịch trình' : 'Đã bỏ lưu lịch trình',
-            ),
-            duration: const Duration(seconds: 2),
-          ),
+        AppToast.showInfo(
+          context,
+          nextSaved ? 'Đã lưu lịch trình' : 'Đã bỏ lưu lịch trình',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
-        );
+        AppToast.showError(context, 'Lỗi: $e');
       }
     } finally {
       if (mounted) {
@@ -835,21 +737,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     bool isOwner,
   ) async {
     if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để lưu lịch trình yêu thích.'),
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.showInfo(
+        context,
+        'Vui lòng đăng nhập để lưu lịch trình yêu thích.',
+        duration: const Duration(seconds: 2),
       );
       return;
     }
 
     if (isOwner) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bạn không thể tự yêu thích lịch trình của mình'),
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.showInfo(
+        context,
+        'Bạn không thể tự yêu thích lịch trình của mình',
+        duration: const Duration(seconds: 2),
       );
       return;
     }
@@ -886,20 +786,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       widget.onSocialUpdate?.call(update);
       AppSyncBus.emitItineraryFavorited(itinerary.itineraryId, nextFav);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình',
-            ),
-            duration: const Duration(seconds: 2),
-          ),
+        AppToast.showInfo(
+          context,
+          nextFav ? 'Đã thêm vào yêu thích' : 'Đã bỏ yêu thích lịch trình',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.error),
-        );
+        AppToast.showError(context, 'Lỗi: $e');
       }
     } finally {
       if (mounted) {
@@ -915,21 +810,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     bool isOwner,
   ) async {
     if (widget.authNotifier != null && !widget.authNotifier!.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để đánh giá lịch trình.'),
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.showInfo(
+        context,
+        'Vui lòng đăng nhập để đánh giá lịch trình.',
+        duration: const Duration(seconds: 2),
       );
       return;
     }
 
     if (isOwner) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bạn không thể tự đánh giá lịch trình của mình'),
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.showInfo(
+        context,
+        'Bạn không thể tự đánh giá lịch trình của mình',
+        duration: const Duration(seconds: 2),
       );
       return;
     }
@@ -1080,17 +973,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
           _ratingCountOverride ?? 0,
         );
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Đã xóa đánh giá')));
+          AppToast.showInfo(context, 'Đã xóa đánh giá');
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Lỗi: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
+          AppToast.showError(context, 'Lỗi: $e');
         }
       }
     } else {
@@ -1120,18 +1007,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
           _ratingCountOverride ?? 0,
         );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã gửi đánh giá thành công')),
-          );
+          AppToast.showSuccess(context, 'Đã gửi đánh giá thành công');
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Lỗi: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
+          AppToast.showError(context, 'Lỗi: $e');
         }
       }
     }
@@ -2429,23 +2309,16 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       _notifier.removeSavedPlace(ip.place.placeId);
       await _loadItinerarySavedPlaces();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Đã xóa "${ip.place.name}" khỏi danh sách lưu của lịch trình.',
-            ),
-          ),
+        AppToast.showInfo(
+          context,
+          'Đã xóa "${ip.place.name}" khỏi danh sách lưu của lịch trình.',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e is ApiException ? e.message : 'Lỗi khi xóa địa điểm',
-            ),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          e is ApiException ? e.message : 'Lỗi khi xóa địa điểm',
         );
       }
     }
@@ -2454,11 +2327,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   Future<void> _showAddPlaceToItineraryDialog() async {
     final auth = widget.authNotifier;
     if (auth == null || !auth.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để thêm địa điểm vào lịch trình.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Vui lòng đăng nhập để thêm địa điểm vào lịch trình.',
       );
       return;
     }
@@ -2499,11 +2370,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   }) async {
     final auth = widget.authNotifier;
     if (auth == null || !auth.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để lưu địa điểm vào lịch trình.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Vui lòng đăng nhập để lưu địa điểm vào lịch trình.',
       );
       return;
     }

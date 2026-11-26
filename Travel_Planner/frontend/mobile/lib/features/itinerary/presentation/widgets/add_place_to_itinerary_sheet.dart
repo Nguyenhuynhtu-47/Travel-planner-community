@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../location/data/location_repository.dart';
@@ -186,19 +187,18 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
     if (mounted) {
       setState(() => _isSavingFromItinerary = false);
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã thêm $addedCount địa điểm vào lịch trình ${_selectedTargetItinerary!.title}'),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã thêm $addedCount địa điểm vào lịch trình ${_selectedTargetItinerary!.title}',
       );
     }
   }
 
   Future<void> _searchAndSaveNewPlace() async {
     if (_selectedTargetItinerary == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn lịch trình trước khi thêm địa điểm')),
+      AppToast.showInfo(
+        context,
+        'Vui lòng chọn lịch trình trước khi thêm địa điểm',
       );
       return;
     }
@@ -246,13 +246,9 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
       if (mounted) {
         setState(() => _isResolvingAndSaving = false);
         Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Đã lưu "${pickedLocation.locationName}" vào lịch trình ${_selectedTargetItinerary!.title}',
-            ),
-            backgroundColor: AppColors.success,
-          ),
+        AppToast.showSuccess(
+          context,
+          'Đã lưu "${pickedLocation.locationName}" vào lịch trình ${_selectedTargetItinerary!.title}',
         );
       }
     } on ApiException catch (e) {
@@ -261,18 +257,14 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
         final msg = e.statusCode == 409
             ? 'Địa điểm này đã có trong lịch trình'
             : e.message;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppColors.error),
-        );
+        AppToast.showError(context, msg);
       }
     } catch (_) {
       if (mounted) {
         setState(() => _isResolvingAndSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể lưu địa điểm. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Không thể lưu địa điểm. Vui lòng thử lại.',
         );
       }
     }

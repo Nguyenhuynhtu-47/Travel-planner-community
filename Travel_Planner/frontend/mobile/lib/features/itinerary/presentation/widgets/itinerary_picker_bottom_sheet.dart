@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../location/data/models/location_search_result.dart';
@@ -210,11 +211,9 @@ class _ItineraryPickerBottomSheetState
   Future<void> _handleSaveToItinerary(ItinerarySummary itinerary) async {
     final targetPlaceId = widget.place.internalPlaceId;
     if (targetPlaceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Địa điểm không hợp lệ để lưu vào lịch trình.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Địa điểm không hợp lệ để lưu vào lịch trình.',
       );
       return;
     }
@@ -245,28 +244,10 @@ class _ItineraryPickerBottomSheetState
 
       widget.onSaved?.call(itinerary.itineraryId);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: Colors.white,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Đã lưu "${widget.place.name}" vào "${itinerary.title}"!',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 3),
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã lưu "${widget.place.name}" vào "${itinerary.title}"!',
+        duration: const Duration(seconds: 3),
       );
 
       // Smooth dismiss
@@ -286,58 +267,30 @@ class _ItineraryPickerBottomSheetState
         setState(() {
           _savedItineraryIds.add(itinerary.itineraryId);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Địa điểm này đã được lưu trong lịch trình "${itinerary.title}".',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.textPrimary,
-            duration: const Duration(seconds: 3),
-          ),
+        AppToast.showInfo(
+          context,
+          'Địa điểm này đã được lưu trong lịch trình "${itinerary.title}".',
+          duration: const Duration(seconds: 3),
         );
       } else if (e.statusCode == 401) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
         );
       } else if (e.statusCode == 403) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bạn không có quyền chỉnh sửa lịch trình này.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Bạn không có quyền chỉnh sửa lịch trình này.',
         );
       } else if (e.statusCode == 404) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lịch trình hoặc địa điểm không tồn tại.'),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          'Lịch trình hoặc địa điểm không tồn tại.',
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.message.isNotEmpty ? e.message : 'Lỗi khi lưu địa điểm.',
-            ),
-            backgroundColor: AppColors.error,
-          ),
+        AppToast.showError(
+          context,
+          e.message.isNotEmpty ? e.message : 'Lỗi khi lưu địa điểm.',
         );
       }
     } catch (_) {
@@ -345,24 +298,18 @@ class _ItineraryPickerBottomSheetState
       setState(() {
         _savingItineraryId = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lỗi kết nối máy chủ. Vui lòng kiểm tra mạng.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Lỗi kết nối máy chủ. Vui lòng kiểm tra mạng.',
       );
     }
   }
 
   void _handleSelectForSchedule(ItinerarySummary item) {
     if (item.totalDays == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lịch trình này chưa có ngày nào. Vui lòng mở chi tiết lịch trình để thêm ngày trước.',
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Lịch trình này chưa có ngày nào. Vui lòng mở chi tiết lịch trình để thêm ngày trước.',
       );
       return;
     }
@@ -388,10 +335,9 @@ class _ItineraryPickerBottomSheetState
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Vui lòng tạo lịch trình mới từ thanh điều hướng bên dưới.'),
-      ),
+    AppToast.showInfo(
+      context,
+      'Vui lòng tạo lịch trình mới từ thanh điều hướng bên dưới.',
     );
   }
 

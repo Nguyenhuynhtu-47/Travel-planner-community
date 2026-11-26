@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -121,9 +122,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       final bytes = await image.readAsBytes();
       if (bytes.length > 5 * 1024 * 1024) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ảnh không được vượt quá 5 MB')),
-          );
+          AppToast.showWarning(context, 'Ảnh không được vượt quá 5 MB');
         }
         return;
       }
@@ -135,10 +134,9 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể mở thư viện ảnh. Vui lòng thử lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể mở thư viện ảnh. Vui lòng thử lại.',
         );
       }
     }
@@ -184,27 +182,18 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         _fillFields(profile);
         _saving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã cập nhật hồ sơ'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã cập nhật hồ sơ');
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể lưu thông tin hồ sơ. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Không thể lưu thông tin hồ sơ. Vui lòng thử lại.',
       );
     }
   }

@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart' hide Path;
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/services/image_picker_service.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../location/data/location_repository.dart';
@@ -294,12 +295,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
       });
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể đọc ảnh đã chọn.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Không thể đọc ảnh đã chọn.');
     }
   }
 
@@ -430,11 +426,9 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
 
     final token = widget.authNotifier.token;
     if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập để thực hiện thao tác.'),
-          backgroundColor: AppColors.error,
-        ),
+      AppToast.showError(
+        context,
+        'Vui lòng đăng nhập để thực hiện thao tác.',
       );
       return;
     }
@@ -519,18 +513,11 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã có lỗi xảy ra. Vui lòng thử lại.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Đã có lỗi xảy ra. Vui lòng thử lại.');
     }
   }
 

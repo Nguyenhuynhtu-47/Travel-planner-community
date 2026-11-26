@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_otp_input.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -141,14 +141,9 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
       final cooldown = (response['cooldownSeconds'] as num?)?.toInt() ?? 60;
       _startCountdown(cooldown);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Mã xác nhận mới đã được gửi nếu email tồn tại.',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Mã xác nhận mới đã được gửi nếu email tồn tại.',
       );
     } on ApiException catch (e) {
       if (mounted) {

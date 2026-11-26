@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 
 class DeviceSessionsScreen extends StatefulWidget {
@@ -84,26 +85,14 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
     try {
       await widget.authNotifier.revokeSession(sessionId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã thu hồi phiên đăng nhập thành công'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.showSuccess(context, 'Đã thu hồi phiên đăng nhập thành công');
       await _loadSessions();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã có lỗi xảy ra. Vui lòng thử lại sau.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Đã có lỗi xảy ra. Vui lòng thử lại sau.');
     } finally {
       if (mounted) {
         setState(() => _isRevoking = false);
@@ -140,26 +129,17 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
     try {
       final count = await widget.authNotifier.revokeOtherSessions();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã đăng xuất thành công khỏi $count thiết bị khác'),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Đã đăng xuất thành công khỏi $count thiết bị khác',
       );
       await _loadSessions();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
-      );
+      AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã có lỗi xảy ra. Vui lòng thử lại sau.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.showError(context, 'Đã có lỗi xảy ra. Vui lòng thử lại sau.');
     } finally {
       if (mounted) {
         setState(() => _isRevoking = false);

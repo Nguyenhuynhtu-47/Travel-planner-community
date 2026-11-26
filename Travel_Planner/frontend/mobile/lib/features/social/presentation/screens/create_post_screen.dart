@@ -6,6 +6,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/data/itinerary_crud_repository.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -115,9 +116,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   Future<void> _pickImages() async {
     if (_isUploading) return;
     if (_mediaItems.length >= 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tối đa 5 ảnh cho mỗi bài viết')),
-      );
+      AppToast.showWarning(context, 'Tối đa 5 ảnh cho mỗi bài viết');
       return;
     }
 
@@ -170,8 +169,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Một số ảnh tải lên thất bại. Vui lòng thử lại.')),
+            AppToast.showError(
+              context,
+              'Một số ảnh tải lên thất bại. Vui lòng thử lại.',
             );
           }
         }
@@ -220,8 +220,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể thay thế ảnh. Vui lòng thử lại.')),
+        AppToast.showError(
+          context,
+          'Không thể thay thế ảnh. Vui lòng thử lại.',
         );
       }
     } finally {
@@ -252,8 +253,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   Future<void> _submit() async {
     if (_isUploading) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đang tải ảnh lên, vui lòng chờ trong giây lát...')),
+      AppToast.showInfo(
+        context,
+        'Đang tải ảnh lên, vui lòng chờ trong giây lát...',
       );
       return;
     }
@@ -276,8 +278,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     if (content.isEmpty && _mediaItems.isEmpty && !hasItinerary) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vui lòng nhập nội dung, thêm ảnh hoặc đính kèm lịch trình')),
+        AppToast.showWarning(
+          context,
+          'Vui lòng nhập nội dung, thêm ảnh hoặc đính kèm lịch trình',
         );
       }
       return;
@@ -304,9 +307,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         AppSyncBus.emitPostUpdated(updated, widget.editingPost!.postId);
         if (mounted) {
           Navigator.pop(context, updated);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Chỉnh sửa bài viết thành công')),
-          );
+          AppToast.showSuccess(context, 'Chỉnh sửa bài viết thành công');
         }
       } else {
         // Create Post
@@ -322,9 +323,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         AppSyncBus.emitPostCreated(created);
         if (mounted) {
           Navigator.pop(context, created);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đăng bài viết thành công')),
-          );
+          AppToast.showSuccess(context, 'Đăng bài viết thành công');
         }
       }
     } catch (e) {
@@ -335,9 +334,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             : (e is Exception
                 ? e.toString().replaceFirst('Exception: ', '')
                 : 'Không thể đăng bài viết. Vui lòng thử lại.');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg)),
-        );
+        AppToast.showError(context, errorMsg);
       }
     }
   }

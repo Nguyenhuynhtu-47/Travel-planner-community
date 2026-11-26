@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -69,12 +69,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       final message = response['message'] as String? ??
           'Đổi mật khẩu thành công. Vui lòng đăng nhập lại.';
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message, style: const TextStyle(color: Colors.white)),
-          backgroundColor: AppColors.success,
-          duration: const Duration(seconds: 4),
-        ),
+      AppToast.showSuccess(
+        context,
+        message,
+        duration: const Duration(seconds: 4),
       );
 
       // Navigate cleanly back to Login screen (never Home)

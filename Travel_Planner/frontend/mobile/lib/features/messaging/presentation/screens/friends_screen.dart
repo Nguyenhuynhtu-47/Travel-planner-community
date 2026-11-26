@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/data/models/public_user_summary.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
@@ -144,9 +145,7 @@ class _FriendsScreenState extends State<FriendsScreen>
       if (mounted) _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể mở cuộc trò chuyện.')),
-        );
+        AppToast.showError(context, 'Không thể mở cuộc trò chuyện.');
       }
     }
   }
@@ -169,9 +168,7 @@ class _FriendsScreenState extends State<FriendsScreen>
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể cập nhật lời mời.')),
-        );
+        AppToast.showError(context, 'Không thể cập nhật lời mời.');
       }
     }
   }

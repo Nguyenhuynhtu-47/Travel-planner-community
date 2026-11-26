@@ -7,6 +7,7 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
@@ -197,16 +198,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   }
 
   void _showLoginRequiredPrompt(String action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Vui lòng đăng nhập để $action'),
-        action: SnackBarAction(
-          label: 'Đăng nhập',
-          onPressed: () {
-            // Optional trigger
-          },
-        ),
-      ),
+    AppToast.showWarning(
+      context,
+      'Vui lòng đăng nhập để $action',
+      actionLabel: 'Đăng nhập',
+      onAction: () {
+        // Optional trigger
+      },
     );
   }
 
@@ -266,14 +264,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         _notifier.removePost(post.postId);
         AppSyncBus.emitPostDeleted(post.postId);
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Đã xóa bài viết')));
+          AppToast.showSuccess(context, 'Đã xóa bài viết');
         }
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Không thể xóa bài viết')),
-          );
+          AppToast.showError(context, 'Không thể xóa bài viết');
         }
       }
     }
@@ -312,12 +307,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     ).then((shared) {
       if (shared == true && mounted) {
         _notifier.refresh(_token);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã chia sẻ bài viết thành công!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        AppToast.showSuccess(context, 'Đã chia sẻ bài viết thành công!');
       }
     });
   }

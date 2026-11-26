@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../data/community_post_repository.dart';
 
 class ReportPostDialog extends StatefulWidget {
@@ -59,17 +60,17 @@ class _ReportPostDialogState extends State<ReportPostDialog> {
 
       if (mounted) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét trong thời gian sớm nhất.'),
-          ),
+        AppToast.showSuccess(
+          context,
+          'Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét trong thời gian sớm nhất.',
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể gửi báo cáo. Vui lòng thử lại sau.')),
+        AppToast.showError(
+          context,
+          'Không thể gửi báo cáo. Vui lòng thử lại sau.',
         );
       }
     }

@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
@@ -170,9 +171,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Future<void> _likePost(PostModel post) async {
     final token = _token;
     if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đăng nhập để thích bài viết.')),
-      );
+      AppToast.showWarning(context, 'Đăng nhập để thích bài viết.');
       return;
     }
 
@@ -247,19 +246,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   void _openReport(PostModel post) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã ghi nhận báo cáo bài viết. Cảm ơn phản hồi của bạn!'),
-      ),
+    AppToast.showSuccess(
+      context,
+      'Đã ghi nhận báo cáo bài viết. Cảm ơn phản hồi của bạn!',
     );
   }
 
   Future<void> _toggleFollow() async {
     final token = _token;
     if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đăng nhập để theo dõi người dùng.')),
-      );
+      AppToast.showWarning(context, 'Đăng nhập để theo dõi người dùng.');
       return;
     }
     if (_followBusy) return;
@@ -286,10 +282,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể cập nhật theo dõi. Vui lòng thử lại.'),
-          ),
+        AppToast.showError(
+          context,
+          'Không thể cập nhật theo dõi. Vui lòng thử lại.',
         );
       }
     } finally {
@@ -300,9 +295,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Future<void> _relationshipAction(String action) async {
     final token = _token;
     if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đăng nhập để kết nối với người dùng.')),
-      );
+      AppToast.showWarning(context, 'Đăng nhập để kết nối với người dùng.');
       return;
     }
     if (_relationshipBusy) return;
@@ -344,9 +337,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể cập nhật quan hệ bạn bè.')),
-        );
+        AppToast.showError(context, 'Không thể cập nhật quan hệ bạn bè.');
       }
     } finally {
       if (mounted) setState(() => _relationshipBusy = false);
@@ -356,9 +347,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Future<void> _openConversation(PublicProfile profile) async {
     final token = _token;
     if (token == null || widget.authNotifier == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đăng nhập để nhắn tin với người dùng.')),
-      );
+      AppToast.showWarning(context, 'Đăng nhập để nhắn tin với người dùng.');
       return;
     }
     try {
@@ -411,15 +400,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         return;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.message)));
+        AppToast.showError(context, error.message);
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bạn chưa thể nhắn tin cho người dùng này.'),
-          ),
+        AppToast.showError(
+          context,
+          'Bạn chưa thể nhắn tin cho người dùng này.',
         );
       }
     }

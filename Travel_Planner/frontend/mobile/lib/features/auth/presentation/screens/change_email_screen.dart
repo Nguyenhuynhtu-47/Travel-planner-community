@@ -7,6 +7,7 @@ import '../../../../shared/widgets/app_otp_input.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 
 class ChangeEmailScreen extends StatefulWidget {
@@ -118,11 +119,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
 
       if (!mounted) return;
       _startCountdown();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mã xác thực mới đã được gửi đến email.'),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        'Mã xác thực mới đã được gửi đến email.',
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -159,11 +158,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res['message']?.toString() ?? 'Đổi địa chỉ email thành công'),
-          backgroundColor: AppColors.success,
-        ),
+      AppToast.showSuccess(
+        context,
+        res['message']?.toString() ?? 'Đổi địa chỉ email thành công',
       );
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {

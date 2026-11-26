@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -61,12 +61,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           'Nếu địa chỉ email tồn tại trong hệ thống, mã xác nhận đặt lại mật khẩu sẽ được gửi đến hộp thư của bạn.';
       final cooldown = (response['cooldownSeconds'] as num?)?.toInt() ?? 60;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message, style: const TextStyle(color: Colors.white)),
-          backgroundColor: AppColors.success,
-          duration: const Duration(seconds: 4),
-        ),
+      AppToast.showSuccess(
+        context,
+        message,
+        duration: const Duration(seconds: 4),
       );
 
       // Navigate to Step 2 — ForgotPasswordOtpScreen
