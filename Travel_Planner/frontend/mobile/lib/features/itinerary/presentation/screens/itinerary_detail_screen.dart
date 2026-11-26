@@ -2110,19 +2110,22 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Compact Cover Image Banner (110dp if image present, 64dp if placeholder)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              height: hasImage ? 110 : 76,
-              width: double.infinity,
-              child: hasImage
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          _imagePlaceholder(itinerary.location),
-                    )
-                  : _imagePlaceholder(itinerary.location),
+          Hero(
+            tag: 'itinerary_card_${itinerary.itineraryId}',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: hasImage ? 110 : 76,
+                width: double.infinity,
+                child: hasImage
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            _imagePlaceholder(itinerary.location),
+                      )
+                    : _imagePlaceholder(itinerary.location),
+              ),
             ),
           ),
           const SizedBox(height: 10),

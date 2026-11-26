@@ -15,6 +15,7 @@ class ItineraryCard extends StatelessWidget {
   final Color? actionIconColor;
   final VoidCallback? onActionTap;
   final VoidCallback? onCreatorTap;
+  final String? heroTag;
 
   const ItineraryCard({
     super.key,
@@ -28,6 +29,7 @@ class ItineraryCard extends StatelessWidget {
     this.actionIconColor,
     this.onActionTap,
     this.onCreatorTap,
+    this.heroTag,
   });
 
   String _formatBudget(double budget) {
@@ -71,50 +73,53 @@ class ItineraryCard extends StatelessWidget {
             // Cover Photo Container
             Stack(
               children: [
-                AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child:
-                      itinerary.coverImage != null &&
-                          itinerary.coverImage!.trim().isNotEmpty
-                      ? Image.network(
-                          itinerary.coverImage!.trim(),
-                          fit: BoxFit.cover,
-                          frameBuilder:
-                              (context, child, frame, wasSynchronouslyLoaded) {
-                                if (wasSynchronouslyLoaded) return child;
-                                final disableMotion =
-                                    MediaQuery.maybeOf(context)
-                                        ?.disableAnimations ??
-                                    false;
-                                return AnimatedOpacity(
-                                  opacity: frame == null ? 0 : 1,
-                                  duration: disableMotion
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 200),
-                                  curve: Curves.easeOutCubic,
-                                  child: child,
-                                );
-                              },
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildImagePlaceholder(),
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: AppColors.surfaceSoft,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primary,
+                Hero(
+                  tag: heroTag ?? 'itinerary_card_${itinerary.itineraryId}',
+                  child: AspectRatio(
+                    aspectRatio: 16 / 10,
+                    child:
+                        itinerary.coverImage != null &&
+                            itinerary.coverImage!.trim().isNotEmpty
+                        ? Image.network(
+                            itinerary.coverImage!.trim(),
+                            fit: BoxFit.cover,
+                            frameBuilder:
+                                (context, child, frame, wasSynchronouslyLoaded) {
+                                  if (wasSynchronouslyLoaded) return child;
+                                  final disableMotion =
+                                      MediaQuery.maybeOf(context)
+                                          ?.disableAnimations ??
+                                      false;
+                                  return AnimatedOpacity(
+                                    opacity: frame == null ? 0 : 1,
+                                    duration: disableMotion
+                                        ? Duration.zero
+                                        : const Duration(milliseconds: 200),
+                                    curve: Curves.easeOutCubic,
+                                    child: child,
+                                  );
+                                },
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildImagePlaceholder(),
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: AppColors.surfaceSoft,
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
-                        )
-                      : _buildImagePlaceholder(),
+                              );
+                            },
+                          )
+                        : _buildImagePlaceholder(),
+                  ),
                 ),
 
                 // Top Badge (Guest Favorite)

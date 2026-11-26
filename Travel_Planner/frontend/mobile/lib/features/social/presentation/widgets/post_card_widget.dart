@@ -15,6 +15,7 @@ class PostCardWidget extends StatelessWidget {
   final void Function(int itineraryId)? onItineraryTap;
   final void Function(int userId)? onUserTap;
   final EdgeInsetsGeometry? margin;
+  final String? heroScope;
 
   const PostCardWidget({
     super.key,
@@ -28,6 +29,7 @@ class PostCardWidget extends StatelessWidget {
     this.onItineraryTap,
     this.onUserTap,
     this.margin,
+    this.heroScope,
   });
 
   String _formatTime(DateTime time) {
@@ -373,18 +375,32 @@ class PostCardWidget extends StatelessWidget {
     );
   }
 
+  List<String> _heroTagsFor(int count) => [
+        for (int i = 0; i < count; i++)
+          '${heroScope ?? 'post'}_media_${post.postId}_$i',
+      ];
+
   Widget _buildPhotoGrid(BuildContext context, List<String> urls) {
     final count = urls.length;
     if (count == 1) {
+      final tags = _heroTagsFor(count);
       return BounceTap(
         child: GestureDetector(
-          onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: 0),
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: Image.network(
-              urls[0],
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+          onTap: () => FullscreenImageViewer.open(
+            context,
+            urls: urls,
+            initialIndex: 0,
+            heroTags: tags,
+          ),
+          child: Hero(
+            tag: tags[0],
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Image.network(
+                urls[0],
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+              ),
             ),
           ),
         ),
@@ -483,15 +499,24 @@ class PostCardWidget extends StatelessWidget {
   }
 
   Widget _singleImage(BuildContext context, List<String> urls, int index) {
+    final tags = _heroTagsFor(urls.length);
     return BounceTap(
       child: GestureDetector(
-        onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: index),
-        child: Image.network(
-          urls[index],
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+        onTap: () => FullscreenImageViewer.open(
+          context,
+          urls: urls,
+          initialIndex: index,
+          heroTags: tags,
+        ),
+        child: Hero(
+          tag: tags[index],
+          child: Image.network(
+            urls[index],
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+          ),
         ),
       ),
     );

@@ -278,8 +278,8 @@ class _CollectionScreenState extends State<CollectionScreen>
           return TabBarView(
             controller: _tabController,
             children: [
-              _buildSavedTab(),
-              _buildFavoriteTab(),
+              _KeepAliveCollectionTab(child: _buildSavedTab()),
+              _KeepAliveCollectionTab(child: _buildFavoriteTab()),
             ],
           );
         },
@@ -418,6 +418,7 @@ class _CollectionScreenState extends State<CollectionScreen>
           final isOwner = _isItineraryOwner(item);
           return ItineraryCard(
             itinerary: item,
+            heroTag: 'collection_fav_${item.itineraryId}',
             actionIcon: isOwner ? null : Icons.favorite,
             actionIconColor: Colors.redAccent,
             onActionTap: isOwner ? null : () => _handleRemoveFavorite(item),
@@ -427,6 +428,28 @@ class _CollectionScreenState extends State<CollectionScreen>
         },
       ),
     );
+  }
+}
+
+class _KeepAliveCollectionTab extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveCollectionTab({required this.child});
+
+  @override
+  State<_KeepAliveCollectionTab> createState() =>
+      _KeepAliveCollectionTabState();
+}
+
+class _KeepAliveCollectionTabState extends State<_KeepAliveCollectionTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 

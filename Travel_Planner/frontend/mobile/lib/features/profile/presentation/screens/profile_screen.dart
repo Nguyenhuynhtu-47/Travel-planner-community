@@ -433,6 +433,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openSettings() async {
     final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
+        fullscreenDialog: true,
         builder: (_) => PersonalInfoScreen(
           authNotifier: widget.authNotifier,
           repository: _repository,
@@ -1164,6 +1165,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openEditMyPost(PostModel post) async {
     final updated = await Navigator.of(context).push<PostModel>(
       MaterialPageRoute(
+        fullscreenDialog: true,
         builder: (_) => CreatePostScreen(
           authNotifier: widget.authNotifier,
           editingPost: post,

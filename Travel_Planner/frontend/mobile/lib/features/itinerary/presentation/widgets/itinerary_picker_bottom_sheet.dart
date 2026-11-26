@@ -328,6 +328,7 @@ class _ItineraryPickerBottomSheetState
     if (widget.authNotifier != null) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
+          fullscreenDialog: true,
           builder: (_) => CreateItineraryScreen(
             authNotifier: widget.authNotifier!,
             repository: _repository,

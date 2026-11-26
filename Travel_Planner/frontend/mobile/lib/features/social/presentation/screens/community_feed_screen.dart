@@ -217,6 +217,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        fullscreenDialog: true,
         builder: (_) => CreatePostScreen(
           authNotifier: widget.authNotifier!,
           repository: _repo,
@@ -229,6 +230,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   void _openEditPost(PostModel post) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        fullscreenDialog: true,
         builder: (_) => CreatePostScreen(
           authNotifier: widget.authNotifier!,
           repository: _repo,
@@ -470,10 +472,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
             controller: _tabController,
             children: [
               // Tab 1: Public Feed ("Dành cho bạn")
-              _buildFeedStream(_notifier.publicPosts, isFollowingTab: false),
+              _KeepAliveTabPage(
+                child: _buildFeedStream(_notifier.publicPosts, isFollowingTab: false),
+              ),
 
               // Tab 2: Following Feed ("Đang theo dõi")
-              _buildFeedStream(_notifier.followingPosts, isFollowingTab: true),
+              _KeepAliveTabPage(
+                child: _buildFeedStream(_notifier.followingPosts, isFollowingTab: true),
+              ),
             ],
           ),
         );
@@ -538,6 +544,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         recordRefreshedNow();
       },
       child: ListView.builder(
+        key: PageStorageKey<String>(
+          isFollowingTab ? 'community_following_feed' : 'community_public_feed',
+        ),
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: posts.length + (_notifier.isLoadingMore ? 1 : 0),
@@ -558,6 +567,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
           final post = posts[index];
           return PostCardWidget(
             post: post,
+            heroScope: isFollowingTab ? 'following' : 'public',
             onLike: () {
               if (!_isAuthenticated || _token == null) {
                 _showLoginRequiredPrompt('thích bài viết');
@@ -576,5 +586,26 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         },
       ),
     );
+  }
+}
+
+class _KeepAliveTabPage extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveTabPage({required this.child});
+
+  @override
+  State<_KeepAliveTabPage> createState() => _KeepAliveTabPageState();
+}
+
+class _KeepAliveTabPageState extends State<_KeepAliveTabPage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

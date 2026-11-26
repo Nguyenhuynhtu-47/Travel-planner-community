@@ -111,7 +111,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: IndexedStack(
+      body: _AnimatedTabStack(
         index: _currentIndex,
         children: [
           ExploreScreen(
@@ -260,6 +260,135 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                 tooltip: 'Lịch trình của tôi',
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Preserves state of all tab children (like [IndexedStack]) while applying a
+/// directional horizontal slide + subtle fade transition between tab switches.
+class _AnimatedTabStack extends StatefulWidget {
+  final int index;
+  final List<Widget> children;
+
+  const _AnimatedTabStack({
+    required this.index,
+    required this.children,
+  });
+
+  @override
+  State<_AnimatedTabStack> createState() => _AnimatedTabStackState();
+}
+
+class _AnimatedTabStackState extends State<_AnimatedTabStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late Animation<double> _animation;
+  late int _currentIndex;
+  int? _previousIndex;
+  bool _isForward = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.index;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+      value: 1.0,
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() {
+          _previousIndex = null;
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedTabStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index != _currentIndex) {
+      final disableMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      _isForward = widget.index > _currentIndex;
+      _previousIndex = _currentIndex;
+      _currentIndex = widget.index;
+
+      if (disableMotion) {
+        _previousIndex = null;
+        _controller.value = 1.0;
+      } else {
+        _controller.forward(from: 0.0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isAnimating =
+        _previousIndex != null && _controller.status != AnimationStatus.completed;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (int i = 0; i < widget.children.length; i++)
+          _buildChild(i, isAnimating),
+      ],
+    );
+  }
+
+  Widget _buildChild(int i, bool isAnimating) {
+    final isCurrent = i == _currentIndex;
+    final isPrevious = isAnimating && i == _previousIndex;
+    final isVisible = isCurrent || isPrevious;
+
+    final dir = _isForward ? 1.0 : -1.0;
+    final Animation<Offset> slideAnim;
+    final Animation<double> fadeAnim;
+
+    if (isAnimating && isCurrent) {
+      slideAnim = Tween<Offset>(
+        begin: Offset(0.18 * dir, 0.0),
+        end: Offset.zero,
+      ).animate(_animation);
+      fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(_animation);
+    } else if (isAnimating && isPrevious) {
+      slideAnim = Tween<Offset>(
+        begin: Offset.zero,
+        end: Offset(-0.12 * dir, 0.0),
+      ).animate(_animation);
+      fadeAnim = Tween<double>(begin: 1.0, end: 0.0).animate(_animation);
+    } else {
+      slideAnim = const AlwaysStoppedAnimation<Offset>(Offset.zero);
+      fadeAnim = const AlwaysStoppedAnimation<double>(1.0);
+    }
+
+    return SlideTransition(
+      position: slideAnim,
+      child: FadeTransition(
+        opacity: fadeAnim,
+        child: TickerMode(
+          enabled: isVisible,
+          child: Offstage(
+            offstage: !isVisible,
+            child: IgnorePointer(
+              ignoring: !isCurrent,
+              child: widget.children[i],
+            ),
           ),
         ),
       ),
