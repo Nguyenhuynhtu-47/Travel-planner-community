@@ -40,6 +40,24 @@ Backend tự động đọc thông tin xác thực từ file `.env` hoặc từ 
 - Backend sẽ khởi chạy tại: **`http://localhost:8080`**
 - Kiểm tra trạng thái dịch vụ (Health Check): `http://localhost:8080/api/health`
 
+### Bật push tin nhắn Android (Firebase Cloud Messaging)
+
+Push mặc định tắt (`FCM_ENABLED=false`). Android đã dùng Firebase project `travel-planner-54f53`; để gửi push từ backend, trước tiên bật FCM HTTP v1 trong Firebase Console và cấp quyền **Firebase Cloud Messaging API Admin** cho service account mà backend dùng. Cấu hình ADC bằng `gcloud auth application-default login` hoặc đặt `GOOGLE_APPLICATION_CREDENTIALS` trỏ tới service-account JSON nằm ngoài repository. Không chép khóa service account vào `google-services.json`, `.env` hoặc Git.
+
+Ở local/test, cấu hình JPA hiện tại dùng `ddl-auto=update`, nên Hibernate cập nhật schema từ Entity khi backend khởi động. Notification dùng cùng cơ chế Entity/Repository này, không có bộ migration hay SQL triển khai riêng. Profile dùng `ddl-auto=validate` chỉ xác minh schema; môi trường production phải provision schema qua quy trình quản trị database của dự án trước khi triển khai ứng dụng. Không đổi `ddl-auto` hoặc áp dụng DDL lên production như một cách triển khai nhanh. Sau khi schema đã được provision và ADC đã được cấp quyền, trong PowerShell khởi động backend:
+
+Notification Admin actions reuse `notifications` and add nullable `action_type`; shared announcements use the single `SYSTEM` group. Before deploying with `ddl-auto=validate`, the DBA provisioning step must ensure `notifications.type` accepts `SYSTEM`, add nullable `notifications.action_type`, and convert legacy `system_announcements.type` to `VARCHAR(24)`. Inspect the actual production schema first and preserve all existing rows. No dev/production database was changed by this code task; JPA auto-update was verified only on `travel_planner_test`.
+
+```powershell
+$env:FCM_ENABLED = "true"
+$env:FIREBASE_PROJECT_ID = "travel-planner-54f53"
+# Chỉ cần nếu chưa đăng nhập ADC bằng gcloud:
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\secure\firebase-service-account.json"
+.\mvnw.cmd spring-boot:run
+```
+
+Mobile đăng ký Firebase Installation ID (FID) sau khi người dùng đăng nhập, yêu cầu quyền thông báo Android, gỡ đăng ký khi đăng xuất và mở Hộp thư khi bấm push. Push không chứa nội dung tin nhắn. iOS/APNs chưa được cấu hình trong phase Android-first.
+
 ### Cấu hình upload ảnh Cloudinary
 Endpoint upload yêu cầu JWT: `POST /api/media/images` với multipart field `file`.
 Chấp nhận JPEG, PNG hoặc WebP tối đa 5 MiB; response chứa `secureUrl`. Backend ký trực tiếp yêu cầu upload bằng credentials từ `.env` (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`).
