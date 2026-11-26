@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -111,9 +112,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               title: const Text('Tài khoản đã tồn tại'),
               content: Text(error),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Đã hiểu'),
+                BounceTap(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Đã hiểu'),
+                  ),
                 ),
               ],
             ),
@@ -259,19 +262,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         fontSize: 14,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        widget.authNotifier.clearErrors();
-                        Navigator.pop(context);
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'Đăng nhập ngay',
-                          style: TextStyle(
-                            color: AuthUiTokens.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                    BounceTap(
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.authNotifier.clearErrors();
+                          Navigator.pop(context);
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'Đăng nhập ngay',
+                            style: TextStyle(
+                              color: AuthUiTokens.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ),

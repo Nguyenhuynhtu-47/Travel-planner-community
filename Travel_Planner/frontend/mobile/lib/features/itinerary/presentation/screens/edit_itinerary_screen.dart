@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
@@ -392,28 +393,31 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
                 runSpacing: 4,
                 children: _suggestedThemes.map((t) {
                   final isSelected = _themeController.text.trim() == t;
-                  return ChoiceChip(
-                    label: Text(
-                      t,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.textPrimary,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
+                  return BounceTap(
+                    useSelectionHaptic: true,
+                    child: ChoiceChip(
+                      label: Text(
+                        t,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
                       ),
+                      selected: isSelected,
+                      selectedColor: AppColors.primary,
+                      backgroundColor: AppColors.surfaceSoft,
+                      showCheckmark: false,
+                      onSelected: (selected) {
+                        setState(() {
+                          _themeController.text = selected ? t : '';
+                        });
+                      },
                     ),
-                    selected: isSelected,
-                    selectedColor: AppColors.primary,
-                    backgroundColor: AppColors.surfaceSoft,
-                    showCheckmark: false,
-                    onSelected: (selected) {
-                      setState(() {
-                        _themeController.text = selected ? t : '';
-                      });
-                    },
                   );
                 }).toList(),
               ),
@@ -501,9 +505,11 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
   }) {
     final isSelected = _visibility == value;
 
-    return InkWell(
-      onTap: () => setState(() => _visibility = value),
-      borderRadius: BorderRadius.circular(12),
+    return BounceTap(
+      useSelectionHaptic: true,
+      child: InkWell(
+        onTap: () => setState(() => _visibility = value),
+        borderRadius: BorderRadius.circular(12),
       child: Container(
         height: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -556,6 +562,7 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

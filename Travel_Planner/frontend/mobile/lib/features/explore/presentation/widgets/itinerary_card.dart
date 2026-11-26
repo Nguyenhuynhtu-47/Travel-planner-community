@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../../data/models/itinerary_summary.dart';
 
 class ItineraryCard extends StatelessWidget {
@@ -44,24 +45,26 @@ class ItineraryCard extends StatelessWidget {
     final isTopRated =
         itinerary.averageRating >= 4.5 && itinerary.ratingCount >= 2;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+    return BounceTap(
+      enabled: onTap != null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.hairline),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x08000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -298,43 +301,46 @@ class ItineraryCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Divider(height: 1, color: AppColors.hairlineSoft),
                     const SizedBox(height: 8),
-                    InkWell(
-                      onTap: onCreatorTap,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 10,
-                          backgroundColor: AppColors.surfaceSoft,
-                          backgroundImage:
-                              itinerary.creator!.avatar != null &&
-                                  itinerary.creator!.avatar!.trim().isNotEmpty
-                              ? NetworkImage(itinerary.creator!.avatar!.trim())
-                              : null,
-                          child:
-                              itinerary.creator!.avatar == null ||
-                                  itinerary.creator!.avatar!.trim().isEmpty
-                              ? const Icon(
-                                  Icons.person,
-                                  size: 12,
-                                  color: AppColors.muted,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Bởi ${itinerary.creator!.displayName}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    BounceTap(
+                      enabled: onCreatorTap != null,
+                      child: InkWell(
+                        onTap: onCreatorTap,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 10,
+                            backgroundColor: AppColors.surfaceSoft,
+                            backgroundImage:
+                                itinerary.creator!.avatar != null &&
+                                    itinerary.creator!.avatar!.trim().isNotEmpty
+                                ? NetworkImage(itinerary.creator!.avatar!.trim())
+                                : null,
+                            child:
+                                itinerary.creator!.avatar == null ||
+                                    itinerary.creator!.avatar!.trim().isEmpty
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 12,
+                                    color: AppColors.muted,
+                                  )
+                                : null,
                           ),
-                        ),
-                      ],
-                    )),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Bởi ${itinerary.creator!.displayName}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      )),
+                    ),
                   ],
                 ],
               ),
@@ -342,6 +348,7 @@ class ItineraryCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -392,39 +399,42 @@ class _FavoriteHeartButtonState extends State<_FavoriteHeartButton> {
     final disableMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: widget.onTap,
-        onTapDown: (_) {
-          if (!disableMotion) setState(() => _pressed = true);
-        },
-        onTapUp: (_) {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        onTapCancel: () {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        customBorder: const CircleBorder(),
-        child: AnimatedScale(
-          scale: _pressed ? 0.88 : 1.0,
-          duration: disableMotion
-              ? Duration.zero
-              : const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(50),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              widget.isFavorited
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
-              size: 20,
-              color: widget.isFavorited ? Colors.redAccent : Colors.white,
+    return BounceTap.icon(
+      enabled: widget.onTap != null,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: widget.onTap,
+          onTapDown: (_) {
+            if (!disableMotion) setState(() => _pressed = true);
+          },
+          onTapUp: (_) {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          onTapCancel: () {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          customBorder: const CircleBorder(),
+          child: AnimatedScale(
+            scale: _pressed ? 0.88 : 1.0,
+            duration: disableMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(50),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                widget.isFavorited
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                size: 20,
+                color: widget.isFavorited ? Colors.redAccent : Colors.white,
+              ),
             ),
           ),
         ),
@@ -457,37 +467,40 @@ class _CustomCardActionButtonState extends State<_CustomCardActionButton> {
     final disableMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: widget.onTap,
-        onTapDown: (_) {
-          if (!disableMotion) setState(() => _pressed = true);
-        },
-        onTapUp: (_) {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        onTapCancel: () {
-          if (!disableMotion) setState(() => _pressed = false);
-        },
-        customBorder: const CircleBorder(),
-        child: AnimatedScale(
-          scale: _pressed ? 0.88 : 1.0,
-          duration: disableMotion
-              ? Duration.zero
-              : const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(50),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              widget.icon,
-              size: 20,
-              color: widget.iconColor ?? Colors.white,
+    return BounceTap.icon(
+      enabled: widget.onTap != null,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: widget.onTap,
+          onTapDown: (_) {
+            if (!disableMotion) setState(() => _pressed = true);
+          },
+          onTapUp: (_) {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          onTapCancel: () {
+            if (!disableMotion) setState(() => _pressed = false);
+          },
+          customBorder: const CircleBorder(),
+          child: AnimatedScale(
+            scale: _pressed ? 0.88 : 1.0,
+            duration: disableMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(50),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                widget.icon,
+                size: 20,
+                color: widget.iconColor ?? Colors.white,
+              ),
             ),
           ),
         ),

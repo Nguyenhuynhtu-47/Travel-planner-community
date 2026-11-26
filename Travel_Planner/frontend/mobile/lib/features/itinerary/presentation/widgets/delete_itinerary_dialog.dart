@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
@@ -15,17 +16,21 @@ Future<bool?> showDeleteItineraryConfirmationDialog(
         'Lịch trình này sẽ bị gỡ bỏ khỏi danh sách lịch trình hoạt động của bạn.',
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.error,
-            foregroundColor: Colors.white,
+        BounceTap(
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
           ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Xóa lịch trình'),
+        ),
+        BounceTap(
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Xóa lịch trình'),
+          ),
         ),
       ],
     ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/models/public_user_summary.dart';
 import '../../data/public_profile_repository.dart';
@@ -127,9 +128,11 @@ class _PublicUserListScreenState extends State<PublicUserListScreen> {
                 if (index == _users.length) {
                   if (_error != null) {
                     return Center(
-                      child: TextButton(
-                        onPressed: _loadPage,
-                        child: const Text('Tải lại'),
+                      child: BounceTap(
+                        child: TextButton(
+                          onPressed: _loadPage,
+                          child: const Text('Tải lại'),
+                        ),
                       ),
                     );
                   }

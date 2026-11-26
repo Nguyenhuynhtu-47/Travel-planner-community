@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_date_time.dart';
@@ -518,9 +519,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ),
             ),
             if (message.failed)
-              TextButton(
-                onPressed: () => _send(retryId: message.clientMessageId),
-                child: const Text('Thử gửi lại'),
+              BounceTap(
+                child: TextButton(
+                  onPressed: () => _send(retryId: message.clientMessageId),
+                  child: const Text('Thử gửi lại'),
+                ),
               )
             else if (message.sending)
               const Text('Đang gửi…', style: TextStyle(fontSize: 10))
@@ -586,13 +589,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           'Bạn sẽ không thể nhắn tin hoặc kết bạn với ${widget.conversation.peer.fullName?.trim().isNotEmpty == true ? widget.conversation.peer.fullName : '@${widget.conversation.peer.effectiveHandle}'}. Lịch sử trò chuyện vẫn được giữ.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Hủy'),
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Chặn'),
+          BounceTap(
+            child: FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Chặn'),
+            ),
           ),
         ],
       ),
@@ -629,13 +636,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           'Sau khi bỏ chặn, hai bên có thể nhắn tin theo cài đặt quyền riêng tư hiện tại. Lịch sử trò chuyện vẫn được giữ.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Giữ chặn'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Giữ chặn'),
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Bỏ chặn'),
+          BounceTap(
+            child: FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Bỏ chặn'),
+            ),
           ),
         ],
       ),
@@ -796,25 +807,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   final actions = Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                      BounceTap(
+                        enabled: !_messageRequestBusy,
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: _messageRequestBusy
+                              ? null
+                              : () => _respondToMessageRequest(accept: false),
+                          child: const Text('Từ chối'),
                         ),
-                        onPressed: _messageRequestBusy
-                            ? null
-                            : () => _respondToMessageRequest(accept: false),
-                        child: const Text('Từ chối'),
                       ),
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                      BounceTap(
+                        enabled: !_messageRequestBusy,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: _messageRequestBusy
+                              ? null
+                              : () => _respondToMessageRequest(accept: true),
+                          child: const Text('Chấp nhận'),
                         ),
-                        onPressed: _messageRequestBusy
-                            ? null
-                            : () => _respondToMessageRequest(accept: true),
-                        child: const Text('Chấp nhận'),
                       ),
                     ],
                   );
@@ -891,15 +908,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                 ? Center(
-                    child: TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _loading = true;
-                          _error = null;
-                        });
-                        _load();
-                      },
-                      child: Text(_error!),
+                    child: BounceTap(
+                      child: TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _loading = true;
+                            _error = null;
+                          });
+                          _load();
+                        },
+                        child: Text(_error!),
+                      ),
                     ),
                   )
                 : ListView.builder(
@@ -936,10 +955,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: _sending || !_canSendMessage ? null : _send,
-                    icon: const Icon(Icons.send),
-                    color: AppColors.primary,
+                  BounceTap.icon(
+                    enabled: !_sending && _canSendMessage,
+                    child: IconButton(
+                      onPressed: _sending || !_canSendMessage ? null : _send,
+                      icon: const Icon(Icons.send),
+                      color: AppColors.primary,
+                    ),
                   ),
                 ],
               ),

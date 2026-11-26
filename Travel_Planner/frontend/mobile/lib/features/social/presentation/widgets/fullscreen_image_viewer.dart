@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 /// Fullscreen Image Viewer similar to Facebook's media preview.
 /// Supports pinch-to-zoom via [InteractiveViewer] and horizontal paging via [PageView].
@@ -112,10 +113,12 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 26),
-                    tooltip: 'Đóng',
-                    onPressed: () => Navigator.of(context).pop(),
+                  BounceTap.icon(
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 26),
+                      tooltip: 'Đóng',
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
                   ),
                   const Spacer(),
                   if (count > 1)

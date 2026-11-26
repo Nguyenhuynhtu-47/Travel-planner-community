@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_otp_input.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -200,28 +201,31 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         )
-                      : TextButton.icon(
-                          onPressed: _isResending ? null : _resendCode,
-                          icon: _isResending
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                      : BounceTap(
+                          enabled: !_isResending,
+                          child: TextButton.icon(
+                            onPressed: _isResending ? null : _resendCode,
+                            icon: _isResending
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AuthUiTokens.primary,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.refresh,
+                                    size: 18,
                                     color: AuthUiTokens.primary,
                                   ),
-                                )
-                              : const Icon(
-                                  Icons.refresh,
-                                  size: 18,
-                                  color: AuthUiTokens.primary,
-                                ),
-                          label: const Text(
-                            'Gửi lại mã xác thực',
-                            style: TextStyle(
-                              color: AuthUiTokens.primary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                            label: const Text(
+                              'Gửi lại mã xác thực',
+                              style: TextStyle(
+                                color: AuthUiTokens.primary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),

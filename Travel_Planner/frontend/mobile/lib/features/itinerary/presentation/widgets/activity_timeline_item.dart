@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/activity_detail.dart';
@@ -94,9 +95,11 @@ class ActivityTimelineItem extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: InkWell(
-                            onTap: onTap,
-                            borderRadius: BorderRadius.circular(6),
+                          child: BounceTap(
+                            enabled: onTap != null,
+                            child: InkWell(
+                              onTap: onTap,
+                              borderRadius: BorderRadius.circular(6),
                             child: Wrap(
                               spacing: 8,
                               runSpacing: 4,
@@ -191,6 +194,7 @@ class ActivityTimelineItem extends StatelessWidget {
                               ],
                             ),
                           ),
+                        ),
                         ),
                         if (onEdit != null ||
                             onDelete != null ||
@@ -295,9 +299,11 @@ class ActivityTimelineItem extends StatelessWidget {
                   const SizedBox(height: 6),
 
                   // Information body (tappable to view details)
-                  InkWell(
-                    onTap: onTap,
-                    borderRadius: BorderRadius.circular(8),
+                  BounceTap(
+                    enabled: onTap != null,
+                    child: InkWell(
+                      onTap: onTap,
+                      borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2.0),
                       child: Column(
@@ -442,19 +448,21 @@ class ActivityTimelineItem extends StatelessWidget {
                                   ),
                                   if (onSavePlace != null) ...[
                                     const SizedBox(width: 4),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.bookmark_add_outlined,
-                                        size: 20,
-                                        color: AppColors.primary,
+                                    BounceTap.icon(
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.bookmark_add_outlined,
+                                          size: 20,
+                                          color: AppColors.primary,
+                                        ),
+                                        tooltip: 'Lưu địa điểm vào lịch trình',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 32,
+                                          minHeight: 32,
+                                        ),
+                                        onPressed: onSavePlace,
                                       ),
-                                      tooltip: 'Lưu địa điểm vào lịch trình',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(
-                                        minWidth: 32,
-                                        minHeight: 32,
-                                      ),
-                                      onPressed: onSavePlace,
                                     ),
                                   ],
                                 ],
@@ -465,17 +473,20 @@ class ActivityTimelineItem extends StatelessWidget {
                       ),
                     ),
                   ),
+                  ),
                   if (onComments != null)
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: onComments,
-                        icon: const Icon(Icons.mode_comment_outlined, size: 17),
-                        label: Text(
-                          'Bình luận hoạt động (${activity.commentCount})',
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: BounceTap(
+                        child: TextButton.icon(
+                          onPressed: onComments,
+                          icon: const Icon(Icons.mode_comment_outlined, size: 17),
+                          label: Text(
+                            'Bình luận hoạt động (${activity.commentCount})',
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          ),
                         ),
                       ),
                     ),

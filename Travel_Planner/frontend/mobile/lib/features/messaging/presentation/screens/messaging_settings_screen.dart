@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/models/messaging_settings.dart';
 
@@ -116,11 +117,13 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
                         .map(
                           (u) => ListTile(
                             title: Text(u.fullName ?? '@${u.effectiveHandle}'),
-                            trailing: TextButton(
-                              onPressed: () => widget.repository
-                                  .unblock(u.userId, widget.token)
-                                  .then((_) => setState(() {})),
-                              child: const Text('Bỏ chặn'),
+                            trailing: BounceTap(
+                              child: TextButton(
+                                onPressed: () => widget.repository
+                                    .unblock(u.userId, widget.token)
+                                    .then((_) => setState(() {})),
+                                child: const Text('Bỏ chặn'),
+                              ),
                             ),
                           ),
                         )

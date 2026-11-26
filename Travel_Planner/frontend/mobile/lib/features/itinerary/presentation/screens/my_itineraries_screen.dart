@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
@@ -158,16 +159,18 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined, size: 24),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Thông báo',
+              icon: const Icon(Icons.notifications_outlined, size: 24),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
+              },
+            ),
           ),
           CurrentUserAvatarButton(
             avatarUrl: widget.authNotifier.currentUser?['avatar']?.toString(),
@@ -188,16 +191,18 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
           child: Container(height: 0.5, color: AppColors.hairlineSoft),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'my_itineraries_fab',
-        key: const Key('fab_create_itinerary'),
-        onPressed: _navigateToCreateScreen,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Tạo lịch trình',
-          style: TextStyle(fontWeight: FontWeight.w600),
+      floatingActionButton: BounceTap(
+        child: FloatingActionButton.extended(
+          heroTag: 'my_itineraries_fab',
+          key: const Key('fab_create_itinerary'),
+          onPressed: _navigateToCreateScreen,
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text(
+            'Tạo lịch trình',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
         ),
       ),
       body: Column(
@@ -393,22 +398,25 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
     required bool selected,
     required VoidCallback onSelected,
   }) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onSelected(),
-      selectedColor: AppColors.primaryLight,
-      checkmarkColor: AppColors.primary,
-      labelStyle: TextStyle(
-        color: selected ? AppColors.primary : AppColors.textPrimary,
-        fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-        fontSize: 13,
+    return BounceTap(
+      useSelectionHaptic: true,
+      child: FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+        selectedColor: AppColors.primaryLight,
+        checkmarkColor: AppColors.primary,
+        labelStyle: TextStyle(
+          color: selected ? AppColors.primary : AppColors.textPrimary,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          fontSize: 13,
+        ),
+        backgroundColor: AppColors.surface,
+        side: BorderSide(
+          color: selected ? AppColors.primary : AppColors.hairline,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
-      backgroundColor: AppColors.surface,
-      side: BorderSide(
-        color: selected ? AppColors.primary : AppColors.hairline,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 }

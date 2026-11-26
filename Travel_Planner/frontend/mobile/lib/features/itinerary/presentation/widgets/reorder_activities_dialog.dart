@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -199,11 +200,14 @@ class _ReorderActivitiesBottomSheetState
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.muted),
-                    onPressed: _isSaving
-                        ? null
-                        : () => Navigator.of(context).pop(false),
+                  BounceTap.icon(
+                    enabled: !_isSaving,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.muted),
+                      onPressed: _isSaving
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                    ),
                   ),
                 ],
               ),
@@ -279,17 +283,22 @@ class _ReorderActivitiesBottomSheetState
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: _isSaving
-                        ? null
-                        : () => Navigator.of(context).pop(false),
-                    child: const Text(
-                      'Hủy',
-                      style: TextStyle(color: AppColors.textSecondary),
+                  BounceTap(
+                    enabled: !_isSaving,
+                    child: TextButton(
+                      onPressed: _isSaving
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: const Text(
+                        'Hủy',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
+                  BounceTap(
+                    enabled: !_isSaving,
+                    child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
@@ -316,6 +325,7 @@ class _ReorderActivitiesBottomSheetState
                             'Lưu thứ tự',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
+                    ),
                   ),
                 ],
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -46,9 +47,11 @@ class MyItineraryCard extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+      child: BounceTap(
+        enabled: onTap != null,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -373,6 +376,7 @@ class MyItineraryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

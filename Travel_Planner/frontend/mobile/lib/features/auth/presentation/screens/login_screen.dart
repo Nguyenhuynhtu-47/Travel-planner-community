@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/navigation/main_navigation_shell.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -106,9 +107,11 @@ class _LoginScreenState extends State<LoginScreen> {
               title: const Text('Tài khoản đã tồn tại'),
               content: Text(error),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Đã hiểu'),
+                BounceTap(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Đã hiểu'),
+                  ),
                 ),
               ],
             ),
@@ -182,34 +185,36 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      widget.authNotifier.clearErrors();
-                      final input = _usernameOrEmailController.text.trim();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ForgotPasswordScreen(
-                            authNotifier: widget.authNotifier,
-                            initialEmail: input.contains('@') ? input : null,
+                  child: BounceTap(
+                    child: TextButton(
+                      onPressed: () {
+                        widget.authNotifier.clearErrors();
+                        final input = _usernameOrEmailController.text.trim();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ForgotPasswordScreen(
+                              authNotifier: widget.authNotifier,
+                              initialEmail: input.contains('@') ? input : null,
+                            ),
                           ),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
                         ),
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Quên mật khẩu?',
-                      style: TextStyle(
-                        color: AuthUiTokens.primary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                      child: const Text(
+                        'Quên mật khẩu?',
+                        style: TextStyle(
+                          color: AuthUiTokens.primary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -238,26 +243,28 @@ class _LoginScreenState extends State<LoginScreen> {
                         fontSize: 15,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        widget.authNotifier.clearErrors();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => RegisterScreen(
-                              authNotifier: widget.authNotifier,
+                    BounceTap(
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.authNotifier.clearErrors();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RegisterScreen(
+                                authNotifier: widget.authNotifier,
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'Đăng ký ngay',
-                          style: TextStyle(
-                            color: AuthUiTokens.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
+                          );
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'Đăng ký ngay',
+                            style: TextStyle(
+                              color: AuthUiTokens.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                       ),

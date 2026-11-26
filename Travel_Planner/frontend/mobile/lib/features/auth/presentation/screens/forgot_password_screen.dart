@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -144,14 +145,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             const SizedBox(height: 20),
             Center(
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
-                  'Quay lại Đăng nhập',
-                  style: TextStyle(
-                    color: AuthUiTokens.primary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+              child: BounceTap(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    'Quay lại Đăng nhập',
+                    style: TextStyle(
+                      color: AuthUiTokens.primary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),

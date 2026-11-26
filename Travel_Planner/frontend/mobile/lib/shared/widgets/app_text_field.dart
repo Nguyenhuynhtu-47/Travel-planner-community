@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'bounce_tap.dart';
 
 class AppTextField extends StatefulWidget {
   final String label;
@@ -137,30 +138,32 @@ class _AppTextFieldState extends State<AppTextField> {
                   )
                 : null,
             suffixIcon: widget.isPassword
-                ? IconButton(
-                    icon: AnimatedSwitcher(
-                      duration:
-                          MediaQuery.maybeOf(context)?.disableAnimations ??
-                              false
-                          ? Duration.zero
-                          : const Duration(milliseconds: 150),
-                      transitionBuilder: (child, animation) =>
-                          FadeTransition(opacity: animation, child: child),
-                      child: Icon(
-                        _obscureText
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        key: ValueKey(_obscureText),
-                        color: AppColors.textSecondary,
-                        size: 20,
+                ? BounceTap.icon(
+                    child: IconButton(
+                      icon: AnimatedSwitcher(
+                        duration:
+                            MediaQuery.maybeOf(context)?.disableAnimations ??
+                                false
+                            ? Duration.zero
+                            : const Duration(milliseconds: 150),
+                        transitionBuilder: (child, animation) =>
+                            FadeTransition(opacity: animation, child: child),
+                        child: Icon(
+                          _obscureText
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          key: ValueKey(_obscureText),
+                          color: AppColors.textSecondary,
+                          size: 20,
+                        ),
                       ),
+                      tooltip: _obscureText ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
+                      onPressed: () {
+                        setState(() {
+                          _obscureText = !_obscureText;
+                        });
+                      },
                     ),
-                    tooltip: _obscureText ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
-                    onPressed: () {
-                      setState(() {
-                        _obscureText = !_obscureText;
-                      });
-                    },
                   )
                 : null,
           ),

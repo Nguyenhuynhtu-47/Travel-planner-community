@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -418,13 +419,15 @@ class _ItineraryPickerBottomSheetState
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: AppColors.textSecondary,
+                  BounceTap.icon(
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.textSecondary,
+                      ),
+                      tooltip: 'Đóng',
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                    tooltip: 'Đóng',
-                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
@@ -474,9 +477,11 @@ class _ItineraryPickerBottomSheetState
                 ),
               ),
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: () => _loadItineraries(isRefresh: true),
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: () => _loadItineraries(isRefresh: true),
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),
@@ -523,22 +528,24 @@ class _ItineraryPickerBottomSheetState
                 ),
               ),
               const SizedBox(height: 20),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+              BounceTap(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                  onPressed: _navigateToCreateItinerary,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text(
+                    'Tạo lịch trình mới',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                ),
-                onPressed: _navigateToCreateItinerary,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text(
-                  'Tạo lịch trình mới',
-                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -687,24 +694,26 @@ class _ItineraryPickerBottomSheetState
             ],
           ),
           trailing: isScheduleMode
-              ? FilledButton.tonal(
-                  key: Key('select_itinerary_${item.itineraryId}'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
+              ? BounceTap(
+                  child: FilledButton.tonal(
+                    key: Key('select_itinerary_${item.itineraryId}'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () => _handleSelectForSchedule(item),
-                  child: const Text(
-                    'Chọn',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    onPressed: () => _handleSelectForSchedule(item),
+                    child: const Text(
+                      'Chọn',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 )
@@ -747,25 +756,28 @@ class _ItineraryPickerBottomSheetState
                         ],
                       ),
                     )
-                  : FilledButton.tonal(
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
+                  : BounceTap(
+                      enabled: _savingItineraryId == null,
+                      child: FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: _savingItineraryId != null
-                          ? null
-                          : () => _handleSaveToItinerary(item),
-                      child: const Text(
-                        'Lưu',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        onPressed: _savingItineraryId != null
+                            ? null
+                            : () => _handleSaveToItinerary(item),
+                        child: const Text(
+                          'Lưu',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),

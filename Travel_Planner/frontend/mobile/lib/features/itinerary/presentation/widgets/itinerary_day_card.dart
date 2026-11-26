@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/activity_detail.dart';
@@ -355,31 +356,33 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                         ),
                         if (widget.onAddActivity != null) ...[
                           const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
+                          BounceTap(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                side: const BorderSide(color: AppColors.hairline),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
-                              side: const BorderSide(color: AppColors.hairline),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.add_rounded,
-                              size: 16,
-                              color: AppColors.primary,
-                            ),
-                            label: const Text(
-                              'Thêm hoạt động đầu tiên',
-                              style: TextStyle(
-                                fontSize: 12,
+                              icon: const Icon(
+                                Icons.add_rounded,
+                                size: 16,
                                 color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
                               ),
+                              label: const Text(
+                                'Thêm hoạt động đầu tiên',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              onPressed: widget.onAddActivity,
                             ),
-                            onPressed: widget.onAddActivity,
                           ),
                         ],
                       ],
@@ -449,48 +452,54 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        TextButton(
-                          onPressed: _isSaving ? null : _cancelReorder,
-                          child: const Text(
-                            'Hủy',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w500,
+                        BounceTap(
+                          enabled: !_isSaving,
+                          child: TextButton(
+                            onPressed: _isSaving ? null : _cancelReorder,
+                            child: const Text(
+                              'Hủy',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            minimumSize: Size.zero,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
+                        BounceTap(
+                          enabled: !_isSaving,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              minimumSize: Size.zero,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            onPressed: _isSaving ? null : _saveReorder,
+                            child: _isSaving
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Lưu thứ tự',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                           ),
-                          onPressed: _isSaving ? null : _saveReorder,
-                          child: _isSaving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Lưu thứ tự',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
                         ),
                       ],
                     ),
@@ -539,58 +548,62 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                       runSpacing: 4,
                       children: [
                         if (widget.onAddActivity != null)
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                          BounceTap(
+                            child: TextButton.icon(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                visualDensity: VisualDensity.compact,
                               ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            icon: const Icon(
-                              Icons.add_circle_outline,
-                              size: 16,
-                              color: AppColors.primary,
-                            ),
-                            label: const Text(
-                              'Thêm hoạt động',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                              icon: const Icon(
+                                Icons.add_circle_outline,
+                                size: 16,
                                 color: AppColors.primary,
                               ),
+                              label: const Text(
+                                'Thêm hoạt động',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              onPressed: widget.onAddActivity,
                             ),
-                            onPressed: widget.onAddActivity,
                           ),
                         if (hasReorderCapability)
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                          BounceTap(
+                            child: TextButton.icon(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                visualDensity: VisualDensity.compact,
                               ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            icon: const Icon(
-                              Icons.swap_vert_rounded,
-                              size: 16,
-                              color: AppColors.textSecondary,
-                            ),
-                            label: const Text(
-                              'Sắp xếp',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+                              icon: const Icon(
+                                Icons.swap_vert_rounded,
+                                size: 16,
                                 color: AppColors.textSecondary,
                               ),
+                              label: const Text(
+                                'Sắp xếp',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              onPressed: () {
+                                if (widget.onSaveActivityOrder != null) {
+                                  _startReordering();
+                                } else if (widget.onReorderActivities != null) {
+                                  widget.onReorderActivities!();
+                                }
+                              },
                             ),
-                            onPressed: () {
-                              if (widget.onSaveActivityOrder != null) {
-                                _startReordering();
-                              } else if (widget.onReorderActivities != null) {
-                                widget.onReorderActivities!();
-                              }
-                            },
                           ),
                       ],
                     ),

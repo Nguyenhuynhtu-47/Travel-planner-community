@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -205,14 +206,18 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         title: const Text('Đăng xuất'),
         content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Hủy'),
+            ),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Đăng xuất'),
+          BounceTap(
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Đăng xuất'),
+            ),
           ),
         ],
       ),
@@ -257,10 +262,12 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            tooltip: 'Đăng xuất',
-            icon: const Icon(Icons.logout, size: 22, color: AppColors.error),
-            onPressed: _logout,
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Đăng xuất',
+              icon: const Icon(Icons.logout, size: 22, color: AppColors.error),
+              onPressed: _logout,
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -283,9 +290,11 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                     children: [
                       Text(_error!),
                       const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: _loadProfile,
-                        child: const Text('Thử lại'),
+                      BounceTap(
+                        child: OutlinedButton(
+                          onPressed: _loadProfile,
+                          child: const Text('Thử lại'),
+                        ),
                       ),
                     ],
                   ),
@@ -409,71 +418,77 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
             _sectionHeader('Bảo mật tài khoản'),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ChangePasswordScreen(
-                      authNotifier: widget.authNotifier,
+            BounceTap(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ChangePasswordScreen(
+                        authNotifier: widget.authNotifier,
+                      ),
                     ),
+                  );
+                },
+                icon: const Icon(Icons.lock_reset, size: 20),
+                label: const Text('Đổi mật khẩu'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                );
-              },
-              icon: const Icon(Icons.lock_reset, size: 20),
-              label: const Text('Đổi mật khẩu'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                foregroundColor: AppColors.textPrimary,
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final updated = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute<bool>(
-                    builder: (_) => ChangeEmailScreen(
-                      authNotifier: widget.authNotifier,
+            BounceTap(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final updated = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => ChangeEmailScreen(
+                        authNotifier: widget.authNotifier,
+                      ),
                     ),
+                  );
+                  if (updated == true && mounted) {
+                    _loadProfile();
+                  }
+                },
+                icon: const Icon(Icons.email_outlined, size: 20),
+                label: const Text('Đổi địa chỉ email'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                );
-                if (updated == true && mounted) {
-                  _loadProfile();
-                }
-              },
-              icon: const Icon(Icons.email_outlined, size: 20),
-              label: const Text('Đổi địa chỉ email'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                foregroundColor: AppColors.textPrimary,
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => DeviceSessionsScreen(
-                      authNotifier: widget.authNotifier,
+            BounceTap(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => DeviceSessionsScreen(
+                        authNotifier: widget.authNotifier,
+                      ),
                     ),
+                  );
+                },
+                icon: const Icon(Icons.devices, size: 20),
+                label: const Text('Thiết bị & Phiên đăng nhập'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                );
-              },
-              icon: const Icon(Icons.devices, size: 20),
-              label: const Text('Thiết bị & Phiên đăng nhập'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                foregroundColor: AppColors.textPrimary,
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
             ),

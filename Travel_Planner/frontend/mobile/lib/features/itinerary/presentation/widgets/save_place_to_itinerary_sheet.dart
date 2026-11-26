@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -240,10 +241,12 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                  onPressed: () =>
-                      Navigator.of(context).pop(_savedItineraryIds.isNotEmpty),
+                BounceTap.icon(
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () =>
+                        Navigator.of(context).pop(_savedItineraryIds.isNotEmpty),
+                  ),
                 ),
               ],
             ),
@@ -401,9 +404,11 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: _loadMyItineraries,
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: _loadMyItineraries,
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),
@@ -535,16 +540,18 @@ class _SavePlaceToItinerarySheetState extends State<SavePlaceToItinerarySheet> {
                           ),
                         ],
                       )
-                    : FilledButton.tonal(
-                        onPressed: () => _saveToItinerary(it),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
+                    : BounceTap(
+                        child: FilledButton.tonal(
+                          onPressed: () => _saveToItinerary(it),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            visualDensity: VisualDensity.compact,
                           ),
-                          visualDensity: VisualDensity.compact,
+                          child: const Text('Lưu'),
                         ),
-                        child: const Text('Lưu'),
                       ),
             ),
           ),

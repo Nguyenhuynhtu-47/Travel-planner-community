@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'bounce_tap.dart';
 
 class ImageUploadPreview extends StatelessWidget {
   final Uint8List? selectedBytes;
@@ -70,15 +71,18 @@ class ImageUploadPreview extends StatelessWidget {
         if (circular) Center(child: preview) else preview,
         const SizedBox(height: 12),
         Center(
-          child: OutlinedButton.icon(
-            onPressed: onPick,
-            icon: const Icon(Icons.photo_library_outlined),
-            label: Text(buttonLabel),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          child: BounceTap(
+            enabled: onPick != null,
+            child: OutlinedButton.icon(
+              onPressed: onPick,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(buttonLabel),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ),

@@ -7,6 +7,7 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -213,16 +214,18 @@ class _CollectionScreenState extends State<CollectionScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined, size: 24),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Thông báo',
+              icon: const Icon(Icons.notifications_outlined, size: 24),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
+              },
+            ),
           ),
           if (widget.authNotifier?.isAuthenticated == true)
             CurrentUserAvatarButton(
@@ -256,8 +259,14 @@ class _CollectionScreenState extends State<CollectionScreen>
                 fontSize: 14,
               ),
               tabs: const [
-                Tab(text: 'Đã lưu'),
-                Tab(text: 'Yêu thích'),
+                BounceTap(
+                  useSelectionHaptic: true,
+                  child: Tab(text: 'Đã lưu'),
+                ),
+                BounceTap(
+                  useSelectionHaptic: true,
+                  child: Tab(text: 'Yêu thích'),
+                ),
               ],
             ),
           ),

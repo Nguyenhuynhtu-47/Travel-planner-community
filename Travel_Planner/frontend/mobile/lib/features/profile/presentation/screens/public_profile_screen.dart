@@ -7,6 +7,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
@@ -414,7 +415,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Widget _buildFollowButton(PublicProfile profile) {
     if (_following) {
-      return OutlinedButton(
+      return BounceTap(
+        enabled: !_followBusy,
+        child: OutlinedButton(
         onPressed: _followBusy ? null : _toggleFollow,
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(38),
@@ -454,10 +457,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   ),
                 ],
               ),
+      ),
       );
     }
 
-    return FilledButton(
+    return BounceTap(
+      enabled: !_followBusy,
+      child: FilledButton(
       onPressed: _followBusy ? null : _toggleFollow,
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(38),
@@ -501,11 +507,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 ),
               ],
             ),
+    ),
     );
   }
 
   Widget _buildMessageButton(PublicProfile profile) {
-    return OutlinedButton(
+    return BounceTap(
+      child: OutlinedButton(
       onPressed: () => _openConversation(profile),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(38),
@@ -540,6 +548,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -573,7 +582,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           : () => _relationshipAction('send');
     }
 
-    return OutlinedButton(
+    return BounceTap(
+      enabled: onTap != null,
+      child: OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(38),
@@ -627,6 +638,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 ),
               ],
             ),
+    ),
     );
   }
 
@@ -695,14 +707,18 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         title: const Text('Hủy kết bạn'),
         content: Text('Bạn có chắc chắn muốn hủy kết bạn với $displayName không?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Đóng'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Đóng'),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Hủy kết bạn'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: TextButton.styleFrom(foregroundColor: AppColors.error),
+              child: const Text('Hủy kết bạn'),
+            ),
           ),
         ],
       ),
@@ -746,7 +762,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   Widget _statItem(String label, int count, {VoidCallback? onTap}) {
-    return InkWell(
+    return BounceTap(
+      enabled: onTap != null,
+      child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
@@ -777,6 +795,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -953,20 +972,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             ),
           ],
           if (profile.isOwnProfile && widget.authNotifier != null)
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      ProfileScreen(authNotifier: widget.authNotifier!),
+            BounceTap(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        ProfileScreen(authNotifier: widget.authNotifier!),
+                  ),
                 ),
-              ),
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('Chỉnh sửa hồ sơ'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(38),
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Chỉnh sửa hồ sơ'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(38),
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
@@ -987,88 +1008,94 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       child: Row(
         children: [
           Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _selectedTab = 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _selectedTab == 0
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      width: 2,
+            child: BounceTap(
+              useSelectionHaptic: true,
+              child: InkWell(
+                onTap: () => setState(() => _selectedTab = 0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _selectedTab == 0
+                            ? AppColors.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.map_outlined,
-                      size: 18,
-                      color: _selectedTab == 0
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Lịch trình',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        size: 18,
                         color: _selectedTab == 0
                             ? AppColors.primary
                             : AppColors.textSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        'Lịch trình',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: _selectedTab == 0
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           Expanded(
-            child: InkWell(
-              onTap: () {
-                setState(() => _selectedTab = 1);
-                if (_posts.isEmpty && !_loadingPosts) {
-                  _loadPosts();
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _selectedTab == 1
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      width: 2,
+            child: BounceTap(
+              useSelectionHaptic: true,
+              child: InkWell(
+                onTap: () {
+                  setState(() => _selectedTab = 1);
+                  if (_posts.isEmpty && !_loadingPosts) {
+                    _loadPosts();
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _selectedTab == 1
+                            ? AppColors.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.article_outlined,
-                      size: 18,
-                      color: _selectedTab == 1
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Bài viết',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.article_outlined,
+                        size: 18,
                         color: _selectedTab == 1
                             ? AppColors.primary
                             : AppColors.textSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        'Bài viết',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: _selectedTab == 1
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1113,12 +1140,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           if (index >= _itineraries.length) {
             if (_moreError != null) {
               return Center(
-                child: TextButton(
-                  onPressed: () {
-                    setState(() => _moreError = null);
-                    _loadMore();
-                  },
-                  child: const Text('Thử tải thêm'),
+                child: BounceTap(
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() => _moreError = null);
+                      _loadMore();
+                    },
+                    child: const Text('Thử tải thêm'),
+                  ),
                 ),
               );
             }
@@ -1171,9 +1200,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: () => _loadPosts(refresh: true),
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: () => _loadPosts(refresh: true),
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),

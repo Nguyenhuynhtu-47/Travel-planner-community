@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'bounce_tap.dart';
 
 class CurrentUserAvatarButton extends StatelessWidget {
   final String? avatarUrl;
@@ -22,22 +23,24 @@ class CurrentUserAvatarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = avatarUrl?.trim() ?? '';
-    return IconButton(
-      tooltip: 'Hồ sơ cá nhân',
-      onPressed: onPressed,
-      padding: const EdgeInsets.all(8),
-      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-      icon: SizedBox(
-        width: 32,
-        height: 32,
-        child: ClipOval(
-          child: url.startsWith('http')
-              ? Image.network(
-                  url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => _fallback(),
-                )
-              : _fallback(),
+    return BounceTap.icon(
+      child: IconButton(
+        tooltip: 'Hồ sơ cá nhân',
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(8),
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        icon: SizedBox(
+          width: 32,
+          height: 32,
+          child: ClipOval(
+            child: url.startsWith('http')
+                ? Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _fallback(),
+                  )
+                : _fallback(),
+          ),
         ),
       ),
     );

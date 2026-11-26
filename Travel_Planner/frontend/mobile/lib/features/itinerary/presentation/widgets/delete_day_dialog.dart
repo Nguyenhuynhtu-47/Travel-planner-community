@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
@@ -24,17 +25,21 @@ Future<bool?> showDeleteDayConfirmationDialog(
         'Bạn có chắc chắn muốn xóa Ngày $dayNumber$titleSuffix không?$warningNotice',
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.error,
-            foregroundColor: Colors.white,
+        BounceTap(
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
           ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Xóa ngày'),
+        ),
+        BounceTap(
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Xóa ngày'),
+          ),
         ),
       ],
     ),

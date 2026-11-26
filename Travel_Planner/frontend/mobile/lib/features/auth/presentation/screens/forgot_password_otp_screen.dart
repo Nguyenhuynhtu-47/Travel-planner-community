@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../shared/widgets/app_otp_input.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 import '../widgets/auth_screen_scaffold.dart';
 import '../widgets/auth_wave_header.dart';
@@ -239,24 +240,27 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   )
-                : TextButton.icon(
-                    onPressed: _isResending ? null : _resendOtp,
-                    icon: _isResending
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AuthUiTokens.primary,
-                            ),
-                          )
-                        : const Icon(Icons.refresh, size: 18, color: AuthUiTokens.primary),
-                    label: const Text(
-                      'Gửi lại mã xác thực',
-                      style: TextStyle(
-                        color: AuthUiTokens.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                : BounceTap(
+                    enabled: !_isResending,
+                    child: TextButton.icon(
+                      onPressed: _isResending ? null : _resendOtp,
+                      icon: _isResending
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AuthUiTokens.primary,
+                              ),
+                            )
+                          : const Icon(Icons.refresh, size: 18, color: AuthUiTokens.primary),
+                      label: const Text(
+                        'Gửi lại mã xác thực',
+                        style: TextStyle(
+                          color: AuthUiTokens.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -265,13 +269,15 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
 
           // Back to Step 1 link
           Center(
-            child: TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'Chỉnh sửa địa chỉ email',
-                style: TextStyle(
-                  color: AuthUiTokens.subtitle,
-                  fontSize: 13,
+            child: BounceTap(
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  'Chỉnh sửa địa chỉ email',
+                  style: TextStyle(
+                    color: AuthUiTokens.subtitle,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),

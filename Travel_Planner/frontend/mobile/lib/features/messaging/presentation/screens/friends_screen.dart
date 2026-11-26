@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/data/models/public_user_summary.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
@@ -186,7 +187,9 @@ class _FriendsScreenState extends State<FriendsScreen>
     }
     if (_error != null && _friends.isEmpty) {
       return Center(
-        child: TextButton(onPressed: _load, child: Text(_error!)),
+        child: BounceTap(
+          child: TextButton(onPressed: _load, child: Text(_error!)),
+        ),
       );
     }
     if (filtered.isEmpty) {
@@ -207,10 +210,12 @@ class _FriendsScreenState extends State<FriendsScreen>
             title: Text(_name(user)),
             subtitle: Text('@${user.effectiveHandle}'),
             onTap: () => _openProfile(user.userId),
-            trailing: IconButton(
-              tooltip: 'Nhắn tin',
-              icon: const Icon(Icons.chat_outlined),
-              onPressed: () => _message(user.userId),
+            trailing: BounceTap.icon(
+              child: IconButton(
+                tooltip: 'Nhắn tin',
+                icon: const Icon(Icons.chat_outlined),
+                onPressed: () => _message(user.userId),
+              ),
             ),
           );
         },
@@ -241,24 +246,30 @@ class _FriendsScreenState extends State<FriendsScreen>
             ),
           ..._incoming.map(
             (request) => ListTile(
-              leading: GestureDetector(
-                onTap: () => _openProfile(request.otherUser.userId),
-                child: _avatar(request.otherUser.avatar),
+              leading: BounceTap(
+                child: GestureDetector(
+                  onTap: () => _openProfile(request.otherUser.userId),
+                  child: _avatar(request.otherUser.avatar),
+                ),
               ),
               title: Text(_name(request.otherUser)),
               subtitle: Text('@${request.otherUser.effectiveHandle}'),
               onTap: () => _openProfile(request.otherUser.userId),
               trailing: Wrap(
                 children: [
-                  IconButton(
-                    tooltip: 'Chấp nhận',
-                    onPressed: () => _requestAction(request, 'accept'),
-                    icon: const Icon(Icons.check, color: AppColors.primary),
+                  BounceTap.icon(
+                    child: IconButton(
+                      tooltip: 'Chấp nhận',
+                      onPressed: () => _requestAction(request, 'accept'),
+                      icon: const Icon(Icons.check, color: AppColors.primary),
+                    ),
                   ),
-                  IconButton(
-                    tooltip: 'Từ chối',
-                    onPressed: () => _requestAction(request, 'decline'),
-                    icon: const Icon(Icons.close),
+                  BounceTap.icon(
+                    child: IconButton(
+                      tooltip: 'Từ chối',
+                      onPressed: () => _requestAction(request, 'decline'),
+                      icon: const Icon(Icons.close),
+                    ),
                   ),
                 ],
               ),
@@ -273,16 +284,20 @@ class _FriendsScreenState extends State<FriendsScreen>
             ),
           ..._outgoing.map(
             (request) => ListTile(
-              leading: GestureDetector(
-                onTap: () => _openProfile(request.otherUser.userId),
-                child: _avatar(request.otherUser.avatar),
+              leading: BounceTap(
+                child: GestureDetector(
+                  onTap: () => _openProfile(request.otherUser.userId),
+                  child: _avatar(request.otherUser.avatar),
+                ),
               ),
               title: Text(_name(request.otherUser)),
               subtitle: const Text('Đang chờ phản hồi'),
               onTap: () => _openProfile(request.otherUser.userId),
-              trailing: TextButton(
-                onPressed: () => _requestAction(request, 'cancel'),
-                child: const Text('Hủy'),
+              trailing: BounceTap(
+                child: TextButton(
+                  onPressed: () => _requestAction(request, 'cancel'),
+                  child: const Text('Hủy'),
+                ),
               ),
             ),
           ),
@@ -301,14 +316,16 @@ class _FriendsScreenState extends State<FriendsScreen>
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       actions: [
-        IconButton(
-          tooltip: 'Tìm người dùng',
-          icon: const Icon(Icons.person_search_outlined),
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => UserSearchScreen(
-                authNotifier: widget.authNotifier,
-                repository: _repository,
+        BounceTap.icon(
+          child: IconButton(
+            tooltip: 'Tìm người dùng',
+            icon: const Icon(Icons.person_search_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => UserSearchScreen(
+                  authNotifier: widget.authNotifier,
+                  repository: _repository,
+                ),
               ),
             ),
           ),
@@ -321,12 +338,18 @@ class _FriendsScreenState extends State<FriendsScreen>
           controller: _tabs,
           labelColor: AppColors.primary,
           tabs: [
-            Tab(
-              text: 'Bạn bè${_friends.isEmpty ? '' : ' (${_friends.length})'}',
+            BounceTap(
+              useSelectionHaptic: true,
+              child: Tab(
+                text: 'Bạn bè${_friends.isEmpty ? '' : ' (${_friends.length})'}',
+              ),
             ),
-            Tab(
-              text:
-                  'Lời mời${_incoming.isEmpty ? '' : ' (${_incoming.length})'}',
+            BounceTap(
+              useSelectionHaptic: true,
+              child: Tab(
+                text:
+                    'Lời mời${_incoming.isEmpty ? '' : ' (${_incoming.length})'}',
+              ),
             ),
           ],
         ),

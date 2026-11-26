@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../shared/widgets/bounce_tap.dart';
+
 /// Design tokens for the Travel Planner Authentication Flow UI.
 class AuthUiTokens {
   static const Color primary = Color(0xFFFA3E62);
@@ -21,28 +23,30 @@ class AuthBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.20),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPressed,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.30),
-              width: 1,
+    return BounceTap.icon(
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.20),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.30),
+                width: 1,
+              ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: const Icon(
-            Icons.arrow_back,
-            color: Colors.white,
-            size: 20,
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.arrow_back,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ),
       ),

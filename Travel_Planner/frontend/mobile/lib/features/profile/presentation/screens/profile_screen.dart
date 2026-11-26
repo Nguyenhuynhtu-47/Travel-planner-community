@@ -12,6 +12,7 @@ import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -507,16 +508,18 @@ class _ProfileScreenState extends State<ProfileScreen>
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           actions: [
-            IconButton(
-              tooltip: 'Thông báo',
-              icon: const Icon(Icons.notifications_outlined, size: 24),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                );
-              },
+            BounceTap.icon(
+              child: IconButton(
+                tooltip: 'Thông báo',
+                icon: const Icon(Icons.notifications_outlined, size: 24),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
+              ),
             ),
             const SizedBox(width: 8),
           ],
@@ -552,26 +555,32 @@ class _ProfileScreenState extends State<ProfileScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            tooltip: 'Quyền riêng tư tin nhắn',
-            icon: const Icon(Icons.forum_outlined, size: 22),
-            onPressed: _openMessagingPrivacy,
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Quyền riêng tư tin nhắn',
+              icon: const Icon(Icons.forum_outlined, size: 22),
+              onPressed: _openMessagingPrivacy,
+            ),
           ),
-          IconButton(
-            tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined, size: 24),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Thông báo',
+              icon: const Icon(Icons.notifications_outlined, size: 24),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
+              },
+            ),
           ),
-          IconButton(
-            tooltip: 'Cài đặt hồ sơ',
-            icon: const Icon(Icons.settings_outlined, size: 24),
-            onPressed: _openSettings,
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Cài đặt hồ sơ',
+              icon: const Icon(Icons.settings_outlined, size: 24),
+              onPressed: _openSettings,
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -627,9 +636,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
             const SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: _loadProfile,
-              child: const Text('Thử lại'),
+            BounceTap(
+              child: OutlinedButton(
+                onPressed: _loadProfile,
+                child: const Text('Thử lại'),
+              ),
             ),
           ],
         ),
@@ -689,35 +700,38 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _statItem(String label, int count, {VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '$count',
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+    return BounceTap(
+      enabled: onTap != null,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w400,
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -892,24 +906,26 @@ class _ProfileScreenState extends State<ProfileScreen>
           // Action: Edit Profile
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () {
-                setState(() => _editing = true);
-              },
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(38),
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            child: BounceTap(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() => _editing = true);
+                },
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(38),
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  backgroundColor: AppColors.surface,
                 ),
-                backgroundColor: AppColors.surface,
-              ),
-              child: const Text(
-                'Chỉnh sửa hồ sơ',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                child: const Text(
+                  'Chỉnh sửa hồ sơ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
             ),
@@ -931,88 +947,94 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: Row(
         children: [
           Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _selectedProfileTab = 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _selectedProfileTab == 0
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      width: 2,
+            child: BounceTap(
+              useSelectionHaptic: true,
+              child: InkWell(
+                onTap: () => setState(() => _selectedProfileTab = 0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _selectedProfileTab == 0
+                            ? AppColors.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.map_outlined,
-                      size: 18,
-                      color: _selectedProfileTab == 0
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Lịch trình',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        size: 18,
                         color: _selectedProfileTab == 0
                             ? AppColors.primary
                             : AppColors.textSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        'Lịch trình',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: _selectedProfileTab == 0
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           Expanded(
-            child: InkWell(
-              onTap: () {
-                setState(() => _selectedProfileTab = 1);
-                if (_myPosts.isEmpty && !_loadingPosts) {
-                  _loadMyPosts();
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _selectedProfileTab == 1
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      width: 2,
+            child: BounceTap(
+              useSelectionHaptic: true,
+              child: InkWell(
+                onTap: () {
+                  setState(() => _selectedProfileTab = 1);
+                  if (_myPosts.isEmpty && !_loadingPosts) {
+                    _loadMyPosts();
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _selectedProfileTab == 1
+                            ? AppColors.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.article_outlined,
-                      size: 18,
-                      color: _selectedProfileTab == 1
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Bài viết',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.article_outlined,
+                        size: 18,
                         color: _selectedProfileTab == 1
                             ? AppColors.primary
                             : AppColors.textSecondary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        'Bài viết',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: _selectedProfileTab == 1
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1165,13 +1187,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         title: const Text('Xác nhận xóa'),
         content: const Text('Bạn có chắc chắn muốn xóa bài viết này không?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Hủy'),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            ),
           ),
         ],
       ),
@@ -1209,9 +1235,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           children: [
             Text(_postsError!, style: const TextStyle(color: AppColors.muted)),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _loadMyPosts(refresh: true),
-              child: const Text('Thử lại'),
+            BounceTap(
+              child: ElevatedButton(
+                onPressed: () => _loadMyPosts(refresh: true),
+                child: const Text('Thử lại'),
+              ),
             ),
           ],
         ),
@@ -1247,29 +1275,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                ),
-                onPressed: () async {
-                  final newPost = await Navigator.of(context).push<PostModel>(
-                    MaterialPageRoute(
-                      builder: (_) => CreatePostScreen(
-                        authNotifier: widget.authNotifier,
-                      ),
+              BounceTap(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                  );
-                  if (newPost != null) {
-                    _loadMyPosts(refresh: true);
-                  }
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Tạo bài viết mới'),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  onPressed: () async {
+                    final newPost = await Navigator.of(context).push<PostModel>(
+                      MaterialPageRoute(
+                        builder: (_) => CreatePostScreen(
+                          authNotifier: widget.authNotifier,
+                        ),
+                      ),
+                    );
+                    if (newPost != null) {
+                      _loadMyPosts(refresh: true);
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Tạo bài viết mới'),
+                ),
               ),
             ],
           ),
@@ -1362,18 +1392,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => MyItinerariesScreen(
-                        authNotifier: widget.authNotifier,
+              BounceTap(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => MyItinerariesScreen(
+                          authNotifier: widget.authNotifier,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.luggage_outlined, size: 18),
-                label: const Text('Xem tất cả lịch trình của tôi'),
+                    );
+                  },
+                  icon: const Icon(Icons.luggage_outlined, size: 18),
+                  label: const Text('Xem tất cả lịch trình của tôi'),
+                ),
               ),
             ],
           ),
@@ -1514,14 +1546,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                 onPressed: _saveProfile,
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _saving
-                    ? null
-                    : () {
-                        _fillFields(_profile!);
-                        setState(() => _editing = false);
-                      },
-                child: const Text('Hủy'),
+              BounceTap(
+                enabled: !_saving,
+                child: OutlinedButton(
+                  onPressed: _saving
+                      ? null
+                      : () {
+                          _fillFields(_profile!);
+                          setState(() => _editing = false);
+                        },
+                  child: const Text('Hủy'),
+                ),
               ),
               const SizedBox(height: 16),
             ],

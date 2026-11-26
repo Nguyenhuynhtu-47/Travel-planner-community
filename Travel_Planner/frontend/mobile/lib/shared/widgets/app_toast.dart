@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'bounce_tap.dart';
+
 enum AppToastType { error, success, warning, info }
 
 /// Global top-floating toast notification system using Flutter's [Overlay].
@@ -348,26 +350,28 @@ class _AppToastOverlayState extends State<_AppToastOverlay>
                         if (widget.actionLabel != null &&
                             widget.onAction != null) ...[
                           const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: () {
-                              widget.onDismiss();
-                              widget.onAction!();
-                            },
-                            style: TextButton.styleFrom(
-                              foregroundColor: style.accentColor,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                          BounceTap(
+                            child: TextButton(
+                              onPressed: () {
+                                widget.onDismiss();
+                                widget.onAction!();
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: style.accentColor,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              widget.actionLabel!,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: style.accentColor,
+                              child: Text(
+                                widget.actionLabel!,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: style.accentColor,
+                                ),
                               ),
                             ),
                           ),
@@ -375,15 +379,17 @@ class _AppToastOverlayState extends State<_AppToastOverlay>
 
                         const SizedBox(width: 4),
                         // Right close button
-                        InkWell(
-                          onTap: widget.onDismiss,
-                          borderRadius: BorderRadius.circular(16),
-                          child: const Padding(
-                            padding: EdgeInsets.all(4),
-                            child: Icon(
-                              Icons.close,
-                              size: 18,
-                              color: Color(0xFF9E9E9E),
+                        BounceTap.icon(
+                          child: InkWell(
+                            onTap: widget.onDismiss,
+                            borderRadius: BorderRadius.circular(16),
+                            child: const Padding(
+                              padding: EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Color(0xFF9E9E9E),
+                              ),
                             ),
                           ),
                         ),

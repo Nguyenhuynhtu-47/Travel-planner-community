@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -142,10 +143,12 @@ class ActivityDetailScreen extends StatelessWidget {
         title: const Text('Chi tiết hoạt động'),
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: 'Quay lại',
-          onPressed: () => Navigator.of(context).pop(),
+        leading: BounceTap.icon(
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Quay lại',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ),
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
@@ -836,32 +839,35 @@ class _ActivityDirectionsButtonState extends State<ActivityDirectionsButton> {
   }
 
   @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
-    style: OutlinedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      visualDensity: VisualDensity.compact,
-      side: const BorderSide(color: AppColors.hairline),
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-    ),
-    icon: _isLoading
-        ? const SizedBox.square(
-            dimension: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        : const Icon(
-            Icons.directions_outlined,
-            size: 14,
-            color: AppColors.primary,
-          ),
-    label: const Text(
-      'Chỉ đường',
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: AppColors.primary,
+  Widget build(BuildContext context) => BounceTap(
+    enabled: !_isLoading,
+    child: OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        visualDensity: VisualDensity.compact,
+        side: const BorderSide(color: AppColors.hairline),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
+      icon: _isLoading
+          ? const SizedBox.square(
+              dimension: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(
+              Icons.directions_outlined,
+              size: 14,
+              color: AppColors.primary,
+            ),
+      label: const Text(
+        'Chỉ đường',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
+      ),
+      onPressed: _isLoading ? null : _openDirections,
     ),
-    onPressed: _isLoading ? null : _openDirections,
   );
 }

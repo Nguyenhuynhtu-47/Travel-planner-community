@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'bounce_tap.dart';
 
 class AppPrimaryButton extends StatelessWidget {
   final String text;
@@ -32,35 +33,39 @@ class AppPrimaryButton extends StatelessWidget {
 
     final activeColor = backgroundColor ?? AppColors.primary;
     final disabledColor = disabledBackgroundColor ?? AppColors.primaryDisabled;
+    final isEnabled = !isLoading && onPressed != null;
 
-    return ElevatedButton(
-      onPressed: isLoading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: activeColor,
-        disabledBackgroundColor: isLoading ? activeColor : disabledColor,
-        disabledForegroundColor: Colors.white,
-        minimumSize: height != null ? Size.fromHeight(height!) : null,
-        shape: borderRadius != null
-            ? RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(borderRadius!),
-              )
-            : null,
-      ),
-      child: AnimatedSwitcher(
-        duration: duration,
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeOutCubic,
-        child: isLoading
-            ? const SizedBox(
-                key: ValueKey('loading'),
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Text(text, key: ValueKey('text_$text')),
+    return BounceTap(
+      enabled: isEnabled,
+      child: ElevatedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: activeColor,
+          disabledBackgroundColor: isLoading ? activeColor : disabledColor,
+          disabledForegroundColor: Colors.white,
+          minimumSize: height != null ? Size.fromHeight(height!) : null,
+          shape: borderRadius != null
+              ? RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(borderRadius!),
+                )
+              : null,
+        ),
+        child: AnimatedSwitcher(
+          duration: duration,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeOutCubic,
+          child: isLoading
+              ? const SizedBox(
+                  key: ValueKey('loading'),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(text, key: ValueKey('text_$text')),
+        ),
       ),
     );
   }

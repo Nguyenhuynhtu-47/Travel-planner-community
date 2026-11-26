@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
@@ -278,22 +279,28 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
           elevation: 0,
           leading: _showIntro
               ? (Navigator.of(context).canPop()
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.of(context).pop(),
+                  ? BounceTap.icon(
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
                     )
                   : null)
-              : IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: _currentStep > 0 ? 'Quay lại bước trước' : 'Quay lại',
-                  onPressed: _previousStep,
+              : BounceTap.icon(
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: _currentStep > 0 ? 'Quay lại bước trước' : 'Quay lại',
+                    onPressed: _previousStep,
+                  ),
                 ),
           actions: [
             if (!_showIntro) ...[
-              IconButton(
-                tooltip: 'Làm mới biểu mẫu',
-                icon: const Icon(Icons.refresh_rounded, size: 22),
-                onPressed: _resetForm,
+              BounceTap.icon(
+                child: IconButton(
+                  tooltip: 'Làm mới biểu mẫu',
+                  icon: const Icon(Icons.refresh_rounded, size: 22),
+                  onPressed: _resetForm,
+                ),
               ),
               const SizedBox(width: 8),
             ],
@@ -608,21 +615,23 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _previousStep,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _previousStep,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Quay lại',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      child: const Text(
+                        'Quay lại',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -728,21 +737,23 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _previousStep,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _previousStep,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Quay lại',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      child: const Text(
+                        'Quay lại',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -810,28 +821,31 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
               runSpacing: 4,
               children: _suggestedThemes.map((t) {
                 final isSelected = _themeController.text.trim() == t;
-                return ChoiceChip(
-                  label: Text(
-                    t,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isSelected
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                return BounceTap(
+                  useSelectionHaptic: true,
+                  child: ChoiceChip(
+                    label: Text(
+                      t,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
                     ),
+                    selected: isSelected,
+                    selectedColor: AppColors.primary,
+                    backgroundColor: AppColors.surfaceSoft,
+                    showCheckmark: false,
+                    onSelected: (selected) {
+                      setState(() {
+                        _themeController.text = selected ? t : '';
+                      });
+                    },
                   ),
-                  selected: isSelected,
-                  selectedColor: AppColors.primary,
-                  backgroundColor: AppColors.surfaceSoft,
-                  showCheckmark: false,
-                  onSelected: (selected) {
-                    setState(() {
-                      _themeController.text = selected ? t : '';
-                    });
-                  },
                 );
               }).toList(),
             ),
@@ -896,21 +910,23 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _previousStep,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _previousStep,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Quay lại',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      child: const Text(
+                        'Quay lại',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -939,9 +955,11 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
   }) {
     final isSelected = _visibility == value;
 
-    return InkWell(
-      onTap: () => setState(() => _visibility = value),
-      borderRadius: BorderRadius.circular(12),
+    return BounceTap(
+      useSelectionHaptic: true,
+      child: InkWell(
+        onTap: () => setState(() => _visibility = value),
+        borderRadius: BorderRadius.circular(12),
       child: Container(
         height: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -994,6 +1012,7 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

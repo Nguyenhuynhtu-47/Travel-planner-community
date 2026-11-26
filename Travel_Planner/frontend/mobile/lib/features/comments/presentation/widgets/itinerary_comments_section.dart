@@ -5,6 +5,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/models/itinerary_comment.dart';
 import '../../data/comments_repository.dart';
@@ -227,17 +228,20 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
         ),
       if (_notifier.hasMore)
         Center(
-          child: TextButton.icon(
-            onPressed: _notifier.isLoadingMore ? null : _notifier.loadMore,
-            icon: _notifier.isLoadingMore
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.expand_more),
-            label: Text(
-              _notifier.errorMessage != null ? 'Thử lại' : 'Xem thêm bình luận',
+          child: BounceTap(
+            enabled: !_notifier.isLoadingMore,
+            child: TextButton.icon(
+              onPressed: _notifier.isLoadingMore ? null : _notifier.loadMore,
+              icon: _notifier.isLoadingMore
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.expand_more),
+              label: Text(
+                _notifier.errorMessage != null ? 'Thử lại' : 'Xem thêm bình luận',
+              ),
             ),
           ),
         ),
@@ -261,10 +265,12 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: () => setState(() => _replyTo = null),
-                icon: const Icon(Icons.close, size: 18),
-                tooltip: 'Hủy trả lời',
+              BounceTap.icon(
+                child: IconButton(
+                  onPressed: () => setState(() => _replyTo = null),
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Hủy trả lời',
+                ),
               ),
             ],
           ),
@@ -294,26 +300,31 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
           const SizedBox(width: AppSpacing.sm),
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: _controller,
-            builder: (context, value, _) => SizedBox(
-              width: 48,
-              height: 48,
-              child: IconButton.filled(
-                tooltip: 'Gửi bình luận',
-                onPressed: _notifier.isSubmitting || value.text.trim().isEmpty
-                    ? null
-                    : _submit,
-                icon: _notifier.isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.surface,
-                        ),
-                      )
-                    : const Icon(Icons.send_rounded),
-              ),
-            ),
+            builder: (context, value, _) {
+              final isDisabled =
+                  _notifier.isSubmitting || value.text.trim().isEmpty;
+              return SizedBox(
+                width: 48,
+                height: 48,
+                child: BounceTap.icon(
+                  enabled: !isDisabled,
+                  child: IconButton.filled(
+                    tooltip: 'Gửi bình luận',
+                    onPressed: isDisabled ? null : _submit,
+                    icon: _notifier.isSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.surface,
+                            ),
+                          )
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -379,17 +390,20 @@ class _CommentTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: onCreatorTap,
-            child: CircleAvatar(
-              radius: 20,
-              backgroundColor: AppColors.surfaceStrong,
-              backgroundImage: comment.avatar?.isNotEmpty == true
-                  ? NetworkImage(comment.avatar!)
-                  : null,
-              child: comment.avatar?.isNotEmpty == true
-                  ? null
-                  : const Icon(Icons.person_outline, color: AppColors.muted),
+          BounceTap(
+            enabled: onCreatorTap != null,
+            child: GestureDetector(
+              onTap: onCreatorTap,
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.surfaceStrong,
+                backgroundImage: comment.avatar?.isNotEmpty == true
+                    ? NetworkImage(comment.avatar!)
+                    : null,
+                child: comment.avatar?.isNotEmpty == true
+                    ? null
+                    : const Icon(Icons.person_outline, color: AppColors.muted),
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -400,13 +414,16 @@ class _CommentTile extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: InkWell(
-                        onTap: onCreatorTap,
-                        child: Text(
-                          name,
-                          style: AppTextStyles.bodySm.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                      child: BounceTap(
+                        enabled: onCreatorTap != null,
+                        child: InkWell(
+                          onTap: onCreatorTap,
+                          child: Text(
+                            name,
+                            style: AppTextStyles.bodySm.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ),
@@ -438,14 +455,17 @@ class _CommentTile extends StatelessWidget {
                   Wrap(
                     spacing: AppSpacing.xs,
                     children: [
-                      TextButton(
-                        onPressed: onReply,
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.xs,
+                      BounceTap(
+                        enabled: onReply != null,
+                        child: TextButton(
+                          onPressed: onReply,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xs,
+                            ),
                           ),
+                          child: const Text('Trả lời'),
                         ),
-                        child: const Text('Trả lời'),
                       ),
                       if (canManage)
                         PopupMenuButton<String>(
@@ -460,15 +480,19 @@ class _CommentTile extends StatelessWidget {
                                     'Các câu trả lời vẫn được giữ trong cuộc trò chuyện.',
                                   ),
                                   actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: const Text('Hủy'),
+                                    BounceTap(
+                                      child: TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text('Hủy'),
+                                      ),
                                     ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: const Text('Xóa'),
+                                    BounceTap(
+                                      child: TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text('Xóa'),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -490,16 +514,20 @@ class _CommentTile extends StatelessWidget {
                                     maxLength: 2000,
                                   ),
                                   actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Hủy'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(
-                                        context,
-                                        controller.text,
+                                    BounceTap(
+                                      child: TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Hủy'),
                                       ),
-                                      child: const Text('Lưu'),
+                                    ),
+                                    BounceTap(
+                                      child: TextButton(
+                                        onPressed: () => Navigator.pop(
+                                          context,
+                                          controller.text,
+                                        ),
+                                        child: const Text('Lưu'),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -612,27 +640,29 @@ class _CommentThreadState extends State<_CommentThread> {
             : collapsedReplyCount > 0)
           Padding(
             padding: const EdgeInsets.only(left: AppSpacing.xxl),
-            child: TextButton.icon(
-              onPressed: () async {
-                if (_expanded) {
-                  setState(() => _expanded = false);
-                } else {
-                  setState(() => _expanded = true);
-                  if (!widget.notifier.hasLoadedReplies(comment.commentId)) {
-                    await widget.notifier.loadReplies(comment.commentId);
+            child: BounceTap(
+              child: TextButton.icon(
+                onPressed: () async {
+                  if (_expanded) {
+                    setState(() => _expanded = false);
+                  } else {
+                    setState(() => _expanded = true);
+                    if (!widget.notifier.hasLoadedReplies(comment.commentId)) {
+                      await widget.notifier.loadReplies(comment.commentId);
+                    }
                   }
-                }
-              },
-              icon: Icon(
-                _expanded ? Icons.expand_less : Icons.subdirectory_arrow_right,
-                size: 17,
-              ),
-              label: Text(
-                _expanded
-                    ? 'Thu gọn câu trả lời'
-                    : preview == null
-                    ? 'Xem ${comment.replyCount} câu trả lời'
-                    : 'Xem $collapsedReplyCount câu trả lời khác',
+                },
+                icon: Icon(
+                  _expanded ? Icons.expand_less : Icons.subdirectory_arrow_right,
+                  size: 17,
+                ),
+                label: Text(
+                  _expanded
+                      ? 'Thu gọn câu trả lời'
+                      : preview == null
+                      ? 'Xem ${comment.replyCount} câu trả lời'
+                      : 'Xem $collapsedReplyCount câu trả lời khác',
+                ),
               ),
             ),
           ),
@@ -666,15 +696,19 @@ class _CommentThreadState extends State<_CommentThread> {
               ),
             )
           else if (widget.notifier.errorMessage != null && replies.isEmpty)
-            TextButton(
-              onPressed: () =>
-                  widget.notifier.loadReplies(comment.commentId, refresh: true),
-              child: const Text('Không tải được câu trả lời · Thử lại'),
+            BounceTap(
+              child: TextButton(
+                onPressed: () =>
+                    widget.notifier.loadReplies(comment.commentId, refresh: true),
+                child: const Text('Không tải được câu trả lời · Thử lại'),
+              ),
             )
           else if (widget.notifier.repliesHaveMore(comment.commentId))
-            TextButton(
-              onPressed: () => widget.notifier.loadReplies(comment.commentId),
-              child: const Text('Tải thêm câu trả lời'),
+            BounceTap(
+              child: TextButton(
+                onPressed: () => widget.notifier.loadReplies(comment.commentId),
+                child: const Text('Tải thêm câu trả lời'),
+              ),
             ),
         ],
       ],

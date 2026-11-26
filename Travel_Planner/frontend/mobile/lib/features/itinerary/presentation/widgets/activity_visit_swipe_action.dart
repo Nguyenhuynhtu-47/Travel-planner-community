@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/activity_detail.dart';
@@ -102,28 +103,31 @@ class _ActivityVisitSwipeActionState extends State<ActivityVisitSwipeAction> {
                   child: Material(
                     color: backgroundColor,
                     borderRadius: BorderRadius.circular(8),
-                    child: TextButton.icon(
-                      onPressed: _isUpdating ? null : _updateVisitStatus,
-                      icon: _isUpdating
-                          ? const SizedBox.square(
-                              dimension: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primary,
-                              ),
-                            )
-                          : Icon(actionIcon, size: 18),
-                      label: Text(actionLabel, maxLines: 1),
-                      style: TextButton.styleFrom(
-                        backgroundColor: backgroundColor,
-                        foregroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                    child: BounceTap(
+                      enabled: !_isUpdating,
+                      child: TextButton.icon(
+                        onPressed: _isUpdating ? null : _updateVisitStatus,
+                        icon: _isUpdating
+                            ? const SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              )
+                            : Icon(actionIcon, size: 18),
+                        label: Text(actionLabel, maxLines: 1),
+                        style: TextButton.styleFrom(
+                          backgroundColor: backgroundColor,
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),

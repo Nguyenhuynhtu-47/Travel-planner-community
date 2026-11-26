@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../social/presentation/screens/post_detail_screen.dart';
@@ -88,7 +89,8 @@ class ShareMessageCard extends StatelessWidget {
             ),
 
           // Main Card
-          Material(
+          BounceTap(
+            child: Material(
             color: Colors.white,
             elevation: 1.5,
             shadowColor: Colors.black.withValues(alpha: 0.08),
@@ -264,6 +266,7 @@ class ShareMessageCard extends StatelessWidget {
               ),
             ),
           ),
+          ),
 
           // Message Status & Timestamp
           Padding(
@@ -277,13 +280,16 @@ class ShareMessageCard extends StatelessWidget {
                 ),
                 if (message.failed) ...[
                   const SizedBox(width: 6),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
+                  BounceTap(
+                    enabled: onRetry != null,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                      ),
+                      onPressed: onRetry,
+                      child: const Text('Thử gửi lại', style: TextStyle(fontSize: 11)),
                     ),
-                    onPressed: onRetry,
-                    child: const Text('Thử gửi lại', style: TextStyle(fontSize: 11)),
                   ),
                 ] else if (message.sending) ...[
                   const SizedBox(width: 6),

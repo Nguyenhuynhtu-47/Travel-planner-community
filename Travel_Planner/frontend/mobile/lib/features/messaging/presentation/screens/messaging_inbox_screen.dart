@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_date_time.dart';
@@ -134,36 +135,40 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            tooltip: 'Tin nhắn người lạ',
-            icon: Badge(
-              isLabelVisible: _unreadMessageRequestCount > 0,
-              label: _unreadMessageRequestCount > 0
-                  ? Text(
-                      _unreadMessageRequestCount > 99
-                          ? '99+'
-                          : '$_unreadMessageRequestCount',
-                    )
-                  : null,
-              child: const Icon(Icons.markunread_mailbox_outlined),
-            ),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => StrangerInboxScreen(
-                  authNotifier: widget.authNotifier,
-                  repository: _repository,
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Tin nhắn người lạ',
+              icon: Badge(
+                isLabelVisible: _unreadMessageRequestCount > 0,
+                label: _unreadMessageRequestCount > 0
+                    ? Text(
+                        _unreadMessageRequestCount > 99
+                            ? '99+'
+                            : '$_unreadMessageRequestCount',
+                      )
+                    : null,
+                child: const Icon(Icons.markunread_mailbox_outlined),
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => StrangerInboxScreen(
+                    authNotifier: widget.authNotifier,
+                    repository: _repository,
+                  ),
                 ),
               ),
             ),
           ),
-          IconButton(
-            tooltip: 'Bạn bè',
-            icon: const Icon(Icons.people_outline),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => FriendsScreen(
-                  authNotifier: widget.authNotifier,
-                  repository: _repository,
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Bạn bè',
+              icon: const Icon(Icons.people_outline),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FriendsScreen(
+                    authNotifier: widget.authNotifier,
+                    repository: _repository,
+                  ),
                 ),
               ),
             ),
@@ -193,7 +198,9 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null && _items.isEmpty
                 ? Center(
-                    child: TextButton(onPressed: _load, child: Text(_error!)),
+                    child: BounceTap(
+                      child: TextButton(onPressed: _load, child: Text(_error!)),
+                    ),
                   )
                 : filtered.isEmpty
                 ? const AppEmptyState(
@@ -287,13 +294,17 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
           'Bạn và người này sẽ không thể xem nội dung hoặc nhắn tin cho nhau.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Hủy'),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Chặn'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Chặn'),
+            ),
           ),
         ],
       ),

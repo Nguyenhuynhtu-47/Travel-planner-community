@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 
 class SectionHeader extends StatelessWidget {
   final String title;
@@ -54,31 +55,34 @@ class SectionHeader extends StatelessWidget {
             ),
           ),
           if (onActionTap != null)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onActionTap,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        actionText ?? 'Xem tất cả',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+            BounceTap(
+              enabled: onActionTap != null,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onActionTap,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          actionText ?? 'Xem tất cả',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 11,
                           color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 11,
-                        color: AppColors.primary,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

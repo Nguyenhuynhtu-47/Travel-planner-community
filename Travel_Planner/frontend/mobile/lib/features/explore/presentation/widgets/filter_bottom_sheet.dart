@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../explore_notifier.dart';
 
 class FilterBottomSheet extends StatefulWidget {
@@ -181,10 +182,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 22),
-                      color: AppColors.textPrimary,
-                      onPressed: () => Navigator.of(context).pop(),
+                    BounceTap.icon(
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 22),
+                        color: AppColors.textPrimary,
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
                     ),
                   ],
                 ),
@@ -216,33 +219,36 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         runSpacing: 8,
                         children: _sortOptions.entries.map((entry) {
                           final isSelected = _selectedSort == entry.key;
-                          return ChoiceChip(
-                            showCheckmark: false,
-                            label: Text(entry.value),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() => _selectedSort = entry.key);
-                              }
-                            },
-                            selectedColor: AppColors.textPrimary,
-                            backgroundColor: AppColors.surface,
-                            labelStyle: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? AppColors.textPrimary
-                                  : AppColors.border,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9999),
+                          return BounceTap(
+                            useSelectionHaptic: true,
+                            child: ChoiceChip(
+                              showCheckmark: false,
+                              label: Text(entry.value),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() => _selectedSort = entry.key);
+                                }
+                              },
+                              selectedColor: AppColors.textPrimary,
+                              backgroundColor: AppColors.surface,
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? AppColors.textPrimary
+                                    : AppColors.border,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(9999),
+                              ),
                             ),
                           );
                         }).toList(),
@@ -286,21 +292,24 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         spacing: 6,
                         runSpacing: 6,
                         children: _popularLocations.map((loc) {
-                          return ActionChip(
-                            label: Text(loc),
-                            onPressed: () {
-                              setState(() {
-                                _locationController.text = loc;
-                              });
-                            },
-                            backgroundColor: AppColors.surfaceSoft,
-                            labelStyle: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textPrimary,
-                            ),
-                            side: BorderSide.none,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9999),
+                          return BounceTap(
+                            useSelectionHaptic: true,
+                            child: ActionChip(
+                              label: Text(loc),
+                              onPressed: () {
+                                setState(() {
+                                  _locationController.text = loc;
+                                });
+                              },
+                              backgroundColor: AppColors.surfaceSoft,
+                              labelStyle: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textPrimary,
+                              ),
+                              side: BorderSide.none,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(9999),
+                              ),
                             ),
                           );
                         }).toList(),
@@ -322,27 +331,29 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         runSpacing: 8,
                         children: _popularThemes.map((theme) {
                           final isSelected = _selectedTheme == theme;
-                          return ChoiceChip(
-                            showCheckmark: false,
-                            label: Text(theme),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                _selectedTheme = selected ? theme : null;
-                              });
-                            },
-                            selectedColor: AppColors.textPrimary,
-                            backgroundColor: AppColors.surface,
-                            labelStyle: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                            side: BorderSide(
+                          return BounceTap(
+                            useSelectionHaptic: true,
+                            child: ChoiceChip(
+                              showCheckmark: false,
+                              label: Text(theme),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _selectedTheme = selected ? theme : null;
+                                });
+                              },
+                              selectedColor: AppColors.textPrimary,
+                              backgroundColor: AppColors.surface,
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                              side: BorderSide(
                               color: isSelected
                                   ? AppColors.textPrimary
                                   : AppColors.border,
@@ -350,6 +361,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(9999),
                             ),
+                          ),
                           );
                         }).toList(),
                       ),
@@ -494,77 +506,83 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                       Wrap(
                         spacing: 8,
                         children: [
-                          ChoiceChip(
-                            showCheckmark: false,
-                            label: const Text('Tất cả'),
-                            selected: _selectedMinRating == null,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() => _selectedMinRating = null);
-                              }
-                            },
-                            selectedColor: AppColors.textPrimary,
-                            backgroundColor: AppColors.surface,
-                            labelStyle: TextStyle(
-                              color: _selectedMinRating == null
-                                  ? Colors.white
-                                  : AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: _selectedMinRating == null
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                            side: BorderSide(
-                              color: _selectedMinRating == null
-                                  ? AppColors.textPrimary
-                                  : AppColors.border,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9999),
-                            ),
-                          ),
-                          ...[3.0, 4.0, 4.5].map((rating) {
-                            final isSelected = _selectedMinRating == rating;
-                            return ChoiceChip(
+                          BounceTap(
+                            useSelectionHaptic: true,
+                            child: ChoiceChip(
                               showCheckmark: false,
-                              label: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.star_rounded,
-                                    size: 15,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : AppColors.textPrimary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text('$rating+'),
-                                ],
-                              ),
-                              selected: isSelected,
+                              label: const Text('Tất cả'),
+                              selected: _selectedMinRating == null,
                               onSelected: (selected) {
-                                setState(() {
-                                  _selectedMinRating = selected ? rating : null;
-                                });
+                                if (selected) {
+                                  setState(() => _selectedMinRating = null);
+                                }
                               },
                               selectedColor: AppColors.textPrimary,
                               backgroundColor: AppColors.surface,
                               labelStyle: TextStyle(
-                                color: isSelected
+                                color: _selectedMinRating == null
                                     ? Colors.white
                                     : AppColors.textPrimary,
                                 fontSize: 13,
-                                fontWeight: isSelected
+                                fontWeight: _selectedMinRating == null
                                     ? FontWeight.w600
                                     : FontWeight.normal,
                               ),
                               side: BorderSide(
-                                color: isSelected
+                                color: _selectedMinRating == null
                                     ? AppColors.textPrimary
                                     : AppColors.border,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(9999),
+                              ),
+                            ),
+                          ),
+                          ...[3.0, 4.0, 4.5].map((rating) {
+                            final isSelected = _selectedMinRating == rating;
+                            return BounceTap(
+                              useSelectionHaptic: true,
+                              child: ChoiceChip(
+                                showCheckmark: false,
+                                label: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.star_rounded,
+                                      size: 15,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : AppColors.textPrimary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text('$rating+'),
+                                  ],
+                                ),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  setState(() {
+                                    _selectedMinRating = selected ? rating : null;
+                                  });
+                                },
+                                selectedColor: AppColors.textPrimary,
+                                backgroundColor: AppColors.surface,
+                                labelStyle: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? AppColors.textPrimary
+                                      : AppColors.border,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(9999),
+                                ),
                               ),
                             );
                           }),
@@ -590,17 +608,19 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   children: [
                     Expanded(
                       flex: 1,
-                      child: OutlinedButton(
-                        onPressed: _reset,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          foregroundColor: AppColors.textPrimary,
-                          side: const BorderSide(color: AppColors.border),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      child: BounceTap(
+                        child: OutlinedButton(
+                          onPressed: _reset,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                            foregroundColor: AppColors.textPrimary,
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
+                          child: const Text('Đặt lại'),
                         ),
-                        child: const Text('Đặt lại'),
                       ),
                     ),
                     const SizedBox(width: 12),

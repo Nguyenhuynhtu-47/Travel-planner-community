@@ -7,6 +7,7 @@ import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/data/itinerary_crud_repository.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -366,22 +367,25 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(64, 36),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: BounceTap(
+              enabled: !(_isSubmitting || _isUploading),
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(64, 36),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                onPressed: (_isSubmitting || _isUploading) ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : Text(widget.editingPost != null ? 'Lưu' : 'Đăng'),
               ),
-              onPressed: (_isSubmitting || _isUploading) ? null : _submit,
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : Text(widget.editingPost != null ? 'Lưu' : 'Đăng'),
             ),
           ),
         ],
@@ -491,24 +495,27 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   separatorBuilder: (context, index) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     if (index == _mediaItems.length) {
-                      return InkWell(
-                        onTap: (_isUploading || _mediaItems.length >= 5) ? null : _pickImages,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceSoft,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.hairline),
-                          ),
-                          child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate_outlined, color: AppColors.primary, size: 28),
-                              SizedBox(height: 4),
-                              Text('Thêm ảnh', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                            ],
+                      return BounceTap(
+                        enabled: !(_isUploading || _mediaItems.length >= 5),
+                        child: InkWell(
+                          onTap: (_isUploading || _mediaItems.length >= 5) ? null : _pickImages,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceSoft,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.hairline),
+                            ),
+                            child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate_outlined, color: AppColors.primary, size: 28),
+                                SizedBox(height: 4),
+                                Text('Thêm ảnh', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -517,59 +524,65 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     final item = _mediaItems[index];
                     return Stack(
                       children: [
-                        InkWell(
-                          onTap: () => _replaceMedia(index),
-                          borderRadius: BorderRadius.circular(8),
-                          child: ClipRRect(
+                        BounceTap(
+                          child: InkWell(
+                            onTap: () => _replaceMedia(index),
                             borderRadius: BorderRadius.circular(8),
-                            child: item.bytes != null
-                                ? Image.memory(
-                                    item.bytes!,
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Image.network(
-                                    item.url,
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Container(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: item.bytes != null
+                                  ? Image.memory(
+                                      item.bytes!,
                                       width: 100,
                                       height: 100,
-                                      color: AppColors.surfaceStrong,
-                                      child: const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.network(
+                                      item.url,
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) => Container(
+                                        width: 100,
+                                        height: 100,
+                                        color: AppColors.surfaceStrong,
+                                        child: const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
                         ),
                         Positioned(
                           top: 4,
                           right: 4,
-                          child: InkWell(
-                            onTap: () => _removeMedia(index),
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
+                          child: BounceTap.icon(
+                            child: InkWell(
+                              onTap: () => _removeMedia(index),
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close, color: Colors.white, size: 14),
                               ),
-                              child: const Icon(Icons.close, color: Colors.white, size: 14),
                             ),
                           ),
                         ),
                         Positioned(
                           bottom: 4,
                           right: 4,
-                          child: InkWell(
-                            onTap: () => _replaceMedia(index),
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
+                          child: BounceTap.icon(
+                            child: InkWell(
+                              onTap: () => _replaceMedia(index),
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.swap_horiz, color: Colors.white, size: 14),
                               ),
-                              child: const Icon(Icons.swap_horiz, color: Colors.white, size: 14),
                             ),
                           ),
                         ),
@@ -643,9 +656,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () => setState(() => _selectedItinerary = null),
+                    BounceTap.icon(
+                      child: IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => setState(() => _selectedItinerary = null),
+                      ),
                     ),
                   ],
                 ),
@@ -669,10 +684,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      tooltip: 'Gỡ lịch trình',
-                      onPressed: () => setState(() => _existingItinerary = null),
+                    BounceTap.icon(
+                      child: IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Gỡ lịch trình',
+                        onPressed: () => setState(() => _existingItinerary = null),
+                      ),
                     ),
                   ],
                 ),

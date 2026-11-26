@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -190,13 +191,15 @@ class _DayPickerBottomSheetState extends State<DayPickerBottomSheet> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppColors.textSecondary,
+                    BounceTap.icon(
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: AppColors.textSecondary,
+                        ),
+                        tooltip: 'Đóng',
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
-                      tooltip: 'Đóng',
-                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
@@ -246,9 +249,11 @@ class _DayPickerBottomSheetState extends State<DayPickerBottomSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: _loadDays,
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: _loadDays,
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),
@@ -295,9 +300,11 @@ class _DayPickerBottomSheetState extends State<DayPickerBottomSheet> {
                 ),
               ),
               const SizedBox(height: 20),
-              OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Quay lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Quay lại'),
+                ),
               ),
             ],
           ),
@@ -383,24 +390,26 @@ class _DayPickerBottomSheetState extends State<DayPickerBottomSheet> {
               ),
             ],
           ),
-          trailing: FilledButton.tonal(
-            key: Key('select_day_${day.dayId}'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 6,
+          trailing: BounceTap(
+            child: FilledButton.tonal(
+              key: Key('select_day_${day.dayId}'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              visualDensity: VisualDensity.compact,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () => _selectDay(day),
-            child: const Text(
-              'Chọn',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              onPressed: () => _selectDay(day),
+              child: const Text(
+                'Chọn',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),

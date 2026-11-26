@@ -4,6 +4,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 
 class DeviceSessionsScreen extends StatefulWidget {
@@ -66,14 +67,18 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
         title: const Text('Đăng xuất thiết bị'),
         content: Text('Bạn có chắc chắn muốn đăng xuất khỏi thiết bị "$deviceInfo"?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+            ),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Đăng xuất'),
+          BounceTap(
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Đăng xuất'),
+            ),
           ),
         ],
       ),
@@ -110,14 +115,18 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
           'Tất cả các phiên đăng nhập khác sẽ bị đăng xuất ngay lập tức. Thiết bị hiện tại vẫn được giữ nguyên.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+            ),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Đăng xuất tất cả'),
+          BounceTap(
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Đăng xuất tất cả'),
+            ),
           ),
         ],
       ),
@@ -204,9 +213,11 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               ),
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: _loadSessions,
-                child: const Text('Thử lại'),
+              BounceTap(
+                child: OutlinedButton(
+                  onPressed: _loadSessions,
+                  child: const Text('Thử lại'),
+                ),
               ),
             ],
           ),
@@ -259,16 +270,19 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
 
           // Revoke other sessions button
           if (otherActiveSessions.isNotEmpty)
-            OutlinedButton.icon(
-              onPressed: _isRevoking ? null : _revokeOtherSessions,
-              icon: const Icon(Icons.devices_other, size: 20),
-              label: const Text('Đăng xuất tất cả thiết bị khác'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            BounceTap(
+              enabled: !_isRevoking,
+              child: OutlinedButton.icon(
+                onPressed: _isRevoking ? null : _revokeOtherSessions,
+                icon: const Icon(Icons.devices_other, size: 20),
+                label: const Text('Đăng xuất tất cả thiết bị khác'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
@@ -383,17 +397,20 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _isRevoking ? null : () => _revokeSession(sessionId, deviceInfo),
-                icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
-                label: const Text(
-                  'Đăng xuất thiết bị này',
-                  style: TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w600),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              child: BounceTap(
+                enabled: !_isRevoking,
+                child: TextButton.icon(
+                  onPressed: _isRevoking ? null : () => _revokeSession(sessionId, deviceInfo),
+                  icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
+                  label: const Text(
+                    'Đăng xuất thiết bị này',
+                    style: TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w600),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
             ),

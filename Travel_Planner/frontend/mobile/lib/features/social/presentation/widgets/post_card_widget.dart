@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../data/models/post_model.dart';
 import 'fullscreen_image_viewer.dart';
 
@@ -87,11 +88,13 @@ class PostCardWidget extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: onUserTap != null && post.author.userId > 0
-                        ? () => onUserTap!(post.author.userId)
-                        : null,
+                  child: BounceTap(
+                    enabled: onUserTap != null && post.author.userId > 0,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: onUserTap != null && post.author.userId > 0
+                          ? () => onUserTap!(post.author.userId)
+                          : null,
                     child: Row(
                       children: [
                         CircleAvatar(
@@ -175,6 +178,7 @@ class PostCardWidget extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
                 PopupMenuButton<String>(
@@ -262,29 +266,32 @@ class PostCardWidget extends StatelessWidget {
               children: [
                 // Like Button
                 Expanded(
-                  child: InkWell(
-                    onTap: onLike,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            post.isLikedByMe ? Icons.favorite : Icons.favorite_border,
-                            color: post.isLikedByMe ? AppColors.primary : AppColors.muted,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            post.likeCount > 0 ? '${post.likeCount}' : 'Thích',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: post.isLikedByMe ? FontWeight.w700 : FontWeight.w600,
-                              color: post.isLikedByMe ? AppColors.primary : AppColors.textPrimary,
+                  child: BounceTap.icon(
+                    enabled: onLike != null,
+                    child: InkWell(
+                      onTap: onLike,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              post.isLikedByMe ? Icons.favorite : Icons.favorite_border,
+                              color: post.isLikedByMe ? AppColors.primary : AppColors.muted,
+                              size: 22,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              post.likeCount > 0 ? '${post.likeCount}' : 'Thích',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: post.isLikedByMe ? FontWeight.w700 : FontWeight.w600,
+                                color: post.isLikedByMe ? AppColors.primary : AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -292,29 +299,32 @@ class PostCardWidget extends StatelessWidget {
 
                 // Comment Button
                 Expanded(
-                  child: InkWell(
-                    onTap: onComment,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.chat_bubble_outline,
-                            color: AppColors.muted,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            post.commentCount > 0 ? '${post.commentCount}' : 'Bình luận',
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                  child: BounceTap.icon(
+                    enabled: onComment != null,
+                    child: InkWell(
+                      onTap: onComment,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.chat_bubble_outline,
+                              color: AppColors.muted,
+                              size: 22,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              post.commentCount > 0 ? '${post.commentCount}' : 'Bình luận',
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -322,32 +332,35 @@ class PostCardWidget extends StatelessWidget {
 
                 // Share Button
                 Expanded(
-                  child: InkWell(
-                    onTap: onShare,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Transform.flip(
-                            flipX: true,
-                            child: const Icon(
-                              Icons.reply,
-                              color: AppColors.muted,
-                              size: 22,
+                  child: BounceTap.icon(
+                    enabled: onShare != null,
+                    child: InkWell(
+                      onTap: onShare,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Transform.flip(
+                              flipX: true,
+                              child: const Icon(
+                                Icons.reply,
+                                color: AppColors.muted,
+                                size: 22,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            post.shareCount > 0 ? '${post.shareCount}' : 'Chia sẻ',
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                            const SizedBox(width: 8),
+                            Text(
+                              post.shareCount > 0 ? '${post.shareCount}' : 'Chia sẻ',
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -363,14 +376,16 @@ class PostCardWidget extends StatelessWidget {
   Widget _buildPhotoGrid(BuildContext context, List<String> urls) {
     final count = urls.length;
     if (count == 1) {
-      return GestureDetector(
-        onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: 0),
-        child: AspectRatio(
-          aspectRatio: 4 / 3,
-          child: Image.network(
-            urls[0],
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+      return BounceTap(
+        child: GestureDetector(
+          onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: 0),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: Image.network(
+              urls[0],
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+            ),
           ),
         ),
       );
@@ -468,14 +483,16 @@ class PostCardWidget extends StatelessWidget {
   }
 
   Widget _singleImage(BuildContext context, List<String> urls, int index) {
-    return GestureDetector(
-      onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: index),
-      child: Image.network(
-        urls[index],
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+    return BounceTap(
+      child: GestureDetector(
+        onTap: () => FullscreenImageViewer.open(context, urls: urls, initialIndex: index),
+        child: Image.network(
+          urls[index],
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (_, _, _) => _imageErrorPlaceholder(),
+        ),
       ),
     );
   }
@@ -490,8 +507,9 @@ class PostCardWidget extends StatelessWidget {
   }
 
   Widget _buildItineraryCard(BuildContext context, PostItineraryModel itinerary) {
-    return InkWell(
-      onTap: () => onItineraryTap?.call(itinerary.itineraryId),
+    return BounceTap(
+      child: InkWell(
+        onTap: () => onItineraryTap?.call(itinerary.itineraryId),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         padding: const EdgeInsets.all(10),
@@ -583,6 +601,7 @@ class PostCardWidget extends StatelessWidget {
             const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),
           ],
         ),
+      ),
       ),
     );
   }

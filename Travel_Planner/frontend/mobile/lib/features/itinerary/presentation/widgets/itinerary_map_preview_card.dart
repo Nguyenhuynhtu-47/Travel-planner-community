@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_map_view.dart';
@@ -217,28 +218,30 @@ class _ItineraryMapPreviewCardState extends State<ItineraryMapPreviewCard> {
                   ),
                 ),
                 if (widget.onOpenFullScreen != null)
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                  BounceTap(
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        visualDensity: VisualDensity.compact,
                       ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    icon: const Icon(
-                      Icons.open_in_full,
-                      size: 14,
-                      color: AppColors.primary,
-                    ),
-                    label: const Text(
-                      'Toàn màn hình',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                      icon: const Icon(
+                        Icons.open_in_full,
+                        size: 14,
                         color: AppColors.primary,
                       ),
+                      label: const Text(
+                        'Toàn màn hình',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      onPressed: widget.onOpenFullScreen,
                     ),
-                    onPressed: widget.onOpenFullScreen,
                   ),
               ],
             ),
@@ -420,14 +423,16 @@ class _ItineraryMapPreviewCardState extends State<ItineraryMapPreviewCard> {
                                     ],
                                   ),
                                 ),
-                                GestureDetector(
-                                  onTap: () => setState(
-                                    () => _selectedActivity = null,
-                                  ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    size: 16,
-                                    color: AppColors.muted,
+                                BounceTap.icon(
+                                  child: GestureDetector(
+                                    onTap: () => setState(
+                                      () => _selectedActivity = null,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: AppColors.muted,
+                                    ),
                                   ),
                                 ),
                               ],

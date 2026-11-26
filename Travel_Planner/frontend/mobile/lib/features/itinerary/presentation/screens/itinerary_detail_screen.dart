@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
@@ -294,14 +295,18 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
           'Bản sao sẽ thuộc quyền sở hữu của bạn và bạn có thể tự do tùy chỉnh các ngày, hoạt động và địa điểm.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Hủy'),
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Sao chép'),
+          BounceTap(
+            child: FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Sao chép'),
+            ),
           ),
         ],
       ),
@@ -880,26 +885,28 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           final isSelected = starValue <= selectedScore;
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 2),
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: 40,
-                                minHeight: 40,
+                            child: BounceTap.icon(
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 40,
+                                  minHeight: 40,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                tooltip: '$starValue sao',
+                                icon: Icon(
+                                  isSelected
+                                      ? Icons.star_rounded
+                                      : Icons.star_outline_rounded,
+                                  color: Colors.amber,
+                                  size: 36,
+                                ),
+                                onPressed: () {
+                                  setDialogState(() {
+                                    selectedScore = starValue;
+                                  });
+                                },
                               ),
-                              visualDensity: VisualDensity.compact,
-                              tooltip: '$starValue sao',
-                              icon: Icon(
-                                isSelected
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                color: Colors.amber,
-                                size: 36,
-                              ),
-                              onPressed: () {
-                                setDialogState(() {
-                                  selectedScore = starValue;
-                                });
-                              },
                             ),
                           );
                         }),
@@ -919,29 +926,35 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               ),
               actions: [
                 if (hasExistingRating)
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(-1),
+                  BounceTap(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(-1),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                      ),
+                      child: const Text('Xóa đánh giá'),
+                    ),
+                  ),
+                BounceTap(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(null),
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.error,
+                      foregroundColor: AppColors.textSecondary,
                     ),
-                    child: const Text('Xóa đánh giá'),
+                    child: const Text('Hủy'),
                   ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(null),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                  ),
-                  child: const Text('Hủy'),
                 ),
-                FilledButton(
-                  onPressed: () => Navigator.of(ctx).pop(selectedScore),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                BounceTap(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(selectedScore),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
+                    child: const Text('Gửi'),
                   ),
-                  child: const Text('Gửi'),
                 ),
               ],
             );
@@ -1072,17 +1085,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               backgroundColor: AppColors.background,
               foregroundColor: AppColors.textPrimary,
               surfaceTintColor: Colors.transparent,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Quay lại',
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                padding: const EdgeInsets.all(6),
-                onPressed: () {
-                  Navigator.of(context).pop(
-                    _hasSocialChanges ? _buildSocialUpdate(itinerary) : null,
-                  );
-                },
+              leading: BounceTap.icon(
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Quay lại',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                  padding: const EdgeInsets.all(6),
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      _hasSocialChanges ? _buildSocialUpdate(itinerary) : null,
+                    );
+                  },
+                ),
               ),
               bottom: TabBar(
                 controller: _tabController,
@@ -1098,61 +1113,73 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   fontWeight: FontWeight.w500,
                   fontSize: 13,
                 ),
-                tabs: const [
-                  Tab(
-                    icon: Icon(Icons.info_outline, size: 18),
-                    text: 'Tổng quan',
+                tabs: [
+                  BounceTap(
+                    useSelectionHaptic: true,
+                    child: const Tab(
+                      icon: Icon(Icons.info_outline, size: 18),
+                      text: 'Tổng quan',
+                    ),
                   ),
-                  Tab(
-                    icon: Icon(Icons.event_note_outlined, size: 18),
-                    text: 'Hoạt động',
+                  BounceTap(
+                    useSelectionHaptic: true,
+                    child: const Tab(
+                      icon: Icon(Icons.event_note_outlined, size: 18),
+                      text: 'Hoạt động',
+                    ),
                   ),
                 ],
               ),
               actions: [
                 if (itinerary != null) ...[
                   if (!isOwner) ...[
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(
-                        minWidth: 38,
-                        minHeight: 38,
+                    BounceTap.icon(
+                      enabled: !_isTogglingSave,
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 38,
+                          minHeight: 38,
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        icon: Icon(
+                          effectiveSaved
+                              ? Icons.bookmark
+                              : Icons.bookmark_border_rounded,
+                          color: effectiveSaved
+                              ? AppColors.savedActive
+                              : AppColors.textPrimary,
+                        ),
+                        tooltip: effectiveSaved ? 'Bỏ lưu' : 'Lưu lịch trình',
+                        onPressed: _isTogglingSave
+                            ? null
+                            : () => _handleToggleSave(itinerary),
                       ),
-                      padding: const EdgeInsets.all(6),
-                      icon: Icon(
-                        effectiveSaved
-                            ? Icons.bookmark
-                            : Icons.bookmark_border_rounded,
-                        color: effectiveSaved
-                            ? AppColors.savedActive
-                            : AppColors.textPrimary,
-                      ),
-                      tooltip: effectiveSaved ? 'Bỏ lưu' : 'Lưu lịch trình',
-                      onPressed: _isTogglingSave
-                          ? null
-                          : () => _handleToggleSave(itinerary),
                     ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(
-                        minWidth: 38,
-                        minHeight: 38,
+                    BounceTap.icon(
+                      enabled: !_isTogglingFavorite,
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 38,
+                          minHeight: 38,
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        icon: Icon(
+                          effectiveFavorited
+                              ? Icons.favorite
+                              : Icons.favorite_border_rounded,
+                          color: effectiveFavorited
+                              ? Colors.redAccent
+                              : AppColors.textPrimary,
+                        ),
+                        tooltip: effectiveFavorited
+                            ? 'Bỏ yêu thích'
+                            : 'Yêu thích',
+                        onPressed: _isTogglingFavorite
+                            ? null
+                            : () => _handleToggleFavorite(itinerary, isOwner),
                       ),
-                      padding: const EdgeInsets.all(6),
-                      icon: Icon(
-                        effectiveFavorited
-                            ? Icons.favorite
-                            : Icons.favorite_border_rounded,
-                        color: effectiveFavorited
-                            ? Colors.redAccent
-                            : AppColors.textPrimary,
-                      ),
-                      tooltip: effectiveFavorited
-                          ? 'Bỏ yêu thích'
-                          : 'Yêu thích',
-                      onPressed: _isTogglingFavorite
-                          ? null
-                          : () => _handleToggleFavorite(itinerary, isOwner),
                     ),
                   ],
                   if (_isCloning)
@@ -1170,30 +1197,34 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                       ),
                     )
                   else
-                    IconButton(
+                    BounceTap.icon(
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 38,
+                          minHeight: 38,
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        icon: const Icon(Icons.copy_all_outlined),
+                        tooltip: 'Sao chép lịch trình',
+                        onPressed: () => _handleClone(itinerary),
+                      ),
+                    ),
+                  BounceTap.icon(
+                    child: IconButton(
                       visualDensity: VisualDensity.compact,
                       constraints: const BoxConstraints(
                         minWidth: 38,
                         minHeight: 38,
                       ),
                       padding: const EdgeInsets.all(6),
-                      icon: const Icon(Icons.copy_all_outlined),
-                      tooltip: 'Sao chép lịch trình',
-                      onPressed: () => _handleClone(itinerary),
+                      icon: Transform.flip(
+                        flipX: true,
+                        child: const Icon(Icons.share),
+                      ),
+                      tooltip: 'Chia sẻ lịch trình',
+                      onPressed: () => _handleShare(itinerary),
                     ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 38,
-                      minHeight: 38,
-                    ),
-                    padding: const EdgeInsets.all(6),
-                    icon: Transform.flip(
-                      flipX: true,
-                      child: const Icon(Icons.share),
-                    ),
-                    tooltip: 'Chia sẻ lịch trình',
-                    onPressed: () => _handleShare(itinerary),
                   ),
                 ],
                 if (isOwner && itinerary != null) ...[
@@ -1212,30 +1243,34 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                       ),
                     )
                   else ...[
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(
-                        minWidth: 38,
-                        minHeight: 38,
+                    BounceTap.icon(
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 38,
+                          minHeight: 38,
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Chỉnh sửa lịch trình',
+                        onPressed: () => _handleEdit(itinerary),
                       ),
-                      padding: const EdgeInsets.all(6),
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Chỉnh sửa lịch trình',
-                      onPressed: () => _handleEdit(itinerary),
                     ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(
-                        minWidth: 38,
-                        minHeight: 38,
+                    BounceTap.icon(
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 38,
+                          minHeight: 38,
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: AppColors.error,
+                        ),
+                        tooltip: 'Xóa lịch trình',
+                        onPressed: () => _handleDelete(itinerary),
                       ),
-                      padding: const EdgeInsets.all(6),
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: AppColors.error,
-                      ),
-                      tooltip: 'Xóa lịch trình',
-                      onPressed: () => _handleDelete(itinerary),
                     ),
                   ],
                 ],
@@ -1356,11 +1391,13 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                         ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => _notifier.retry(token: _effectiveToken),
-                      child: const Text(
-                        'Thử lại',
-                        style: TextStyle(fontSize: 12),
+                    BounceTap(
+                      child: TextButton(
+                        onPressed: () => _notifier.retry(token: _effectiveToken),
+                        child: const Text(
+                          'Thử lại',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ),
                   ],
@@ -1576,27 +1613,29 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: AppColors.hairline),
-                      backgroundColor: AppColors.surfaceSoft,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  child: BounceTap(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: AppColors.hairline),
+                        backgroundColor: AppColors.surfaceSoft,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    icon: const Icon(
-                      Icons.add_rounded,
-                      color: AppColors.primary,
-                    ),
-                    label: Text(
-                      'Thêm Ngày ${itinerary.days.length + 1}',
-                      style: const TextStyle(
+                      icon: const Icon(
+                        Icons.add_rounded,
                         color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
                       ),
+                      label: Text(
+                        'Thêm Ngày ${itinerary.days.length + 1}',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onPressed: () => _handleAddDay(itinerary),
                     ),
-                    onPressed: () => _handleAddDay(itinerary),
                   ),
                 ),
               ),
@@ -1604,27 +1643,29 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: AppColors.hairline),
-                      backgroundColor: AppColors.surfaceSoft,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  child: BounceTap(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: AppColors.hairline),
+                        backgroundColor: AppColors.surfaceSoft,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    icon: const Icon(
-                      Icons.view_agenda_outlined,
-                      color: AppColors.textSecondary,
-                    ),
-                    label: const Text(
-                      'Xem toàn bộ các ngày',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
+                      icon: const Icon(
+                        Icons.view_agenda_outlined,
+                        color: AppColors.textSecondary,
                       ),
+                      label: const Text(
+                        'Xem toàn bộ các ngày',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onPressed: () => setState(() => _selectedDayNumber = null),
                     ),
-                    onPressed: () => setState(() => _selectedDayNumber = null),
                   ),
                 ),
               ),
@@ -1670,9 +1711,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           ),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close),
+                      BounceTap.icon(
+                        child: IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
                       ),
                     ],
                   ),
@@ -1741,26 +1784,29 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     required bool isSelected,
     required VoidCallback onSelected,
   }) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => onSelected(),
-      selectedColor: AppColors.primary,
-      backgroundColor: AppColors.surfaceSoft,
-      labelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-        color: isSelected ? Colors.white : AppColors.textSecondary,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-      visualDensity: VisualDensity.compact,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: isSelected ? AppColors.primary : AppColors.hairline,
+    return BounceTap(
+      useSelectionHaptic: true,
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (_) => onSelected(),
+        selectedColor: AppColors.primary,
+        backgroundColor: AppColors.surfaceSoft,
+        labelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          color: isSelected ? Colors.white : AppColors.textSecondary,
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: isSelected ? AppColors.primary : AppColors.hairline,
+          ),
+        ),
+        showCheckmark: false,
       ),
-      showCheckmark: false,
     );
   }
 
@@ -1796,8 +1842,9 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 ),
               ),
               if (!isOwner && !isGuest)
-                TextButton.icon(
-                  onPressed: () => _openRatingDialog(itinerary, isOwner),
+                BounceTap(
+                  child: TextButton.icon(
+                    onPressed: () => _openRatingDialog(itinerary, isOwner),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(
@@ -1820,6 +1867,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                       color: AppColors.primary,
                     ),
                   ),
+                ),
                 ),
             ],
           ),
@@ -1939,9 +1987,11 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      TextButton(
-                        onPressed: () => _openRatingDialog(itinerary, isOwner),
-                        child: const Text('Đánh giá'),
+                      BounceTap(
+                        child: TextButton(
+                          onPressed: () => _openRatingDialog(itinerary, isOwner),
+                          child: const Text('Đánh giá'),
+                        ),
                       ),
                     ],
                   )
@@ -1989,20 +2039,22 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           ],
                         ),
                       ),
-                      InkWell(
-                        onTap: () => _openRatingDialog(itinerary, isOwner),
-                        borderRadius: BorderRadius.circular(4),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            'Chỉnh sửa',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
+                      BounceTap(
+                        child: InkWell(
+                          onTap: () => _openRatingDialog(itinerary, isOwner),
+                          borderRadius: BorderRadius.circular(4),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              'Chỉnh sửa',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
                             ),
                           ),
                         ),
@@ -2023,30 +2075,32 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                      BounceTap(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            minimumSize: Size.zero,
+                            side: const BorderSide(color: AppColors.primary),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          minimumSize: Size.zero,
-                          side: const BorderSide(color: AppColors.primary),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () => _openRatingDialog(itinerary, isOwner),
-                        icon: const Icon(
-                          Icons.star_outline_rounded,
-                          size: 16,
-                          color: AppColors.primary,
-                        ),
-                        label: const Text(
-                          'Đánh giá',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                          onPressed: () => _openRatingDialog(itinerary, isOwner),
+                          icon: const Icon(
+                            Icons.star_outline_rounded,
+                            size: 16,
                             color: AppColors.primary,
+                          ),
+                          label: const Text(
+                            'Đánh giá',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
                           ),
                         ),
                       ),
@@ -2144,12 +2198,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (itinerary.creator != null) ...[
-                    InkWell(
-                      onTap: itinerary.creator!.userId == 0
-                          ? null
-                          : () =>
-                                _openCreatorProfile(itinerary.creator!.userId),
-                      borderRadius: BorderRadius.circular(8),
+                    BounceTap(
+                      enabled: itinerary.creator!.userId != 0,
+                      child: InkWell(
+                        onTap: itinerary.creator!.userId == 0
+                            ? null
+                            : () =>
+                                  _openCreatorProfile(itinerary.creator!.userId),
+                        borderRadius: BorderRadius.circular(8),
                       child: Row(
                         children: [
                           _creatorAvatar(itinerary.creator!.avatar),
@@ -2172,6 +2228,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           ),
                         ],
                       ),
+                    ),
                     ),
                     const SizedBox(height: 4),
                   ],
@@ -2286,14 +2343,18 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
           'Bạn có chắc chắn muốn bỏ lưu "${ip.place.name}" khỏi lịch trình này? Các hoạt động trong lịch trình sẽ không bị ảnh hưởng.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Hủy'),
+            ),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Bỏ lưu'),
+          BounceTap(
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Bỏ lưu'),
+            ),
           ),
         ],
       ),
@@ -2487,32 +2548,34 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                 Material(
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    onTap: _showAddPlaceToItineraryDialog,
-                    borderRadius: BorderRadius.circular(8),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.bookmark_add_outlined,
-                            size: 16,
-                            color: AppColors.primary,
-                          ),
-                          SizedBox(width: 5),
-                          Text(
-                            'Thêm địa điểm',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                  child: BounceTap(
+                    child: InkWell(
+                      onTap: _showAddPlaceToItineraryDialog,
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.bookmark_add_outlined,
+                              size: 16,
                               color: AppColors.primary,
                             ),
-                          ),
-                        ],
+                            SizedBox(width: 5),
+                            Text(
+                              'Thêm địa điểm',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2549,10 +2612,12 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 10),
-                  TextButton.icon(
-                    onPressed: _loadItinerarySavedPlaces,
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Thử lại'),
+                  BounceTap(
+                    child: TextButton.icon(
+                      onPressed: _loadItinerarySavedPlaces,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Thử lại'),
+                    ),
                   ),
                 ],
               ),
@@ -2590,13 +2655,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   ),
                   if (isOwner) ...[
                     const SizedBox(height: 12),
-                    FilledButton.tonalIcon(
-                      onPressed: _showAddPlaceToItineraryDialog,
-                      icon: const Icon(
-                        Icons.add_location_alt_outlined,
-                        size: 16,
+                    BounceTap(
+                      child: FilledButton.tonalIcon(
+                        onPressed: _showAddPlaceToItineraryDialog,
+                        icon: const Icon(
+                          Icons.add_location_alt_outlined,
+                          size: 16,
+                        ),
+                        label: const Text('Thêm địa điểm'),
                       ),
-                      label: const Text('Thêm địa điểm'),
                     ),
                   ],
                 ],
@@ -2737,14 +2804,16 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
             ],
           )
         else
-          IconButton(
-            icon: const Icon(
-              Icons.bookmark_add_outlined,
-              size: 22,
-              color: AppColors.primary,
+          BounceTap.icon(
+            child: IconButton(
+              icon: const Icon(
+                Icons.bookmark_add_outlined,
+                size: 22,
+                color: AppColors.primary,
+              ),
+              tooltip: 'Lưu vào lịch trình của tôi',
+              onPressed: () => _openSavePlaceToMyItinerariesSheet(place: p),
             ),
-            tooltip: 'Lưu vào lịch trình của tôi',
-            onPressed: () => _openSavePlaceToMyItinerariesSheet(place: p),
           ),
       ],
     );
@@ -2846,13 +2915,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               const SizedBox(height: 20),
               Align(
                 alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+                child: BounceTap(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Đóng'),
                   ),
-                  child: const Text('Đóng'),
                 ),
               ),
             ],

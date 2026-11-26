@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -613,15 +614,18 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppColors.textSecondary,
+                    BounceTap.icon(
+                      enabled: !_isLoading,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: AppColors.textSecondary,
+                        ),
+                        onPressed: _isLoading
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        tooltip: 'Đóng',
                       ),
-                      onPressed: _isLoading
-                          ? null
-                          : () => Navigator.of(context).pop(false),
-                      tooltip: 'Đóng',
                     ),
                   ],
                 ),
@@ -772,27 +776,33 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                     ],
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit_location_alt_outlined,
-                                    size: 20,
-                                    color: AppColors.primary,
+                                BounceTap.icon(
+                                  enabled: !_isLoading,
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.edit_location_alt_outlined,
+                                      size: 20,
+                                      color: AppColors.primary,
+                                    ),
+                                    tooltip: 'Đổi vị trí trên bản đồ',
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _openLocationPicker,
                                   ),
-                                  tooltip: 'Đổi vị trí trên bản đồ',
-                                  onPressed: _isLoading
-                                      ? null
-                                      : _openLocationPicker,
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    size: 18,
-                                    color: AppColors.muted,
+                                BounceTap.icon(
+                                  enabled: !_isLoading,
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 18,
+                                      color: AppColors.muted,
+                                    ),
+                                    tooltip: 'Xóa vị trí',
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _clearLocation,
                                   ),
-                                  tooltip: 'Xóa vị trí',
-                                  onPressed: _isLoading
-                                      ? null
-                                      : _clearLocation,
                                 ),
                               ],
                             ),
@@ -800,35 +810,38 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                         ] else ...[
                           Align(
                             alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              icon: const Icon(
-                                Icons.map_outlined,
-                                size: 18,
-                                color: AppColors.primary,
-                              ),
-                              label: const Text(
-                                'Chọn vị trí trên bản đồ',
-                                style: TextStyle(
+                            child: BounceTap(
+                              enabled: !_isLoading,
+                              child: TextButton.icon(
+                                icon: const Icon(
+                                  Icons.map_outlined,
+                                  size: 18,
                                   color: AppColors.primary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
                                 ),
-                              ),
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  side: const BorderSide(
-                                    color: AppColors.hairline,
+                                label: const Text(
+                                  'Chọn vị trí trên bản đồ',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: const BorderSide(
+                                      color: AppColors.hairline,
+                                    ),
+                                  ),
+                                ),
+                                onPressed: _isLoading
+                                    ? null
+                                    : _openLocationPicker,
                               ),
-                              onPressed: _isLoading
-                                  ? null
-                                  : _openLocationPicker,
                             ),
                           ),
                         ],
@@ -859,7 +872,9 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                             children: _savedPlaces.map((sp) {
                               final isSelected =
                                   _canonicalPlaceId == sp.place.placeId;
-                              return ActionChip(
+                              return BounceTap(
+                                useSelectionHaptic: true,
+                                child: ActionChip(
                                 avatar: Icon(
                                   isSelected
                                       ? Icons.check_circle
@@ -906,6 +921,7 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                           }
                                         });
                                       },
+                                ),
                               );
                             }).toList(),
                           ),
@@ -939,12 +955,15 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                 false))
                           Align(
                             alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: _isLoading
-                                  ? null
-                                  : _removeActivityImage,
-                              icon: const Icon(Icons.delete_outline, size: 17),
-                              label: const Text('Xóa ảnh hoạt động'),
+                            child: BounceTap(
+                              enabled: !_isLoading,
+                              child: TextButton.icon(
+                                onPressed: _isLoading
+                                    ? null
+                                    : _removeActivityImage,
+                                icon: const Icon(Icons.delete_outline, size: 17),
+                                label: const Text('Xóa ảnh hoạt động'),
+                              ),
                             ),
                           ),
                         const SizedBox(height: 14),
@@ -962,8 +981,10 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                         Row(
                           children: [
                             Expanded(
-                              child: InkWell(
-                                onTap: _isLoading ? null : _pickStartTime,
+                              child: BounceTap(
+                                enabled: !_isLoading,
+                                child: InkWell(
+                                  onTap: _isLoading ? null : _pickStartTime,
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1002,26 +1023,31 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                         ),
                                       ),
                                       if (_startTime != null && !_isLoading)
-                                        GestureDetector(
-                                          onTap: () => setState(() {
-                                            _startTime = null;
-                                            _validateTimeRange();
-                                          }),
-                                          child: const Icon(
-                                            Icons.close,
-                                            size: 16,
-                                            color: AppColors.muted,
+                                        BounceTap.icon(
+                                          child: GestureDetector(
+                                            onTap: () => setState(() {
+                                              _startTime = null;
+                                              _validateTimeRange();
+                                            }),
+                                            child: const Icon(
+                                              Icons.close,
+                                              size: 16,
+                                              color: AppColors.muted,
+                                            ),
                                           ),
                                         ),
                                     ],
                                   ),
                                 ),
                               ),
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: InkWell(
-                                onTap: _isLoading ? null : _pickEndTime,
+                              child: BounceTap(
+                                enabled: !_isLoading,
+                                child: InkWell(
+                                  onTap: _isLoading ? null : _pickEndTime,
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1060,20 +1086,23 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                                         ),
                                       ),
                                       if (_endTime != null && !_isLoading)
-                                        GestureDetector(
-                                          onTap: () => setState(() {
-                                            _endTime = null;
-                                            _validateTimeRange();
-                                          }),
-                                          child: const Icon(
-                                            Icons.close,
-                                            size: 16,
-                                            color: AppColors.muted,
+                                        BounceTap.icon(
+                                          child: GestureDetector(
+                                            onTap: () => setState(() {
+                                              _endTime = null;
+                                              _validateTimeRange();
+                                            }),
+                                            child: const Icon(
+                                              Icons.close,
+                                              size: 16,
+                                              color: AppColors.muted,
+                                            ),
                                           ),
                                         ),
                                     ],
                                   ),
                                 ),
+                              ),
                               ),
                             ),
                           ],
@@ -1200,22 +1229,25 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: const BorderSide(color: AppColors.hairline),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                      child: BounceTap(
+                        enabled: !_isLoading,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: AppColors.hairline),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
-                        ),
-                        onPressed: _isLoading
-                            ? null
-                            : () => Navigator.of(context).pop(false),
-                        child: const Text(
-                          'Hủy',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w600,
+                          onPressed: _isLoading
+                              ? null
+                              : () => Navigator.of(context).pop(false),
+                          child: const Text(
+                            'Hủy',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -1223,33 +1255,36 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                      child: BounceTap(
+                        enabled: !_isLoading,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
+                          onPressed: _isLoading ? null : _submit,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  _isEditing ? 'Lưu thay đổi' : 'Thêm hoạt động',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
                         ),
-                        onPressed: _isLoading ? null : _submit,
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                _isEditing ? 'Lưu thay đổi' : 'Thêm hoạt động',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
                       ),
                     ),
                   ],

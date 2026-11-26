@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_repository.dart';
@@ -235,23 +236,29 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       return Wrap(
         spacing: 4,
         children: [
-          IconButton(
-            tooltip: 'Chấp nhận lời mời',
-            onPressed: () => _act(user, 'accept'),
-            icon: const Icon(Icons.check_circle_outline),
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Chấp nhận lời mời',
+              onPressed: () => _act(user, 'accept'),
+              icon: const Icon(Icons.check_circle_outline),
+            ),
           ),
-          IconButton(
-            tooltip: 'Từ chối lời mời',
-            onPressed: () => _act(user, 'decline'),
-            icon: const Icon(Icons.cancel_outlined),
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Từ chối lời mời',
+              onPressed: () => _act(user, 'decline'),
+              icon: const Icon(Icons.cancel_outlined),
+            ),
           ),
         ],
       );
     }
     if (user.friendRequestDirection == 'sent' && user.friendshipId != null) {
-      return TextButton(
-        onPressed: () => _act(user, 'cancel'),
-        child: const Text('Đã gửi · Hủy'),
+      return BounceTap(
+        child: TextButton(
+          onPressed: () => _act(user, 'cancel'),
+          child: const Text('Đã gửi · Hủy'),
+        ),
       );
     }
     if (user.friendshipStatus == 'ACCEPTED') {
@@ -259,31 +266,39 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         spacing: 4,
         children: [
           if (user.canMessage || user.canContinueConversation)
-            IconButton(
-              tooltip: 'Nhắn tin',
-              onPressed: () => _message(user),
-              icon: const Icon(Icons.chat_outlined),
+            BounceTap.icon(
+              child: IconButton(
+                tooltip: 'Nhắn tin',
+                onPressed: () => _message(user),
+                icon: const Icon(Icons.chat_outlined),
+              ),
             ),
-          IconButton(
-            tooltip: 'Hủy kết bạn',
-            onPressed: () => _act(user, 'unfriend'),
-            icon: const Icon(Icons.person_remove_alt_1_outlined),
+          BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Hủy kết bạn',
+              onPressed: () => _act(user, 'unfriend'),
+              icon: const Icon(Icons.person_remove_alt_1_outlined),
+            ),
           ),
         ],
       );
     }
     if (user.canSendFriendRequest) {
-      return FilledButton.tonalIcon(
-        onPressed: () => _act(user, 'add'),
-        icon: const Icon(Icons.person_add_alt_1),
-        label: const Text('Kết bạn'),
+      return BounceTap(
+        child: FilledButton.tonalIcon(
+          onPressed: () => _act(user, 'add'),
+          icon: const Icon(Icons.person_add_alt_1),
+          label: const Text('Kết bạn'),
+        ),
       );
     }
     return user.canMessage || user.canContinueConversation
-        ? IconButton(
-            tooltip: 'Nhắn tin',
-            onPressed: () => _message(user),
-            icon: const Icon(Icons.chat_outlined),
+        ? BounceTap.icon(
+            child: IconButton(
+              tooltip: 'Nhắn tin',
+              onPressed: () => _message(user),
+              icon: const Icon(Icons.chat_outlined),
+            ),
           )
         : const Chip(label: Text('Không thể thao tác'));
   }
@@ -310,10 +325,12 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
                 hintText: 'Tìm theo tên hoặc @handle',
-                suffixIcon: IconButton(
-                  tooltip: 'Xóa tìm kiếm',
-                  onPressed: _query.clear,
-                  icon: const Icon(Icons.close),
+                suffixIcon: BounceTap.icon(
+                  child: IconButton(
+                    tooltip: 'Xóa tìm kiếm',
+                    onPressed: _query.clear,
+                    icon: const Icon(Icons.close),
+                  ),
                 ),
                 filled: true,
                 fillColor: AppColors.surface,
@@ -329,7 +346,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           else if (_error != null && _results.isEmpty)
             Expanded(
               child: Center(
-                child: TextButton(onPressed: _refresh, child: Text(_error!)),
+                child: BounceTap(
+                  child: TextButton(onPressed: _refresh, child: Text(_error!)),
+                ),
               ),
             )
           else if (queryTooShort && !_searched)

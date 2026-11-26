@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -424,10 +425,13 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.center_focus_strong_outlined),
-            tooltip: 'Căn giữa các điểm',
-            onPressed: stops.isNotEmpty ? _recenterCamera : null,
+          BounceTap.icon(
+            enabled: stops.isNotEmpty,
+            child: IconButton(
+              icon: const Icon(Icons.center_focus_strong_outlined),
+              tooltip: 'Căn giữa các điểm',
+              onPressed: stops.isNotEmpty ? _recenterCamera : null,
+            ),
           ),
         ],
       ),
@@ -663,14 +667,16 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                             ),
                           ),
                           const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            color: AppColors.textSecondary,
-                            onPressed: () {
-                              setState(() => _selectedStop = null);
-                            },
+                          BounceTap.icon(
+                            child: IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              color: AppColors.textSecondary,
+                              onPressed: () {
+                                setState(() => _selectedStop = null);
+                              },
+                            ),
                           ),
                         ],
                       ),
@@ -848,14 +854,16 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: () => _loadRouteForDay(dayNumber),
-                  child: const Text(
-                    'Thử lại',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+                BounceTap(
+                  child: GestureDetector(
+                    onTap: () => _loadRouteForDay(dayNumber),
+                    child: const Text(
+                      'Thử lại',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                 ),
@@ -928,38 +936,40 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    backgroundColor: AppColors.primaryLight,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                BounceTap(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      backgroundColor: AppColors.primaryLight,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                     ),
-                  ),
-                  icon: const Icon(
-                    Icons.navigation,
-                    size: 12,
-                    color: AppColors.primary,
-                  ),
-                  label: const Text(
-                    'Chỉ đường',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                    icon: const Icon(
+                      Icons.navigation,
+                      size: 12,
                       color: AppColors.primary,
                     ),
+                    label: const Text(
+                      'Chỉ đường',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    onPressed: () {
+                      final navStops = stops.map((s) => s.toNavigationStop()).toList();
+                      NavigationLauncherHelper.launchNavigation(
+                        context: context,
+                        stops: navStops,
+                        mode: _selectedTravelMode,
+                        launcher: widget.navigationLauncher ?? launchUrl,
+                      );
+                    },
                   ),
-                  onPressed: () {
-                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
-                    NavigationLauncherHelper.launchNavigation(
-                      context: context,
-                      stops: navStops,
-                      mode: _selectedTravelMode,
-                      launcher: widget.navigationLauncher ?? launchUrl,
-                    );
-                  },
                 ),
               ],
             ),
@@ -1025,38 +1035,40 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    backgroundColor: const Color(0xFFFEF3C7),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                BounceTap(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      backgroundColor: const Color(0xFFFEF3C7),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                     ),
-                  ),
-                  icon: const Icon(
-                    Icons.navigation,
-                    size: 12,
-                    color: Color(0xFF92400E),
-                  ),
-                  label: const Text(
-                    'Chỉ đường',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                    icon: const Icon(
+                      Icons.navigation,
+                      size: 12,
                       color: Color(0xFF92400E),
                     ),
+                    label: const Text(
+                      'Chỉ đường',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                    onPressed: () {
+                      final navStops = stops.map((s) => s.toNavigationStop()).toList();
+                      NavigationLauncherHelper.launchNavigation(
+                        context: context,
+                        stops: navStops,
+                        mode: _selectedTravelMode,
+                        launcher: widget.navigationLauncher ?? launchUrl,
+                      );
+                    },
                   ),
-                  onPressed: () {
-                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
-                    NavigationLauncherHelper.launchNavigation(
-                      context: context,
-                      stops: navStops,
-                      mode: _selectedTravelMode,
-                      launcher: widget.navigationLauncher ?? launchUrl,
-                    );
-                  },
                 ),
               ],
             ),
@@ -1086,38 +1098,40 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    backgroundColor: AppColors.primaryLight,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                BounceTap(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      backgroundColor: AppColors.primaryLight,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                     ),
-                  ),
-                  icon: const Icon(
-                    Icons.open_in_new,
-                    size: 12,
-                    color: AppColors.primary,
-                  ),
-                  label: const Text(
-                    'Mở Google Maps',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                    icon: const Icon(
+                      Icons.open_in_new,
+                      size: 12,
                       color: AppColors.primary,
                     ),
+                    label: const Text(
+                      'Mở Google Maps',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    onPressed: () {
+                      final navStops = stops.map((s) => s.toNavigationStop()).toList();
+                      NavigationLauncherHelper.launchNavigation(
+                        context: context,
+                        stops: navStops,
+                        mode: _selectedTravelMode,
+                        launcher: widget.navigationLauncher ?? launchUrl,
+                      );
+                    },
                   ),
-                  onPressed: () {
-                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
-                    NavigationLauncherHelper.launchNavigation(
-                      context: context,
-                      stops: navStops,
-                      mode: _selectedTravelMode,
-                      launcher: widget.navigationLauncher ?? launchUrl,
-                    );
-                  },
                 ),
               ],
             ),
@@ -1254,38 +1268,40 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  backgroundColor: AppColors.primaryLight,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+              BounceTap(
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    backgroundColor: AppColors.primaryLight,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
-                ),
-                icon: const Icon(
-                  Icons.navigation,
-                  size: 12,
-                  color: AppColors.primary,
-                ),
-                label: const Text(
-                  'Chỉ đường',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                  icon: const Icon(
+                    Icons.navigation,
+                    size: 12,
                     color: AppColors.primary,
                   ),
+                  label: const Text(
+                    'Chỉ đường',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  onPressed: () {
+                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
+                    NavigationLauncherHelper.launchNavigation(
+                      context: context,
+                      stops: navStops,
+                      mode: _selectedTravelMode,
+                      launcher: widget.navigationLauncher ?? launchUrl,
+                    );
+                  },
                 ),
-                onPressed: () {
-                  final navStops = stops.map((s) => s.toNavigationStop()).toList();
-                  NavigationLauncherHelper.launchNavigation(
-                    context: context,
-                    stops: navStops,
-                    mode: _selectedTravelMode,
-                    launcher: widget.navigationLauncher ?? launchUrl,
-                  );
-                },
               ),
             ],
           ),
@@ -1355,38 +1371,40 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  backgroundColor: const Color(0xFFFEF3C7),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+              BounceTap(
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    backgroundColor: const Color(0xFFFEF3C7),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
-                ),
-                icon: const Icon(
-                  Icons.navigation,
-                  size: 12,
-                  color: Color(0xFF92400E),
-                ),
-                label: const Text(
-                  'Chỉ đường',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                  icon: const Icon(
+                    Icons.navigation,
+                    size: 12,
                     color: Color(0xFF92400E),
                   ),
+                  label: const Text(
+                    'Chỉ đường',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  onPressed: () {
+                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
+                    NavigationLauncherHelper.launchNavigation(
+                      context: context,
+                      stops: navStops,
+                      mode: _selectedTravelMode,
+                      launcher: widget.navigationLauncher ?? launchUrl,
+                    );
+                  },
                 ),
-                onPressed: () {
-                  final navStops = stops.map((s) => s.toNavigationStop()).toList();
-                  NavigationLauncherHelper.launchNavigation(
-                    context: context,
-                    stops: navStops,
-                    mode: _selectedTravelMode,
-                    launcher: widget.navigationLauncher ?? launchUrl,
-                  );
-                },
               ),
             ],
           ),
@@ -1415,14 +1433,16 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              GestureDetector(
-                onTap: _loadRoutesForAllDays,
-                child: const Text(
-                  'Thử lại',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+              BounceTap(
+                child: GestureDetector(
+                  onTap: _loadRoutesForAllDays,
+                  child: const Text(
+                    'Thử lại',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
               ),
@@ -1453,38 +1473,40 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  backgroundColor: AppColors.primaryLight,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+              BounceTap(
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    backgroundColor: AppColors.primaryLight,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
-                ),
-                icon: const Icon(
-                  Icons.open_in_new,
-                  size: 12,
-                  color: AppColors.primary,
-                ),
-                label: const Text(
-                  'Mở Google Maps',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                  icon: const Icon(
+                    Icons.open_in_new,
+                    size: 12,
                     color: AppColors.primary,
                   ),
+                  label: const Text(
+                    'Mở Google Maps',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  onPressed: () {
+                    final navStops = stops.map((s) => s.toNavigationStop()).toList();
+                    NavigationLauncherHelper.launchNavigation(
+                      context: context,
+                      stops: navStops,
+                      mode: _selectedTravelMode,
+                      launcher: widget.navigationLauncher ?? launchUrl,
+                    );
+                  },
                 ),
-                onPressed: () {
-                  final navStops = stops.map((s) => s.toNavigationStop()).toList();
-                  NavigationLauncherHelper.launchNavigation(
-                    context: context,
-                    stops: navStops,
-                    mode: _selectedTravelMode,
-                    launcher: widget.navigationLauncher ?? launchUrl,
-                  );
-                },
               ),
             ],
           ),
@@ -1503,22 +1525,24 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
     final isSelected = _selectedTravelMode == mode;
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        onTap: () => _onTravelModeChanged(mode),
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryLight : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: isSelected
-                ? Border.all(color: AppColors.primary, width: 1)
-                : null,
-          ),
-          child: Icon(
-            icon,
-            size: 15,
-            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+      child: BounceTap.icon(
+        child: InkWell(
+          onTap: () => _onTravelModeChanged(mode),
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primaryLight : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: isSelected
+                  ? Border.all(color: AppColors.primary, width: 1)
+                  : null,
+            ),
+            child: Icon(
+              icon,
+              size: 15,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            ),
           ),
         ),
       ),
@@ -1531,8 +1555,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
     required Color color,
     required VoidCallback onSelected,
   }) {
-    return GestureDetector(
-      onTap: onSelected,
+    return BounceTap(
+      useSelectionHaptic: true,
+      child: GestureDetector(
+        onTap: onSelected,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1559,6 +1585,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
             color: isSelected ? Colors.white : AppColors.textPrimary,
           ),
         ),
+      ),
       ),
     );
   }

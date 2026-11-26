@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
@@ -187,10 +188,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: 'Quay lại',
-          onPressed: () => Navigator.of(context).pop(),
+        leading: BounceTap.icon(
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Quay lại',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ),
       ),
       body: _buildBody(),
@@ -225,10 +228,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 24),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.arrow_back, size: 18),
-                label: const Text('Quay lại'),
-                onPressed: () => Navigator.of(context).pop(),
+              BounceTap(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Quay lại'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
               ),
             ],
           ),
@@ -243,9 +248,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           children: [
             Text(_errorMessage!, style: const TextStyle(color: AppColors.muted)),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _fetchPost,
-              child: const Text('Thử lại'),
+            BounceTap(
+              child: ElevatedButton(
+                onPressed: _fetchPost,
+                child: const Text('Thử lại'),
+              ),
             ),
           ],
         ),
@@ -273,26 +280,28 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             // Comments trigger section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: const BorderSide(color: AppColors.hairlineSoft),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              child: BounceTap(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: const BorderSide(color: AppColors.hairlineSoft),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                ),
-                icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                label: Text(
-                  _post!.commentCount > 0
-                      ? 'Xem tất cả ${_post!.commentCount} bình luận'
-                      : 'Viết bình luận đầu tiên...',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: Text(
+                    _post!.commentCount > 0
+                        ? 'Xem tất cả ${_post!.commentCount} bình luận'
+                        : 'Viết bình luận đầu tiên...',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
+                  onPressed: _openComments,
                 ),
-                onPressed: _openComments,
               ),
             ),
             const SizedBox(height: 32),

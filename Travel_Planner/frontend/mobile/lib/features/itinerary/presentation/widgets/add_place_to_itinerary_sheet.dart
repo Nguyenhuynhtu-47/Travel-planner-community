@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -298,9 +299,11 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () => Navigator.of(context).pop(),
+                BounceTap.icon(
+                  child: IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
                 ),
               ],
             ),
@@ -380,14 +383,20 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
             indicatorWeight: 2.5,
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             unselectedLabelStyle: const TextStyle(fontSize: 13),
-            tabs: const [
-              Tab(
-                icon: Icon(Icons.copy_rounded, size: 18),
-                text: 'Từ lịch trình khác',
+            tabs: [
+              BounceTap(
+                useSelectionHaptic: true,
+                child: const Tab(
+                  icon: Icon(Icons.copy_rounded, size: 18),
+                  text: 'Từ lịch trình khác',
+                ),
               ),
-              Tab(
-                icon: Icon(Icons.search_rounded, size: 18),
-                text: 'Tìm địa điểm mới',
+              BounceTap(
+                useSelectionHaptic: true,
+                child: const Tab(
+                  icon: Icon(Icons.search_rounded, size: 18),
+                  text: 'Tìm địa điểm mới',
+                ),
               ),
             ],
           ),
@@ -564,25 +573,28 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
           if (_sourcePlaces.isNotEmpty)
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: _isSavingFromItinerary
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.add_rounded),
-                label: Text(
-                  _isSavingFromItinerary
-                      ? 'Đang thêm...'
-                      : 'Thêm ${_selectedPlaceIds.length} địa điểm vào lịch trình',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+              child: BounceTap(
+                enabled: !(_isSavingFromItinerary || _selectedPlaceIds.isEmpty),
+                child: ElevatedButton.icon(
+                  icon: _isSavingFromItinerary
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.add_rounded),
+                  label: Text(
+                    _isSavingFromItinerary
+                        ? 'Đang thêm...'
+                        : 'Thêm ${_selectedPlaceIds.length} địa điểm vào lịch trình',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: (_isSavingFromItinerary || _selectedPlaceIds.isEmpty)
+                      ? null
+                      : _saveSelectedPlacesFromItinerary,
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: (_isSavingFromItinerary || _selectedPlaceIds.isEmpty)
-                    ? null
-                    : _saveSelectedPlacesFromItinerary,
               ),
             ),
         ],
@@ -620,23 +632,26 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: _isResolvingAndSaving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.search_rounded),
-              label: Text(
-                _isResolvingAndSaving
-                    ? 'Đang lưu vào lịch trình...'
-                    : 'Mở tìm kiếm địa điểm',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+            child: BounceTap(
+              enabled: !_isResolvingAndSaving,
+              child: ElevatedButton.icon(
+                icon: _isResolvingAndSaving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.search_rounded),
+                label: Text(
+                  _isResolvingAndSaving
+                      ? 'Đang lưu vào lịch trình...'
+                      : 'Mở tìm kiếm địa điểm',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: _isResolvingAndSaving ? null : _searchAndSaveNewPlace,
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: _isResolvingAndSaving ? null : _searchAndSaveNewPlace,
             ),
           ),
         ],

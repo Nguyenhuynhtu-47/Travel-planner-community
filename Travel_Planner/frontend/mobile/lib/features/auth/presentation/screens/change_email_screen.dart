@@ -8,6 +8,7 @@ import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
 
 class ChangeEmailScreen extends StatefulWidget {
@@ -353,14 +354,17 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                       color: AppColors.textSecondary,
                     ),
                   )
-                : TextButton(
-                    onPressed: _isLoading ? null : _resendOtp,
-                    child: const Text(
-                      'Gửi lại mã xác thực',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
+                : BounceTap(
+                    enabled: !_isLoading,
+                    child: TextButton(
+                      onPressed: _isLoading ? null : _resendOtp,
+                      child: const Text(
+                        'Gửi lại mã xác thực',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
                   ),
@@ -374,16 +378,18 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
           ),
           const SizedBox(height: 12),
 
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _currentStep = 1;
-                _errorMessage = null;
-              });
-            },
-            child: const Text(
-              'Thay đổi email khác',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          BounceTap(
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _currentStep = 1;
+                  _errorMessage = null;
+                });
+              },
+              child: const Text(
+                'Thay đổi email khác',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
             ),
           ),
         ],

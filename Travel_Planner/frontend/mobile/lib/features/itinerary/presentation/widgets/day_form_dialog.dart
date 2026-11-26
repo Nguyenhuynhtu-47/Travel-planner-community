@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -202,9 +203,10 @@ class _DayFormDialogState extends State<DayFormDialog> {
                 ),
               ),
               const SizedBox(height: 6),
-              InkWell(
-                onTap: _pickDate,
-                borderRadius: BorderRadius.circular(10),
+              BounceTap(
+                child: InkWell(
+                  onTap: _pickDate,
+                  borderRadius: BorderRadius.circular(10),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -240,20 +242,23 @@ class _DayFormDialogState extends State<DayFormDialog> {
                         ),
                       ),
                       if (_selectedDate != null)
-                        InkWell(
-                          onTap: () => setState(() => _selectedDate = null),
-                          borderRadius: BorderRadius.circular(12),
-                          child: const Padding(
-                            padding: EdgeInsets.all(4),
-                            child: Icon(
-                              Icons.close,
-                              size: 16,
-                              color: AppColors.textSecondary,
+                        BounceTap.icon(
+                          child: InkWell(
+                            onTap: () => setState(() => _selectedDate = null),
+                            borderRadius: BorderRadius.circular(12),
+                            child: const Padding(
+                              padding: EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close,
+                                size: 16,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
                         ),
                     ],
                   ),
+                ),
                 ),
               ),
             ],
@@ -261,26 +266,32 @@ class _DayFormDialogState extends State<DayFormDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+        BounceTap(
+          enabled: !_isSubmitting,
+          child: TextButton(
+            onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+            child: const Text('Hủy'),
           ),
-          onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(widget.isEditing ? 'Lưu thay đổi' : 'Thêm ngày'),
+        ),
+        BounceTap(
+          enabled: !_isSubmitting,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: _isSubmitting ? null : _submit,
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(widget.isEditing ? 'Lưu thay đổi' : 'Thêm ngày'),
+          ),
         ),
       ],
     );

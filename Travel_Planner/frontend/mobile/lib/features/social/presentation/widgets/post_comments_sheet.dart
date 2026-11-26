@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../data/community_post_repository.dart';
 import '../../data/models/post_comment_model.dart';
 import '../community_feed_notifier.dart';
@@ -247,13 +248,17 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
         title: const Text('Xác nhận xóa'),
         content: const Text('Bạn có chắc chắn muốn xóa bình luận này không?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Hủy'),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            ),
           ),
         ],
       ),
@@ -387,17 +392,19 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                           ),
                           const Spacer(),
                           if (comment.isOwner && !comment.deleted)
-                            InkWell(
-                              key: ValueKey(
-                                'delete_comment_${comment.commentId}',
-                              ),
-                              onTap: () => _deleteComment(comment),
-                              child: const Padding(
-                                padding: EdgeInsets.all(2.0),
-                                child: Icon(
-                                  Icons.delete_outline,
-                                  size: 16,
-                                  color: AppColors.muted,
+                            BounceTap.icon(
+                              child: InkWell(
+                                key: ValueKey(
+                                  'delete_comment_${comment.commentId}',
+                                ),
+                                onTap: () => _deleteComment(comment),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(2.0),
+                                  child: Icon(
+                                    Icons.delete_outline,
+                                    size: 16,
+                                    color: AppColors.muted,
+                                  ),
                                 ),
                               ),
                             ),
@@ -430,15 +437,17 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                 if (widget.token != null && !comment.deleted)
                   Padding(
                     padding: const EdgeInsets.only(left: 4, top: 4),
-                    child: InkWell(
-                      key: ValueKey('reply_comment_${comment.commentId}'),
-                      onTap: () => _startReply(comment),
-                      child: const Text(
-                        'Trả lời',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.muted,
+                    child: BounceTap(
+                      child: InkWell(
+                        key: ValueKey('reply_comment_${comment.commentId}'),
+                        onTap: () => _startReply(comment),
+                        child: const Text(
+                          'Trả lời',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.muted,
+                          ),
                         ),
                       ),
                     ),
@@ -498,9 +507,11 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.pop(context),
+                  BounceTap.icon(
+                    child: IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ),
                 ],
               ),
@@ -513,9 +524,11 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
                   ? Center(
-                      child: TextButton(
-                        onPressed: _loadComments,
-                        child: Text(_error!),
+                      child: BounceTap(
+                        child: TextButton(
+                          onPressed: _loadComments,
+                          child: Text(_error!),
+                        ),
                       ),
                     )
                   : _comments.isEmpty
@@ -537,20 +550,23 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                       itemBuilder: (context, index) {
                         if (index >= _comments.length) {
                           return Center(
-                            child: TextButton.icon(
-                              onPressed: _loadingMoreRoots
-                                  ? null
-                                  : () => _loadComments(append: true),
-                              icon: _loadingMoreRoots
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.expand_more),
-                              label: const Text('Xem thêm bình luận'),
+                            child: BounceTap(
+                              enabled: !_loadingMoreRoots,
+                              child: TextButton.icon(
+                                onPressed: _loadingMoreRoots
+                                    ? null
+                                    : () => _loadComments(append: true),
+                                icon: _loadingMoreRoots
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.expand_more),
+                                label: const Text('Xem thêm bình luận'),
+                              ),
                             ),
                           );
                         }
@@ -583,18 +599,20 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                                   left: 58,
                                   top: 4,
                                 ),
-                                child: InkWell(
-                                  onTap: () => _toggleReplies(root),
-                                  child: Text(
-                                    expanded
-                                        ? 'Thu gọn câu trả lời'
-                                        : preview == null
-                                        ? 'Xem ${root.replyCount} câu trả lời'
-                                        : 'Xem $collapsedReplyCount câu trả lời khác',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.muted,
+                                child: BounceTap(
+                                  child: InkWell(
+                                    onTap: () => _toggleReplies(root),
+                                    child: Text(
+                                      expanded
+                                          ? 'Thu gọn câu trả lời'
+                                          : preview == null
+                                          ? 'Xem ${root.replyCount} câu trả lời'
+                                          : 'Xem $collapsedReplyCount câu trả lời khác',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.muted,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -613,18 +631,20 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                               ),
                             if (expanded &&
                                 _replyErrorsByRoot.containsKey(root.commentId))
-                              TextButton(
-                                onPressed: () => _loadReplies(
-                                  root.commentId,
-                                  page:
-                                      _repliesByRoot.containsKey(root.commentId)
-                                      ? (_replyPageByRoot[root.commentId] ??
-                                                -1) +
-                                            1
-                                      : 0,
-                                ),
-                                child: Text(
-                                  _replyErrorsByRoot[root.commentId]!,
+                              BounceTap(
+                                child: TextButton(
+                                  onPressed: () => _loadReplies(
+                                    root.commentId,
+                                    page:
+                                        _repliesByRoot.containsKey(root.commentId)
+                                        ? (_replyPageByRoot[root.commentId] ??
+                                                  -1) +
+                                              1
+                                        : 0,
+                                  ),
+                                  child: Text(
+                                    _replyErrorsByRoot[root.commentId]!,
+                                  ),
                                 ),
                               ),
                             if (expanded)
@@ -636,21 +656,26 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                                 (_replyHasMoreByRoot[root.commentId] ?? false))
                               Padding(
                                 padding: const EdgeInsets.only(left: 58),
-                                child: TextButton(
-                                  onPressed:
-                                      _loadingReplyRoots.contains(
-                                        root.commentId,
-                                      )
-                                      ? null
-                                      : () => _loadReplies(
+                                child: BounceTap(
+                                  enabled: !_loadingReplyRoots.contains(
+                                    root.commentId,
+                                  ),
+                                  child: TextButton(
+                                    onPressed:
+                                        _loadingReplyRoots.contains(
                                           root.commentId,
-                                          page:
-                                              (_replyPageByRoot[root
-                                                      .commentId] ??
-                                                  0) +
-                                              1,
-                                        ),
-                                  child: const Text('Xem thêm câu trả lời'),
+                                        )
+                                        ? null
+                                        : () => _loadReplies(
+                                            root.commentId,
+                                            page:
+                                                (_replyPageByRoot[root
+                                                        .commentId] ??
+                                                    0) +
+                                                1,
+                                          ),
+                                    child: const Text('Xem thêm câu trả lời'),
+                                  ),
                                 ),
                               ),
                             if (expanded &&
@@ -709,17 +734,19 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                icon: const Icon(
-                                  Icons.close,
-                                  size: 16,
-                                  color: AppColors.muted,
+                              BounceTap.icon(
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: AppColors.muted,
+                                  ),
+                                  tooltip: 'Hủy trả lời',
+                                  onPressed: () =>
+                                      setState(() => _replyTo = null),
                                 ),
-                                tooltip: 'Hủy trả lời',
-                                onPressed: () =>
-                                    setState(() => _replyTo = null),
                               ),
                             ],
                           ),
@@ -767,12 +794,14 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : IconButton(
-                                    icon: const Icon(
-                                      Icons.send_rounded,
-                                      color: AppColors.primary,
+                                : BounceTap.icon(
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.send_rounded,
+                                        color: AppColors.primary,
+                                      ),
+                                      onPressed: _submitComment,
                                     ),
-                                    onPressed: _submitComment,
                                   ),
                           ],
                         ),

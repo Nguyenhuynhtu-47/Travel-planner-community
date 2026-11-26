@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../data/messaging_date_time.dart';
@@ -122,13 +123,17 @@ class _StrangerInboxScreenState extends State<StrangerInboxScreen> {
           'Bạn và người này sẽ không thể xem nội dung hoặc nhắn tin cho nhau.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Hủy'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Hủy'),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Chặn'),
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Chặn'),
+            ),
           ),
         ],
       ),
@@ -159,7 +164,9 @@ class _StrangerInboxScreenState extends State<StrangerInboxScreen> {
         ? const Center(child: CircularProgressIndicator())
         : _error != null && _items.isEmpty
         ? Center(
-            child: TextButton(onPressed: _load, child: Text(_error!)),
+            child: BounceTap(
+              child: TextButton(onPressed: _load, child: Text(_error!)),
+            ),
           )
         : _items.isEmpty
         ? const AppEmptyState(
@@ -176,29 +183,31 @@ class _StrangerInboxScreenState extends State<StrangerInboxScreen> {
                 final peer = item.peer;
                 final url = peer.avatar?.trim() ?? '';
                 return ListTile(
-                  leading: GestureDetector(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => PublicProfileScreen(
-                          userId: peer.userId,
-                          authNotifier: widget.authNotifier,
+                  leading: BounceTap(
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PublicProfileScreen(
+                            userId: peer.userId,
+                            authNotifier: widget.authNotifier,
+                          ),
                         ),
                       ),
-                    ),
-                    child: CircleAvatar(
-                      backgroundColor: AppColors.surfaceStrong,
-                      child: url.isEmpty
-                          ? const Icon(Icons.person_outline)
-                          : ClipOval(
-                              child: Image.network(
-                                url,
-                                width: 42,
-                                height: 42,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    const Icon(Icons.person_outline),
+                      child: CircleAvatar(
+                        backgroundColor: AppColors.surfaceStrong,
+                        child: url.isEmpty
+                            ? const Icon(Icons.person_outline)
+                            : ClipOval(
+                                child: Image.network(
+                                  url,
+                                  width: 42,
+                                  height: 42,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) =>
+                                      const Icon(Icons.person_outline),
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
                   title: Text(_name(item)),

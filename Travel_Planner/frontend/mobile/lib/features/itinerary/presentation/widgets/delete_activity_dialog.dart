@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
@@ -64,30 +65,34 @@ Future<bool?> showDeleteActivityConfirmationDialog(
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text(
-            'Hủy',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
+        BounceTap(
+          child: TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Hủy',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.error,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        BounceTap(
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text(
-            'Xóa hoạt động',
-            style: TextStyle(fontWeight: FontWeight.w600),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Xóa hoạt động',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ],

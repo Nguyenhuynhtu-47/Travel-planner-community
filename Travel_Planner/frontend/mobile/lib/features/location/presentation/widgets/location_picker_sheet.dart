@@ -9,6 +9,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_map_view.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../../../shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/data/itinerary_crud_repository.dart';
 import '../../../itinerary/presentation/widgets/activity_form_dialog.dart';
@@ -510,21 +511,25 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(null),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+          BounceTap(
+            child: TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(null),
+              child: const Text('Hủy'),
             ),
-            onPressed: () {
-              final trimmed = controller.text.trim();
-              Navigator.of(dialogCtx)
-                  .pop(trimmed.isNotEmpty ? trimmed : fallbackLocationName);
-            },
-            child: const Text('Lưu'),
+          ),
+          BounceTap(
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final trimmed = controller.text.trim();
+                Navigator.of(dialogCtx)
+                    .pop(trimmed.isNotEmpty ? trimmed : fallbackLocationName);
+              },
+              child: const Text('Lưu'),
+            ),
           ),
         ],
       ),
@@ -651,68 +656,72 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton.icon(
-              key: const Key('save_to_itinerary_button'),
-              icon: const Icon(Icons.bookmark_add_outlined, size: 16),
-              label: const Text(
-                'Lưu vào chuyến đi',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            child: BounceTap(
+              child: OutlinedButton.icon(
+                key: const Key('save_to_itinerary_button'),
+                icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+                label: const Text(
+                  'Lưu vào chuyến đi',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
-              ),
-              onPressed: () {
-                if (widget.token == null || widget.token!.isEmpty) {
-                  AppToast.showWarning(
+                onPressed: () {
+                  if (widget.token == null || widget.token!.isEmpty) {
+                    AppToast.showWarning(
+                      context,
+                      'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
+                    );
+                    return;
+                  }
+                  ItineraryPickerBottomSheet.show(
                     context,
-                    'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
+                    place: result,
+                    token: widget.token!,
+                    repository: widget.itineraryCrudRepository,
+                    authNotifier: widget.authNotifier,
                   );
-                  return;
-                }
-                ItineraryPickerBottomSheet.show(
-                  context,
-                  place: result,
-                  token: widget.token!,
-                  repository: widget.itineraryCrudRepository,
-                  authNotifier: widget.authNotifier,
-                );
-              },
+                },
+              ),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: ElevatedButton.icon(
-              key: const Key('schedule_activity_button'),
-              icon: const Icon(Icons.calendar_month_outlined, size: 16),
-              label: const Text(
-                'Lên lịch vào ngày',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            child: BounceTap(
+              child: ElevatedButton.icon(
+                key: const Key('schedule_activity_button'),
+                icon: const Icon(Icons.calendar_month_outlined, size: 16),
+                label: const Text(
+                  'Lên lịch vào ngày',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
+                onPressed: () => _handleScheduleActivity(result),
               ),
-              onPressed: () => _handleScheduleActivity(result),
             ),
           ),
         ],
@@ -727,24 +736,26 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
         children: [
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              key: const Key('schedule_activity_button'),
-              icon: const Icon(Icons.calendar_month_outlined, size: 16),
-              label: const Text(
-                'Lên lịch vào ngày',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            child: BounceTap(
+              child: ElevatedButton.icon(
+                key: const Key('schedule_activity_button'),
+                icon: const Icon(Icons.calendar_month_outlined, size: 16),
+                label: const Text(
+                  'Lên lịch vào ngày',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () => _handleScheduleActivity(result),
               ),
-              onPressed: () => _handleScheduleActivity(result),
             ),
           ),
           const SizedBox(height: 6),
@@ -773,24 +784,26 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
         children: [
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              key: const Key('schedule_activity_button'),
-              icon: const Icon(Icons.calendar_month_outlined, size: 16),
-              label: const Text(
-                'Lên lịch vào ngày',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            child: BounceTap(
+              child: ElevatedButton.icon(
+                key: const Key('schedule_activity_button'),
+                icon: const Icon(Icons.calendar_month_outlined, size: 16),
+                label: const Text(
+                  'Lên lịch vào ngày',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () => _handleScheduleActivity(manualLocation),
               ),
-              onPressed: () => _handleScheduleActivity(manualLocation),
             ),
           ),
           const SizedBox(height: 6),
@@ -895,13 +908,15 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppColors.textSecondary,
+                    BounceTap.icon(
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: AppColors.textSecondary,
+                        ),
+                        onPressed: () => Navigator.of(context).pop(null),
+                        tooltip: 'Đóng',
                       ),
-                      onPressed: () => Navigator.of(context).pop(null),
-                      tooltip: 'Đóng',
                     ),
                   ],
                 ),
@@ -975,16 +990,18 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                         ),
                                       )
                                     : (_searchController.text.isNotEmpty
-                                          ? IconButton(
-                                              icon: const Icon(
-                                                Icons.clear,
-                                                size: 18,
-                                                color: AppColors.textSecondary,
+                                          ? BounceTap.icon(
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                  Icons.clear,
+                                                  size: 18,
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                                onPressed: () {
+                                                  _searchController.clear();
+                                                  _onSearchChanged('');
+                                                },
                                               ),
-                                              onPressed: () {
-                                                _searchController.clear();
-                                                _onSearchChanged('');
-                                              },
                                             )
                                           : null),
                                 contentPadding: const EdgeInsets.symmetric(
@@ -1165,37 +1182,39 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                                         )
                                                       : null,
                                                   trailing: item.isInternalPlace
-                                                      ? IconButton(
-                                                          key: Key(
-                                                            'save_result_${item.placeId}',
-                                                          ),
-                                                          icon: const Icon(
-                                                            Icons
-                                                                .bookmark_add_outlined,
-                                                            color: AppColors
-                                                                .primary,
-                                                            size: 20,
-                                                          ),
-                                                          tooltip:
-                                                              'Lưu vào chuyến đi',
-                                                          onPressed: () {
-                                                            if (widget.token ==
-                                                                    null ||
-                                                                widget.token!
-                                                                    .isEmpty) {
-                                                              AppToast.showWarning(
+                                                      ? BounceTap.icon(
+                                                          child: IconButton(
+                                                            key: Key(
+                                                              'save_result_${item.placeId}',
+                                                            ),
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .bookmark_add_outlined,
+                                                              color: AppColors
+                                                                  .primary,
+                                                              size: 20,
+                                                            ),
+                                                            tooltip:
+                                                                'Lưu vào chuyến đi',
+                                                            onPressed: () {
+                                                              if (widget.token ==
+                                                                      null ||
+                                                                  widget.token!
+                                                                      .isEmpty) {
+                                                                AppToast.showWarning(
+                                                                  context,
+                                                                  'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
+                                                                );
+                                                                return;
+                                                              }
+                                                              ItineraryPickerBottomSheet.show(
                                                                 context,
-                                                                'Vui lòng đăng nhập để lưu địa điểm vào chuyến đi',
+                                                                place: item,
+                                                                token:
+                                                                    widget.token!,
                                                               );
-                                                              return;
-                                                            }
-                                                            ItineraryPickerBottomSheet.show(
-                                                              context,
-                                                              place: item,
-                                                              token:
-                                                                  widget.token!,
-                                                            );
-                                                          },
+                                                            },
+                                                          ),
                                                         )
                                                       : null,
                                                   onTap: () =>
@@ -1318,12 +1337,14 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                                             ),
                                           ] else ...[
                                             const SizedBox(width: 4),
-                                            GestureDetector(
-                                              onTap: _editLocationName,
-                                              child: const Icon(
-                                                Icons.edit_outlined,
-                                                size: 14,
-                                                color: AppColors.primary,
+                                            BounceTap.icon(
+                                              child: GestureDetector(
+                                                onTap: _editLocationName,
+                                                child: const Icon(
+                                                  Icons.edit_outlined,
+                                                  size: 14,
+                                                  color: AppColors.primary,
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -1359,20 +1380,22 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: const BorderSide(color: AppColors.hairline),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                      child: BounceTap(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: AppColors.hairline),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
-                        ),
-                        onPressed: () => Navigator.of(context).pop(null),
-                        child: const Text(
-                          'Hủy',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w600,
+                          onPressed: () => Navigator.of(context).pop(null),
+                          child: const Text(
+                            'Hủy',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -1380,22 +1403,25 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                      child: BounceTap(
+                        enabled: _selectedPoint != null,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
-                        ),
-                        onPressed: _selectedPoint != null ? _confirm : null,
-                        child: const Text(
-                          'Xác nhận vị trí',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
+                          onPressed: _selectedPoint != null ? _confirm : null,
+                          child: const Text(
+                            'Xác nhận vị trí',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ),
