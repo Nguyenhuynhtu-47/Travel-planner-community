@@ -14,7 +14,7 @@
 - API: client repository → API constant/request/response model → backend controller/DTO → security/service → repository/entity → test.
 - Activity/map: 07C, lưu ý Place catalog, Activity snapshot và itinerary saved places là ba khái niệm khác nhau; mobile `getDestinations()` là legacy unused contract.
 - Comment: 07D, phân biệt comments itinerary/activity và comments community post.
-- Chat: 07E/13, REST messages và WebSocket events; notification screen chưa có API backend.
+- Chat and notifications: 07E/13, Messaging REST/WebSocket plus separate Notification Center API, single Home bell, announcement receipts and messaging-only FCM.
 - DB/startup lỗi: 05, từng runner/config/schema/log; entity không chứng minh schema thật.
 
 ## Giới hạn

@@ -8,7 +8,7 @@
 - Public profile mở chat với client WebSocket mới, nhưng client không được dispose sau route pop; backend cap 5 session/user, có thể gây các CONNECT sau bị từ chối.
 - Community badge chỉ được nạp theo load/refresh; không nghe event toàn cục nên stale.
 - `friendRequestsCount` tồn tại trong notifier nhưng chưa có nguồn callsite/badge.
-- `NotificationsScreen` là empty state, backend không có notification persistence/API.
+- `NotificationsScreen` vẫn là empty state. Backend hiện có Notification Core riêng, nhưng Messaging D1–D3 vẫn không ghi notification history và chỉ dùng cơ chế push-only theo plan.
 - STOMP simple broker volatile và event delivery post-commit không retry; lịch sử REST là recovery.
 
 Các mục lifecycle stale banner, tạo socket riêng từ profile và thiếu badge/request inbox đã được xử lý ở source. Runtime và device vẫn chưa xác minh.

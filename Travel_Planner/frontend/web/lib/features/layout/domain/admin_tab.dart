@@ -21,6 +21,7 @@ enum AdminTab {
   media,
   administrativeAreas,
   auditLogs,
+  announcements,
   settings,
   profile;
 
@@ -44,6 +45,8 @@ enum AdminTab {
         return 'Quản lý khu vực hành chính';
       case AdminTab.auditLogs:
         return 'Nhật ký hoạt động';
+      case AdminTab.announcements:
+        return 'Thông báo hệ thống';
       case AdminTab.settings:
         return 'Cài đặt hệ thống';
       case AdminTab.profile:
@@ -71,6 +74,8 @@ enum AdminTab {
         return 'Khu vực hành chính';
       case AdminTab.auditLogs:
         return 'Nhật ký hoạt động';
+      case AdminTab.announcements:
+        return 'Thông báo';
       case AdminTab.settings:
         return 'Cài đặt';
       case AdminTab.profile:
@@ -93,6 +98,7 @@ enum AdminTab {
       case AdminTab.administrativeAreas:
         return AdminTabGroup.content;
       case AdminTab.auditLogs:
+      case AdminTab.announcements:
       case AdminTab.settings:
       case AdminTab.profile:
         return AdminTabGroup.system;
@@ -119,6 +125,8 @@ enum AdminTab {
         return Icons.location_city_outlined;
       case AdminTab.auditLogs:
         return Icons.receipt_long_outlined;
+      case AdminTab.announcements:
+        return Icons.campaign_outlined;
       case AdminTab.settings:
         return Icons.settings_outlined;
       case AdminTab.profile:
@@ -146,6 +154,8 @@ enum AdminTab {
         return Icons.location_city;
       case AdminTab.auditLogs:
         return Icons.receipt_long;
+      case AdminTab.announcements:
+        return Icons.campaign;
       case AdminTab.settings:
         return Icons.settings;
       case AdminTab.profile:
@@ -164,6 +174,7 @@ enum AdminTab {
       case AdminTab.media:
       case AdminTab.administrativeAreas:
       case AdminTab.auditLogs:
+      case AdminTab.announcements:
       case AdminTab.settings:
       case AdminTab.profile:
         return true;
@@ -190,6 +201,8 @@ enum AdminTab {
         return '/administrative-areas';
       case AdminTab.auditLogs:
         return '/audit-logs';
+      case AdminTab.announcements:
+        return '/announcements';
       case AdminTab.settings:
         return '/settings';
       case AdminTab.profile:

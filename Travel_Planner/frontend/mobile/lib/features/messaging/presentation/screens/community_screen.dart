@@ -8,7 +8,6 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/messaging_realtime_client.dart';
 import '../../data/models/conversation_summary.dart';
@@ -458,15 +457,6 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
               ),
             ),
-          IconButton(
-            tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const NotificationsScreen(),
-              ),
-            ),
-          ),
           if (auth?.isAuthenticated == true)
             CurrentUserAvatarButton(
               avatarUrl: auth?.currentUser?['avatar']?.toString(),

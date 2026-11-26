@@ -130,7 +130,9 @@ class _BanUnbanUserDialogState extends State<_BanUnbanUserDialog> {
             maxLength: 255,
             style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(
-              labelText: isBan ? 'Lý do khóa tài khoản *' : 'Lý do mở khóa *',
+              labelText: isBan
+                  ? 'Lý do khóa tài khoản (hiển thị với người dùng) *'
+                  : 'Lý do mở khóa (hiển thị với người dùng) *',
               hintText: isBan
                   ? 'VD: Vi phạm tiêu chuẩn cộng đồng, phát tán spam...'
                   : 'VD: Đã xác minh khiếu nại hợp lệ...',

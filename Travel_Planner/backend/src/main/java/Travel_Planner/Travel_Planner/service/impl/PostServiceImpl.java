@@ -12,6 +12,7 @@ import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.PostService;
 import Travel_Planner.Travel_Planner.service.FriendshipService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -40,6 +41,7 @@ public class PostServiceImpl implements PostService {
     private final ItineraryRepository itineraryRepository;
     private final FriendshipRepository friendshipRepository;
     private final FriendshipService blockAccess;
+    private final SocialNotificationService socialNotifications;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private MessageRepository messageRepository;
@@ -55,7 +57,8 @@ public class PostServiceImpl implements PostService {
             UserRepository userRepository,
             ItineraryRepository itineraryRepository,
             FriendshipRepository friendshipRepository,
-            FriendshipService blockAccess) {
+            FriendshipService blockAccess,
+            SocialNotificationService socialNotifications) {
         this.postRepository = postRepository;
         this.mediaAssetRepository = mediaAssetRepository;
         this.postMediaRepository = postMediaRepository;
@@ -66,6 +69,16 @@ public class PostServiceImpl implements PostService {
         this.itineraryRepository = itineraryRepository;
         this.friendshipRepository = friendshipRepository;
         this.blockAccess = blockAccess;
+        this.socialNotifications = socialNotifications;
+    }
+
+    public PostServiceImpl(PostRepository postRepository, MediaAssetRepository mediaAssetRepository,
+            PostMediaRepository postMediaRepository, PostLikeRepository postLikeRepository,
+            PostCommentRepository postCommentRepository, PostReportRepository postReportRepository,
+            UserRepository userRepository, ItineraryRepository itineraryRepository,
+            FriendshipRepository friendshipRepository, FriendshipService blockAccess) {
+        this(postRepository, mediaAssetRepository, postMediaRepository, postLikeRepository, postCommentRepository,
+                postReportRepository, userRepository, itineraryRepository, friendshipRepository, blockAccess, null);
     }
 
     public void setMessageRepository(MessageRepository messageRepository) {
@@ -109,7 +122,7 @@ public class PostServiceImpl implements PostService {
             UserRepository userRepository, ItineraryRepository itineraryRepository,
             FriendshipRepository friendshipRepository) {
         this(postRepository, mediaAssetRepository, postMediaRepository, postLikeRepository, postCommentRepository,
-                postReportRepository, userRepository, itineraryRepository, friendshipRepository, null);
+                postReportRepository, userRepository, itineraryRepository, friendshipRepository, null, null);
     }
 
     @Override
@@ -585,6 +598,8 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void likePost(Long postId, String actorUsername) {
         User actor = getActiveUser(actorUsername);
+        postRepository.findByIdForUpdate(postId)
+                .orElseThrow(() -> new ResourceNotFoundException("Bài viết không tồn tại"));
         Post post = getAuthorizedPost(postId, actor);
 
         if (!postLikeRepository.existsByPost_PostIdAndUser_UserId(postId, actor.getUserId())) {
@@ -594,6 +609,7 @@ public class PostServiceImpl implements PostService {
                     .build();
             postLikeRepository.save(like);
             postRepository.incrementLikeCount(postId);
+            if (socialNotifications != null) socialNotifications.postLiked(post, actor);
         }
     }
 
@@ -601,11 +617,14 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void unlikePost(Long postId, String actorUsername) {
         User actor = getActiveUser(actorUsername);
-        getAuthorizedPost(postId, actor);
+        postRepository.findByIdForUpdate(postId)
+                .orElseThrow(() -> new ResourceNotFoundException("Bài viết không tồn tại"));
+        Post post = getAuthorizedPost(postId, actor);
 
         if (postLikeRepository.existsByPost_PostIdAndUser_UserId(postId, actor.getUserId())) {
             postLikeRepository.deleteByPost_PostIdAndUser_UserId(postId, actor.getUserId());
             postRepository.decrementLikeCount(postId);
+            if (socialNotifications != null) socialNotifications.postUnliked(post, actor);
         }
     }
 
@@ -783,6 +802,7 @@ public class PostServiceImpl implements PostService {
 
         comment = postCommentRepository.save(comment);
         postRepository.incrementCommentCount(postId);
+        if (socialNotifications != null) socialNotifications.postComment(comment);
 
         PostAuthorResponse authorResponse = PostAuthorResponse.builder()
                 .userId(author.getUserId())
@@ -978,14 +998,19 @@ public class PostServiceImpl implements PostService {
             throw new ForbiddenException("Chỉ quản trị viên mới có quyền kiểm duyệt bài viết");
         }
 
-        Post post = postRepository.findById(postId)
+        Post post = postRepository.findByIdForUpdate(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Bài viết không tồn tại"));
 
+        PostStatus previousStatus = post.getStatus();
         post.setStatus(request.getStatus());
         post.setModeratedAt(LocalDateTime.now());
         post.setModeratedBy(admin);
         post.setModerationReason(request.getModerationReason());
         post = postRepository.save(post);
+        if (socialNotifications != null) {
+            socialNotifications.postModerationTransition(post, admin, previousStatus, request.getStatus(),
+                    request.getModerationReason());
+        }
 
         List<PostMedia> postMediaList = postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(postId);
         List<String> urls = postMediaList.stream().map(pm -> pm.getMediaAsset().getSecureUrl()).toList();
@@ -1004,6 +1029,10 @@ public class PostServiceImpl implements PostService {
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Bài viết không tồn tại"));
+
+        if (socialNotifications != null) {
+            socialNotifications.postPurged(post, admin);
+        }
 
         // Ordering Invariant (Section 3.7.4):
         // 1. Find attached media assets and set status to DELETING
@@ -1123,18 +1152,28 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public PostReportResponse resolveReport(Long reportId, ReportStatus resolution, String adminUsername) {
+        if (resolution != ReportStatus.RESOLVED && resolution != ReportStatus.DISMISSED) {
+            throw new BadRequestException("Trạng thái xử lý phải là RESOLVED hoặc DISMISSED.");
+        }
         User admin = getActiveUser(adminUsername);
         if (admin.getRole() != Role.ADMIN) {
             throw new ForbiddenException("Chỉ quản trị viên mới có quyền xử lý báo cáo");
         }
 
-        PostReport report = postReportRepository.findById(reportId)
+        PostReport report = postReportRepository.findByIdForUpdate(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Báo cáo không tồn tại"));
+
+        if (report.getStatus() != ReportStatus.PENDING) {
+            throw new BadRequestException("Báo cáo này đã được xử lý.");
+        }
 
         report.setStatus(resolution);
         report.setResolvedAt(LocalDateTime.now());
         report.setResolvedBy(admin);
         report = postReportRepository.save(report);
+        if (socialNotifications != null) {
+            socialNotifications.reportResolved(report, admin);
+        }
 
         PostAuthorResponse reporter = PostAuthorResponse.builder()
                 .userId(report.getReporter().getUserId())

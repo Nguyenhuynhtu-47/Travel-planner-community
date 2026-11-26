@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
 import Travel_Planner.Travel_Planner.dto.response.ChatEventResponse;
 import Travel_Planner.Travel_Planner.service.CommittedChatEvent;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -31,15 +32,23 @@ public class FriendshipServiceImpl implements FriendshipService {
     private final UserBlockRepository blocks;
     private final UserMessagingSettingsRepository settings;
     private final ApplicationEventPublisher events;
+    private final SocialNotificationService socialNotifications;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public FriendshipServiceImpl(UserRepository users, FriendshipRepository friendships,
             UserBlockRepository blocks, UserMessagingSettingsRepository settings,
-            ApplicationEventPublisher events) {
+            ApplicationEventPublisher events, SocialNotificationService socialNotifications) {
         this.users = users;
         this.friendships = friendships;
         this.blocks = blocks;
         this.settings = settings;
         this.events = events;
+        this.socialNotifications = socialNotifications;
+    }
+
+    public FriendshipServiceImpl(UserRepository users, FriendshipRepository friendships,
+            UserBlockRepository blocks, UserMessagingSettingsRepository settings, ApplicationEventPublisher events) {
+        this(users, friendships, blocks, settings, events, null);
     }
 
     @Override
@@ -69,6 +78,7 @@ public class FriendshipServiceImpl implements FriendshipService {
             relation.setRequestedByUser(actor);
             relation.setStatus(FriendshipStatus.PENDING);
         }
+        if (socialNotifications != null) socialNotifications.friendRequest(actor, target, relation);
         publishRelationshipEvent(actor, target, "FRIEND_REQUESTS_CHANGED");
         return requestResponse(relation, actor.getUserId(), "sent");
     }
@@ -88,7 +98,9 @@ public class FriendshipServiceImpl implements FriendshipService {
             throw new ForbiddenException("Bạn không thể chấp nhận lời mời này");
         }
         relation.setStatus(FriendshipStatus.ACCEPTED);
-        publishRelationshipEvent(actor, relation.otherUser(actor.getUserId()), "FRIEND_REQUESTS_CHANGED");
+        User requester = relation.otherUser(actor.getUserId());
+        if (socialNotifications != null) socialNotifications.friendRequestAccepted(actor, requester, relation);
+        publishRelationshipEvent(actor, requester, "FRIEND_REQUESTS_CHANGED");
         return requestResponse(relation, actor.getUserId(), "friends");
     }
 

@@ -11,7 +11,7 @@ Mobile chia core, shared và features. Luồng thường đi screen/widget → n
 | collection / saved_itineraries | saved/favorite collections |
 | social | community feed/post, follow/profile integration |
 | messaging | conversation, REST messages, STOMP realtime, friendship |
-| notifications | placeholder empty state; chưa có backend notification API |
+| notifications | Notification Center hợp nhất personal + active announcements theo cursor nguồn; một bell ở Home/Khám phá, read-one/read-all personal và explicit announcement receipt. Social/moderation producer hooks đã có; Android FCM là messaging push-only, runtime delivery chưa xác minh |
 | profile | hồ sơ cá nhân/công khai |
 
 ## Danh mục file Dart
@@ -293,7 +293,18 @@ Mobile chia core, shared và features. Luồng thường đi screen/widget → n
 - Khai báo: class MessagingSettingsScreen; class _MessagingSettingsScreenState
 
 ### features/notifications/presentation/screens/notifications_screen.dart
-- Khai báo: class NotificationsScreen
+- Khai báo: `NotificationsScreen`, tải feed hợp nhất qua `NotificationRepository`; có refresh, source-aware cursor paging, read-one/read-all personal, explicit announcement read, loading/empty/error và reload khi app resume/SyncDomain invalidation.
+
+### features/notifications/data/notification_repository.dart và data/models/notification_item.dart
+- `NotificationRepository` gọi authenticated `/api/notifications`, `/unread-count`, `/{id}/read`, `/read-all`, và `/api/announcements/{id}/read`; user ID không gửi từ client.
+- `NotificationItem`/`NotificationPage` parse DTO backend; `announcement` boolean tạo source-specific stable key để tránh numeric ID collision; unread summary giữ tổng, personal và announcement counts.
+
+### features/notifications/presentation/widgets/notification_bell_button.dart
+- Bell dùng `NotificationUnreadCountNotifier.shared` để các tab đang mounted không gọi unread-count trùng nhau; badge giới hạn hiển thị `99+`, tách khỏi badge tin nhắn và lời mời.
+- Refresh count khi app resume, đăng nhập/chuyển tài khoản và notification domain bị invalidate; cache count chỉ dùng trong 30 giây.
+
+### Flutter Web — `features/notifications/presentation/screens/admin_announcements_screen.dart`
+- Admin draft editor, preview, lọc/trang lịch sử, confirmation publish/cancel; dùng AdminShell hiện có, token và `ApiClient` chung. Backend là ranh giới phân quyền thật.
 
 ### features/profile/data/models/public_profile.dart
 - Khai báo: class PublicProfile

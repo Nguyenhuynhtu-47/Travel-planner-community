@@ -13,6 +13,7 @@ import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.AdminRoleGuardRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.service.AuditLogService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import Travel_Planner.Travel_Planner.service.UserSessionService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
@@ -39,16 +40,19 @@ public class AdminUserTransactionalWorker {
     private final UserRepository userRepository;
     private final UserSessionService userSessionService;
     private final AuditLogService auditLogService;
+    private final SocialNotificationService socialNotifications;
 
     public AdminUserTransactionalWorker(
             AdminRoleGuardRepository adminRoleGuardRepository,
             UserRepository userRepository,
             UserSessionService userSessionService,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            SocialNotificationService socialNotifications) {
         this.adminRoleGuardRepository = adminRoleGuardRepository;
         this.userRepository = userRepository;
         this.userSessionService = userSessionService;
         this.auditLogService = auditLogService;
+        this.socialNotifications = socialNotifications;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
@@ -83,6 +87,7 @@ public class AdminUserTransactionalWorker {
             }
         }
 
+        UserStatus previousStatus = target.getStatus();
         UserAuditSnapshot beforeSnapshot = UserAuditSnapshot.from(target);
 
         target.setStatus(request.getStatus());
@@ -107,6 +112,9 @@ public class AdminUserTransactionalWorker {
                 .afterSnapshot(afterSnapshot)
                 .expectedActorUsername(actor.getUsername())
                 .build());
+
+        socialNotifications.accountModerationTransition(target, actor, previousStatus, request.getStatus(),
+                request.getReason());
 
         return UserAdminResponse.from(target);
     }
@@ -140,6 +148,7 @@ public class AdminUserTransactionalWorker {
         }
 
         UserAuditSnapshot beforeSnapshot = UserAuditSnapshot.from(target);
+        Role previousRole = target.getRole();
 
         target.setRole(request.getRole());
         target = userRepository.saveAndFlush(target);
@@ -159,6 +168,10 @@ public class AdminUserTransactionalWorker {
                 .afterSnapshot(afterSnapshot)
                 .expectedActorUsername(actor.getUsername())
                 .build());
+
+        if (previousRole != target.getRole()) {
+            socialNotifications.accountRoleChanged(target, actor);
+        }
 
         return UserAdminResponse.from(target);
     }
@@ -200,6 +213,10 @@ public class AdminUserTransactionalWorker {
                 .afterSnapshot(afterMetadata)
                 .expectedActorUsername(actor.getUsername())
                 .build());
+
+        if (revokedCount > 0) {
+            socialNotifications.accountSessionsRevoked(target, actor);
+        }
 
         return revokedCount;
     }

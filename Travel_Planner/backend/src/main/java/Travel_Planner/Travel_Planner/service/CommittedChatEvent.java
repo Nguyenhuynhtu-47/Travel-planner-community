@@ -8,9 +8,16 @@ public record CommittedChatEvent(
         String secondUsername,
         Integer secondUserId,
         ChatEventResponse payload,
-        boolean deliverToSecondUser) {
+        boolean deliverToSecondUser,
+        boolean newMessageRequest) {
+    public CommittedChatEvent(String firstUsername, Integer firstUserId,
+            String secondUsername, Integer secondUserId, ChatEventResponse payload,
+            boolean deliverToSecondUser) {
+        this(firstUsername, firstUserId, secondUsername, secondUserId, payload, deliverToSecondUser, false);
+    }
+
     public CommittedChatEvent(String firstUsername, Integer firstUserId,
             String secondUsername, Integer secondUserId, ChatEventResponse payload) {
-        this(firstUsername, firstUserId, secondUsername, secondUserId, payload, true);
+        this(firstUsername, firstUserId, secondUsername, secondUserId, payload, true, false);
     }
 }

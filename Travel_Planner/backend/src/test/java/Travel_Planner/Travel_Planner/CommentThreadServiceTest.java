@@ -8,6 +8,7 @@ import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.impl.CommentServiceImpl;
 import Travel_Planner.Travel_Planner.service.FriendshipService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import org.junit.jupiter.api.Test;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,7 +43,8 @@ class CommentThreadServiceTest {
         ItineraryRepository itineraries = mock(ItineraryRepository.class);
         ActivityRepository activities = mock(ActivityRepository.class);
         UserRepository users = mock(UserRepository.class);
-        CommentServiceImpl service = new CommentServiceImpl(comments, itineraries, activities, users);
+        SocialNotificationService socialNotifications = mock(SocialNotificationService.class);
+        CommentServiceImpl service = new CommentServiceImpl(comments, itineraries, activities, users, null, socialNotifications);
 
         User owner = user(1, "owner");
         User author = user(2, "author");
@@ -65,6 +67,9 @@ class CommentThreadServiceTest {
         assertEquals(100, response.getRootCommentId());
         assertEquals(101, response.getParentCommentId());
         verify(itineraries).incrementCommentCount(10);
+        verify(socialNotifications).itineraryComment(argThat(saved -> saved.getParentComment() == reply
+                && saved.getParentComment().getUser().getUserId().equals(author.getUserId())
+                && saved.getItinerary() == itinerary));
     }
 
     @Test

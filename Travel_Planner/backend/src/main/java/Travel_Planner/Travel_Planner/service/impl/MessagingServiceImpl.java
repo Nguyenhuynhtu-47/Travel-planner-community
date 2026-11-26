@@ -355,6 +355,11 @@ public class MessagingServiceImpl implements MessagingService {
             conversation.setStatus(ConversationStatus.PENDING);
         }
 
+        boolean newMessageRequest = conversation.getStatus() == ConversationStatus.PENDING
+                && (conversation.getLastMessageAt() == null
+                        || (conversation.getRequestCreatedAt() != null
+                                && conversation.getLastMessageAt().isBefore(conversation.getRequestCreatedAt())));
+
         long nextSequence = conversation.getLastMessageSequence() + 1;
         Message message = new Message();
         message.setConversation(conversation);
@@ -376,7 +381,7 @@ public class MessagingServiceImpl implements MessagingService {
         ChatEventResponse event = ChatEventResponse.builder().eventId(UUID.randomUUID().toString()).type("MESSAGE_CREATED")
                 .occurredAt(message.getCreatedAt()).conversationId(conversationId).sequenceNumber(nextSequence).message(response).build();
         events.publishEvent(new CommittedChatEvent(actor.getUsername(), actor.getUserId(),
-                recipient.getUsername(), recipient.getUserId(), event, recipientVisible));
+                recipient.getUsername(), recipient.getUserId(), event, recipientVisible, newMessageRequest));
         return response;
     }
 
@@ -784,6 +789,10 @@ public class MessagingServiceImpl implements MessagingService {
         }
 
         long nextSequence = conversation.getLastMessageSequence() + 1;
+        boolean newMessageRequest = conversation.getStatus() == ConversationStatus.PENDING
+                && (conversation.getLastMessageAt() == null
+                        || (conversation.getRequestCreatedAt() != null
+                                && conversation.getLastMessageAt().isBefore(conversation.getRequestCreatedAt())));
         Message message = new Message();
         message.setConversation(conversation);
         message.setSequenceNumber(nextSequence);
@@ -818,7 +827,7 @@ public class MessagingServiceImpl implements MessagingService {
                 .message(response)
                 .build();
         events.publishEvent(new CommittedChatEvent(lockedActor.getUsername(), lockedActor.getUserId(),
-                lockedRecipient.getUsername(), lockedRecipient.getUserId(), event, recipientVisible));
+                lockedRecipient.getUsername(), lockedRecipient.getUserId(), event, recipientVisible, newMessageRequest));
 
         item.setSuccess(true);
         item.setConversationId(conversation.getConversationId());

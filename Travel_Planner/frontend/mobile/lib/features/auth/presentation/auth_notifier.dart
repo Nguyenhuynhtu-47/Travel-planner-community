@@ -16,6 +16,7 @@ class AuthNotifier extends ChangeNotifier {
   Map<String, String>? _validationErrors;
   Map<String, dynamic>? _currentUser;
   String? _token;
+  Future<void> Function(String token)? beforeLogout;
 
   AuthNotifier({AuthRepository? repository, AuthStorage? storage})
     : _repository = repository ?? AuthRepository(),
@@ -451,6 +452,11 @@ class AuthNotifier extends ChangeNotifier {
   Future<void> logout() async {
     final activeToken = _token ?? await _storage.getToken();
     if (activeToken != null && activeToken.isNotEmpty) {
+      try {
+        await beforeLogout?.call(activeToken);
+      } catch (_) {
+        // Continue logout even if push token cleanup is unavailable.
+      }
       try {
         await _repository.logout(activeToken);
       } catch (_) {

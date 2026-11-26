@@ -57,6 +57,15 @@ class MessagingRealtimeClient {
     _openSocket();
   }
 
+  void signalPushRefresh(int? conversationId) {
+    if (conversationId == null || conversationId <= 0 || _disposed) return;
+    _events.add(ChatEvent(
+      eventId: 'push-hint-${DateTime.now().microsecondsSinceEpoch}',
+      type: 'PUSH_HINT',
+      conversationId: conversationId,
+    ));
+  }
+
   void _openSocket() {
     final token = _token;
     if (_disposed || token == null) return;
