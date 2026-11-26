@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_dialog.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -239,28 +240,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   }
 
   Future<void> _confirmDeletePost(PostModel post) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận xóa bài viết'),
-        content: const Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Xác nhận xóa bài viết',
+      message:
           'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.',
-        ),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy'),
-            ),
-          ),
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Xóa', style: TextStyle(color: Colors.red)),
-            ),
-          ),
-        ],
-      ),
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
     );
 
     if (confirmed == true && _token != null) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_dialog.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../data/community_post_repository.dart';
 import '../../data/models/post_comment_model.dart';
@@ -242,26 +243,13 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
   }
 
   Future<void> _deleteComment(PostCommentModel comment) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận xóa'),
-        content: const Text('Bạn có chắc chắn muốn xóa bình luận này không?'),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy'),
-            ),
-          ),
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Xóa', style: TextStyle(color: Colors.red)),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa bình luận này không?',
+      confirmText: 'Xóa',
+      cancelText: 'Hủy',
     );
 
     if (confirmed != true || widget.token == null) return;

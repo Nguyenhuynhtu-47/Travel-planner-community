@@ -7,6 +7,7 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
@@ -286,30 +287,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sao chép lịch trình'),
-        content: Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.info,
+      title: 'Sao chép lịch trình',
+      message:
           'Bạn có muốn tạo một bản sao độc lập của lịch trình "${itinerary.title}"? '
           'Bản sao sẽ thuộc quyền sở hữu của bạn và bạn có thể tự do tùy chỉnh các ngày, hoạt động và địa điểm.',
-        ),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Hủy'),
-            ),
-          ),
-          BounceTap(
-            child: FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Sao chép'),
-            ),
-          ),
-        ],
-      ),
+      confirmText: 'Sao chép',
+      cancelText: 'Hủy',
     );
 
     if (confirmed != true || !mounted) return;
@@ -2335,29 +2321,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
   Future<void> _handleRemoveSavedPlace(ItineraryPlace ip) async {
     if (_effectiveToken == null) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Bỏ lưu địa điểm'),
-        content: Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Bỏ lưu địa điểm',
+      message:
           'Bạn có chắc chắn muốn bỏ lưu "${ip.place.name}" khỏi lịch trình này? Các hoạt động trong lịch trình sẽ không bị ảnh hưởng.',
-        ),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Hủy'),
-            ),
-          ),
-          BounceTap(
-            child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Bỏ lưu'),
-            ),
-          ),
-        ],
-      ),
+      confirmText: 'Bỏ lưu',
+      cancelText: 'Hủy',
     );
     if (confirmed != true || !mounted) return;
 

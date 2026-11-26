@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
@@ -286,28 +287,14 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
       );
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Chặn người dùng?'),
-        content: const Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Chặn người dùng?',
+      message:
           'Bạn và người này sẽ không thể xem nội dung hoặc nhắn tin cho nhau.',
-        ),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Hủy'),
-            ),
-          ),
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Chặn'),
-            ),
-          ),
-        ],
-      ),
+      confirmText: 'Chặn',
+      cancelText: 'Hủy',
     );
     if (confirmed != true || !mounted) return;
     final token = _token;

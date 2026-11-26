@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/bounce_tap.dart';
 import '../auth_notifier.dart';
@@ -106,20 +107,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (error != null && error.isNotEmpty) {
         final isConflict = error.contains('liên kết') || error.contains('đã được sử dụng');
         if (isConflict) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Tài khoản đã tồn tại'),
-              content: Text(error),
-              actions: [
-                BounceTap(
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Đã hiểu'),
-                  ),
-                ),
-              ],
-            ),
+          AppDialog.showInfo(
+            context,
+            title: 'Tài khoản đã tồn tại',
+            message: error,
+            buttonText: 'Đã hiểu',
           );
         } else {
           AppToast.showError(

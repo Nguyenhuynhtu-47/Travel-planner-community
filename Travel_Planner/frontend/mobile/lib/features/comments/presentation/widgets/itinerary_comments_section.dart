@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/bounce_tap.dart';
@@ -472,30 +473,14 @@ class _CommentTile extends StatelessWidget {
                           padding: EdgeInsets.zero,
                           onSelected: (value) async {
                             if (value == 'delete') {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Xóa bình luận?'),
-                                  content: const Text(
+                              final confirm = await AppDialog.showConfirm(
+                                context,
+                                type: AppDialogType.danger,
+                                title: 'Xóa bình luận?',
+                                message:
                                     'Các câu trả lời vẫn được giữ trong cuộc trò chuyện.',
-                                  ),
-                                  actions: [
-                                    BounceTap(
-                                      child: TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, false),
-                                        child: const Text('Hủy'),
-                                      ),
-                                    ),
-                                    BounceTap(
-                                      child: TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, true),
-                                        child: const Text('Xóa'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                confirmText: 'Xóa',
+                                cancelText: 'Hủy',
                               );
                               if (!context.mounted) return;
                               if (confirm == true) onDelete?.call();

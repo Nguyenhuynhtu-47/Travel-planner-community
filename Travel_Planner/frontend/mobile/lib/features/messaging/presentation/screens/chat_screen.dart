@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -581,28 +582,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _blockPeer() async {
     if (_blockedPeer || _blockingPeer) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Chặn người dùng?'),
-        content: Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Chặn người dùng?',
+      message:
           'Bạn sẽ không thể nhắn tin hoặc kết bạn với ${widget.conversation.peer.fullName?.trim().isNotEmpty == true ? widget.conversation.peer.fullName : '@${widget.conversation.peer.effectiveHandle}'}. Lịch sử trò chuyện vẫn được giữ.',
-        ),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Hủy'),
-            ),
-          ),
-          BounceTap(
-            child: FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Chặn'),
-            ),
-          ),
-        ],
-      ),
+      confirmText: 'Chặn',
+      cancelText: 'Hủy',
     );
     if (confirmed != true || !mounted) return;
     final token = widget.authNotifier.token;
@@ -628,28 +615,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _unblockPeer() async {
     if (!_blockedPeer || _unblockingPeer) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Bỏ chặn người dùng?'),
-        content: const Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.warning,
+      title: 'Bỏ chặn người dùng?',
+      message:
           'Sau khi bỏ chặn, hai bên có thể nhắn tin theo cài đặt quyền riêng tư hiện tại. Lịch sử trò chuyện vẫn được giữ.',
-        ),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Giữ chặn'),
-            ),
-          ),
-          BounceTap(
-            child: FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Bỏ chặn'),
-            ),
-          ),
-        ],
-      ),
+      confirmText: 'Bỏ chặn',
+      cancelText: 'Giữ chặn',
     );
     if (confirmed != true || !mounted) return;
     final token = widget.authNotifier.token;

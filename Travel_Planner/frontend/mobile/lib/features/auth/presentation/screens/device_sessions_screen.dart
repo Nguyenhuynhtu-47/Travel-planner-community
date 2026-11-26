@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/bounce_tap.dart';
@@ -60,28 +61,13 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
   }
 
   Future<void> _revokeSession(String sessionId, String deviceInfo) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.background,
-        title: const Text('Đăng xuất thiết bị'),
-        content: Text('Bạn có chắc chắn muốn đăng xuất khỏi thiết bị "$deviceInfo"?'),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
-            ),
-          ),
-          BounceTap(
-            child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Đăng xuất'),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.logout,
+      title: 'Đăng xuất thiết bị',
+      message: 'Bạn có chắc chắn muốn đăng xuất khỏi thiết bị "$deviceInfo"?',
+      confirmText: 'Đăng xuất',
+      cancelText: 'Hủy',
     );
 
     if (confirmed != true) return;
@@ -106,30 +92,14 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
   }
 
   Future<void> _revokeOtherSessions() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.background,
-        title: const Text('Đăng xuất tất cả thiết bị khác'),
-        content: const Text(
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.logout,
+      title: 'Đăng xuất tất cả thiết bị khác',
+      message:
           'Tất cả các phiên đăng nhập khác sẽ bị đăng xuất ngay lập tức. Thiết bị hiện tại vẫn được giữ nguyên.',
-        ),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
-            ),
-          ),
-          BounceTap(
-            child: FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Đăng xuất tất cả'),
-            ),
-          ),
-        ],
-      ),
+      confirmText: 'Đăng xuất tất cả',
+      cancelText: 'Hủy',
     );
 
     if (confirmed != true) return;

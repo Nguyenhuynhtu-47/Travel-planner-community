@@ -7,6 +7,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_dialog.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -701,27 +702,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final displayName = profile.fullName?.trim().isNotEmpty == true
         ? profile.fullName!.trim()
         : '@${profile.effectiveHandle}';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hủy kết bạn'),
-        content: Text('Bạn có chắc chắn muốn hủy kết bạn với $displayName không?'),
-        actions: [
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Đóng'),
-            ),
-          ),
-          BounceTap(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: TextButton.styleFrom(foregroundColor: AppColors.error),
-              child: const Text('Hủy kết bạn'),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      type: AppDialogType.danger,
+      title: 'Hủy kết bạn',
+      message: 'Bạn có chắc chắn muốn hủy kết bạn với $displayName không?',
+      confirmText: 'Hủy kết bạn',
+      cancelText: 'Đóng',
     );
     if (confirmed == true) {
       await _relationshipAction('unfriend');
