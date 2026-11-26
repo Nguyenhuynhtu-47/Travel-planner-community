@@ -135,17 +135,12 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
   }
 
   Widget _buildItinerarySection() => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppSpacing.base,
-      AppSpacing.lg,
-      AppSpacing.base,
-      AppSpacing.lg,
-    ),
+    padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: 14),
         if (_isAuthenticated) _buildComposer() else _buildLoginPrompt(),
         ..._buildCommentItems(),
       ],
@@ -186,7 +181,11 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
 
   Widget _buildSectionTitle() => Text(
     'Bình luận${widget.activityId == null ? '' : ' hoạt động'} (${_notifier.totalElements})',
-    style: AppTextStyles.titleMd.copyWith(color: AppColors.textPrimary),
+    style: const TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: Color(0xFF1E1E1E),
+    ),
   );
 
   List<Widget> _buildCommentItems() {
@@ -291,9 +290,26 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
                 hintText: _replyTo == null
                     ? 'Viết bình luận…'
                     : 'Trả lời @$_replyDisplayName…',
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.md,
+                filled: true,
+                fillColor: const Color(0xFFF4F5F7),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFFA3E62),
+                    width: 1.2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 11,
                 ),
               ),
             ),
@@ -305,12 +321,20 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
               final isDisabled =
                   _notifier.isSubmitting || value.text.trim().isEmpty;
               return SizedBox(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 child: BounceTap.icon(
                   enabled: !isDisabled,
                   child: IconButton.filled(
                     tooltip: 'Gửi bình luận',
+                    style: IconButton.styleFrom(
+                      backgroundColor: isDisabled
+                          ? const Color(0xFFE5E7EB)
+                          : const Color(0xFFFA3E62),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFE5E7EB),
+                      disabledForegroundColor: const Color(0xFF9CA3AF),
+                    ),
                     onPressed: isDisabled ? null : _submit,
                     icon: _notifier.isSubmitting
                         ? const SizedBox(
@@ -321,7 +345,7 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
                               color: AppColors.surface,
                             ),
                           )
-                        : const Icon(Icons.send_rounded),
+                        : const Icon(Icons.send_rounded, size: 19),
                   ),
                 ),
               );
@@ -600,8 +624,14 @@ class _CommentThreadState extends State<_CommentThread> {
               widget.notifier.deleteComment(comment.commentId, widget.token),
         ),
         if (!_expanded && preview != null)
-          Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.xl),
+          Container(
+            margin: const EdgeInsets.only(left: 18),
+            padding: const EdgeInsets.only(left: 12),
+            decoration: const BoxDecoration(
+              border: Border(
+                left: BorderSide(color: Color(0xFFFAD2DA), width: 2),
+              ),
+            ),
             child: _CommentTile(
               comment: preview,
               canManage:

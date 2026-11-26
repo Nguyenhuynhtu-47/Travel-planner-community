@@ -1343,93 +1343,101 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
   // ================= TAB 1: TỔNG QUAN =================
   Widget _buildOverviewTab(ItineraryDetail itinerary, bool isOwner) {
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () async {
-        await Future.wait([
-          _notifier.loadDetail(token: _effectiveToken),
-          _loadItinerarySavedPlaces(),
-        ]);
-      },
-      child: CustomScrollView(
-        key: const PageStorageKey<String>('itinerary_overview_scroll'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (_notifier.isLoading)
-            const SliverToBoxAdapter(
-              child: LinearProgressIndicator(
-                minHeight: 2,
-                color: AppColors.primary,
-                backgroundColor: AppColors.surfaceSoft,
-              ),
-            ),
-          if (_notifier.errorMessage != null)
-            SliverToBoxAdapter(
-              child: Container(
-                color: AppColors.error.withAlpha(20),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.info_outline,
-                      size: 18,
-                      color: AppColors.error,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _notifier.errorMessage!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.error,
-                        ),
-                      ),
-                    ),
-                    BounceTap(
-                      child: TextButton(
-                        onPressed: () => _notifier.retry(token: _effectiveToken),
-                        child: const Text(
-                          'Thử lại',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  ],
+    final showSocialSections =
+        (itinerary.status == 'ACTIVE' || itinerary.status == 'PUBLISHED') &&
+        itinerary.visibility == 'PUBLIC';
+
+    return ColoredBox(
+      color: const Color(0xFFFFFFFF),
+      child: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: () async {
+          await Future.wait([
+            _notifier.loadDetail(token: _effectiveToken),
+            _loadItinerarySavedPlaces(),
+          ]);
+        },
+        child: CustomScrollView(
+          key: const PageStorageKey<String>('itinerary_overview_scroll'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (_notifier.isLoading)
+              const SliverToBoxAdapter(
+                child: LinearProgressIndicator(
+                  minHeight: 2,
+                  color: AppColors.primary,
+                  backgroundColor: AppColors.surfaceSoft,
                 ),
               ),
-            ),
-
-          // 1. Basic Information (Cover, Title, Destination, Stats, Creator, Description)
-          SliverToBoxAdapter(child: _buildOverview(itinerary, isOwner)),
-
-          // 2. Itinerary-Scoped Saved Places (Tab 1 specific)
-          SliverToBoxAdapter(
-            child: _buildItinerarySavedPlacesSection(itinerary, isOwner),
-          ),
-
-          // 3. Comments section if public & active (visible to both owner and other users)
-          if ((itinerary.status == 'ACTIVE' ||
-                  itinerary.status == 'PUBLISHED') &&
-              itinerary.visibility == 'PUBLIC')
-            SliverToBoxAdapter(
-              child: ItineraryCommentsSection(
-                itineraryId: itinerary.itineraryId,
-                token: _effectiveToken,
-                authNotifier: widget.authNotifier,
+            if (_notifier.errorMessage != null)
+              SliverToBoxAdapter(
+                child: Container(
+                  color: AppColors.error.withAlpha(20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 18,
+                        color: AppColors.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _notifier.errorMessage!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                      BounceTap(
+                        child: TextButton(
+                          onPressed: () =>
+                              _notifier.retry(token: _effectiveToken),
+                          child: const Text(
+                            'Thử lại',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
+
+            // Khối 1: Giới thiệu lịch trình
+            SliverToBoxAdapter(child: _buildOverview(itinerary, isOwner)),
+            const SliverToBoxAdapter(child: _FlatSectionDivider()),
+
+            // Khối 2: Địa điểm đã lưu
+            SliverToBoxAdapter(
+              child: _buildItinerarySavedPlacesSection(itinerary, isOwner),
             ),
 
-          // 4. Rating summary section if public & active
-          if ((itinerary.status == 'ACTIVE' ||
-                  itinerary.status == 'PUBLISHED') &&
-              itinerary.visibility == 'PUBLIC')
-            SliverToBoxAdapter(child: _buildRatingSection(itinerary, isOwner)),
+            // Khối 3: Bình luận (public & active)
+            if (showSocialSections) ...[
+              const SliverToBoxAdapter(child: _FlatSectionDivider()),
+              SliverToBoxAdapter(
+                child: ItineraryCommentsSection(
+                  itineraryId: itinerary.itineraryId,
+                  token: _effectiveToken,
+                  authNotifier: widget.authNotifier,
+                ),
+              ),
+              const SliverToBoxAdapter(child: _FlatSectionDivider()),
+              // Khối 4: Đánh giá (public & active)
+              SliverToBoxAdapter(
+                child: _buildRatingSection(itinerary, isOwner),
+              ),
+            ],
 
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
-        ],
+            const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          ],
+        ),
       ),
     );
   }
@@ -1812,102 +1820,107 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         widget.authNotifier != null && !widget.authNotifier!.isAuthenticated;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 36),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Title
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
             children: [
-              Text(
-                'Đánh giá ($effectiveRatingCount)',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  'Đánh giá ($effectiveRatingCount)',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E1E1E),
+                  ),
                 ),
               ),
               if (!isOwner && !isGuest)
                 BounceTap(
-                  child: TextButton.icon(
-                    onPressed: () => _openRatingDialog(itinerary, isOwner),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                  child: Material(
+                    color: const Color(0xFFFFF0F3),
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      onTap: () => _openRatingDialog(itinerary, isOwner),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              hasUserRating
+                                  ? Icons.edit_outlined
+                                  : Icons.star_outline_rounded,
+                              size: 14,
+                              color: const Color(0xFFFA3E62),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              hasUserRating ? 'Sửa đánh giá' : 'Đánh giá ngay',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFFA3E62),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  icon: Icon(
-                    hasUserRating
-                        ? Icons.edit_outlined
-                        : Icons.star_outline_rounded,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
-                  label: Text(
-                    hasUserRating ? 'Sửa đánh giá' : 'Đánh giá ngay',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
                 ),
             ],
           ),
           const SizedBox(height: 12),
-
-          // Rating Summary Card
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSoft,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.hairline),
+              color: const Color(0xFFF8F9FA),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFEBEBEF)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Average rating score (large)
-                    Text(
-                      effectiveRatingCount > 0
-                          ? effectiveAverageRating.toStringAsFixed(1)
-                          : '0.0',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Stars display
-                          Row(
-                            children: List.generate(5, (index) {
-                              final starThreshold = index + 1;
-                              final isFilled =
-                                  effectiveRatingCount > 0 &&
-                                  (effectiveAverageRating >= starThreshold ||
-                                      (effectiveAverageRating >=
-                                          starThreshold - 0.25));
-                              final isHalf =
-                                  effectiveRatingCount > 0 &&
-                                  !isFilled &&
-                                  effectiveAverageRating >=
-                                      starThreshold - 0.75;
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Average rating score (large)
+                Text(
+                  effectiveRatingCount > 0
+                      ? effectiveAverageRating.toStringAsFixed(1)
+                      : '0.0',
+                  style: const TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E1E1E),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Stars display
+                      Row(
+                        children: List.generate(5, (index) {
+                          final starThreshold = index + 1;
+                          final isFilled =
+                              effectiveRatingCount > 0 &&
+                              (effectiveAverageRating >= starThreshold ||
+                                  (effectiveAverageRating >=
+                                      starThreshold - 0.25));
+                          final isHalf =
+                              effectiveRatingCount > 0 &&
+                              !isFilled &&
+                              effectiveAverageRating >=
+                                  starThreshold - 0.75;
                               return Icon(
                                 isFilled
                                     ? Icons.star_rounded
@@ -2260,10 +2273,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
   Widget _buildOverview(ItineraryDetail itinerary, bool isOwner) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'Giới thiệu lịch trình',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E1E1E),
+            ),
+          ),
+          const SizedBox(height: 10),
 
           // Title
           Text(
@@ -2596,32 +2618,20 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     final isLoading = _notifier.isLoadingSavedPlaces && savedPlaces.isEmpty;
     final error = _notifier.savedPlacesError;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.hairline),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.bookmark_border_rounded,
-                size: 22,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Địa điểm đã lưu (${savedPlaces.length})',
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: Color(0xFF1E1E1E),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2629,13 +2639,13 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               ),
               if (isOwner) ...[
                 const SizedBox(width: 8),
-                Material(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(8),
-                  child: BounceTap(
+                BounceTap(
+                  child: Material(
+                    color: const Color(0xFFFFF0F3),
+                    borderRadius: BorderRadius.circular(10),
                     child: InkWell(
                       onTap: _showAddPlaceToItineraryDialog,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: 10,
@@ -2646,8 +2656,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           children: [
                             Icon(
                               Icons.bookmark_add_outlined,
-                              size: 16,
-                              color: AppColors.primary,
+                              size: 15,
+                              color: Color(0xFFFA3E62),
                             ),
                             SizedBox(width: 5),
                             Text(
@@ -2655,7 +2665,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
+                                color: Color(0xFFFA3E62),
                               ),
                             ),
                           ],
@@ -2667,7 +2677,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               ],
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           if (isLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
@@ -2708,14 +2718,20 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
             )
           else if (savedPlaces.isEmpty)
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFAFAFB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFEFEFF4)),
+              ),
               alignment: Alignment.center,
               child: Column(
                 children: [
                   Icon(
-                    Icons.place_outlined,
-                    size: 40,
-                    color: AppColors.muted.withValues(alpha: 0.5),
+                    Icons.map_outlined,
+                    size: 38,
+                    color: AppColors.muted.withValues(alpha: 0.45),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -2723,7 +2739,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: Color(0xFF1E1E1E),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -2732,8 +2748,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                         ? 'Lưu các địa điểm bạn muốn ghé thăm trong chuyến đi này để thuận tiện lên kế hoạch hoạt động.'
                         : 'Chưa có địa điểm nào được lưu trong lịch trình này.',
                     style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      color: Color(0xFF6E6E73),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -2757,8 +2773,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
             Column(
               children: [
                 for (int i = 0; i < savedPlaces.length; i++) ...[
-                  if (i > 0)
-                    const Divider(height: 16, color: AppColors.hairline),
+                  if (i > 0) const SizedBox(height: 10),
                   _buildSavedPlaceCard(savedPlaces[i], isOwner),
                 ],
               ],
@@ -2770,136 +2785,200 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
 
   Widget _buildSavedPlaceCard(ItineraryPlace ip, bool isOwner) {
     final p = ip.place;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Thumbnail or placeholder
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: p.imageUrl != null && p.imageUrl!.isNotEmpty
-              ? Image.network(
-                  p.imageUrl!,
-                  width: 52,
-                  height: 52,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      _buildSavedPlacePlaceholder(),
-                )
-              : _buildSavedPlacePlaceholder(),
-        ),
-        const SizedBox(width: 12),
-        // Info
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                p.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (p.category != null && p.category!.trim().isNotEmpty) ...[
-                const SizedBox(height: 3),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    p.localizedCategory,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-              ],
-              if (p.address != null && p.address!.trim().isNotEmpty) ...[
-                const SizedBox(height: 3),
-                Text(
-                  p.address!.trim(),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
-        ),
-        // Actions
-        if (isOwner)
-          PopupMenuButton<String>(
-            icon: const Icon(
-              Icons.more_vert,
-              size: 20,
-              color: AppColors.textSecondary,
+    return BounceTap(
+      child: Material(
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () => _showPlaceDetailsModal(p),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFEBEBEF)),
             ),
-            padding: EdgeInsets.zero,
-            onSelected: (val) {
-              if (val == 'view') {
-                _showPlaceDetailsModal(p);
-              } else if (val == 'delete') {
-                _handleRemoveSavedPlace(ip);
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'view',
-                child: Row(
-                  children: [
-                    Icon(Icons.visibility_outlined, size: 16),
-                    SizedBox(width: 8),
-                    Expanded(child: Text('Xem chi tiết')),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.delete_outline,
-                      size: 16,
-                      color: AppColors.error,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // 64x64 Thumbnail with subtle border
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      width: 1,
                     ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Xóa khỏi lịch trình',
-                        style: TextStyle(color: AppColors.error),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: p.imageUrl != null && p.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          p.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildSavedPlacePlaceholder(),
+                        )
+                      : _buildSavedPlacePlaceholder(),
+                ),
+                const SizedBox(width: 12),
+
+                // Center Info (Title, Category Pill, Pin + Address)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E1E1E),
+                          height: 1.25,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (p.category != null &&
+                          p.category!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF0F3),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            p.localizedCategory,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFFA3E62),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (p.address != null &&
+                          p.address!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on_outlined,
+                              size: 13,
+                              color: Color(0xFF8E8E93),
+                            ),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                p.address!.trim(),
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: Color(0xFF6E6E73),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Right Action Button (36x36 rounded square)
+                if (isOwner)
+                  BounceTap.icon(
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF0F3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: PopupMenuButton<String>(
+                        icon: const Icon(
+                          Icons.more_horiz_rounded,
+                          size: 18,
+                          color: Color(0xFFFA3E62),
+                        ),
+                        padding: EdgeInsets.zero,
+                        onSelected: (val) {
+                          if (val == 'view') {
+                            _showPlaceDetailsModal(p);
+                          } else if (val == 'delete') {
+                            _handleRemoveSavedPlace(ip);
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'view',
+                            child: Row(
+                              children: [
+                                Icon(Icons.visibility_outlined, size: 16),
+                                SizedBox(width: 8),
+                                Expanded(child: Text('Xem chi tiết')),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.delete_outline,
+                                  size: 16,
+                                  color: AppColors.error,
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Xóa khỏi lịch trình',
+                                    style: TextStyle(color: AppColors.error),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ],
-          )
-        else
-          BounceTap.icon(
-            child: IconButton(
-              icon: const Icon(
-                Icons.bookmark_add_outlined,
-                size: 22,
-                color: AppColors.primary,
-              ),
-              tooltip: 'Lưu vào lịch trình của tôi',
-              onPressed: () => _openSavePlaceToMyItinerariesSheet(place: p),
+                  )
+                else
+                  BounceTap.icon(
+                    child: Tooltip(
+                      message: 'Lưu vào lịch trình của tôi',
+                      child: Material(
+                        color: const Color(0xFFFFF0F3),
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          onTap: () =>
+                              _openSavePlaceToMyItinerariesSheet(place: p),
+                          borderRadius: BorderRadius.circular(10),
+                          child: const SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: Icon(
+                              Icons.bookmark_add_outlined,
+                              size: 19,
+                              color: Color(0xFFFA3E62),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 
@@ -3029,5 +3108,24 @@ class _KeepAliveTabWrapperState extends State<_KeepAliveTabWrapper>
   Widget build(BuildContext context) {
     super.build(context);
     return widget.child;
+  }
+}
+
+class _FlatSectionDivider extends StatelessWidget {
+  const _FlatSectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 8,
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Color(0xFFF3F4F6),
+        border: Border(
+          top: BorderSide(color: Color(0xFFE5E7EB), width: 0.5),
+          bottom: BorderSide(color: Color(0xFFE5E7EB), width: 0.5),
+        ),
+      ),
+    );
   }
 }
