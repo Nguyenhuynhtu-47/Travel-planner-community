@@ -25,8 +25,8 @@ import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import '../../../messaging/data/models/conversation_summary.dart';
 import '../../../social/data/community_post_repository.dart';
 import '../../../social/data/models/post_model.dart';
-import '../../../social/presentation/widgets/post_card_widget.dart';
-import '../../../social/presentation/widgets/post_comments_sheet.dart';
+import '../../../social/presentation/screens/post_detail_screen.dart';
+import '../../../social/presentation/widgets/feed_post_item.dart';
 import 'profile_screen.dart';
 import 'public_user_list_screen.dart';
 
@@ -209,24 +209,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   void _openPostComments(PostModel post) {
-    AppBottomSheet.show<void>(
-      context,
-      showDragHandle: false,
-      builder: (ctx) => PostCommentsSheet(
-        postId: post.postId,
-        token: _token,
-        repository: _postRepo,
-        onCommentCountChanged: (delta) {
-          setState(() {
-            final idx = _posts.indexWhere((p) => p.postId == post.postId);
-            if (idx != -1) {
-              final newCount = (_posts[idx].commentCount + delta) < 0
-                  ? 0
-                  : _posts[idx].commentCount + delta;
-              _posts[idx] = _posts[idx].copyWith(commentCount: newCount);
-            }
-          });
-        },
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PostDetailScreen(
+          postId: post.postId,
+          authNotifier: widget.authNotifier,
+          repository: _postRepo,
+        ),
       ),
     );
   }
@@ -736,15 +725,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w400,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ),
           ],
@@ -965,10 +956,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Widget _buildTabBar() {
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.background,
+        color: Colors.white,
         border: Border(
-          top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
-          bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
+          top: BorderSide(color: Color(0xFFEBEBEF), width: 1),
+          bottom: BorderSide(color: Color(0xFFEBEBEF), width: 1),
         ),
       ),
       child: Row(
@@ -1096,13 +1087,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         }
         return false;
       },
-      child: ListView.builder(
-        key: const PageStorageKey('public_profile_itineraries'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        itemCount:
-            _itineraries.length + (_loadingMore || _moreError != null ? 1 : 0),
-        itemBuilder: (context, index) {
+      child: ColoredBox(
+        color: Colors.white,
+        child: ListView.separated(
+          key: const PageStorageKey('public_profile_itineraries'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(top: 4, bottom: 24),
+          itemCount:
+              _itineraries.length + (_loadingMore || _moreError != null ? 1 : 0),
+          separatorBuilder: (_, _) => const Divider(
+            height: 1,
+            thickness: 1,
+            indent: 110,
+            color: Color(0xFFF0F0F5),
+          ),
+          itemBuilder: (context, index) {
           if (index >= _itineraries.length) {
             if (_moreError != null) {
               return Center(
@@ -1126,6 +1125,26 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           final item = _itineraries[index];
           return ItineraryCard(
             itinerary: item,
+            isCompactHorizontal: true,
+            showFavorite: false,
+            showCreator: false,
+            showThemeTag: true,
+            showRatingWhenEmpty: true,
+            actionIcon: Icons.share_outlined,
+            actionIconColor: const Color(0xFFFA3E62),
+            onActionTap: () {
+              ShareBottomSheet.show(
+                context,
+                targetType: 'ITINERARY',
+                targetId: item.itineraryId,
+                title: item.title,
+                coverImage: item.coverImage,
+                subtitle: item.location.isNotEmpty
+                    ? item.location
+                    : '${item.totalDays} ngày',
+                authNotifier: widget.authNotifier,
+              );
+            },
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ItineraryDetailScreen(
@@ -1138,6 +1157,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             ),
           );
         },
+        ),
       ),
     );
   }
@@ -1205,9 +1225,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       child: ListView.separated(
         key: const PageStorageKey('public_profile_posts'),
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(top: 8, bottom: 24),
+        padding: const EdgeInsets.only(bottom: 24),
         itemCount: _posts.length + (_hasMorePosts ? 1 : 0),
-        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const FeedSectionDivider(),
         itemBuilder: (context, index) {
           if (index >= _posts.length) {
             return const Padding(
@@ -1223,9 +1243,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           }
 
           final post = _posts[index];
-          return PostCardWidget(
+          final item = FeedPostItem(
             post: post,
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             onLike: () => _likePost(post),
             onComment: () => _openPostComments(post),
             onShare: () => _openSharePost(post),
@@ -1244,6 +1263,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               );
             },
           );
+          if (index == 0) {
+            return Column(
+              children: [
+                const FeedSectionDivider(),
+                item,
+              ],
+            );
+          }
+          return item;
         },
       ),
     );

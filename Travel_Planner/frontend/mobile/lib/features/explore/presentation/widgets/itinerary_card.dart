@@ -17,6 +17,11 @@ class ItineraryCard extends StatelessWidget {
   final VoidCallback? onCreatorTap;
   final String? heroTag;
   final bool isCompactHorizontal;
+  final bool showCreator;
+  final bool showVisibilityBadge;
+  final bool showThemeTag;
+  final bool showRatingWhenEmpty;
+  final Color? actionBgColor;
 
   const ItineraryCard({
     super.key,
@@ -32,6 +37,11 @@ class ItineraryCard extends StatelessWidget {
     this.onCreatorTap,
     this.heroTag,
     this.isCompactHorizontal = false,
+    this.showCreator = true,
+    this.showVisibilityBadge = false,
+    this.showThemeTag = false,
+    this.showRatingWhenEmpty = false,
+    this.actionBgColor,
   });
 
   String _formatBudget(double budget) {
@@ -379,29 +389,54 @@ class ItineraryCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Hero(
-                  tag: heroTag ?? 'itinerary_card_${itinerary.itineraryId}',
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFEFEFF4),
-                        width: 1,
+                Stack(
+                  children: [
+                    Hero(
+                      tag: heroTag ?? 'itinerary_card_${itinerary.itineraryId}',
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFFEFEFF4),
+                            width: 1,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child:
+                            itinerary.coverImage != null &&
+                                itinerary.coverImage!.trim().isNotEmpty
+                            ? Image.network(
+                                itinerary.coverImage!.trim(),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    _buildImagePlaceholder(),
+                              )
+                            : _buildImagePlaceholder(),
                       ),
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child:
-                        itinerary.coverImage != null &&
-                            itinerary.coverImage!.trim().isNotEmpty
-                        ? Image.network(
-                            itinerary.coverImage!.trim(),
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => _buildImagePlaceholder(),
-                          )
-                        : _buildImagePlaceholder(),
-                  ),
+                    if (showVisibilityBadge)
+                      Positioned(
+                        left: 4,
+                        bottom: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.52),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            (itinerary.visibility ?? '').toUpperCase() ==
+                                    'PUBLIC'
+                                ? Icons.public
+                                : Icons.lock_outline,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -435,7 +470,7 @@ class ItineraryCard extends StatelessWidget {
                         runSpacing: 4,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          if (creator != null)
+                          if (showCreator && creator != null)
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -470,7 +505,28 @@ class ItineraryCard extends StatelessWidget {
                                 ),
                               ],
                             ),
-                          if (hasRating)
+                          if (showThemeTag &&
+                              itinerary.theme != null &&
+                              itinerary.theme!.trim().isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF0F3),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                itinerary.theme!.trim(),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFFA3E62),
+                                ),
+                              ),
+                            ),
+                          if (hasRating || showRatingWhenEmpty)
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -481,11 +537,13 @@ class ItineraryCard extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 2),
                                 Text(
-                                  itinerary.averageRating.toStringAsFixed(1),
+                                  hasRating
+                                      ? itinerary.averageRating.toStringAsFixed(1)
+                                      : 'Mới',
                                   style: const TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1E1E1E),
+                                    color: Color(0xFF4B5563),
                                   ),
                                 ),
                               ],
@@ -493,8 +551,8 @@ class ItineraryCard extends StatelessWidget {
                           Text(
                             _formatBudget(itinerary.budget),
                             style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
                               color: Color(0xFFFA3E62),
                             ),
                           ),
@@ -507,7 +565,7 @@ class ItineraryCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   BounceTap.icon(
                     child: Material(
-                      color: const Color(0xFFFFF0F3),
+                      color: actionBgColor ?? const Color(0xFFFFF0F3),
                       borderRadius: BorderRadius.circular(10),
                       child: InkWell(
                         onTap: onActionTap,

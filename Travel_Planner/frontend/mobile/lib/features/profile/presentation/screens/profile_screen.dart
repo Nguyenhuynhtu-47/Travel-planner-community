@@ -7,6 +7,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/navigation/main_navigation_shell.dart';
 import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
@@ -22,6 +23,9 @@ import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
+import '../../../itinerary/data/itinerary_crud_repository.dart';
+import '../../../itinerary/data/models/update_itinerary_request.dart';
+import '../../../itinerary/presentation/screens/edit_itinerary_screen.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
@@ -33,8 +37,8 @@ import '../../../social/data/community_post_repository.dart';
 import '../../../social/data/models/post_model.dart';
 import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import '../../../social/presentation/screens/create_post_screen.dart';
-import '../../../social/presentation/widgets/post_card_widget.dart';
-import '../../../social/presentation/widgets/post_comments_sheet.dart';
+import '../../../social/presentation/screens/post_detail_screen.dart';
+import '../../../social/presentation/widgets/feed_post_item.dart';
 import 'personal_info_screen.dart';
 import 'public_profile_screen.dart';
 import 'public_user_list_screen.dart';
@@ -222,9 +226,22 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _logout() async {
     await widget.authNotifier.logout();
-    if (mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => MainNavigationShell(
+          authNotifier: widget.authNotifier,
+          initialIndex: 0,
+        ),
+      ),
+      (route) => false,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigator.context.mounted) {
+        AppToast.showInfo(navigator.context, 'Đã đăng xuất');
+      }
+    });
   }
 
   void _fillFields(Map<String, dynamic> p) {
@@ -733,15 +750,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w400,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
             ],
@@ -952,10 +971,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildTabBar() {
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.background,
+        color: Colors.white,
         border: Border(
-          top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
-          bottom: BorderSide(color: AppColors.hairlineSoft, width: 1),
+          top: BorderSide(color: Color(0xFFEBEBEF), width: 1),
+          bottom: BorderSide(color: Color(0xFFEBEBEF), width: 1),
         ),
       ),
       child: Row(
@@ -1134,24 +1153,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _openPostComments(PostModel post) {
-    AppBottomSheet.show<void>(
-      context,
-      showDragHandle: false,
-      builder: (ctx) => PostCommentsSheet(
-        postId: post.postId,
-        token: widget.authNotifier.token,
-        repository: _postRepository,
-        onCommentCountChanged: (delta) {
-          setState(() {
-            final idx = _myPosts.indexWhere((p) => p.postId == post.postId);
-            if (idx != -1) {
-              final newCount = (_myPosts[idx].commentCount + delta) < 0
-                  ? 0
-                  : _myPosts[idx].commentCount + delta;
-              _myPosts[idx] = _myPosts[idx].copyWith(commentCount: newCount);
-            }
-          });
-        },
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PostDetailScreen(
+          postId: post.postId,
+          authNotifier: widget.authNotifier,
+          repository: _postRepository,
+        ),
       ),
     );
   }
@@ -1320,9 +1328,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: ListView.separated(
         key: const PageStorageKey('profile_my_posts_list'),
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(top: 8, bottom: 24),
+        padding: const EdgeInsets.only(bottom: 24),
         itemCount: _myPosts.length + (_hasMorePosts ? 1 : 0),
-        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const FeedSectionDivider(),
         itemBuilder: (context, index) {
           if (index >= _myPosts.length) {
             return const Padding(
@@ -1338,9 +1346,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           }
 
           final post = _myPosts[index];
-          return PostCardWidget(
+          final item = FeedPostItem(
             post: post,
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             onLike: () => _likeMyPost(post),
             onComment: () => _openPostComments(post),
             onShare: () => _openSharePost(post),
@@ -1358,6 +1365,15 @@ class _ProfileScreenState extends State<ProfileScreen>
               );
             },
           );
+          if (index == 0) {
+            return Column(
+              children: [
+                const FeedSectionDivider(),
+                item,
+              ],
+            );
+          }
+          return item;
         },
       ),
     );
@@ -1414,32 +1430,168 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    return ListView.builder(
-      key: const PageStorageKey('profile_itineraries_list'),
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: _itineraries.length,
-      itemBuilder: (context, index) {
-        final item = _itineraries[index];
-        return ItineraryCard(
-          itinerary: item,
-          showFavorite: false,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ItineraryDetailScreen(
-                  itineraryId: item.itineraryId,
-                  initialSummary: item,
-                  isOwner: true,
-                  token: widget.authNotifier.token,
-                  authNotifier: widget.authNotifier,
+    return ColoredBox(
+      color: Colors.white,
+      child: ListView.separated(
+        key: const PageStorageKey('profile_itineraries_list'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(top: 4, bottom: 24),
+        itemCount: _itineraries.length,
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          thickness: 1,
+          indent: 110,
+          color: Color(0xFFF0F0F5),
+        ),
+        itemBuilder: (context, index) {
+          final item = _itineraries[index];
+          return ItineraryCard(
+            itinerary: item,
+            isCompactHorizontal: true,
+            showFavorite: false,
+            showCreator: false,
+            showVisibilityBadge: true,
+            showThemeTag: true,
+            showRatingWhenEmpty: true,
+            actionIcon: Icons.more_horiz,
+            actionIconColor: const Color(0xFF6E6E73),
+            actionBgColor: const Color(0xFFF4F5F7),
+            onActionTap: () => _openItineraryOptions(item),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ItineraryDetailScreen(
+                    itineraryId: item.itineraryId,
+                    initialSummary: item,
+                    isOwner: true,
+                    token: widget.authNotifier.token,
+                    authNotifier: widget.authNotifier,
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
+  }
+
+  Future<void> _openItineraryOptions(ItinerarySummary item) async {
+    final isPublic = (item.visibility ?? '').toUpperCase() == 'PUBLIC';
+    final selected = await AppBottomSheet.showOptions<String>(
+      context,
+      title: item.title,
+      options: [
+        const AppBottomSheetOption(
+          value: 'edit',
+          icon: Icons.edit_outlined,
+          label: 'Chỉnh sửa lịch trình',
+        ),
+        const AppBottomSheetOption(
+          value: 'share',
+          icon: Icons.share_outlined,
+          label: 'Chia sẻ lịch trình',
+        ),
+        AppBottomSheetOption(
+          value: 'toggle_visibility',
+          icon: isPublic ? Icons.lock_outline : Icons.public,
+          label: isPublic ? 'Chuyển sang Riêng tư' : 'Chuyển sang Công khai',
+        ),
+        const AppBottomSheetOption(
+          value: 'delete',
+          icon: Icons.delete_outline,
+          label: 'Xóa lịch trình',
+          isDestructive: true,
+        ),
+      ],
+    );
+    if (!mounted || selected == null) return;
+    final token = widget.authNotifier.token;
+    if (token == null || token.isEmpty) return;
+
+    switch (selected) {
+      case 'edit':
+        final updated = await Navigator.of(context).push(
+          MaterialPageRoute<dynamic>(
+            builder: (_) => EditItineraryScreen.fromSummary(
+              item,
+              authNotifier: widget.authNotifier,
+            ),
+          ),
+        );
+        if (updated != null && mounted) {
+          _loadProfile();
+        }
+      case 'share':
+        ShareBottomSheet.show(
+          context,
+          targetType: 'ITINERARY',
+          targetId: item.itineraryId,
+          title: item.title,
+          coverImage: item.coverImage,
+          subtitle: item.location.isNotEmpty
+              ? item.location
+              : '${item.totalDays} ngày',
+          authNotifier: widget.authNotifier,
+        );
+      case 'toggle_visibility':
+        final newVis = isPublic ? 'PRIVATE' : 'PUBLIC';
+        try {
+          await ItineraryCrudRepository().updateItinerary(
+            item.itineraryId,
+            UpdateItineraryRequest(
+              title: item.title,
+              description: item.description,
+              location: item.location,
+              coverImage: item.coverImage,
+              budget: item.budget,
+              theme: item.theme,
+              visibility: newVis,
+            ),
+            token: token,
+          );
+          if (mounted) {
+            AppToast.showSuccess(
+              context,
+              newVis == 'PUBLIC'
+                  ? 'Đã chuyển sang Công khai'
+                  : 'Đã chuyển sang Riêng tư',
+            );
+            _loadProfile();
+          }
+        } catch (_) {
+          if (mounted) {
+            AppToast.showError(context, 'Không thể đổi chế độ hiển thị.');
+          }
+        }
+      case 'delete':
+        final confirmed = await AppDialog.showConfirm(
+          context,
+          type: AppDialogType.danger,
+          title: 'Xóa lịch trình?',
+          message:
+              'Bạn có chắc chắn muốn xóa lịch trình "${item.title}"? Hành động này không thể hoàn tác.',
+          confirmText: 'Xóa',
+          cancelText: 'Hủy',
+        );
+        if (confirmed != true || !mounted) return;
+        try {
+          await ItineraryCrudRepository().deleteItinerary(
+            item.itineraryId,
+            token: token,
+          );
+          if (mounted) {
+            setState(() {
+              _itineraries.removeWhere((e) => e.itineraryId == item.itineraryId);
+            });
+            AppToast.showSuccess(context, 'Đã xóa lịch trình');
+          }
+        } catch (_) {
+          if (mounted) {
+            AppToast.showError(context, 'Không thể xóa lịch trình lúc này.');
+          }
+        }
+    }
   }
 
   Widget _editor() {

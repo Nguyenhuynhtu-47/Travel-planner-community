@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+
 import 'package:mobile/shared/widgets/app_dialog.dart';
 import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
+
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
@@ -24,8 +25,8 @@ import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../community_feed_notifier.dart';
 import '../../data/community_post_repository.dart';
 import '../../data/models/post_model.dart';
-import '../widgets/post_card_widget.dart';
-import '../widgets/post_comments_sheet.dart';
+import '../widgets/feed_post_item.dart';
+import 'post_detail_screen.dart';
 import '../widgets/report_post_dialog.dart';
 import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import 'create_post_screen.dart';
@@ -192,8 +193,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => switch (initialTab) {
-          1 => FriendsScreen(authNotifier: widget.authNotifier!),
-          2 => FriendsScreen(authNotifier: widget.authNotifier!, initialTab: 1),
+          1 => FriendsScreen(
+            authNotifier: widget.authNotifier!,
+            initialTab: 1,
+          ), // Mở thẳng tab Bạn bè
+          2 => FriendsScreen(
+            authNotifier: widget.authNotifier!,
+            initialTab: 0,
+          ), // Mở tab Lời mời
           _ => MessagingInboxScreen(authNotifier: widget.authNotifier!),
         },
       ),
@@ -248,8 +255,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       context,
       type: AppDialogType.danger,
       title: 'Xác nhận xóa bài viết',
-      message:
-          'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.',
+      message: 'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.',
       confirmText: 'Xóa',
       cancelText: 'Hủy',
     );
@@ -271,14 +277,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   }
 
   void _openComments(PostModel post) {
-    AppBottomSheet.show<void>(
-      context,
-      showDragHandle: false,
-      builder: (ctx) => PostCommentsSheet(
-        postId: post.postId,
-        token: _token,
-        repository: _repo,
-        notifier: _notifier,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PostDetailScreen(
+          postId: post.postId,
+          authNotifier: widget.authNotifier,
+          repository: _repo,
+        ),
       ),
     );
   }
@@ -288,8 +293,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       _showLoginRequiredPrompt('chia sẻ bài viết');
       return;
     }
-    final coverImage =
-        post.mediaUrls.isNotEmpty ? post.mediaUrls.first : null;
+    final coverImage = post.mediaUrls.isNotEmpty ? post.mediaUrls.first : null;
     ShareBottomSheet.show(
       context,
       targetType: 'POST',
@@ -367,12 +371,12 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               // Chat Inbox Shortcut
               AppHeaderIconButton(
                 tooltip: 'Bạn bè và lời mời',
-                icon: Icons.person_add_alt_1_outlined,
+                icon: Icons.people_alt_outlined,
                 badge: Badge(
                   isLabelVisible: _notifier.friendRequestsCount > 0,
                   label: Text('${_notifier.friendRequestsCount}'),
                   child: const Icon(
-                    Icons.person_add_alt_1_outlined,
+                    Icons.people_alt_outlined,
                     size: 20,
                     color: Color(0xFF1E1E1E),
                   ),
@@ -481,12 +485,18 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
             children: [
               // Tab 1: Public Feed ("Dành cho bạn")
               _KeepAliveTabPage(
-                child: _buildFeedStream(_notifier.publicPosts, isFollowingTab: false),
+                child: _buildFeedStream(
+                  _notifier.publicPosts,
+                  isFollowingTab: false,
+                ),
               ),
 
               // Tab 2: Following Feed ("Đang theo dõi")
               _KeepAliveTabPage(
-                child: _buildFeedStream(_notifier.followingPosts, isFollowingTab: true),
+                child: _buildFeedStream(
+                  _notifier.followingPosts,
+                  isFollowingTab: true,
+                ),
               ),
             ],
           ),
@@ -551,13 +561,15 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
         await _notifier.refresh(_token);
         recordRefreshedNow();
       },
-      child: ListView.builder(
+      child: ListView.separated(
         key: PageStorageKey<String>(
           isFollowingTab ? 'community_following_feed' : 'community_public_feed',
         ),
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
         itemCount: posts.length + (_notifier.isLoadingMore ? 1 : 0),
+        separatorBuilder: (context, index) => const FeedSectionDivider(),
         itemBuilder: (context, index) {
           if (index == posts.length) {
             return const Padding(
@@ -573,7 +585,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
           }
 
           final post = posts[index];
-          return PostCardWidget(
+          return FeedPostItem(
             post: post,
             heroScope: isFollowingTab ? 'following' : 'public',
             onLike: () {
