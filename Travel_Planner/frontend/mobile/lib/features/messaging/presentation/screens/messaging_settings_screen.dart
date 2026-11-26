@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/models/messaging_settings.dart';
@@ -57,7 +58,14 @@ class _MessagingSettingsScreenState extends State<MessagingSettingsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Quyền riêng tư tin nhắn')),
+    appBar: AppBar(
+      leadingWidth: 58,
+      leading: const Padding(
+        padding: EdgeInsets.only(left: 12),
+        child: Center(child: AppHeaderBackButton()),
+      ),
+      title: const Text('Quyền riêng tư tin nhắn'),
+    ),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
         : _settings == null

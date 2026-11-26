@@ -7,6 +7,7 @@ import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_page_title.dart';
@@ -260,6 +261,11 @@ class _EditItineraryScreenState extends State<EditItineraryScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const AppPageTitle(title: 'Chỉnh sửa lịch trình', fontSize: 18),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,

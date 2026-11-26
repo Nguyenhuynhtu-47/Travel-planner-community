@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/app_dialog.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
@@ -761,7 +762,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final profile = _profile;
     if (_error != null || profile == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: AppBar(
+          leadingWidth: 58,
+          leading: const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: Center(child: AppHeaderBackButton()),
+          ),
+        ),
         body: AppErrorState(
           message: _error ?? 'Không tìm thấy hồ sơ.',
           onRetry: _load,
@@ -778,6 +785,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: Text(
           name,
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

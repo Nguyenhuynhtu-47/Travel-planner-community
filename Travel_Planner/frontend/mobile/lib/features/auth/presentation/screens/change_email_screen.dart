@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_otp_input.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
@@ -184,6 +185,11 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const AppPageTitle(title: 'Đổi địa chỉ email'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,

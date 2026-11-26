@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_bottom_sheet.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
@@ -187,12 +188,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: BounceTap.icon(
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            tooltip: 'Quay lại',
-            onPressed: () => Navigator.of(context).pop(),
-          ),
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
         ),
       ),
       body: _buildBody(),

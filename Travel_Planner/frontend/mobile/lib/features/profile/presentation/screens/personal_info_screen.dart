@@ -11,6 +11,7 @@ import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/app_dialog.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
@@ -243,18 +244,22 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const AppPageTitle(title: 'Thông tin cá nhân'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Đăng xuất',
-              icon: const Icon(Icons.logout, size: 22, color: AppColors.error),
-              onPressed: _logout,
-            ),
+          AppHeaderIconButton(
+            tooltip: 'Đăng xuất',
+            icon: Icons.logout,
+            iconColor: AppColors.error,
+            onPressed: _logout,
           ),
           const SizedBox(width: 8),
         ],

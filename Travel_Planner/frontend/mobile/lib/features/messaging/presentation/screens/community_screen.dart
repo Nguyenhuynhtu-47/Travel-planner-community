@@ -7,6 +7,7 @@ import '../../data/messaging_date_time.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -453,46 +454,43 @@ class _CommunityScreenState extends State<CommunityScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (auth?.isAuthenticated == true)
-            BounceTap.icon(
-              child: IconButton(
-                tooltip: 'Tìm người dùng',
-                icon: const Icon(Icons.person_search_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        UserSearchScreen(authNotifier: auth!, repository: _repo),
-                  ),
-                ),
-              ),
-            ),
-          if (auth?.isAuthenticated == true)
-            BounceTap.icon(
-              child: IconButton(
-                tooltip: 'Quyền riêng tư tin nhắn',
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => MessagingSettingsScreen(
-                      token: auth!.token!,
-                      repository: _repo,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Thông báo',
-              icon: const Icon(Icons.notifications_outlined),
+          if (auth?.isAuthenticated == true) ...[
+            AppHeaderIconButton(
+              tooltip: 'Tìm người dùng',
+              icon: Icons.person_search_outlined,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
+                  builder: (_) =>
+                      UserSearchScreen(authNotifier: auth!, repository: _repo),
                 ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            AppHeaderIconButton(
+              tooltip: 'Quyền riêng tư tin nhắn',
+              icon: Icons.settings_outlined,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => MessagingSettingsScreen(
+                    token: auth!.token!,
+                    repository: _repo,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          AppHeaderIconButton(
+            tooltip: 'Thông báo',
+            icon: Icons.notifications_outlined,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const NotificationsScreen(),
               ),
             ),
           ),
-          if (auth?.isAuthenticated == true)
+          if (auth?.isAuthenticated == true) ...[
+            const SizedBox(width: 8),
             CurrentUserAvatarButton(
               avatarUrl: auth?.currentUser?['avatar']?.toString(),
               onPressed: () => Navigator.of(context).push(
@@ -501,6 +499,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
               ),
             ),
+          ],
           const SizedBox(width: 8),
         ],
       ),

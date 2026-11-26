@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
@@ -130,50 +131,58 @@ class _MessagingInboxScreenState extends State<MessagingInboxScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const Text('Tin nhắn'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Tin nhắn người lạ',
-              icon: Badge(
-                isLabelVisible: _unreadMessageRequestCount > 0,
-                label: _unreadMessageRequestCount > 0
-                    ? Text(
-                        _unreadMessageRequestCount > 99
-                            ? '99+'
-                            : '$_unreadMessageRequestCount',
-                      )
-                    : null,
-                child: const Icon(Icons.markunread_mailbox_outlined),
+          AppHeaderIconButton(
+            tooltip: 'Tin nhắn người lạ',
+            icon: Icons.markunread_mailbox_outlined,
+            badge: Badge(
+              isLabelVisible: _unreadMessageRequestCount > 0,
+              label: _unreadMessageRequestCount > 0
+                  ? Text(
+                      _unreadMessageRequestCount > 99
+                          ? '99+'
+                          : '$_unreadMessageRequestCount',
+                    )
+                  : null,
+              child: const Icon(
+                Icons.markunread_mailbox_outlined,
+                size: 20,
+                color: Color(0xFF1E1E1E),
               ),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => StrangerInboxScreen(
-                    authNotifier: widget.authNotifier,
-                    repository: _repository,
-                  ),
+            ),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => StrangerInboxScreen(
+                  authNotifier: widget.authNotifier,
+                  repository: _repository,
                 ),
               ),
             ),
           ),
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Bạn bè',
-              icon: const Icon(Icons.people_outline),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => FriendsScreen(
-                    authNotifier: widget.authNotifier,
-                    repository: _repository,
-                  ),
+          const SizedBox(width: 8),
+          AppHeaderIconButton(
+            tooltip: 'Bạn bè',
+            icon: Icons.people_outline,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FriendsScreen(
+                  authNotifier: widget.authNotifier,
+                  repository: _repository,
                 ),
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
-import '../../../../shared/widgets/bounce_tap.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 
 class SavedItinerariesScreen extends StatelessWidget {
@@ -21,19 +21,18 @@ class SavedItinerariesScreen extends StatelessWidget {
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         actions: [
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Thông báo',
-              icon: const Icon(Icons.notifications_outlined),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                );
-              },
-            ),
+          AppHeaderIconButton(
+            icon: Icons.notifications_outlined,
+            tooltip: 'Thông báo',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              );
+            },
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: const AppEmptyState(

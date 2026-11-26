@@ -14,6 +14,7 @@ import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/app_dialog.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
@@ -505,24 +506,30 @@ class _ProfileScreenState extends State<ProfileScreen>
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leadingWidth: Navigator.of(context).canPop() ? 58 : null,
+          leading: Navigator.of(context).canPop()
+              ? const Padding(
+                  padding: EdgeInsets.only(left: 12),
+                  child: Center(child: AppHeaderBackButton()),
+                )
+              : null,
           title: const AppPageTitle(title: 'Hồ sơ cá nhân'),
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.textPrimary,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           actions: [
-            BounceTap.icon(
-              child: IconButton(
-                tooltip: 'Thông báo',
-                icon: const Icon(Icons.notifications_outlined, size: 24),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const NotificationsScreen(),
-                    ),
-                  );
-                },
-              ),
+            AppHeaderIconButton(
+              tooltip: 'Thông báo',
+              icon: Icons.notifications_outlined,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(width: 8),
           ],
@@ -552,38 +559,42 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leadingWidth: Navigator.of(context).canPop() ? 58 : null,
+        leading: Navigator.of(context).canPop()
+            ? const Padding(
+                padding: EdgeInsets.only(left: 12),
+                child: Center(child: AppHeaderBackButton()),
+              )
+            : null,
         title: const AppPageTitle(title: 'Hồ sơ cá nhân'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Quyền riêng tư tin nhắn',
-              icon: const Icon(Icons.forum_outlined, size: 22),
-              onPressed: _openMessagingPrivacy,
-            ),
+          AppHeaderIconButton(
+            tooltip: 'Quyền riêng tư tin nhắn',
+            icon: Icons.forum_outlined,
+            onPressed: _openMessagingPrivacy,
           ),
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Thông báo',
-              icon: const Icon(Icons.notifications_outlined, size: 24),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                );
-              },
-            ),
+          const SizedBox(width: 8),
+          AppHeaderIconButton(
+            tooltip: 'Thông báo',
+            icon: Icons.notifications_outlined,
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              );
+            },
           ),
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Cài đặt hồ sơ',
-              icon: const Icon(Icons.settings_outlined, size: 24),
-              onPressed: _openSettings,
-            ),
+          const SizedBox(width: 8),
+          AppHeaderIconButton(
+            tooltip: 'Cài đặt hồ sơ',
+            icon: Icons.settings_outlined,
+            onPressed: _openSettings,
           ),
           const SizedBox(width: 8),
         ],

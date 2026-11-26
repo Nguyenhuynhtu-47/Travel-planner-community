@@ -7,6 +7,7 @@ import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_page_title.dart';
@@ -277,30 +278,31 @@ class _CreateItineraryScreenState extends State<CreateItineraryScreen> {
           foregroundColor: AppColors.textPrimary,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
+          leadingWidth: 58,
           leading: _showIntro
               ? (Navigator.of(context).canPop()
-                  ? BounceTap.icon(
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
+                  ? const Padding(
+                      padding: EdgeInsets.only(left: 12),
+                      child: Center(child: AppHeaderBackButton()),
                     )
                   : null)
-              : BounceTap.icon(
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    tooltip: _currentStep > 0 ? 'Quay lại bước trước' : 'Quay lại',
-                    onPressed: _previousStep,
+              : Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Center(
+                    child: AppHeaderIconButton(
+                      icon: Icons.arrow_back,
+                      tooltip:
+                          _currentStep > 0 ? 'Quay lại bước trước' : 'Quay lại',
+                      onPressed: _previousStep,
+                    ),
                   ),
                 ),
           actions: [
             if (!_showIntro) ...[
-              BounceTap.icon(
-                child: IconButton(
-                  tooltip: 'Làm mới biểu mẫu',
-                  icon: const Icon(Icons.refresh_rounded, size: 22),
-                  onPressed: _resetForm,
-                ),
+              AppHeaderIconButton(
+                icon: Icons.refresh_rounded,
+                tooltip: 'Làm mới biểu mẫu',
+                onPressed: _resetForm,
               ),
               const SizedBox(width: 8),
             ],

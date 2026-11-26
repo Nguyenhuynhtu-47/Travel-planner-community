@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_dialog.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/bounce_tap.dart';
@@ -144,6 +145,11 @@ class _DeviceSessionsScreenState extends State<DeviceSessionsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: const AppPageTitle(title: 'Thiết bị & Phiên đăng nhập'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,

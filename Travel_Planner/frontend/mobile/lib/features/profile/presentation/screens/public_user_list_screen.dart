@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/models/public_user_summary.dart';
@@ -102,7 +103,14 @@ class _PublicUserListScreenState extends State<PublicUserListScreen> {
   Widget build(BuildContext context) {
     final title = widget.followers ? 'Người theo dõi' : 'Đang theo dõi';
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
+        title: Text(title),
+      ),
       body: _loading && _users.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _users.isEmpty

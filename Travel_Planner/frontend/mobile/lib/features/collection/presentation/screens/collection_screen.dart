@@ -5,6 +5,7 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/bounce_tap.dart';
@@ -214,20 +215,19 @@ class _CollectionScreenState extends State<CollectionScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Thông báo',
-              icon: const Icon(Icons.notifications_outlined, size: 24),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                );
-              },
-            ),
+          AppHeaderIconButton(
+            icon: Icons.notifications_outlined,
+            tooltip: 'Thông báo',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              );
+            },
           ),
-          if (widget.authNotifier?.isAuthenticated == true)
+          if (widget.authNotifier?.isAuthenticated == true) ...[
+            const SizedBox(width: 8),
             CurrentUserAvatarButton(
               avatarUrl: widget.authNotifier?.currentUser?['avatar']?.toString(),
               onPressed: () {
@@ -238,6 +238,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                 );
               },
             ),
+          ],
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(

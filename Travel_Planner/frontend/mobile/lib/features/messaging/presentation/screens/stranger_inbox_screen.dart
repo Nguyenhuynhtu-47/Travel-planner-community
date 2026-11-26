@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_dialog.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
@@ -141,6 +142,11 @@ class _StrangerInboxScreenState extends State<StrangerInboxScreen> {
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: AppColors.background,
     appBar: AppBar(
+      leadingWidth: 58,
+      leading: const Padding(
+        padding: EdgeInsets.only(left: 12),
+        child: Center(child: AppHeaderBackButton()),
+      ),
       title: const Text('Tin nhắn người lạ'),
       backgroundColor: AppColors.background,
       foregroundColor: AppColors.textPrimary,

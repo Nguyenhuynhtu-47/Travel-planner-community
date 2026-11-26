@@ -7,6 +7,7 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
@@ -339,38 +340,39 @@ class _ExploreScreenState extends State<ExploreScreen>
               ],
             ),
             actions: [
-              if (isAuthenticated)
-                BounceTap.icon(
-                  child: IconButton(
-                    tooltip: 'Tìm người dùng',
-                    icon: const Icon(Icons.person_search_outlined),
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) =>
-                            UserSearchScreen(authNotifier: widget.authNotifier),
-                      ),
+              if (isAuthenticated) ...[
+                AppHeaderIconButton(
+                  icon: Icons.person_search_outlined,
+                  tooltip: 'Tìm người dùng',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          UserSearchScreen(authNotifier: widget.authNotifier),
                     ),
                   ),
                 ),
-              BounceTap.icon(
-                child: IconButton(
-                  tooltip: 'Thông báo',
-                  icon: const Icon(Icons.notifications_outlined),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const NotificationsScreen(),
-                      ),
-                    );
-                  },
-                ),
+                const SizedBox(width: 8),
+              ],
+              AppHeaderIconButton(
+                icon: Icons.notifications_outlined,
+                tooltip: 'Thông báo',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
               ),
-              if (isAuthenticated)
+              if (isAuthenticated) ...[
+                const SizedBox(width: 8),
                 CurrentUserAvatarButton(
                   avatarUrl: widget.authNotifier.currentUser?['avatar']
                       ?.toString(),
                   onPressed: _navigateToProfile,
                 ),
+                const SizedBox(width: 8),
+              ],
               if (!isAuthenticated)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),

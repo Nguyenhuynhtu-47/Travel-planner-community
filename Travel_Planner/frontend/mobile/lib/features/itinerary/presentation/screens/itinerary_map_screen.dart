@@ -5,6 +5,7 @@ import 'package:mobile/shared/widgets/bounce_tap.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_map_view.dart';
 import '../../data/models/itinerary_detail.dart';
 import '../../data/models/route_models.dart';
@@ -393,6 +394,11 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -425,14 +431,12 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
-          BounceTap.icon(
-            enabled: stops.isNotEmpty,
-            child: IconButton(
-              icon: const Icon(Icons.center_focus_strong_outlined),
-              tooltip: 'Căn giữa các điểm',
-              onPressed: stops.isNotEmpty ? _recenterCamera : null,
-            ),
+          AppHeaderIconButton(
+            icon: Icons.center_focus_strong_outlined,
+            tooltip: 'Căn giữa các điểm',
+            onPressed: stops.isNotEmpty ? _recenterCamera : null,
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Stack(

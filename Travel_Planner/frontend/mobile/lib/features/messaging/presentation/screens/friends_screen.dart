@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/data/models/public_user_summary.dart';
@@ -310,26 +311,30 @@ class _FriendsScreenState extends State<FriendsScreen>
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: AppColors.background,
     appBar: AppBar(
+      leadingWidth: 58,
+      leading: const Padding(
+        padding: EdgeInsets.only(left: 12),
+        child: Center(child: AppHeaderBackButton()),
+      ),
       title: const Text('Bạn bè'),
       backgroundColor: AppColors.background,
       foregroundColor: AppColors.textPrimary,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       actions: [
-        BounceTap.icon(
-          child: IconButton(
-            tooltip: 'Tìm người dùng',
-            icon: const Icon(Icons.person_search_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => UserSearchScreen(
-                  authNotifier: widget.authNotifier,
-                  repository: _repository,
-                ),
+        AppHeaderIconButton(
+          tooltip: 'Tìm người dùng',
+          icon: Icons.person_search_outlined,
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => UserSearchScreen(
+                authNotifier: widget.authNotifier,
+                repository: _repository,
               ),
             ),
           ),
         ),
+        const SizedBox(width: 8),
       ],
     ),
     body: Column(

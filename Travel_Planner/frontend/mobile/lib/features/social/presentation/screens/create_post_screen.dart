@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../itinerary/data/itinerary_crud_repository.dart';
@@ -350,6 +351,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leadingWidth: 58,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(child: AppHeaderBackButton()),
+        ),
         title: AppPageTitle(
           title: widget.editingPost != null ? 'Chỉnh sửa bài viết' : 'Tạo bài viết',
           fontSize: 18,

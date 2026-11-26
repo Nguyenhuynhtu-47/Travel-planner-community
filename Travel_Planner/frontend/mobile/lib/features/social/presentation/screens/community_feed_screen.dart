@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/app_dialog.dart';
+import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -364,50 +365,57 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
             elevation: 0,
             actions: [
               // Chat Inbox Shortcut
-              BounceTap.icon(
-                child: IconButton(
-                  tooltip: 'Bạn bè và lời mời',
-                  icon: Badge(
-                    isLabelVisible: _notifier.friendRequestsCount > 0,
-                    label: Text('${_notifier.friendRequestsCount}'),
-                    child: const Icon(Icons.person_add_alt_1_outlined, size: 22),
+              AppHeaderIconButton(
+                tooltip: 'Bạn bè và lời mời',
+                icon: Icons.person_add_alt_1_outlined,
+                badge: Badge(
+                  isLabelVisible: _notifier.friendRequestsCount > 0,
+                  label: Text('${_notifier.friendRequestsCount}'),
+                  child: const Icon(
+                    Icons.person_add_alt_1_outlined,
+                    size: 20,
+                    color: Color(0xFF1E1E1E),
                   ),
-                  onPressed: () => _openChatInbox(initialTab: 2),
                 ),
+                onPressed: () => _openChatInbox(initialTab: 2),
               ),
-              BounceTap.icon(
-                child: IconButton(
-                  tooltip: 'Tin nhắn',
-                  icon: Badge(
-                    isLabelVisible: _notifier.unreadMessagesTotal > 0,
-                    label: _notifier.unreadMessagesTotal > 0
-                        ? Text(
-                            _notifier.unreadMessagesTotal > 99
-                                ? '99+'
-                                : '${_notifier.unreadMessagesTotal}',
-                          )
-                        : null,
-                    child: const Icon(Icons.chat_bubble_outline, size: 22),
+              const SizedBox(width: 8),
+              AppHeaderIconButton(
+                tooltip: 'Tin nhắn',
+                icon: Icons.chat_bubble_outline,
+                badge: Badge(
+                  isLabelVisible: _notifier.unreadMessagesTotal > 0,
+                  label: _notifier.unreadMessagesTotal > 0
+                      ? Text(
+                          _notifier.unreadMessagesTotal > 99
+                              ? '99+'
+                              : '${_notifier.unreadMessagesTotal}',
+                        )
+                      : null,
+                  child: const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 20,
+                    color: Color(0xFF1E1E1E),
                   ),
-                  onPressed: _openChatInbox,
                 ),
+                onPressed: _openChatInbox,
               ),
+              const SizedBox(width: 8),
 
               // Notifications Shortcut
-              BounceTap.icon(
-                child: IconButton(
-                  tooltip: 'Thông báo',
-                  icon: const Icon(Icons.notifications_outlined, size: 24),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const NotificationsScreen(),
-                      ),
-                    );
-                  },
-                ),
+              AppHeaderIconButton(
+                tooltip: 'Thông báo',
+                icon: Icons.notifications_outlined,
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
               ),
-              if (_isAuthenticated && widget.authNotifier != null)
+              if (_isAuthenticated && widget.authNotifier != null) ...[
+                const SizedBox(width: 8),
                 CurrentUserAvatarButton(
                   avatarUrl: widget.authNotifier?.currentUser?['avatar']
                       ?.toString(),
@@ -420,6 +428,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                     );
                   },
                 ),
+              ],
               const SizedBox(width: 8),
             ],
             bottom: PreferredSize(
