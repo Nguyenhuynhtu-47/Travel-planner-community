@@ -190,7 +190,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   activeIcon: BounceTap.icon(
                     useSelectionHaptic: true,
                     child: _ActiveNavPill(
-                      child: const Icon(Icons.explore, color: Color(0xFFFA3E62)),
+                      child: const Icon(
+                        Icons.explore,
+                        color: Color(0xFFFA3E62),
+                      ),
                     ),
                   ),
                   label: 'Khám phá',
@@ -211,7 +214,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                                   : '${_communityNotifier.unreadMessagesTotal}',
                             )
                           : null,
-                      child: const Icon(Icons.group_outlined),
+                      child: const Icon(Icons.dynamic_feed_outlined),
                     ),
                   ),
                   activeIcon: BounceTap.icon(
@@ -229,7 +232,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                                     : '${_communityNotifier.unreadMessagesTotal}',
                               )
                             : null,
-                        child: const Icon(Icons.group, color: Color(0xFFFA3E62)),
+                        child: const Icon(
+                          Icons.dynamic_feed_outlined,
+                          color: Color(0xFFFA3E62),
+                        ),
                       ),
                     ),
                   ),
@@ -273,7 +279,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   activeIcon: BounceTap.icon(
                     useSelectionHaptic: true,
                     child: _ActiveNavPill(
-                      child: const Icon(Icons.luggage, color: Color(0xFFFA3E62)),
+                      child: const Icon(
+                        Icons.luggage,
+                        color: Color(0xFFFA3E62),
+                      ),
                     ),
                   ),
                   label: 'Lịch trình của tôi',
@@ -294,10 +303,7 @@ class _AnimatedTabStack extends StatefulWidget {
   final int index;
   final List<Widget> children;
 
-  const _AnimatedTabStack({
-    required this.index,
-    required this.children,
-  });
+  const _AnimatedTabStack({required this.index, required this.children});
 
   @override
   State<_AnimatedTabStack> createState() => _AnimatedTabStackState();
@@ -361,7 +367,8 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
   @override
   Widget build(BuildContext context) {
     final isAnimating =
-        _previousIndex != null && _controller.status != AnimationStatus.completed;
+        _previousIndex != null &&
+        _controller.status != AnimationStatus.completed;
 
     return Stack(
       fit: StackFit.expand,
@@ -458,7 +465,8 @@ class _CenterCreateNavButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFA3E62).withValues(alpha: isActive ? 0.36 : 0.24),
+            color: const Color(0xFFFA3E62)
+                .withValues(alpha: isActive ? 0.36 : 0.24),
             blurRadius: isActive ? 12 : 8,
             offset: const Offset(0, 3),
           ),

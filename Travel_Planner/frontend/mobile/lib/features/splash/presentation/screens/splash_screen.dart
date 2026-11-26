@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/auth_notifier.dart';
-import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../../shared/navigation/main_navigation_shell.dart';
 import '../widgets/landmark_painters.dart';
 
@@ -615,9 +614,10 @@ class _SplashScreenState extends State<SplashScreen>
   void _proceedToNextScreen() {
     if (!mounted) return;
 
-    final Widget destination = widget.authNotifier.isAuthenticated
-        ? MainNavigationShell(authNotifier: widget.authNotifier)
-        : LoginScreen(authNotifier: widget.authNotifier);
+    final Widget destination = MainNavigationShell(
+      authNotifier: widget.authNotifier,
+      initialIndex: 0,
+    );
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
