@@ -19,7 +19,6 @@ import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../messaging/presentation/screens/messaging_inbox_screen.dart';
 import '../../../messaging/presentation/screens/friends_screen.dart';
 import '../../../messaging/data/messaging_realtime_client.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../community_feed_notifier.dart';
@@ -404,20 +403,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               ),
               const SizedBox(width: 8),
 
-              // Notifications Shortcut
-              AppHeaderIconButton(
-                tooltip: 'Thông báo',
-                icon: Icons.notifications_outlined,
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const NotificationsScreen(),
-                    ),
-                  );
-                },
-              ),
-              if (_isAuthenticated && widget.authNotifier != null) ...[
-                const SizedBox(width: 8),
+              if (_isAuthenticated && widget.authNotifier != null)
                 CurrentUserAvatarButton(
                   avatarUrl: widget.authNotifier?.currentUser?['avatar']
                       ?.toString(),

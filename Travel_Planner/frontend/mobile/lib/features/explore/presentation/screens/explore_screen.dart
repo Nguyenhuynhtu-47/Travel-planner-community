@@ -18,6 +18,7 @@ import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../../../itinerary/presentation/itinerary_detail_notifier.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../notifications/presentation/widgets/notification_bell_button.dart';
 import '../../../messaging/presentation/screens/user_search_screen.dart';
 import '../../data/models/itinerary_summary.dart';
 import '../explore_notifier.dart';
@@ -58,11 +59,11 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   @override
   Set<SyncDomain> get syncDomains => {
-        SyncDomain.explore,
-        SyncDomain.itineraries,
-        SyncDomain.collections,
-        SyncDomain.ratings,
-      };
+    SyncDomain.explore,
+    SyncDomain.itineraries,
+    SyncDomain.collections,
+    SyncDomain.ratings,
+  };
 
   @override
   Duration get syncTtl => const Duration(minutes: 5);
@@ -351,15 +352,14 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-              ],
-              AppHeaderIconButton(
-                icon: Icons.notifications_outlined,
-                tooltip: 'Thông báo',
+              NotificationBellButton(
+                authNotifier: widget.authNotifier,
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => const NotificationsScreen(),
+                      builder: (_) => NotificationsScreen(
+                        authNotifier: widget.authNotifier,
+                      ),
                     ),
                   );
                 },
@@ -1119,7 +1119,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                   isFavorited: _exploreNotifier.isFavorited(itin.itineraryId),
                   showFavorite: !isOwner,
                   onTap: () => _navigateToDetail(itin),
-                  onFavoriteTap: isOwner ? null : () => _handleFavoriteTap(itin),
+                  onFavoriteTap: isOwner
+                      ? null
+                      : () => _handleFavoriteTap(itin),
                   onCreatorTap: () => _navigateToCreator(itin.creator?.userId),
                 );
               }).toList(),

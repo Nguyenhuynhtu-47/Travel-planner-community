@@ -24,7 +24,7 @@
 ## Rủi ro và dấu hiệu cần thận trọng
 - Mobile client còn `/api/destinations` legacy nhưng backend không có endpoint này; `getDestinations()` hiện không có call site. Activity DTO `destinationId` chỉ tương thích chuyển tiếp sang canonical Place ID.
 - Place catalog, itinerary saved-place relation và Activity location snapshot là ba mô hình riêng.
-- Mobile notifications hiện chỉ empty state, chưa có backend notification API. Web đăng nhập được nhưng shell/dashboard chưa hoàn chỉnh.
+- Notification thay đổi phải giữ `NotificationService`/`NotificationServiceImpl`, `SocialNotificationService`/`SocialNotificationServiceImpl`, JPA Entity/Repository schema, một Home/Explore bell và không gộp chat unread. FCM phải giữ messaging push-only; không dùng credentials thật trong test. Production schema/device delivery chưa xác minh.
 - Location service có provider selection, rate limits, cache, query parsing/geographic ranking; kiểm tra runtime config thay vì đoán provider.
 - Startup runners thay đổi schema/dữ liệu. Entity không chứng minh DB local đã có schema tương ứng; kiểm tra schema và backup trước thao tác production.
 - Mobile/Web là hai app riêng; sửa client này không tự cập nhật app kia.

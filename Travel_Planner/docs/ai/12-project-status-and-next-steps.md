@@ -47,7 +47,7 @@
 | 20 | Saved Itineraries | **NOT IMPLEMENTED** | `SavedItinerary` entity + `SavedItineraryRepository` exist; `SavedItinerariesScreen` is a placeholder empty state |
 | 21 | Clone / Personalize Itinerary (Phase 5, 5.1 & 5.2) | **COMPLETED & FULLY HARDENED** | Deep-copy cloning with lineage tracking (`original_itinerary_id`), atomic database increment of `reuse_count` (Zero Lost Update verified via 10-thread concurrency test in 557ms), transaction rollback verification (clean rollback of all partial data to baseline on error), mobile clone UI with confirmation dialog and loading state. 453 backend tests PASS, 374 mobile tests PASS (0 regressions), 33 web tests PASS. Total 860 PASS across stack. |
 | 22 | Follow / Social Graph | **NOT IMPLEMENTED** | `Follow` entity + `FollowRepository` exist; `CommunityScreen` is empty state |
-| 23 | Notifications | **NOT IMPLEMENTED** | `NotificationsScreen` is a placeholder; no backend entity or API |
+| 23 | Notifications | **IMPLEMENTED — RELEASE VERIFICATION PARTIAL** | Personal API, Mobile Center/single Home bell, social/moderation producer hooks, shared announcements + receipts, Flutter Web Admin authoring and Android messaging push-only source implemented. JPA/Hibernate schema convention retained; notification SQL scripts removed. Focused backend/mobile checks pass; full regression, FCM device delivery and production schema remain unverified |
 | 24 | Web Admin — Dashboard & Statistics | **NOT IMPLEMENTED** | `dashboard/` directory contains only `.gitkeep` |
 | 25 | Web Admin — User Management | **NOT IMPLEMENTED** | `users/` directory contains only `.gitkeep`; no backend controller for admin user ops |
 | 26 | Web Admin — Itinerary Moderation | **NOT IMPLEMENTED** | `itineraries/` and `moderation/` directories contain only `.gitkeep` |
@@ -277,7 +277,7 @@ To ensure high architectural rigor, zero regression, and prevent monolithic unve
 |:---|:---|
 | Email verification / password reset | High infrastructure cost (SMTP, token storage); "Needs confirmation" in spec |
 | Follow/Social Graph (Follow/Unfollow) | CommunityScreen can initially show top-rated itineraries without user graph |
-| Notifications (push + in-app) | Requires WebSocket or FCM; outside scope of a capstone demo |
+| Notifications (push + in-app) | Implementation is present across backend, Mobile Center, Flutter Web Admin, social/moderation and Android messaging FCM; release regression/device/production schema gates remain in `docs/plan/notification/` |
 | Offline download | `OfflineDownload` entity exists but feature is marked out-of-scope in spec |
 | Docker / CI/CD | Useful for deployment but not needed for capstone demonstration |
 | Flyway/Liquibase schema migration | Hibernate `update` is acceptable for capstone development lifecycle |

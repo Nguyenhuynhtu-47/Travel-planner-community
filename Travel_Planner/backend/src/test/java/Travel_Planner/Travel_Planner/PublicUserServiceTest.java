@@ -11,6 +11,7 @@ import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import Travel_Planner.Travel_Planner.model.enums.ConversationStatus;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.FriendshipService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import Travel_Planner.Travel_Planner.service.impl.PublicUserServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -140,5 +141,49 @@ class PublicUserServiceTest {
         service.follow(7, "actor");
 
         verify(follows, never()).save(any(Follow.class));
+    }
+
+    @Test
+    void firstFollowPublishesOnceAndRepeatedFollowDoesNotPublishAgain() {
+        UserRepository users = mock(UserRepository.class);
+        FollowRepository follows = mock(FollowRepository.class);
+        SocialNotificationService socialNotifications = mock(SocialNotificationService.class);
+        User actor = User.builder().userId(3).username("actor").status(UserStatus.ACTIVE).build();
+        User target = User.builder().userId(7).username("target").status(UserStatus.ACTIVE).build();
+        when(users.findByUsername("actor")).thenReturn(Optional.of(actor));
+        when(users.findByUserIdForUpdate(7)).thenReturn(Optional.of(target));
+        when(follows.existsByFollower_UserIdAndFollowing_UserId(3, 7)).thenReturn(false, true);
+        when(follows.save(any(Follow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PublicUserServiceImpl service = new PublicUserServiceImpl(users, follows,
+                mock(ItineraryRepository.class), mock(RatingRepository.class), mock(FriendshipService.class),
+                mock(ConversationRepository.class), socialNotifications);
+
+        service.follow(7, "actor");
+        service.follow(7, "actor");
+
+        verify(follows, times(1)).save(any(Follow.class));
+        verify(socialNotifications, times(1)).followed(any(Follow.class));
+    }
+
+    @Test
+    void notificationFailureIsNotMistakenForDuplicateFollow() {
+        UserRepository users = mock(UserRepository.class);
+        FollowRepository follows = mock(FollowRepository.class);
+        SocialNotificationService socialNotifications = mock(SocialNotificationService.class);
+        User actor = User.builder().userId(3).username("actor").status(UserStatus.ACTIVE).build();
+        User target = User.builder().userId(7).username("target").status(UserStatus.ACTIVE).build();
+        when(users.findByUsername("actor")).thenReturn(Optional.of(actor));
+        when(users.findByUserIdForUpdate(7)).thenReturn(Optional.of(target));
+        when(follows.existsByFollower_UserIdAndFollowing_UserId(3, 7)).thenReturn(false);
+        when(follows.save(any(Follow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("notification write failed"))
+                .when(socialNotifications).followed(any(Follow.class));
+        PublicUserServiceImpl service = new PublicUserServiceImpl(users, follows,
+                mock(ItineraryRepository.class), mock(RatingRepository.class), mock(FriendshipService.class),
+                mock(ConversationRepository.class), socialNotifications);
+
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> service.follow(7, "actor"));
+        verify(follows).save(any(Follow.class));
     }
 }

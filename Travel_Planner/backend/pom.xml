@@ -153,6 +153,11 @@
 			<artifactId>google-http-client-gson</artifactId>
 			<version>1.45.0</version>
 		</dependency>
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>9.12.0</version>
+		</dependency>
 
 	</dependencies>
 
@@ -197,6 +202,17 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<systemPropertyVariables>
+						<!-- Prevent a developer .env from enabling external delivery during tests. -->
+						<app.mail.enabled>false</app.mail.enabled>
+						<app.firebase.messaging.enabled>false</app.firebase.messaging.enabled>
+					</systemPropertyVariables>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

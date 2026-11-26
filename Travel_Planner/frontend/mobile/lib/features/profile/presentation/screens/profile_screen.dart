@@ -28,7 +28,6 @@ import '../../../itinerary/data/models/update_itinerary_request.dart';
 import '../../../itinerary/presentation/screens/edit_itinerary_screen.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../messaging/data/messaging_repository.dart';
 import '../../../messaging/presentation/screens/messaging_settings_screen.dart';
 import '../../data/profile_repository.dart';
@@ -63,10 +62,7 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
   ) {
     return SizedBox(
       height: height,
-      child: Container(
-        color: AppColors.background,
-        child: child,
-      ),
+      child: Container(color: AppColors.background, child: child),
     );
   }
 
@@ -129,20 +125,17 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   Set<SyncDomain> get syncDomains => {
-        SyncDomain.profile,
-        SyncDomain.itineraries,
-        SyncDomain.posts,
-      };
+    SyncDomain.profile,
+    SyncDomain.itineraries,
+    SyncDomain.posts,
+  };
 
   @override
   Duration get syncTtl => const Duration(minutes: 3);
 
   @override
   Future<void> onRefreshData({bool isBackground = false}) async {
-    await Future.wait([
-      _loadProfile(),
-      _loadMyPosts(refresh: true),
-    ]);
+    await Future.wait([_loadProfile(), _loadMyPosts(refresh: true)]);
   }
 
   @override
@@ -154,8 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         final payload = event.payload;
         if (payload is Map && event.id is int) {
           final isLiked = payload['isLiked'] == true;
-          final count =
-              (payload['likeCount'] as num?)?.toInt() ?? 0;
+          final count = (payload['likeCount'] as num?)?.toInt() ?? 0;
           final index = _myPosts.indexWhere((p) => p.postId == event.id);
           if (index != -1) {
             setState(() {
@@ -536,20 +528,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           foregroundColor: AppColors.textPrimary,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
-          actions: [
-            AppHeaderIconButton(
-              tooltip: 'Thông báo',
-              icon: Icons.notifications_outlined,
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 8),
-          ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1),
             child: Container(height: 0.5, color: AppColors.hairlineSoft),
@@ -595,20 +573,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             icon: Icons.forum_outlined,
             onPressed: _openMessagingPrivacy,
           ),
-          const SizedBox(width: 8),
-          AppHeaderIconButton(
-            tooltip: 'Thông báo',
-            icon: Icons.notifications_outlined,
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-          AppHeaderIconButton(
+          IconButton(
             tooltip: 'Cài đặt hồ sơ',
             icon: Icons.settings_outlined,
             onPressed: _openSettings,
@@ -794,9 +759,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
                 SliverPersistentHeader(
                   pinned: true,
-                  delegate: ProfileTabBarDelegate(
-                    child: _buildTabBar(),
-                  ),
+                  delegate: ProfileTabBarDelegate(child: _buildTabBar()),
                 ),
               ];
             },
@@ -883,7 +846,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 : 'Chưa thiết lập',
             style: TextStyle(
               fontSize: 13,
-              color: (p['handle'] != null &&
+              color:
+                  (p['handle'] != null &&
                       p['handle'].toString().trim().isNotEmpty)
                   ? AppColors.textSecondary
                   : AppColors.mutedSoft,
@@ -912,10 +876,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             runSpacing: 4,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceSoft,
                   borderRadius: BorderRadius.circular(16),
@@ -1141,7 +1102,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       } else {
         await _postRepository.unlikePost(post.postId, token: token);
       }
-      AppSyncBus.emitPostLiked(post.postId, newIsLiked, newCount < 0 ? 0 : newCount);
+      AppSyncBus.emitPostLiked(
+        post.postId,
+        newIsLiked,
+        newCount < 0 ? 0 : newCount,
+      );
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1318,7 +1283,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return NotificationListener<ScrollNotification>(
       onNotification: (scrollInfo) {
-        if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200 &&
+        if (scrollInfo.metrics.pixels >=
+                scrollInfo.metrics.maxScrollExtent - 200 &&
             !_loadingPosts &&
             _hasMorePosts) {
           _loadMyPosts();

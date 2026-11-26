@@ -327,7 +327,7 @@ void main() {
 
   group('Notifications Entry Point & UI', () {
     testWidgets(
-      'Notification bell in Explore top-right opens empty NotificationsScreen',
+      'Notification bell in Explore top-right opens NotificationsScreen',
       (tester) async {
         await tester.pumpWidget(buildTestShell());
         await tester.pumpAndSettle();
@@ -337,7 +337,7 @@ void main() {
           IconButton,
           Icons.notifications_outlined,
         );
-        expect(bellFinder, findsWidgets);
+        expect(bellFinder, findsOneWidget);
 
         // Tap the bell on ExploreScreen
         await tester.tap(bellFinder.first);
@@ -346,7 +346,6 @@ void main() {
         // Verify NotificationsScreen opened
         expect(find.byType(NotificationsScreen), findsOneWidget);
         expect(find.text('Thông báo'), findsOneWidget);
-        expect(find.text('Chưa có thông báo'), findsOneWidget);
       },
     );
 
@@ -359,7 +358,7 @@ void main() {
         // Verify notification bell is displayed
         expect(
           find.widgetWithIcon(IconButton, Icons.notifications_outlined),
-          findsWidgets,
+          findsOneWidget,
         );
 
         // The header avatar is a direct shortcut, not a profile dropdown.
@@ -398,43 +397,17 @@ void main() {
       expect(find.byType(ProfileScreen), findsOneWidget);
     });
 
-    testWidgets(
-      'Notification bell in Community top-right opens NotificationsScreen',
-      (tester) async {
-        await tester.pumpWidget(buildTestShell(initialIndex: 1));
-        await tester.pumpAndSettle();
+    testWidgets('Notification center has one entry point in the main shell', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildTestShell());
+      await tester.pumpAndSettle();
 
-        expect(find.byType(CommunityScreen), findsOneWidget);
-        final bellFinder = find.widgetWithIcon(
-          IconButton,
-          Icons.notifications_outlined,
-        );
-        await tester.tap(bellFinder.first);
-        await tester.pumpAndSettle();
-
-        expect(find.byType(NotificationsScreen), findsOneWidget);
-        expect(find.text('Chưa có thông báo'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
-      'Notification bell in Collection top-right opens NotificationsScreen',
-      (tester) async {
-        await tester.pumpWidget(buildTestShell(initialIndex: 3));
-        await tester.pumpAndSettle();
-
-        expect(find.byType(CollectionScreen), findsOneWidget);
-        final bellFinder = find.widgetWithIcon(
-          IconButton,
-          Icons.notifications_outlined,
-        );
-        await tester.tap(bellFinder.first);
-        await tester.pumpAndSettle();
-
-        expect(find.byType(NotificationsScreen), findsOneWidget);
-        expect(find.text('Chưa có thông báo'), findsOneWidget);
-      },
-    );
+      expect(
+        find.widgetWithIcon(IconButton, Icons.notifications_outlined),
+        findsOneWidget,
+      );
+    });
   });
 
   group('Authentication & Modal Route Scoping', () {

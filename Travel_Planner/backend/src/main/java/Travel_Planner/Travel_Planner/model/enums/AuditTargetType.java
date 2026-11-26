@@ -11,6 +11,7 @@ public enum AuditTargetType {
     PLACE,
     MEDIA_ASSET,
     SYSTEM_SETTING,
+    SYSTEM_ANNOUNCEMENT,
     AUDIT_LOG,
     SYSTEM
 }

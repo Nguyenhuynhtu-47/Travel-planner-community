@@ -9,6 +9,7 @@ import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.PublicUserService;
 import Travel_Planner.Travel_Planner.service.FriendshipService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -25,26 +26,34 @@ public class PublicUserServiceImpl implements PublicUserService {
     private final RatingRepository ratings;
     private final FriendshipService friendships;
     private final ConversationRepository conversations;
+    private final SocialNotificationService socialNotifications;
 
     @Autowired
     public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
-            RatingRepository ratings, FriendshipService friendships, ConversationRepository conversations) {
+            RatingRepository ratings, FriendshipService friendships, ConversationRepository conversations,
+            SocialNotificationService socialNotifications) {
         this.users = users;
         this.follows = follows;
         this.itineraries = itineraries;
         this.ratings = ratings;
         this.friendships = friendships;
         this.conversations = conversations;
+        this.socialNotifications = socialNotifications;
+    }
+
+    public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
+            RatingRepository ratings, FriendshipService friendships, ConversationRepository conversations) {
+        this(users, follows, itineraries, ratings, friendships, conversations, null);
     }
 
     public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
             RatingRepository ratings, FriendshipService friendships) {
-        this(users, follows, itineraries, ratings, friendships, null);
+        this(users, follows, itineraries, ratings, friendships, null, null);
     }
 
     public PublicUserServiceImpl(UserRepository users, FollowRepository follows, ItineraryRepository itineraries,
             RatingRepository ratings) {
-        this(users, follows, itineraries, ratings, null, null);
+        this(users, follows, itineraries, ratings, null, null, null);
     }
     @Override @Transactional(readOnly = true)
     public PublicProfileResponse getProfile(Integer userId, String viewerUsername) {
@@ -167,8 +176,15 @@ public class PublicUserServiceImpl implements PublicUserService {
         if (target.getStatus() != UserStatus.ACTIVE) throw new ResourceNotFoundException("Không tìm thấy hồ sơ công khai");
         requireVisible(actor, target);
         if (!follows.existsByFollower_UserIdAndFollowing_UserId(actor.getUserId(), targetId)) {
-            try { follows.save(Follow.builder().follower(actor).following(target).build()); }
-            catch (DataIntegrityViolationException duplicate) { /* idempotent duplicate request; unique key is final guard */ }
+            Follow follow;
+            try {
+                follow = follows.save(Follow.builder().follower(actor).following(target).build());
+            }
+            catch (DataIntegrityViolationException duplicate) {
+                // A concurrent follow already won the unique follower/following key.
+                return;
+            }
+            if (socialNotifications != null) socialNotifications.followed(follow);
         }
     }
 

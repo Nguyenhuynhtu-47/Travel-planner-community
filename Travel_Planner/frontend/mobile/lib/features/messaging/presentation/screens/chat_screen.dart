@@ -277,6 +277,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         event.conversationId != widget.conversation.conversationId) {
       return;
     }
+    if (event.type == 'PUSH_HINT') {
+      unawaited(_refreshLatestMessages());
+      return;
+    }
     if (event.type == 'MESSAGE_REQUEST_ACCEPTED') {
       setState(() {
         _requestAccepted = true;
@@ -303,6 +307,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _markRead(event.message!.sequenceNumber);
       }
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollBottom());
+    }
+  }
+
+  Future<void> _refreshLatestMessages() async {
+    try {
+      final page = await widget.repository.messages(
+        widget.conversation.conversationId,
+        widget.authNotifier.token!,
+      );
+      if (!mounted) return;
+      setState(() {
+        _merge(page.content);
+        _peerReadSequence = page.peerReadSequence ?? _peerReadSequence;
+      });
+      if (page.content.isNotEmpty && !_isPending) {
+        _markRead(page.content.last.sequenceNumber);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollBottom());
+    } catch (_) {
+      // The existing REST/WebSocket refresh remains authoritative on retry.
     }
   }
 

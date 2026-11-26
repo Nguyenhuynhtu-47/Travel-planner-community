@@ -8,6 +8,8 @@ import 'package:travel_planner_web/features/administrative_areas/data/administra
 import 'package:travel_planner_web/features/administrative_areas/presentation/screens/admin_administrative_areas_screen.dart';
 import 'package:travel_planner_web/features/audit_logs/data/audit_log_repository.dart';
 import 'package:travel_planner_web/features/audit_logs/presentation/screens/admin_audit_logs_screen.dart';
+import 'package:travel_planner_web/features/notifications/data/announcement_admin_repository.dart';
+import 'package:travel_planner_web/features/notifications/presentation/screens/admin_announcements_screen.dart';
 import 'package:travel_planner_web/features/dashboard/presentation/screens/admin_dashboard_screen.dart';
 import 'package:travel_planner_web/features/itineraries/data/itinerary_admin_repository.dart';
 import 'package:travel_planner_web/features/itineraries/presentation/screens/admin_itineraries_screen.dart';
@@ -49,8 +51,9 @@ class _AdminShellState extends State<AdminShell> {
   late final ApiClient _apiClient;
 
   bool get isAdmin {
-    final role =
-        widget.authNotifier.currentUser?['role']?.toString().toUpperCase();
+    final role = widget.authNotifier.currentUser?['role']
+        ?.toString()
+        .toUpperCase();
     return role == 'ADMIN';
   }
 
@@ -94,9 +97,7 @@ class _AdminShellState extends State<AdminShell> {
 
   void _syncBrowserUrl(AdminTab tab) {
     try {
-      SystemNavigator.routeInformationUpdated(
-        uri: Uri.parse(tab.routePath),
-      );
+      SystemNavigator.routeInformationUpdated(uri: Uri.parse(tab.routePath));
     } catch (_) {}
   }
 
@@ -177,7 +178,11 @@ class _AdminShellState extends State<AdminShell> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.gpp_bad_outlined, size: 52, color: AppColors.error),
+                  const Icon(
+                    Icons.gpp_bad_outlined,
+                    size: 52,
+                    color: AppColors.error,
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   const Text(
                     'Truy cập bị từ chối',
@@ -338,6 +343,12 @@ class _AdminShellState extends State<AdminShell> {
           authNotifier: widget.authNotifier,
           repository: AuditLogRepository(apiClient: _apiClient),
           embedded: true,
+        );
+      case AdminTab.announcements:
+        return AdminAnnouncementsScreen(
+          key: const ValueKey(AdminTab.announcements),
+          authNotifier: widget.authNotifier,
+          repository: AnnouncementAdminRepository(apiClient: _apiClient),
         );
       case AdminTab.settings:
         return AdminSettingsScreen(

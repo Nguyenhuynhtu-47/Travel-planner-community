@@ -12631,3 +12631,196 @@ Executed Authentication Phase 4 (Advanced Account Security) and Phase 5 (Integra
 ### 3. Verification & Test Results
 - `flutter analyze lib/features/profile lib/shared/widgets/app_text_field.dart test/profile_screen_test.dart`: **No issues found**.
 - `flutter test test/profile_screen_test.dart test/admin_phase6_final_consistency_test.dart`: verified after final edit.
+
+## Session Date: 2026-11-26 — Notification System Planning Audit
+
+### 1. Scope and Findings
+- **Scope:** Audited the notification-related backend, Flutter Mobile, Flutter Web, database inventory, messaging privacy decisions, and existing project guidance. This was a planning-only task; no source, schema, migration, dependency, or runtime configuration was changed.
+- The Mobile `NotificationsScreen` is a fixed empty state. No notification/announcement/device-token persistence API or Firebase Messaging integration was found in the inspected source and dependency manifests.
+- Messaging already persists messages and request state in `Message`/`Conversation`, emits after-commit STOMP events, and exposes separate unread/request counts. D-25 privacy behavior was used as the current messaging baseline.
+- The repository contains Flutter Web administration screens and no Angular workspace manifest. The plan records this mismatch and leaves the requested admin stack for review.
+
+### 2. Documentation Created
+Created the 12 requested Vietnamese planning documents under `docs/plan/notification/`: master plan, Phase 0–7 plans, event matrix, database/architecture decisions, and Messaging push design. The plan explicitly prohibits Notification Center records, message-notification tables, and per-message outbox/history for D1/D2/D3.
+
+### 3. Decisions Pending Review
+- Confirm Flutter Web versus a separate Angular admin application.
+- Review announcement audience/read/push semantics, Like grouping window and unlike behavior, schema/DDL deployment strategy, and push retry reliability.
+- Confirm D2/D3 push coalescing and foreground conversation suppression assumptions.
+
+### 4. Verification
+- Confirmed the notification plan directory did not exist before creating these files; all requested filenames are present.
+- Ran `git diff --check` for the plan path; no whitespace errors were reported. No tests or builds were run because no code was changed.
+- Existing root `.gitignore` modification was present before this task and was left untouched.
+
+### 5. Next Steps
+- Review the plan and resolve the listed product/architecture decisions before authorizing implementation of any phase.
+
+## Session Date: 2026-11-26 — Notification Planner Expansion and Admin Audit
+
+### 1. Scope
+- Expanded the Notification implementation planner after reviewing the updated user requirements. This remained documentation-only: no application source, database, migration, package manifest, Firebase configuration, or existing admin workflow was changed.
+- Re-audited the Flutter Web Admin shell/tabs, Dart repositories, backend admin controllers, Mobile notification entry points, `AppSyncBus`, messaging persistence/privacy, and relevant JPA entities.
+
+### 2. Verified Findings Added to the Planner
+- The checked-in Admin Web is Flutter Web (`frontend/web/pubspec.yaml`, Dart `main.dart`, `AdminTab`/`AdminShell`); no Angular workspace manifest was found. Existing user, post moderation, report, itinerary, place, administrative-area, media, audit-log, system-setting, and dashboard areas were mapped to their API/controller/service layers. Announcement authoring is absent.
+- Mobile already has a local `SyncDomain.notifications` invalidation domain in `AppSyncBus`, while `NotificationsScreen` remains a static empty state. Bell shortcuts are repeated across several feature screens; the plan calls for one shared Center/badge/navigation flow.
+- Current database source mappings and ID types were inspected. The live MySQL schema, production migration history, and Firebase project/runtime credentials remain unverified and are explicitly labeled as such.
+- D1/D2/D3 remain push-only under the current D-25 messaging rules. The plan forbids Notification Center records and per-message push history/outbox rows.
+
+### 3. Documentation Changes
+- Aligned the planner filenames with the requested 15-file structure, adding the Admin Web audit, API/navigation contract, and implementation dependency map.
+- Expanded each Phase 0–7 planner to the requested 22 implementation-planning sections. Added evidence-based admin inventory, endpoint/source candidates, schema/query/constraint proposals, deep-link limitations, and approval gates.
+- Preserved the prior working-tree `.gitignore` change without editing it.
+
+### 4. Verification
+- Confirmed all 15 required planner filenames and checked the repeated 22-section structure for Phase documents.
+- Ran whitespace validation and `git diff --check` where tracked changes apply. No application tests/builds were run because this was documentation-only.
+- No claim is made that a live MySQL schema, deployed Angular application, Firebase Console setup, or physical-device push behavior was verified.
+
+### 5. Decisions Still Pending
+- Confirm Flutter Web versus a separate Angular Admin application.
+- Approve the database deployment strategy after checking the actual target MySQL schema/version and backup/restore path.
+- Confirm announcement audience/expiry/read behavior, Like aggregation/unlike rules, push retry/coalescing, token logout/account-switch behavior, and verified F2/F4/F7 moderation semantics.
+
+### Follow-up Verification — Android Firebase File
+- A subsequent working-tree check found `frontend/mobile/android/app/google-services.json`. Only non-secret metadata was inspected: its Android package matches the `applicationId` in `app/build.gradle.kts`. The file was left untouched and no API key was emitted.
+- No Google Services Gradle plugin reference was found in the inspected Android Gradle files; `firebase_messaging` and backend Firebase Admin integration remain absent from the inspected manifests/source. iOS/APNs, Firebase Console ownership and server credentials remain unverified. The planner was corrected to describe Android Firebase setup as partial rather than absent.
+- The Google Services JSON is untracked in the current working tree and was not created or modified by this task.
+
+## Session Date: 2026-11-26 — Notification Core Phase 1
+
+### Scope and implementation
+- Implemented the additive personal Notification Core backend only. No Mobile Center, producer hooks, announcements, FCM, or Messaging behavior was changed.
+- Added the `Notification` entity, canonical type/target enums, repository, service interface/implementation, authenticated REST controller, cursor/page/count/actor response DTOs, and a manual MySQL schema script.
+- Added bounded keyset feed paging (`createdAt`, `notificationId`), optional unread/type filters, aggregate unread count, idempotent mark-one, read-all through a recipient watermark, and an internal transactional create seam. Recipient-row locking serializes same-recipient create retries and read-all snapshots. A recipient-scoped unique event key provides the database guard.
+- API routes: `GET /api/notifications`, `GET /api/notifications/unread-count`, `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all`. No public create route exists.
+- Added `notifications-core-mysql.sql`. Development/test schema uses existing Hibernate `ddl-auto=update`; production remains `ddl-auto=validate` and requires a reviewed manual schema rollout. The owner approved `travel_planner_test` for Phase 1 tests; no developer/production DB was accessed.
+- Grouped Like persistence/window/unlike rules and retention remain deferred because their product semantics are unresolved. No actor table or retention job was added.
+
+### Verification
+- `mvnw.cmd -DskipTests compile` passed.
+- Focused final run `mvnw.cmd '-Dtest=NotificationServiceImplTest,NotificationControllerTest,NotificationDatabaseIntegrationTest' test` passed: 14 tests, 0 failures/errors. It includes MySQL 8.0.44 mapping/query checks, HTTP authentication/ownership checks, six-way concurrent idempotency, cursor/type paging, and manual DDL creation in a temporary test-only table.
+- Full backend `mvnw.cmd test` passed before the final manual-DDL validation test was added: 758 tests, 0 failures/errors. The final focused suite then passed all 14 Notification tests.
+- Flutter was not changed, so no Flutter analyze/tests were run.
+
+### Remaining gates
+- Grouped Like semantics, retention policy, producer integration, and Notification Center UI are pending later decisions/phases.
+- The manual SQL script has been validated on the test MySQL engine. It has not been executed in production; production schema comparison and backup/restore review remain mandatory.
+- No commit was created. Pre-existing staged/working-tree changes, including `.gitignore`, Firebase JSON, planner files and earlier development-log content, were preserved.
+
+## Session Date: 2026-11-26 — Notification Center Phase 2 (Personal Feed Baseline)
+
+### Scope and implementation
+- Implemented the personal-notification portion of Mobile Phase 2 against the Phase 1 API. The Center screen now has authenticated cursor paging, pull-to-refresh, read-one/read-all actions, loading/empty/error/retry states and unknown-type fallback rendering.
+- Added `NotificationItem`/`NotificationPage` parsing and `NotificationRepository` for the existing list/count/read endpoints. The current-user identity remains principal-derived on the server; Mobile sends no recipient ID.
+- Added a shared `NotificationUnreadCountNotifier` and reusable `NotificationBellButton`. Mounted navigation tabs coalesce unread-count requests; the badge is limited to personal notifications and caps at `99+`, without combining chat, message-request or friend-request counts.
+- Replaced the notification shortcuts in Profile, Explore, Community Feed, Messaging Community, Collection, My Itineraries and Saved Itineraries with the shared badge button. The Center refreshes on app resume and `SyncDomain.notifications` invalidation.
+- Implemented verified navigation to existing USER, POST and ITINERARY screens. Unsupported/unknown targets show a safe unavailable message. No database or backend files changed in this phase.
+
+### Verification
+- `flutter test test/features/notifications`: 9 tests passed, covering DTO parsing, unknown types, feed cursor/auth headers, unread-count/read endpoints, shared request coalescing/account switch, unauthenticated state and single-item read behavior.
+- `flutter test test/bottom_navigation_test.dart --plain-name 'Notification bell'`: all 3 bell-entry tests passed.
+- `flutter analyze lib/features/notifications`: passed.
+- Full `flutter analyze` completed with only two existing deprecation infos in `features/social/presentation/widgets/report_post_dialog.dart`; no Phase 2 analyzer issue remains.
+- Full `flutter test --reporter failures-only`: 613 passed, 29 failed across existing itinerary/profile/community and other non-notification tests; this is not a passing full-suite result. Focused notification and bell-entry tests passed.
+- Android/iOS runtime verification was not run. No two-device unread synchronization or production backend was claimed.
+
+### Remaining Phase 2 work
+- Announcement list/read integration and composite feed/count wait for Phase 3 announcement product/API/schema contract.
+- ACTIVITY, COMMENT and REPORT do not yet have enough verified target context for exact route resolution; do not infer parent/domain from an unqualified target ID.
+- Phase 2 remains in progress. No next phase implementation or commit was started.
+
+## Session Date: 2026-11-26 — Notification Phase 3 Announcement + Composite Center
+
+### Scope and implementation
+- Implemented shared `SystemAnnouncement` content and composite-key `AnnouncementRead` receipts, with additive DDL in `backend/src/main/resources/db/manual/announcements-mysql.sql`. No recipient fanout or push delivery was added.
+- Added ADMIN-only create/list/detail/update/publish/cancel API with draft-only editing, locked publish/cancel transitions and strict audit entries. Admin Flutter Web reuses `AdminShell` and adds the announcement editor/history route.
+- Added the approved audience rules: every ACTIVE account sees PUBLISHED, unexpired announcements, including accounts created later; drafts/cancelled/expired content is excluded. A receipt is created only by opening an announcement. Personal `read-all` does not mark announcements.
+- Merged announcements into `/api/notifications` with a source-aware cursor and source flag to prevent ID collisions; unread-count now returns total/personal/announcement values. Mobile routes ANNOUNCEMENT to a detail view. Activity/comment routing is defined by parent targets, while unsupported REPORT targets show a safe message.
+- FCM remains disabled because provider credentials/device registration and physical-device acceptance have not been verified. Production schema rollout was not performed.
+
+### Verification
+- Backend focused run `mvnw.cmd '-Dtest=NotificationDatabaseIntegrationTest,NotificationServiceImplTest,NotificationControllerTest' test`: 19 tests passed, 0 failures/errors against owner-approved `travel_planner_test` (MySQL 8.0.44). Coverage includes future-user visibility, expiry/cancel filtering, explicit/idempotent read, ADMIN create→publish→cancel and audit records, non-admin denial, and manual DDL in temporary test tables.
+- Mobile `flutter test test/features/notifications`: 10 tests passed; scoped `flutter analyze lib/features/notifications` passed.
+- Flutter Web scoped analyze passed and `flutter build web --no-pub` succeeded. Admin interactions were compile-checked, not browser-driven.
+- Full project tests, Android/iOS runtime, two-device sync, FCM, and production database remain unverified.
+
+### Next phase
+- Proceed to Phase 4 event producers in dependency order. Grouped Like window/unlike semantics remain unresolved and must not be guessed; other event types can be implemented independently.
+
+## Notification Phase 4 — social Center producers — 2026-11-26
+
+- Added `SocialNotificationPublisher` and wired existing friendship request/accept, follow, post comment/reply and itinerary/activity comment/reply transitions to the current `NotificationService.create(...)` transaction. No new API or table was added.
+- Implemented C1–C3 and C5–C8. Reply recipient is the author of the immediate parent comment, including nested replies; root post comment targets the post author; itinerary/activity root comment targets itinerary owner. Activity/comment destinations use the approved parent route. Generic notification copy does not expose comment text.
+- Kept existing PostLike behavior unchanged. C4 was not guessed because the accepted plan marks calendar/rolling window, actor display and unlike-before/after-read behavior as product decisions.
+- Verification: focused Maven run `mvnw.cmd '-Dtest=SocialNotificationPublisherTest,FriendshipPrivacyServiceTest,PublicUserServiceTest,CommentThreadServiceTest,CommunityPostServiceTest' test` passed 59 tests (0 failures/errors). This is focused unit/service coverage; production MySQL rollback and full suite remain Phase 7 work.
+- Full Maven suite was attempted but stopped before completion after the test profile logged SMTP dispatch from email-change tests; no final full-suite result is claimed. Completed reports up to interruption showed no failures, but this does not replace a full pass.
+- FCM remains deferred to Phase 5; this change creates only Center records and does not add message notifications or push delivery.
+
+## Notification C4 and Phase 5 Android Messaging Push — 2026-11-26
+
+- Owner approved C4: aggregate by UTC calendar day; unlike before read removes that actor and deletes an empty group; unlike after read preserves history. Implemented `notification_like_actors` membership, post/recipient locking and re-like behavior. The manual DDL is validated by focused isolated MySQL tests, not applied to dev/production.
+- Focused C4 backend run `mvnw.cmd '-Dtest=NotificationDatabaseIntegrationTest,NotificationServiceImplTest,SocialNotificationPublisherTest,CommunityPostServiceTest' test` passed 58 tests, 0 failures/errors against the owner-approved `travel_planner_test` database.
+- Owner confirmed Firebase project `travel-planner-54f53` and Android-first. Added Google Services Gradle plugin, Flutter Firebase Core/Messaging, runtime permission and FID registration, authenticated token upsert/unregister, logout cleanup, foreground-safe default handling and push tap to Messaging inbox. Existing `google-services.json` was not edited.
+- Added backend Admin SDK FID sender, authenticated device registration API, additive `user_device_tokens` manual SQL, and after-commit push filtering for D1/D2/D3. Payload contains generic copy and conversation ID only; it does not include message text or create a Notification Center row. D3 is identified on the first visible message of a new pending round; following pending messages use generic collapsed D2 pushes.
+- Initial Phase 5 focused run passed 63 tests; after Phase 6 was added the combined focused run passed 67 tests (recorded below). The final Flutter messaging suite passed 45 tests, including foreground refresh; scoped analysis passed. Firebase delivery is disabled by default. Backend ADC credentials, FCM HTTP v1 enablement and physical-device delivery remain pending; local/test JPA `ddl-auto=update` can create the table, while production uses `validate` and requires manual reviewed DDL. iOS/APNs was not part of the approved Android-first scope.
+- See `docs/plan/notification/06_PHASE_5_MESSAGING_PUSH.md` and README for configuration and security steps.
+
+## Notification Phase 6 moderation + Phase 7 verification — 2026-11-26
+
+- Wired F1 post ACTIVE→HIDDEN/DELETED and F5/F6 account status changes into the existing transaction that commits moderation and strict audit. Notifications use generic copy, target only the affected owner, and omit admin notes. F2/F4 warning and F7 reporter feedback remain deferred because source action/policy is absent or undecided.
+- Focused combined backend verification after Phase 6: `mvnw.cmd '-Dtest=DeviceTokenServiceImplTest,MessagingPushPolicyTest,NotificationDatabaseIntegrationTest,NotificationServiceImplTest,SocialNotificationPublisherTest,CommunityPostServiceTest,AdminUserModerationNotificationTest' test` — 67 passed, 0 failures/errors on the approved `travel_planner_test` MySQL 8.0.44 database.
+- Fixed the new foreground push-refresh test's matcher typing. `flutter test test/features/messaging` passed 45 tests; `flutter test test/features/notifications` passed 10. Scoped notification/messaging analysis passed. Android `flutter build apk --debug` succeeded. `adb devices` listed no connected device.
+- Full Mobile regression completed with 616 passed and 29 failed in navigation/profile/itinerary/social UI assertions and a `PostCardWidget` overflow; these failures are outside the notification-specific suite. Whole-project analyze reported two deprecation infos in `report_post_dialog.dart`.
+- Full Flutter Web regression completed with 133 passed and 19 failed, including Admin/Places/dashboard expectation mismatches and CARTO tile requests returning HTTP 400. Whole-Web analyze reported an unused `isOnline` local in `admin_header.dart`. Notification feature scoped analyze passed on Web.
+- Full backend `mvnw.cmd test` was interrupted before a suite summary after the existing email-change integration test logged that SMTP dispatch succeeded to a masked test address. Do not rerun the suite until email dispatch is disabled/mocked for test profile. This run is not counted as a pass.
+- Firebase credentials/FCM HTTP v1 setup, real foreground/background/terminated delivery, two-device acceptance, D1–D3 database no-Center-row assertion, production schema/rollback and deployed Web remain unverified. Phase 7 is still open; no release-ready claim.
+
+## Notification corrective architecture pass — 2026-11-26
+
+### Audit and changes
+- Audited the changed notification backend, Mobile, Flutter Web Admin, tests, database notes and notification plan against current project conventions. Preserved existing staged/user/teammate work outside notification scope; did not stage, commit, push, or touch development/production databases.
+- Replaced `SocialNotificationPublisher` with the project-standard `SocialNotificationService` interface and `SocialNotificationServiceImpl`; existing Friendship, Follow, Post, Comment and Admin transaction flows now depend on the service interface. Removed the nullable-constructor fallback for `NotificationLikeActorRepository` from `NotificationServiceImpl`.
+- Removed the four notification-specific MySQL DDL resources and their temporary-table script tests. JPA entities/repositories plus existing Hibernate local/test schema settings are the only Notification schema implementation. Production remains `ddl-auto=validate` and its schema is not verified or changed.
+- Kept the existing Flutter Center screen and Home/Explore bell. Removed duplicate Notification Center shortcuts from Profile, Community, Community Feed, Collection, My Itineraries and Saved Itineraries. Kept the messaging/friend-request badge independent. Reused `AppColors.primary` for the Center badge.
+- Added Maven Surefire system-property overrides for `app.mail.enabled=false` and `app.firebase.messaging.enabled=false`. `EmailChangeIntegrationTest` logs simulation mode under the test run even when developer environment settings enable delivery.
+- Updated README, CODEBASE_GUIDE, database evidence, notification planners and project status so current architecture and remaining production/device gates are explicit.
+
+### Verification
+- `mvnw.cmd -DskipTests test`: compile and test-compile succeeded.
+- Focused backend command covering NotificationDatabaseIntegrationTest, NotificationServiceImplTest, SocialNotificationServiceImplTest, device/push policy, moderation, friendship/privacy, comment/post producers, PublicUserService and EmailChangeIntegrationTest: **91 passed, 0 failures/errors** on the previously owner-approved `travel_planner_test`. The SMTP-backed flow logged `Mail disabled ... Simulating`, and no real FCM sender was enabled.
+- Scoped Mobile analyze over notification, Explore bell host, affected screens and navigation test: **no issues**.
+- `flutter test test/features/notifications`: **10 passed**.
+- `flutter test test/bottom_navigation_test.dart --plain-name "Notification"`: **5 passed**, including Home/Explore navigation and single-entry-point assertions.
+- `flutter build apk --debug`: succeeded after bell/navigation changes.
+- Flutter Web `flutter analyze lib/features/notifications`: no issues; `flutter build web --no-pub`: succeeded. `flutter analyze lib/features/notifications lib/features/layout` reports an existing unused local `isOnline` at `lib/features/layout/presentation/widgets/admin_header.dart:30`; that file is outside Notification scope and was not changed.
+- Full `bottom_navigation_test.dart`: **9 passed, 2 failed** at existing expectations for missing `Cộng đồng du lịch` text. These assertions concern Community screen content; no Notification assertion failed.
+- `git diff --check`: clean. Full Backend/Mobile/Web suites, production schema provisioning, Firebase delivery on devices, and Web browser interactions remain unverified.
+
+## Notification Admin actions and enum correction — 2026-11-26
+
+- Replaced announcement category codes A1/A2/A3/A5 with one `SYSTEM` group. Removed `AnnouncementType`, removed category selection from the Flutter Web Admin draft editor and removed type from the SaveAnnouncement request. Kept the existing non-null DB `type` column as an opaque string for compatibility, normalized to `SYSTEM` on writes and in API responses.
+- Added `NotificationType.SYSTEM`, `NotificationActionType` and nullable `notifications.action_type`. Kept deprecated `MODERATION_UPDATE` only to deserialize existing notification rows; API output and SYSTEM filtering normalize old rows without rewriting history.
+- Connected existing successful Admin account suspend/restore, role change, non-empty session revocation, post hide/remove/restore/purge and report resolve/dismiss actions to a new row in `notifications`. Notifications store the Admin actor, action, target, public text and read state. Session/internal audit reason is not shown to users. Report resolution is row-locked and final transitions cannot be repeated.
+- Reused the existing JPA transaction and notification table; no new history table or SQL script. The test DB `travel_planner_test` added the nullable `action_type` mapping and converted `system_announcements.type` to VARCHAR through Hibernate `ddl-auto=update`; no dev or production DB was changed. Production provision/rollback remains pending.
+- Focused backend verification: 63 tests passed across notification, Admin history authorization/query, report/post moderation, Admin account transition and MySQL persistence tests. The admin history API test confirms non-Admin denial and Admin target-filtered results. Mobile Notification tests: 10 passed; scoped Mobile analyze clean. Flutter Web notification feature analyze clean.
+- Final UI verification: scoped Flutter Web analyze passed and `flutter build web --no-pub` succeeded after clarifying that account/post moderation reasons are shown to affected users. `git diff --check` and staged diff checks reported no whitespace errors (Git emitted only existing LF-to-CRLF advisories).
+- Added the read-only, paginated `GET /api/admin/notification-actions` endpoint, protected with `hasRole('ADMIN')`, to review `action_type` notification rows by optional target type/ID. It reuses `notifications`; no audit/history table was added. The new database integration test passed on `travel_planner_test`.
+- Warnings for posts/accounts remain unsupported because the current Admin API/model has no such operation; none was invented. FCM push and device delivery remain unverified and were not added to these transaction-bound Center records.
+
+## Notification unread badge refresh — 2026-11-26
+
+- The first implementation polled the unread-count endpoint every 30 seconds. After review, polling was removed because the navigation shell already refreshes destination data when switching tabs.
+- The bell now refreshes on initial mount, authentication/account changes, app resume, and `SyncDomain.notifications` invalidation. `MainNavigationShell` emits that invalidation when returning to or reselecting the Explore tab. No periodic timer or app reload is used.
+- Added a widget test proving the bell renders the unread count and updates on a notification-domain invalidation. No backend, API, database, or animation behavior changed.
+- Verification on the navigation-invalidation version: `flutter test test/features/notifications` passed 11 tests; `flutter test test/bottom_navigation_test.dart --plain-name "Notification"` passed 5 tests; scoped `flutter analyze` on the bell, navigation shell and widget test reported no issues; `dart format` completed.
+
+## Notification commit organization — 2026-11-26
+
+- Reviewed the complete Notification working tree and reorganized the implementation into focused Conventional Commit groups without pushing: backend core/announcements, social and moderation producers, Firebase messaging delivery, Mobile notification center/push integration, Flutter Web Admin announcements, and documentation.
+- Created commits `f090c7f`, `af06e1e`, `b0ba34b`, `2466553`, and `de78e7a`; the documentation commit records the final plan and guide updates.
+- `git diff --check` and each staged diff check reported no whitespace errors. No conflict markers were found in changed files.
+- Full Mobile analyze completed with two existing deprecation infos in `report_post_dialog.dart`. Full Flutter Web analyze completed with one existing unused-local warning in `admin_header.dart`; neither file was part of the Notification change set.
+- Full Backend tests were attempted against `travel_planner_test` but did not pass cleanly: persisted Notification data prevented legacy user cleanup through foreign keys, and `AdminUserControllerTest` expected one filtered row but found four. The run was stopped after the failure was confirmed. Previously documented focused Notification suites remain the verified signal for this feature.
+- No remote push was performed.

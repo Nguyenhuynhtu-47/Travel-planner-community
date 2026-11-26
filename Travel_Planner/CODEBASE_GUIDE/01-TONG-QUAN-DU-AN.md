@@ -29,7 +29,7 @@ flowchart LR
 CARTO chỉ cung cấp tile nền. Search POI, geocoding, routing và ảnh là luồng riêng. Provider nào được dùng phụ thuộc cấu hình backend; không suy ra provider đang hoạt động chỉ từ source.
 
 ## Tính năng hiện diện trong code
-Auth/session; itinerary/day/activity; map search, reverse geocoding và routing; Place catalog và itinerary-scoped saved places; comment threads; explore, saved/favorite/rating; social feed/posts; profile/follow; chat REST + WebSocket/STOMP; friendships/blocks/messaging settings; upload/media và một phần admin moderation/Place. Mobile notifications hiện là màn hình rỗng, chưa thấy backend notification API. Web hiện có login/profile/admin places/moderation nhưng shell dashboard còn placeholder.
+Auth/session; itinerary/day/activity; map search, reverse geocoding và routing; Place catalog và itinerary-scoped saved places; comment threads; explore, saved/favorite/rating; social feed/posts; profile/follow; chat REST + WebSocket/STOMP; friendships/blocks/messaging settings; upload/media và một phần admin moderation/Place. Notification gồm Core API, các producer social/moderation, announcement, Mobile Center, và Android messaging push-only; schema theo entity JPA/Hibernate. Admin announcement dùng Flutter Web hiện có. Full release regression, FCM device delivery và production schema chưa xác minh.
 
 ## Quy mô source tại 2026-11-16
 | Phạm vi | Source | Test |

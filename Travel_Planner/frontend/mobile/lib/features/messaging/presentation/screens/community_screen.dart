@@ -11,7 +11,6 @@ import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../data/messaging_repository.dart';
 import '../../data/messaging_realtime_client.dart';
 import '../../data/models/conversation_summary.dart';
@@ -478,19 +477,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-          ],
-          AppHeaderIconButton(
-            tooltip: 'Thông báo',
-            icon: Icons.notifications_outlined,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const NotificationsScreen(),
-              ),
-            ),
-          ),
-          if (auth?.isAuthenticated == true) ...[
-            const SizedBox(width: 8),
+          if (auth?.isAuthenticated == true)
             CurrentUserAvatarButton(
               avatarUrl: auth?.currentUser?['avatar']?.toString(),
               onPressed: () => Navigator.of(context).push(

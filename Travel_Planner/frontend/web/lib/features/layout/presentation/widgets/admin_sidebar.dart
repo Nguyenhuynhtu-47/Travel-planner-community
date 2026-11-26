@@ -72,6 +72,7 @@ class AdminSidebar extends StatelessWidget {
                     _buildMenuItem(AdminTab.administrativeAreas),
 
                     _buildGroupHeader('HỆ THỐNG'),
+                    _buildMenuItem(AdminTab.announcements),
                     _buildMenuItem(AdminTab.auditLogs),
                     _buildMenuItem(AdminTab.settings),
                   ],

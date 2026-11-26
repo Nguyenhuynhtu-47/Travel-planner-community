@@ -14,7 +14,6 @@ import '../../../auth/presentation/auth_notifier.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../data/collection_repository.dart';
 import '../collection_notifier.dart';
@@ -37,7 +36,9 @@ class CollectionScreen extends StatefulWidget {
 }
 
 class _CollectionScreenState extends State<CollectionScreen>
-    with SingleTickerProviderStateMixin, AutoRefreshLifecycleMixin<CollectionScreen> {
+    with
+        SingleTickerProviderStateMixin,
+        AutoRefreshLifecycleMixin<CollectionScreen> {
   late final CollectionNotifier _notifier;
   late final TabController _tabController;
   final ScrollController _savedScrollController = ScrollController();
@@ -46,8 +47,10 @@ class _CollectionScreenState extends State<CollectionScreen>
   String? get _effectiveToken => widget.authNotifier?.token;
 
   @override
-  Set<SyncDomain> get syncDomains =>
-      {SyncDomain.collections, SyncDomain.itineraries};
+  Set<SyncDomain> get syncDomains => {
+    SyncDomain.collections,
+    SyncDomain.itineraries,
+  };
 
   @override
   Duration get syncTtl => const Duration(minutes: 3);
@@ -63,7 +66,8 @@ class _CollectionScreenState extends State<CollectionScreen>
   @override
   void initState() {
     super.initState();
-    _notifier = widget.notifier ??
+    _notifier =
+        widget.notifier ??
         CollectionNotifier(
           repository: widget.repository ?? CollectionRepository(),
         );
@@ -215,25 +219,15 @@ class _CollectionScreenState extends State<CollectionScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          AppHeaderIconButton(
-            icon: Icons.notifications_outlined,
-            tooltip: 'Thông báo',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
-          ),
-          if (widget.authNotifier?.isAuthenticated == true) ...[
-            const SizedBox(width: 8),
+          if (widget.authNotifier?.isAuthenticated == true)
             CurrentUserAvatarButton(
-              avatarUrl: widget.authNotifier?.currentUser?['avatar']?.toString(),
+              avatarUrl: widget.authNotifier?.currentUser?['avatar']
+                  ?.toString(),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => ProfileScreen(authNotifier: widget.authNotifier!),
+                    builder: (_) =>
+                        ProfileScreen(authNotifier: widget.authNotifier!),
                   ),
                 );
               },
@@ -311,7 +305,8 @@ class _CollectionScreenState extends State<CollectionScreen>
         title: 'Chưa có lịch trình đã lưu',
         message: 'Lịch trình bạn lưu sẽ xuất hiện tại đây để tiện xem lại sau.',
         actionText: 'Tải lại',
-        onActionPressed: () => _notifier.loadInitialSaved(token: _effectiveToken),
+        onActionPressed: () =>
+            _notifier.loadInitialSaved(token: _effectiveToken),
       );
     }
 
@@ -390,7 +385,8 @@ class _CollectionScreenState extends State<CollectionScreen>
         title: 'Chưa có lịch trình yêu thích',
         message: 'Lịch trình bạn yêu thích sẽ xuất hiện tại đây.',
         actionText: 'Tải lại',
-        onActionPressed: () => _notifier.loadInitialFavorite(token: _effectiveToken),
+        onActionPressed: () =>
+            _notifier.loadInitialFavorite(token: _effectiveToken),
       );
     }
 

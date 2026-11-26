@@ -16,4 +16,4 @@ Mobile và Web dùng client riêng, gọi chung backend. Đường đi là widge
 `flutter_map` render tiles/layers. `MapConstants` cấu hình CARTO tile; location picker gọi backend `/api/locations` để search/reverse/nearby/details. Route được gọi qua itinerary route endpoint. Ảnh hoạt động có thể là URL được lưu hoặc URL upload; ảnh POI không tự có từ CARTO. Map tile, geocoding, routing, catalog Place, upload ảnh là các dịch vụ tách biệt.
 
 ## Notifications và realtime
-Màn Notifications hiện chỉ hiển thị empty state; chưa thấy `/api/notifications` hoặc notification service ở backend. Chat dùng REST cho conversation/message/read và STOMP/WebSocket cho sự kiện realtime; không coi chat realtime là hệ thống notification đã hoàn thiện.
+Notification Center tải feed cá nhân + announcement, phân trang bằng cursor và tách read-one/read-all cá nhân khỏi receipt announcement. Chỉ Home/Khám phá có chuông/badge Center; unread chat, stranger request và friend request giữ luồng badge Community riêng. Messaging dùng REST/STOMP làm nguồn chuẩn; FCM là push-only, không tạo notification-center row.

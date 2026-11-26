@@ -20,26 +20,11 @@ class SavedItinerariesScreen extends StatelessWidget {
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
-        actions: [
-          AppHeaderIconButton(
-            icon: Icons.notifications_outlined,
-            tooltip: 'Thông báo',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: const AppEmptyState(
         icon: Icons.bookmark_border_rounded,
         title: 'Lịch trình đã lưu',
-        message:
-            'Tính năng lưu và đánh dấu lịch trình yêu thích đang được phát triển và sẽ sớm ra mắt.',
+        message: 'Tính năng lưu và đánh dấu lịch trình yêu thích đang được phát triển và sẽ sớm ra mắt.',
       ),
     );
   }

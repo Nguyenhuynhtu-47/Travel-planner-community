@@ -161,18 +161,6 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          AppHeaderIconButton(
-            icon: Icons.notifications_outlined,
-            tooltip: 'Thông báo',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
           CurrentUserAvatarButton(
             avatarUrl: widget.authNotifier.currentUser?['avatar']?.toString(),
             onPressed: () async {

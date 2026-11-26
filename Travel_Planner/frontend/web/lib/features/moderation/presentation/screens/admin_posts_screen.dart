@@ -169,7 +169,7 @@ class _AdminPostsScreenState extends State<AdminPostsScreen> {
             controller: reasonController,
             style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(
-              labelText: 'Lý do kiểm duyệt',
+              labelText: 'Lý do kiểm duyệt (gửi cho chủ bài viết)',
               hintText: 'VD: Vi phạm tiêu chuẩn cộng đồng, spam...',
               hintStyle: const TextStyle(fontSize: 12, color: AppColors.textMuted),
               border: OutlineInputBorder(

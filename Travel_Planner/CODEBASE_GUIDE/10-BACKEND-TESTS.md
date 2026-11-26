@@ -61,3 +61,14 @@ Lần kiểm tra ngày 2026-11-17: messaging subset chạy 9 tests PASS; `Travel
 - Travel_Planner/Travel_Planner/TravelPlannerApplicationTests.java
 - Travel_Planner/Travel_Planner/UserHandleDatabasePersistenceTest.java
 - Travel_Planner/Travel_Planner/UserHandleServiceTest.java
+
+## Notification Core (added 2026-11-26)
+
+- `Travel_Planner/Travel_Planner/NotificationServiceImplTest.java`
+- `Travel_Planner/Travel_Planner/NotificationControllerTest.java`
+- `Travel_Planner/Travel_Planner/NotificationDatabaseIntegrationTest.java` (JPA/Hibernate schema, repository behavior, HTTP auth/ownership, concurrent dedup and announcement rules)
+- `Travel_Planner/Travel_Planner/SocialNotificationServiceImplTest.java` (social events and Admin action mapping)
+- `Travel_Planner/Travel_Planner/AdminUserModerationNotificationTest.java` (status transition hook)
+- `Travel_Planner/Travel_Planner/CommunityPostServiceTest.java` (post moderation/report service behavior)
+
+Focused command from `backend`: `mvnw.cmd '-Dtest=NotificationServiceImplTest,NotificationControllerTest,NotificationDatabaseIntegrationTest' test`. Test DB is `travel_planner_test`; never point it at the developer DB.

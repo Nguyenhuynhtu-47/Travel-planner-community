@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/network/api_client.dart';
 import 'core/theme/app_colors.dart';
@@ -6,11 +9,27 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/itinerary/presentation/screens/my_itineraries_screen.dart';
+import 'features/messaging/data/messaging_push_registration.dart';
+import 'features/messaging/data/messaging_realtime_client.dart';
+import 'features/messaging/presentation/screens/community_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
 import 'features/splash/presentation/screens/splash_screen.dart';
 
-void main() {
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    try {
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    } catch (_) {
+      debugPrint('[FCM] Firebase initialization unavailable; push is disabled.');
+    }
+  }
   runApp(const MyApp());
 }
 
@@ -24,7 +43,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final GlobalKey<NavigatorState> _navigatorKey;
   late final AuthNotifier _authNotifier;
 
@@ -33,6 +52,9 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _navigatorKey = widget.navigatorKey ?? GlobalKey<NavigatorState>();
     _authNotifier = widget.authNotifier ?? AuthNotifier();
+    _authNotifier.beforeLogout = _unregisterPushBeforeLogout;
+    _authNotifier.addListener(_syncPushSession);
+    WidgetsBinding.instance.addObserver(this);
 
     ApiClient.globalOnUnauthorized = () {
       _authNotifier.handleSessionExpired();
@@ -48,9 +70,45 @@ class _MyAppState extends State<MyApp> {
     _authNotifier.checkAuthStatus();
   }
 
+  Future<void> _unregisterPushBeforeLogout(String token) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    await MessagingPushRegistration.shared.unregisterBeforeLogout(token);
+  }
+
+  void _syncPushSession() {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android || Firebase.apps.isEmpty) return;
+    final token = _authNotifier.isAuthenticated ? _authNotifier.token : null;
+    MessagingPushRegistration.shared.syncSession(
+      token,
+      onForegroundMessage: (message) {
+        final conversationId = int.tryParse(
+          message.data['conversationId']?.toString() ?? '',
+        );
+        MessagingRealtimeClient.shared.signalPushRefresh(conversationId);
+      },
+      onNotificationTap: (_) {
+        final navigator = _navigatorKey.currentState;
+        if (navigator == null) return;
+        navigator.push(MaterialPageRoute<void>(
+          builder: (_) => CommunityScreen(authNotifier: _authNotifier, initialTab: 0),
+        ));
+      },
+    ).catchError((_) {
+      debugPrint('[FCM] Device registration is unavailable.');
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _syncPushSession();
+  }
+
   @override
   void dispose() {
     ApiClient.globalOnUnauthorized = null;
+    _authNotifier.removeListener(_syncPushSession);
+    WidgetsBinding.instance.removeObserver(this);
+    _authNotifier.beforeLogout = null;
     if (widget.authNotifier == null) {
       _authNotifier.dispose();
     }
