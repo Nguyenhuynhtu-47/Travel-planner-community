@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
@@ -269,11 +270,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
   }
 
   void _openComments(PostModel post) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
+    AppBottomSheet.show<void>(
+      context,
+      showDragHandle: false,
       builder: (ctx) => PostCommentsSheet(
         postId: post.postId,
         token: _token,

@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
@@ -235,9 +236,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final token = widget.authNotifier.token;
     if (token == null) return;
 
-    final selected = await showModalBottomSheet<ItinerarySummary>(
-      context: context,
-      isScrollControlled: true,
+    final selected = await AppBottomSheet.show<ItinerarySummary>(
+      context,
+      title: 'Chọn lịch trình để đính kèm',
       builder: (ctx) => _ItinerarySelectionSheet(
         token: token,
         repository: _itineraryRepo,
@@ -783,40 +784,28 @@ class _ItinerarySelectionSheetState extends State<_ItinerarySelectionSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.6,
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Chọn lịch trình để đính kèm',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _itineraries.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Bạn chưa có lịch trình công khai nào.',
-                          style: TextStyle(color: AppColors.muted),
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: _itineraries.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1),
-                        itemBuilder: (ctx, i) {
-                          final item = _itineraries[i];
-                          return ListTile(
-                            title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: Text('${item.totalDays} ngày • ${item.location.isNotEmpty ? item.location : "Chưa có địa điểm"}'),
-                            trailing: const Icon(Icons.add_circle_outline, color: AppColors.primary),
-                            onTap: () => Navigator.pop(ctx, item),
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _itineraries.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Bạn chưa có lịch trình công khai nào.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                )
+              : ListView.separated(
+                  itemCount: _itineraries.length,
+                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  itemBuilder: (ctx, i) {
+                    final item = _itineraries[i];
+                    return ListTile(
+                      title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('${item.totalDays} ngày • ${item.location.isNotEmpty ? item.location : "Chưa có địa điểm"}'),
+                      trailing: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+                      onTap: () => Navigator.pop(ctx, item),
+                    );
+                  },
+                ),
     );
   }
 }

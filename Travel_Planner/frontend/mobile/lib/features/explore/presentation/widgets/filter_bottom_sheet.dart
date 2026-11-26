@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
@@ -23,10 +24,8 @@ class FilterBottomSheet extends StatefulWidget {
     required String currentSort,
     required Function(ExploreFilter filter, String sort) onApply,
   }) {
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    return AppBottomSheet.show<void>(
+      context,
       builder: (context) => FilterBottomSheet(
         initialFilter: currentFilter,
         initialSort: currentSort,
@@ -151,23 +150,13 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SafeArea(
-        top: false,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
@@ -636,8 +625,6 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
               ),
             ],
           ),
-        ),
-      ),
-    );
+        );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -34,10 +35,9 @@ Future<bool?> showActivityFormDialog(
   LocationRepository? locationRepository,
   LocationSearchResult? initialLocation,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
+  return AppBottomSheet.show<bool>(
+    context,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent,
     isDismissible: true,
     enableDrag: true,
     builder: (ctx) => ActivityFormBottomSheet(
@@ -525,46 +525,15 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final keyboardHeight = mediaQuery.viewInsets.bottom;
     final maxHeight = mediaQuery.size.height * 0.88;
 
-    return AnimatedPadding(
-      padding: EdgeInsets.only(bottom: keyboardHeight),
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOutQuad,
-      child: Container(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x22000000),
-              blurRadius: 16,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Top drag indicator handle
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 10, bottom: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-
-              // Header Row
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Row
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
                 child: Row(
@@ -1292,8 +1261,6 @@ class _ActivityFormBottomSheetState extends State<ActivityFormBottomSheet> {
               ),
             ],
           ),
-        ),
-      ),
-    );
+        );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -53,12 +54,8 @@ class ItineraryPickerBottomSheet extends StatefulWidget {
     AuthNotifier? authNotifier,
     VoidCallback? onCreateItinerary,
   }) {
-    return showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      isDismissible: true,
-      enableDrag: true,
+    return AppBottomSheet.show<bool>(
+      context,
       builder: (ctx) => ItineraryPickerBottomSheet(
         place: place,
         token: token,
@@ -82,12 +79,8 @@ class ItineraryPickerBottomSheet extends StatefulWidget {
     VoidCallback? onCreateItinerary,
     ValueChanged<ItinerarySummary>? onItinerarySelected,
   }) {
-    return showModalBottomSheet<ItinerarySummary>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      isDismissible: true,
-      enableDrag: true,
+    return AppBottomSheet.show<ItinerarySummary>(
+      context,
       builder: (ctx) => ItineraryPickerBottomSheet(
         place: place,
         token: token,
@@ -349,30 +342,13 @@ class _ItineraryPickerBottomSheetState
     final maxHeight = mediaQuery.size.height * 0.85;
 
     return Material(
-      color: AppColors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      clipBehavior: Clip.antiAlias,
+      type: MaterialType.transparency,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Top Drag Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             // Header Section
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
@@ -442,9 +418,8 @@ class _ItineraryPickerBottomSheetState
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildContent() {
     if (_isLoading) {

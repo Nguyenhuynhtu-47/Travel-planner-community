@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -18,10 +19,8 @@ Future<bool?> showReorderActivitiesDialog(
   required AuthNotifier authNotifier,
   required ItineraryCrudRepository repository,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+  return AppBottomSheet.show<bool>(
+    context,
     builder: (ctx) => _ReorderActivitiesBottomSheet(
       itineraryId: itineraryId,
       dayId: dayId,
@@ -127,39 +126,13 @@ class _ReorderActivitiesBottomSheetState
     final mediaQuery = MediaQuery.of(context);
     final maxHeight = mediaQuery.size.height * 0.75;
 
-    return Container(
+    return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x1E000000),
-            blurRadius: 16,
-            offset: Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Drag handle pill
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.hairline,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-
-            // Header
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
               child: Row(
@@ -332,7 +305,6 @@ class _ReorderActivitiesBottomSheetState
             ),
           ],
         ),
-      ),
     );
   }
 }

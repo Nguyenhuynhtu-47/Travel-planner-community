@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -92,10 +93,9 @@ Future<CustomLocationResult?> showLocationPickerSheet(
   AuthNotifier? authNotifier,
   ItineraryCrudRepository? itineraryCrudRepository,
 }) {
-  return showModalBottomSheet<CustomLocationResult>(
-    context: context,
+  return AppBottomSheet.show<CustomLocationResult>(
+    context,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent,
     isDismissible: true,
     enableDrag: false, // Prevent sheet drag from conflicting with map gestures
     builder: (ctx) => LocationPickerSheet(
@@ -820,7 +820,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final bottomInset = mediaQuery.viewInsets.bottom;
     final sheetHeight = mediaQuery.size.height * 0.90;
 
     final initialCenter =
@@ -830,42 +829,12 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
         ? 15.0
         : MapConstants.fallbackZoom;
 
-    return AnimatedPadding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOutQuad,
-      child: Container(
-        height: sheetHeight,
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x33000000),
-              blurRadius: 18,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Drag Indicator Handle
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 10, bottom: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-
-              // Header
+    return SizedBox(
+      height: sheetHeight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 2, 8, 8),
                 child: Row(
@@ -1431,8 +1400,6 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
               ),
             ],
           ),
-        ),
-      ),
-    );
+        );
   }
 }

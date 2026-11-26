@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -22,10 +23,8 @@ Future<bool?> showAddPlaceToItinerarySheet(
   ItinerarySummary? initialItinerary,
   List<ItinerarySummary>? availableItineraries,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+  return AppBottomSheet.show<bool>(
+    context,
     builder: (ctx) => AddPlaceToItinerarySheet(
       authNotifier: authNotifier,
       repository: repository,
@@ -273,16 +272,12 @@ class _AddPlaceToItinerarySheetState extends State<AddPlaceToItinerarySheet>
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
     return Material(
-      color: AppColors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: Container(
+      type: MaterialType.transparency,
+      child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.88,
         ),
-        margin: EdgeInsets.only(bottom: bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

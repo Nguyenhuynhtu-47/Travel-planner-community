@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -1666,56 +1667,51 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
     int activityId,
     String activityName,
   ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
+    await AppBottomSheet.show<void>(
+      context,
       builder: (context) {
         final mediaQuery = MediaQuery.of(context);
         final availableHeight =
             mediaQuery.size.height - mediaQuery.viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
-          child: SizedBox(
-            height: availableHeight * 0.82,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.base,
-                    AppSpacing.md,
-                    AppSpacing.base,
-                    0,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          activityName,
-                          style: AppTextStyles.titleMd.copyWith(
-                            color: AppColors.textPrimary,
-                          ),
+        return SizedBox(
+          height: availableHeight * 0.82,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.base,
+                  AppSpacing.md,
+                  AppSpacing.base,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        activityName,
+                        style: AppTextStyles.titleMd.copyWith(
+                          color: AppColors.textPrimary,
                         ),
                       ),
-                      BounceTap.icon(
-                        child: IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                        ),
+                    ),
+                    BounceTap.icon(
+                      child: IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ActivityCommentsSection(
-                    activityId: activityId,
-                    token: _effectiveToken,
-                    authNotifier: widget.authNotifier,
-                  ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ActivityCommentsSection(
+                  activityId: activityId,
+                  token: _effectiveToken,
+                  authNotifier: widget.authNotifier,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -2794,32 +2790,15 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   }
 
   void _showPlaceDetailsModal(PlaceSummary p) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    AppBottomSheet.show<void>(
+      context,
       builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
               Row(
                 children: [
                   Expanded(

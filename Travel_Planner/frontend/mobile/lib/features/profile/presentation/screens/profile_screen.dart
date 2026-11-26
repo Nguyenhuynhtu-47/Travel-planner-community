@@ -7,6 +7,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
@@ -1122,10 +1123,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _openPostComments(PostModel post) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    AppBottomSheet.show<void>(
+      context,
+      showDragHandle: false,
       builder: (ctx) => PostCommentsSheet(
         postId: post.postId,
         token: widget.authNotifier.token,

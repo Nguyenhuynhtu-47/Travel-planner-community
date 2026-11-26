@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/network/api_exception.dart';
@@ -36,12 +37,8 @@ class DayPickerBottomSheet extends StatefulWidget {
     ItineraryRepository? itineraryRepository,
     ItineraryCrudRepository? crudRepository,
   }) {
-    return showModalBottomSheet<ItineraryDayDetail>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      isDismissible: true,
-      enableDrag: true,
+    return AppBottomSheet.show<ItineraryDayDetail>(
+      context,
       builder: (ctx) => DayPickerBottomSheet(
         itinerary: itinerary,
         place: place,
@@ -122,31 +119,14 @@ class _DayPickerBottomSheetState extends State<DayPickerBottomSheet> {
     final maxHeight = mediaQuery.size.height * 0.85;
 
     return Material(
-      color: AppColors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      clipBehavior: Clip.antiAlias,
+      type: MaterialType.transparency,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Top Drag Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-
-              // Header Section
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header Section
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
                 child: Row(
@@ -213,7 +193,6 @@ class _DayPickerBottomSheetState extends State<DayPickerBottomSheet> {
             ],
           ),
         ),
-      ),
     );
   }
 

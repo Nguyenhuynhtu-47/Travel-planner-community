@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -72,11 +73,9 @@ class ShareBottomSheet extends StatefulWidget {
     AuthNotifier? authNotifier,
     MessagingRepository? messagingRepository,
   }) {
-    return showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
+    return AppBottomSheet.show<bool>(
+      context,
+      showDragHandle: false,
       builder: (_) => ShareBottomSheet(
         targetType: targetType,
         targetId: targetId,

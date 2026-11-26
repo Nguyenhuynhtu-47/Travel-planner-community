@@ -4,6 +4,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/sync/app_sync_bus.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/widgets/app_bottom_sheet.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
 import '../../../../shared/widgets/app_toast.dart';
@@ -207,10 +208,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   void _openPostComments(PostModel post) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    AppBottomSheet.show<void>(
+      context,
+      showDragHandle: false,
       builder: (ctx) => PostCommentsSheet(
         postId: post.postId,
         token: _token,
@@ -647,54 +647,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final displayName = profile.fullName?.trim().isNotEmpty == true
         ? profile.fullName!.trim()
         : '@${profile.effectiveHandle}';
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Text(
-                  'Lời mời kết bạn từ $displayName',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const Divider(height: 1, color: AppColors.hairlineSoft),
-              ListTile(
-                leading: const Icon(Icons.check_circle_outline, color: AppColors.primary),
-                title: const Text(
-                  'Chấp nhận lời mời',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.primary),
-                ),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _relationshipAction('accept');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
-                title: const Text('Từ chối lời mời'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _relationshipAction('decline');
-                },
-              ),
-            ],
-          ),
+    AppBottomSheet.showOptions<void>(
+      context,
+      title: 'Lời mời kết bạn từ $displayName',
+      options: [
+        AppBottomSheetOption<void>(
+          icon: Icons.check_circle_outline,
+          label: 'Chấp nhận lời mời',
+          onTap: () => _relationshipAction('accept'),
         ),
-      ),
+        AppBottomSheetOption<void>(
+          icon: Icons.close_rounded,
+          label: 'Từ chối lời mời',
+          onTap: () => _relationshipAction('decline'),
+        ),
+      ],
     );
   }
 
