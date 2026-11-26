@@ -130,13 +130,18 @@ class GoogleSignInButton extends StatelessWidget {
 
 class AuthDividerWithText extends StatelessWidget {
   final String text;
+  final double verticalPadding;
 
-  const AuthDividerWithText({super.key, this.text = 'Hoặc'});
+  const AuthDividerWithText({
+    super.key,
+    this.text = 'Hoặc',
+    this.verticalPadding = 20,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: EdgeInsets.symmetric(vertical: verticalPadding),
       child: Row(
         children: [
           const Expanded(child: Divider(color: AppColors.border, thickness: 1)),

@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_otp_input.dart';
-import '../../../../shared/widgets/app_primary_button.dart';
 import '../auth_notifier.dart';
+import '../widgets/auth_screen_scaffold.dart';
+import '../widgets/auth_wave_header.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final AuthNotifier authNotifier;
@@ -147,152 +148,105 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         final isLoading = widget.authNotifier.isLoading;
         final errorMessage = widget.authNotifier.errorMessage;
 
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-          body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Center(
-                          child: Icon(
-                            Icons.mark_email_unread_outlined,
-                            size: 56,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Xác thực tài khoản',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                              height: 1.5,
-                            ),
-                            children: [
-                              const TextSpan(text: 'Mã xác thực gồm 6 chữ số đã được gửi tới email:\n'),
-                              TextSpan(
-                                text: widget.email,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Error Banner if present
-                        if (errorMessage != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.error_outline, color: AppColors.error, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    errorMessage,
-                                    style: const TextStyle(color: AppColors.error, fontSize: 13),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-
-                        // 6-box OTP input component
-                        AppOtpInput(
-                          controller: _codeController,
-                          enabled: !isLoading,
-                          onChanged: (code) {
-                            setState(() {});
-                          },
-                          onCompleted: (code) {
-                            _submitVerification();
-                          },
-                        ),
-                        const SizedBox(height: 28),
-
-                        AppPrimaryButton(
-                          text: 'Kích hoạt tài khoản',
-                          isLoading: isLoading,
-                          onPressed: (_codeController.text.trim().length == 6 && !isLoading)
-                              ? _submitVerification
-                              : null,
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Resend OTP Action
-                        Center(
-                          child: _secondsRemaining > 0
-                              ? Text(
-                                  'Gửi lại mã sau $_secondsRemaining giây',
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                )
-                              : TextButton.icon(
-                                  onPressed: _isResending ? null : _resendCode,
-                                  icon: _isResending
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
-                                        )
-                                      : const Icon(Icons.refresh, size: 18),
-                                  label: const Text(
-                                    'Gửi lại mã xác thực',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ),
+        return AuthScreenScaffold(
+          headerIcon: Icons.mark_email_unread_outlined,
+          showBackButton: true,
+          title: 'Xác thực tài khoản',
+          subtitleWidget: RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: const TextStyle(
+                fontSize: 14,
+                color: AuthUiTokens.subtitle,
+                height: 1.5,
+              ),
+              children: [
+                const TextSpan(
+                  text: 'Mã xác thực gồm 6 chữ số đã được gửi tới email:\n',
+                ),
+                TextSpan(
+                  text: widget.email,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AuthUiTokens.title,
                   ),
                 ),
-              ),
+              ],
+            ),
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Error Banner if present
+                if (errorMessage != null) ...[
+                  AuthErrorBanner(message: errorMessage),
+                  const SizedBox(height: 20),
+                ],
+
+                // 6-box OTP input component
+                AppOtpInput(
+                  controller: _codeController,
+                  enabled: !isLoading,
+                  activeBorderColor: AuthUiTokens.primary,
+                  onChanged: (code) {
+                    setState(() {});
+                  },
+                  onCompleted: (code) {
+                    _submitVerification();
+                  },
+                ),
+                const SizedBox(height: 28),
+
+                AuthPrimaryButton(
+                  text: 'Kích hoạt tài khoản',
+                  isLoading: isLoading,
+                  onPressed: (_codeController.text.trim().length == 6 && !isLoading)
+                      ? _submitVerification
+                      : null,
+                ),
+                const SizedBox(height: 20),
+
+                // Resend OTP Action
+                Center(
+                  child: _secondsRemaining > 0
+                      ? Text(
+                          'Gửi lại mã sau $_secondsRemaining giây',
+                          style: const TextStyle(
+                            color: AuthUiTokens.subtitle,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        )
+                      : TextButton.icon(
+                          onPressed: _isResending ? null : _resendCode,
+                          icon: _isResending
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AuthUiTokens.primary,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.refresh,
+                                  size: 18,
+                                  color: AuthUiTokens.primary,
+                                ),
+                          label: const Text(
+                            'Gửi lại mã xác thực',
+                            style: TextStyle(
+                              color: AuthUiTokens.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                ),
+              ],
             ),
           ),
         );
