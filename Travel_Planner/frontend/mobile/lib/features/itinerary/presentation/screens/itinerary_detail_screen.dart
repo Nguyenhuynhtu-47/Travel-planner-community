@@ -28,6 +28,7 @@ import '../widgets/delete_activity_dialog.dart';
 import '../widgets/delete_day_dialog.dart';
 import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/itinerary_day_card.dart';
+import '../widgets/itinerary_map_helper.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../comments/presentation/widgets/itinerary_comments_section.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
@@ -1455,163 +1456,179 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
               .where((d) => d.dayNumber == _selectedDayNumber)
               .toList();
 
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () async {
-        await Future.wait([
-          _notifier.loadDetail(token: _effectiveToken),
-          _loadItinerarySavedPlaces(),
-        ]);
-      },
-      child: CustomScrollView(
-        key: const PageStorageKey<String>('itinerary_activities_scroll'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (_notifier.isLoading)
-            const SliverToBoxAdapter(
-              child: LinearProgressIndicator(
-                minHeight: 2,
-                color: AppColors.primary,
-                backgroundColor: AppColors.surfaceSoft,
+    return ColoredBox(
+      color: Colors.white,
+      child: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: () async {
+          await Future.wait([
+            _notifier.loadDetail(token: _effectiveToken),
+            _loadItinerarySavedPlaces(),
+          ]);
+        },
+        child: CustomScrollView(
+          key: const PageStorageKey<String>('itinerary_activities_scroll'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (_notifier.isLoading)
+              const SliverToBoxAdapter(
+                child: LinearProgressIndicator(
+                  minHeight: 2,
+                  color: AppColors.primary,
+                  backgroundColor: AppColors.surfaceSoft,
+                ),
               ),
-            ),
 
-          // 1. Day Section Header
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Lịch trình theo ngày (${itinerary.days.length} ngày)',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  if (isOwner)
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: Size.zero,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        side: const BorderSide(color: AppColors.primary),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      icon: const Icon(
-                        Icons.add_rounded,
-                        size: 18,
-                        color: AppColors.primary,
-                      ),
-                      label: const Text(
-                        'Thêm ngày',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      onPressed: () => _handleAddDay(itinerary),
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          // 2. Compact Horizontal Day Selector
-          if (itinerary.days.isNotEmpty)
-            SliverToBoxAdapter(child: _buildDaySelector(itinerary)),
-
-          // 3. Embedded Itinerary Map Preview Card
-          if (itinerary.days.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+            // 1. Map Section (Flat White)
+            if (itinerary.days.isNotEmpty) ...[
+              SliverToBoxAdapter(
                 child: ItineraryMapPreviewCard(
                   itinerary: itinerary,
                   selectedDayNumber: _selectedDayNumber,
                   onOpenFullScreen: () => _openFullScreenMap(itinerary),
                 ),
               ),
-            ),
+              const SliverToBoxAdapter(child: _FlatSectionDivider()),
+            ],
 
-          // 4. Days Content
-          if (itinerary.days.isEmpty)
+            // 2. Day Section Header & Filter Chips
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 20,
-                ),
-                child: AppEmptyState(
-                  title: 'Chưa có lịch trình theo ngày',
-                  message: 'Lịch trình này chưa có ngày hoặc hoạt động được lên kế hoạch.',
-                  icon: Icons.calendar_today_outlined,
-                  actionText: isOwner ? 'Thêm ngày đầu tiên' : null,
-                  onActionPressed: isOwner
-                      ? () => _handleAddDay(itinerary)
-                      : null,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Lịch trình theo ngày (${itinerary.days.length} ngày)',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (isOwner)
+                      BounceTap(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            side: const BorderSide(color: AppColors.primary),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.add_rounded,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                          label: const Text(
+                            'Thêm ngày',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          onPressed: () => _handleAddDay(itinerary),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            )
-          else ...[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-              sliver: SliverList.builder(
+            ),
+
+            if (itinerary.days.isNotEmpty) ...[
+              SliverToBoxAdapter(child: _buildDaySelector(itinerary)),
+              const SliverToBoxAdapter(
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Color(0xFFEFEFF4),
+                ),
+              ),
+            ],
+
+            // 3. Days Content (Independent Flat Sections separated by _FlatSectionDivider)
+            if (itinerary.days.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 20,
+                  ),
+                  child: AppEmptyState(
+                    title: 'Chưa có lịch trình theo ngày',
+                    message:
+                        'Lịch trình này chưa có ngày hoặc hoạt động được lên kế hoạch.',
+                    icon: Icons.calendar_today_outlined,
+                    actionText: isOwner ? 'Thêm ngày đầu tiên' : null,
+                    onActionPressed: isOwner
+                        ? () => _handleAddDay(itinerary)
+                        : null,
+                  ),
+                ),
+              )
+            else ...[
+              SliverList.builder(
                 itemCount: displayedDays.length,
                 itemBuilder: (context, index) {
                   final day = displayedDays[index];
-                  return ItineraryDayCard(
-                    day: day,
-                    onEdit: isOwner
-                        ? () => _handleEditDay(itinerary, day)
-                        : null,
-                    onDelete: isOwner
-                        ? () => _handleDeleteDay(itinerary, day)
-                        : null,
-                    onAddActivity: isOwner
-                        ? () => _handleAddActivity(itinerary, day)
-                        : null,
-                    onEditActivity: isOwner
-                        ? (act) => _handleEditActivity(itinerary, day, act)
-                        : null,
-                    onDeleteActivity: isOwner
-                        ? (act) => _handleDeleteActivity(itinerary, day, act)
-                        : null,
-                    onActivityTap: (act) => _handleViewActivityDetail(act, day),
-                    onActivityVisited:
-                        isOwner && _effectiveToken?.trim().isNotEmpty == true
-                        ? (act, visited) =>
-                              _handleActivityVisited(act, day, visited)
-                        : null,
-                    onActivityComments:
-                        !isOwner &&
-                            itinerary.visibility == 'PUBLIC' &&
-                            (itinerary.status == 'ACTIVE' ||
-                                itinerary.status == 'PUBLISHED')
-                        ? (act) =>
-                              _openActivityComments(act.activityId, act.name)
-                        : null,
-                    onReorderActivities: isOwner
-                        ? () => _handleReorderActivities(itinerary, day)
-                        : null,
-                    onSaveActivityOrder: isOwner
-                        ? (items) =>
-                              _handleSaveActivityOrder(itinerary, day, items)
-                        : null,
-                    onSavePlace: (act) =>
-                        _openSavePlaceToMyItinerariesSheet(activity: act),
+                  final isLastDay = index == displayedDays.length - 1;
+                  return Column(
+                    children: [
+                      ItineraryDayCard(
+                        day: day,
+                        onEdit: isOwner
+                            ? () => _handleEditDay(itinerary, day)
+                            : null,
+                        onDelete: isOwner
+                            ? () => _handleDeleteDay(itinerary, day)
+                            : null,
+                        onAddActivity: isOwner
+                            ? () => _handleAddActivity(itinerary, day)
+                            : null,
+                        onEditActivity: isOwner
+                            ? (act) => _handleEditActivity(itinerary, day, act)
+                            : null,
+                        onDeleteActivity: isOwner
+                            ? (act) =>
+                                  _handleDeleteActivity(itinerary, day, act)
+                            : null,
+                        onActivityTap: (act) =>
+                            _handleViewActivityDetail(act, day),
+                        onActivityVisited:
+                            isOwner && _effectiveToken?.trim().isNotEmpty == true
+                            ? (act, visited) =>
+                                  _handleActivityVisited(act, day, visited)
+                            : null,
+                        onActivityComments:
+                            !isOwner &&
+                                itinerary.visibility == 'PUBLIC' &&
+                                (itinerary.status == 'ACTIVE' ||
+                                    itinerary.status == 'PUBLISHED')
+                            ? (act) =>
+                                  _openActivityComments(act.activityId, act.name)
+                            : null,
+                        onReorderActivities: isOwner
+                            ? () => _handleReorderActivities(itinerary, day)
+                            : null,
+                        onSaveActivityOrder: isOwner
+                            ? (items) =>
+                                  _handleSaveActivityOrder(itinerary, day, items)
+                            : null,
+                        onSavePlace: (act) =>
+                            _openSavePlaceToMyItinerariesSheet(activity: act),
+                      ),
+                      if (!isLastDay) const _FlatSectionDivider(),
+                    ],
                   );
                 },
               ),
-            ),
             if (isOwner && _selectedDayNumber == null)
               SliverToBoxAdapter(
                 child: Padding(
@@ -1675,6 +1692,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
           ],
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
+      ),
       ),
     );
   }
@@ -1754,24 +1772,27 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   }
 
   Widget _buildDaySelector(ItineraryDetail itinerary) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      child: Row(
         children: [
           _buildDayChip(
             label: 'Tất cả (${itinerary.days.length})',
             isSelected: _selectedDayNumber == null,
+            selectedColor: AppColors.primary,
             onSelected: () => setState(() => _selectedDayNumber = null),
           ),
-          for (final day in itinerary.days)
+          for (final day in itinerary.days) ...[
+            const SizedBox(width: 8),
             _buildDayChip(
               label: 'Ngày ${day.dayNumber} (${day.activities.length})',
               isSelected: _selectedDayNumber == day.dayNumber,
+              selectedColor: ItineraryMapHelper.getDayColor(day.dayNumber),
               onSelected: () =>
                   setState(() => _selectedDayNumber = day.dayNumber),
             ),
+          ],
         ],
       ),
     );
@@ -1780,6 +1801,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
   Widget _buildDayChip({
     required String label,
     required bool isSelected,
+    required Color selectedColor,
     required VoidCallback onSelected,
   }) {
     return BounceTap(
@@ -1788,19 +1810,19 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
         label: Text(label),
         selected: isSelected,
         onSelected: (_) => onSelected(),
-        selectedColor: AppColors.primary,
+        selectedColor: selectedColor,
         backgroundColor: AppColors.surfaceSoft,
         labelStyle: TextStyle(
-          fontSize: 12,
+          fontSize: 12.5,
           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
           color: isSelected ? Colors.white : AppColors.textSecondary,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
         visualDensity: VisualDensity.compact,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           side: BorderSide(
-            color: isSelected ? AppColors.primary : AppColors.hairline,
+            color: isSelected ? selectedColor : AppColors.hairline,
           ),
         ),
         showCheckmark: false,

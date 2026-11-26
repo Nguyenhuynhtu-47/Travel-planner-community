@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -7,6 +8,7 @@ import '../../data/models/itinerary_day_detail.dart';
 import '../../data/models/reorder_activity_item.dart';
 import 'activity_timeline_item.dart';
 import 'activity_visit_swipe_action.dart';
+import 'itinerary_map_helper.dart';
 
 class ItineraryDayCard extends StatefulWidget {
   final ItineraryDayDetail day;
@@ -141,55 +143,35 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
   @override
   Widget build(BuildContext context) {
     final day = widget.day;
+    final dayColor = ItineraryMapHelper.getDayColor(day.dayNumber);
+    final dayLightColor = ItineraryMapHelper.getDayLightColor(day.dayNumber);
+    final dayTravelSummary = _computeDayTravelSummary(day.activities);
     final hasReorderCapability =
         day.activities.length > 1 &&
         (widget.onSaveActivityOrder != null ||
             widget.onReorderActivities != null);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x06000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Day Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: AppColors.surfaceSoft,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(13)),
-              border: Border(bottom: BorderSide(color: AppColors.hairlineSoft)),
-            ),
-            child: Row(
+          // Flat Day Section Header
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFFFD1DA)),
-                  ),
-                  child: Text(
-                    'Ngày ${day.dayNumber}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
+                Row(
+                  children: [
+                Text(
+                  'Ngày ${day.dayNumber}',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E1E1E),
+                    height: 1.2,
                   ),
                 ),
                 Expanded(
@@ -316,14 +298,39 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                   ),
               ],
             ),
-          ),
+            if (dayTravelSummary != null) ...[
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.route_outlined,
+                    size: 14,
+                    color: Color(0xFF6E6E73),
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      dayTravelSummary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF6E6E73),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
 
           // Day Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                 // Description if present
                 if (day.description != null &&
                     day.description!.trim().isNotEmpty) ...[
@@ -505,16 +512,20 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                     ),
                   ),
                 ] else ...[
-                  // Normal Timeline List
+                  // Compact Horizontal Activity List
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: day.activities.length,
                     itemBuilder: (context, index) {
                       final act = day.activities[index];
+                      final isLast = index == day.activities.length - 1;
                       final activityItem = ActivityTimelineItem(
                         activity: act,
-                        isLast: index == day.activities.length - 1,
+                        sequenceNumber: index + 1,
+                        dayColor: dayColor,
+                        dayLightColor: dayLightColor,
+                        isLast: isLast,
                         onTap: widget.onActivityTap != null
                             ? () => widget.onActivityTap!(act)
                             : null,
@@ -531,13 +542,26 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                             ? () => widget.onSavePlace!(act)
                             : null,
                       );
-                      if (widget.onActivityVisited == null) return activityItem;
-                      return ActivityVisitSwipeAction(
-                        key: ValueKey('visit-${act.activityId}'),
-                        activity: act,
-                        onUpdate: (visited) =>
-                            widget.onActivityVisited!(act, visited),
-                        child: activityItem,
+                      final itemWidget = widget.onActivityVisited == null
+                          ? activityItem
+                          : ActivityVisitSwipeAction(
+                              key: ValueKey('visit-${act.activityId}'),
+                              activity: act,
+                              onUpdate: (visited) =>
+                                  widget.onActivityVisited!(act, visited),
+                              child: activityItem,
+                            );
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          itemWidget,
+                          if (!isLast)
+                            _buildTravelConnector(
+                              act,
+                              day.activities[index + 1],
+                              dayColor,
+                            ),
+                        ],
                       );
                     },
                   ),
@@ -610,6 +634,106 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
                   ],
                 ],
               ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  String? _computeDayTravelSummary(List<ActivityDetail> activities) {
+    if (activities.length < 2) return null;
+    double totalMeters = 0;
+    var segmentCount = 0;
+    const distance = Distance();
+    for (var i = 0; i < activities.length - 1; i++) {
+      final from = activities[i];
+      final to = activities[i + 1];
+      if (!ItineraryMapHelper.isValidCoordinate(
+            from.effectiveLatitude,
+            from.effectiveLongitude,
+          ) ||
+          !ItineraryMapHelper.isValidCoordinate(
+            to.effectiveLatitude,
+            to.effectiveLongitude,
+          )) {
+        continue;
+      }
+      totalMeters += distance.as(
+        LengthUnit.Meter,
+        LatLng(from.effectiveLatitude!, from.effectiveLongitude!),
+        LatLng(to.effectiveLatitude!, to.effectiveLongitude!),
+      );
+      segmentCount++;
+    }
+    if (segmentCount == 0) return null;
+    return _formatDistanceAndDuration(totalMeters);
+  }
+
+  String _formatDistanceAndDuration(double meters) {
+    final distanceLabel = meters < 1000
+        ? '${meters.round()} m'
+        : '${(meters / 1000).toStringAsFixed(1)} km';
+    final totalMinutes = (meters / 500).round().clamp(1, 9999);
+    if (totalMinutes >= 60) {
+      final hours = totalMinutes ~/ 60;
+      final mins = totalMinutes % 60;
+      final durationLabel = mins == 0
+          ? '~$hours giờ di chuyển'
+          : '~$hours giờ $mins phút di chuyển';
+      return '$distanceLabel • $durationLabel';
+    }
+    return '$distanceLabel • ~$totalMinutes phút di chuyển';
+  }
+
+  Widget _buildTravelConnector(
+    ActivityDetail from,
+    ActivityDetail to,
+    Color dayColor,
+  ) {
+    final fromValid = ItineraryMapHelper.isValidCoordinate(
+      from.effectiveLatitude,
+      from.effectiveLongitude,
+    );
+    final toValid = ItineraryMapHelper.isValidCoordinate(
+      to.effectiveLatitude,
+      to.effectiveLongitude,
+    );
+
+    if (!fromValid || !toValid) {
+      return const SizedBox(height: 10);
+    }
+
+    final meters = const Distance().as(
+      LengthUnit.Meter,
+      LatLng(from.effectiveLatitude!, from.effectiveLongitude!),
+      LatLng(to.effectiveLatitude!, to.effectiveLongitude!),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 2,
+            height: 16,
+            decoration: BoxDecoration(
+              color: dayColor.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Icon(
+            Icons.directions_car_outlined,
+            size: 13,
+            color: Color(0xFF6E6E73),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            _formatDistanceAndDuration(meters),
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF6E6E73),
             ),
           ),
         ],

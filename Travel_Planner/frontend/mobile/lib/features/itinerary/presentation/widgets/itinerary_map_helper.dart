@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/map_marker_builder.dart';
 import '../../data/models/activity_detail.dart';
 import '../../data/models/itinerary_day_detail.dart';
@@ -39,23 +38,36 @@ class MappedActivityStop {
 class ItineraryMapHelper {
   ItineraryMapHelper._();
 
-  /// Palette of distinct, accessible colors for differentiating days on the map.
+  /// Palette of distinct, accessible colors for differentiating days on the map and list.
   static const List<Color> dayColors = [
-    AppColors.primary, // Day 1: Rausch #FF385C
-    Color(0xFF2563EB), // Day 2: Blue
-    Color(0xFF059669), // Day 3: Emerald
-    Color(0xFFD97706), // Day 4: Amber
-    Color(0xFF7C3AED), // Day 5: Violet
-    Color(0xFFDB2777), // Day 6: Pink
-    Color(0xFF0891B2), // Day 7: Cyan
-    Color(0xFF4F46E5), // Day 8: Indigo
+    Color(0xFFFA3E62), // Day 1: Brand Rose
+    Color(0xFF3B82F6), // Day 2: Modern Blue
+    Color(0xFF10B981), // Day 3: Emerald
+    Color(0xFFF59E0B), // Day 4: Amber
+    Color(0xFF8B5CF6), // Day 5: Indigo/Violet
+  ];
+
+  /// Matching soft background tints for each day in [dayColors].
+  static const List<Color> dayLightColors = [
+    Color(0xFFFFF0F3), // Day 1 tint
+    Color(0xFFEFF6FF), // Day 2 tint
+    Color(0xFFECFDF5), // Day 3 tint
+    Color(0xFFFFFBEB), // Day 4 tint
+    Color(0xFFF5F3FF), // Day 5 tint
   ];
 
   /// Returns a consistent color for a given day number.
   static Color getDayColor(int dayNumber) {
-    if (dayNumber <= 0) return AppColors.primary;
+    if (dayNumber <= 0) return dayColors.first;
     final index = (dayNumber - 1) % dayColors.length;
     return dayColors[index];
+  }
+
+  /// Returns a consistent light tint color for a given day number.
+  static Color getDayLightColor(int dayNumber) {
+    if (dayNumber <= 0) return dayLightColors.first;
+    final index = (dayNumber - 1) % dayLightColors.length;
+    return dayLightColors[index];
   }
 
   /// Validates whether a latitude and longitude pair is non-null, finite, and within legal Earth bounds.
@@ -174,9 +186,7 @@ class ItineraryMapHelper {
     return stops.map((stop) {
       final isSelected =
           selectedActivity?.activityId == stop.activity.activityId;
-      final pinColor = isMultiDay
-          ? getDayColor(stop.day.dayNumber)
-          : AppColors.primary;
+      final pinColor = getDayColor(stop.day.dayNumber);
 
       final key =
           '${stop.point.latitude.toStringAsFixed(5)},${stop.point.longitude.toStringAsFixed(5)}';
@@ -200,7 +210,7 @@ class ItineraryMapHelper {
         point: markerPoint,
         sequence: stop.sequence,
         visited: stop.activity.visited,
-        dayBadge: isMultiDay ? 'D${stop.day.dayNumber}' : null,
+        dayBadge: 'N${stop.day.dayNumber}',
         pinColor: isSelected ? const Color(0xFF1E293B) : pinColor,
         textColor: Colors.white,
         semanticLabel: stop.activity.visited

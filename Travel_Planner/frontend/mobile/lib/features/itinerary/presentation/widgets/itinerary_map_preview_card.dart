@@ -151,30 +151,19 @@ class _ItineraryMapPreviewCardState extends State<ItineraryMapPreviewCard> {
         : 'Bản đồ lịch trình';
 
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
+      color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 8, 8),
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
             child: Row(
               children: [
                 const Icon(
                   Icons.map_outlined,
-                  size: 18,
+                  size: 19,
                   color: AppColors.primary,
                 ),
                 const SizedBox(width: 8),
@@ -185,9 +174,9 @@ class _ItineraryMapPreviewCardState extends State<ItineraryMapPreviewCard> {
                         child: Text(
                           headerTitle,
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                            color: Color(0xFF1E1E1E),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -250,7 +239,7 @@ class _ItineraryMapPreviewCardState extends State<ItineraryMapPreviewCard> {
           // Missing Coordinates Warning Pill (if some or all activities lack coordinates)
           if (missingNotice != null)
             Container(
-              margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFFBEB),
@@ -281,11 +270,15 @@ class _ItineraryMapPreviewCardState extends State<ItineraryMapPreviewCard> {
 
           // Interactive Map Canvas Viewport
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFEBEBEF)),
+              ),
+              clipBehavior: Clip.antiAlias,
               child: SizedBox(
-                height: 200,
+                height: 180,
                 child: Stack(
                   children: [
                     Positioned.fill(

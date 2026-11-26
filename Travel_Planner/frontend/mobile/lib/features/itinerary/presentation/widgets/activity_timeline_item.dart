@@ -1,27 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:mobile/shared/widgets/app_bottom_sheet.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/activity_detail.dart';
+import 'navigation_launcher_helper.dart';
 
 class ActivityTimelineItem extends StatelessWidget {
   final ActivityDetail activity;
+  final int sequenceNumber;
+  final Color dayColor;
+  final Color dayLightColor;
   final bool isLast;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onComments;
   final VoidCallback? onTap;
   final VoidCallback? onSavePlace;
+  final VoidCallback? onDirections;
 
   const ActivityTimelineItem({
     super.key,
     required this.activity,
+    this.sequenceNumber = 1,
+    this.dayColor = AppColors.primary,
+    this.dayLightColor = AppColors.primaryLight,
     this.isLast = false,
     this.onEdit,
     this.onDelete,
     this.onComments,
     this.onTap,
     this.onSavePlace,
+    this.onDirections,
   });
 
   String _formatCost(double cost) {
@@ -33,491 +44,434 @@ class ActivityTimelineItem extends StatelessWidget {
     return '$formatted ₫';
   }
 
+  String? _formatActivityType(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    return switch (raw.trim().toUpperCase()) {
+      'SIGHTSEEING' || 'ATTRACTION' => 'Điểm tham quan',
+      'DINING' || 'FOOD' || 'RESTAURANT' => 'Ẩm thực',
+      'ACCOMMODATION' || 'HOTEL' => 'Lưu trú',
+      'TRANSPORT' || 'TRANSPORTATION' => 'Di chuyển',
+      'SHOPPING' => 'Mua sắm',
+      'ENTERTAINMENT' => 'Giải trí',
+      'OTHER' => 'Khác',
+      _ => raw.trim(),
+    };
+  }
+
+  String? _secondaryLocationLine() {
+    final location = activity.effectiveLocationName?.trim();
+    final address = activity.effectiveAddress?.trim();
+    final description = activity.description?.trim();
+
+    if (location != null &&
+        location.isNotEmpty &&
+        location.toLowerCase() != activity.name.trim().toLowerCase()) {
+      if (address != null &&
+          address.isNotEmpty &&
+          address.toLowerCase() != location.toLowerCase()) {
+        return '$location • $address';
+      }
+      return location;
+    }
+    if (address != null && address.isNotEmpty) return address;
+    if (description != null && description.isNotEmpty) return description;
+    if (activity.effectiveLatitude != null &&
+        activity.effectiveLongitude != null) {
+      return '${activity.effectiveLatitude!.toStringAsFixed(4)}, ${activity.effectiveLongitude!.toStringAsFixed(4)}';
+    }
+    return null;
+  }
+
+  Future<void> _openOptionsSheet(BuildContext context) async {
+    final hasDirections = onDirections != null || activity.hasCoordinates;
+    final options = <AppBottomSheetOption<String>>[
+      if (onTap != null)
+        const AppBottomSheetOption(
+          value: 'view',
+          icon: Icons.visibility_outlined,
+          label: 'Xem chi tiết địa điểm',
+        ),
+      if (onSavePlace != null)
+        const AppBottomSheetOption(
+          value: 'save_place',
+          icon: Icons.bookmark_add_outlined,
+          label: 'Lưu địa điểm',
+        ),
+      if (hasDirections)
+        const AppBottomSheetOption(
+          value: 'directions',
+          icon: Icons.directions_outlined,
+          label: 'Chỉ đường trên bản đồ',
+        ),
+      if (onEdit != null)
+        const AppBottomSheetOption(
+          value: 'edit',
+          icon: Icons.edit_outlined,
+          label: 'Chỉnh sửa hoạt động',
+        ),
+      if (onDelete != null)
+        const AppBottomSheetOption(
+          value: 'delete',
+          icon: Icons.delete_outline,
+          label: 'Xóa hoạt động',
+          isDestructive: true,
+        ),
+    ];
+
+    if (options.isEmpty) return;
+
+    final selected = await AppBottomSheet.showOptions<String>(
+      context,
+      title: activity.name,
+      options: options,
+    );
+
+    if (selected == null || !context.mounted) return;
+    switch (selected) {
+      case 'view':
+        onTap?.call();
+      case 'save_place':
+        onSavePlace?.call();
+      case 'directions':
+        if (onDirections != null) {
+          onDirections!();
+        } else if (activity.hasCoordinates) {
+          await NavigationLauncherHelper.launchNavigation(
+            context: context,
+            stops: [
+              NavigationStop(
+                point: LatLng(
+                  activity.effectiveLatitude!,
+                  activity.effectiveLongitude!,
+                ),
+                label: activity.navigationDisplayName,
+              ),
+            ],
+          );
+        }
+      case 'edit':
+        onEdit?.call();
+      case 'delete':
+        onDelete?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final timeFormatted = activity.timeRangeFormatted;
-    final activityImageUrl = activity.effectiveImageUrl;
+    final activityImageUrl = activity.effectiveImageUrl?.trim();
+    final hasImage = activityImageUrl != null && activityImageUrl.isNotEmpty;
     final hasCatalogRef =
         activity.place != null || activity.destination != null;
+    final secondaryLine = _secondaryLocationLine();
+    final categoryLabel = _formatActivityType(activity.activityType);
+    final hasOptions =
+        onTap != null ||
+        onSavePlace != null ||
+        onDirections != null ||
+        activity.hasCoordinates ||
+        onEdit != null ||
+        onDelete != null;
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timeline indicator column
-          SizedBox(
-            width: 28,
-            child: Column(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFEBEBEF)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x22FF385C),
-                        blurRadius: 4,
-                        offset: Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: AppColors.hairline,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Activity details
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 8.0 : 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Time & cost badge row & actions
-                  if (timeFormatted != null ||
-                      (activity.estimatedCost != null &&
-                          activity.estimatedCost! > 0) ||
-                      onEdit != null ||
-                      onDelete != null ||
-                      onTap != null)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: BounceTap(
-                            enabled: onTap != null,
-                            child: InkWell(
-                              onTap: onTap,
-                              borderRadius: BorderRadius.circular(6),
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 4,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                if (timeFormatted != null)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
+                // Left: Sequence badge + Activity info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Line 1: Day-colored sequence badge + bold title
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            margin: const EdgeInsets.only(top: 1),
+                            decoration: BoxDecoration(
+                              color: activity.visited
+                                  ? const Color(0xFF6E6E73)
+                                  : dayColor,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: activity.visited
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    size: 14,
+                                    color: Colors.white,
+                                  )
+                                : Text(
+                                    '$sequenceNumber',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 1.0,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.surfaceSoft,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: AppColors.hairline,
+                                  ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              activity.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1E1E1E),
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Line 2: Time range + Estimated cost + Visited pill
+                      if (timeFormatted != null ||
+                          (activity.estimatedCost != null &&
+                              activity.estimatedCost! > 0) ||
+                          activity.visited) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (timeFormatted != null)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 13,
+                                    color: Color(0xFF6E6E73),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    timeFormatted,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1E1E1E),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            if (activity.estimatedCost != null &&
+                                activity.estimatedCost! > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFECFDF5),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  _formatCost(activity.estimatedCost!),
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF059669),
+                                  ),
+                                ),
+                              ),
+                            if (activity.visited)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_rounded,
+                                      size: 11,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Đã ghé thăm',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF4B5563),
                                       ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+
+                      // Line 3: Location/description + Category tag + optional comments
+                      if (secondaryLine != null) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          secondaryLine,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF6E6E73),
+                          ),
+                        ),
+                      ],
+
+                      if (categoryLabel != null || onComments != null) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (categoryLabel != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: dayLightColor,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  categoryLabel,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: dayColor,
+                                  ),
+                                ),
+                              ),
+                            if (onComments != null)
+                              BounceTap(
+                                child: InkWell(
+                                  onTap: onComments,
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 2,
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         const Icon(
-                                          Icons.access_time,
-                                          size: 12,
-                                          color: AppColors.textSecondary,
+                                          Icons.mode_comment_outlined,
+                                          size: 13,
+                                          color: Color(0xFF6E6E73),
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          timeFormatted,
+                                          '${activity.commentCount}',
                                           style: const TextStyle(
-                                            fontSize: 11,
+                                            fontSize: 11.5,
                                             fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
+                                            color: Color(0xFF6E6E73),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                if (activity.estimatedCost != null &&
-                                    activity.estimatedCost! > 0)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF0FDF4),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: const Color(0xFFBBF7D0),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _formatCost(activity.estimatedCost!),
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.success,
-                                      ),
-                                    ),
-                                  ),
-                                if (activity.visited)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 7,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primaryLight,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.check_rounded,
-                                          size: 12,
-                                          color: AppColors.primary,
-                                        ),
-                                        SizedBox(width: 3),
-                                        Text(
-                                          'Đã ghé',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        ),
-                        if (onEdit != null ||
-                            onDelete != null ||
-                            onTap != null ||
-                            onSavePlace != null)
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: PopupMenuButton<String>(
-                              icon: const Icon(
-                                Icons.more_horiz,
-                                size: 18,
-                                color: AppColors.textSecondary,
-                              ),
-                              padding: EdgeInsets.zero,
-                              onSelected: (value) {
-                                if (value == 'view' && onTap != null) {
-                                  onTap!();
-                                } else if (value == 'edit' && onEdit != null) {
-                                  onEdit!();
-                                } else if (value == 'delete' &&
-                                    onDelete != null) {
-                                  onDelete!();
-                                } else if (value == 'save_place' &&
-                                    onSavePlace != null) {
-                                  onSavePlace!();
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                if (onTap != null)
-                                  const PopupMenuItem<String>(
-                                    value: 'view',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.visibility_outlined,
-                                          size: 16,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text('Xem chi tiết'),
-                                      ],
-                                    ),
-                                  ),
-                                if (onSavePlace != null)
-                                  const PopupMenuItem<String>(
-                                    value: 'save_place',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.bookmark_add_outlined,
-                                          size: 16,
-                                          color: AppColors.primary,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            'Lưu địa điểm vào lịch trình',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                if (onEdit != null)
-                                  const PopupMenuItem<String>(
-                                    value: 'edit',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.edit_outlined, size: 16),
-                                        SizedBox(width: 8),
-                                        Text('Sửa hoạt động'),
-                                      ],
-                                    ),
-                                  ),
-                                if (onDelete != null)
-                                  const PopupMenuItem<String>(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.delete_outline,
-                                          size: 16,
-                                          color: AppColors.error,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Xóa hoạt động',
-                                          style: TextStyle(
-                                            color: AppColors.error,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-
-                  const SizedBox(height: 6),
-
-                  // Information body (tappable to view details)
-                  BounceTap(
-                    enabled: onTap != null,
-                    child: InkWell(
-                      onTap: onTap,
-                      borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Name
-                          Text(
-                            activity.name,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-
-                          // Description
-                          if (activity.description != null &&
-                              activity.description!.trim().isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              activity.description!.trim(),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textBody,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-
-                          // Unified Location card (authoritative snapshot + catalog destination info)
-                          if ((activity.effectiveLocationName != null &&
-                                  activity.effectiveLocationName!
-                                      .trim()
-                                      .isNotEmpty) ||
-                              activity.hasCoordinates) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceSoft,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: AppColors.hairlineSoft,
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  if (activityImageUrl != null &&
-                                      activityImageUrl.trim().isNotEmpty) ...[
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: Image.network(
-                                        activityImageUrl.trim(),
-                                        width: 48,
-                                        height: 48,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) => hasCatalogRef
-                                            ? _destinationPlaceholder()
-                                            : _customLocationPlaceholder(),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                  ] else ...[
-                                    hasCatalogRef
-                                        ? _destinationPlaceholder()
-                                        : _customLocationPlaceholder(),
-                                    const SizedBox(width: 8),
-                                  ],
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          activity.effectiveLocationName ??
-                                              'Vị trí đã ghim',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (activity.effectiveAddress != null &&
-                                            activity.effectiveAddress!
-                                                .trim()
-                                                .isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            activity.effectiveAddress!.trim(),
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ] else if (activity.effectiveLatitude !=
-                                                null &&
-                                            activity.effectiveLongitude !=
-                                                null) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '${activity.effectiveLatitude!.toStringAsFixed(4)}, ${activity.effectiveLongitude!.toStringAsFixed(4)}',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                        ],
-                                        if ((activity.place?.description
-                                                    ?.trim()
-                                                    .isNotEmpty ==
-                                                true) ||
-                                            (activity.destination?.description
-                                                    ?.trim()
-                                                    .isNotEmpty ==
-                                                true)) ...[
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            (activity.place?.description
-                                                        ?.trim()
-                                                        .isNotEmpty ==
-                                                    true)
-                                                ? activity.place!.description!
-                                                      .trim()
-                                                : activity
-                                                      .destination!
-                                                      .description!
-                                                      .trim(),
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.textBody,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  if (onSavePlace != null) ...[
-                                    const SizedBox(width: 4),
-                                    BounceTap.icon(
-                                      child: IconButton(
-                                        icon: const Icon(
-                                          Icons.bookmark_add_outlined,
-                                          size: 20,
-                                          color: AppColors.primary,
-                                        ),
-                                        tooltip: 'Lưu địa điểm vào lịch trình',
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(
-                                          minWidth: 32,
-                                          minHeight: 32,
-                                        ),
-                                        onPressed: onSavePlace,
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                // Right: 70x70 rounded thumbnail + compact options button
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFEFEFF4)),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: hasImage
+                          ? Image.network(
+                              activityImageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  _buildThumbnailPlaceholder(hasCatalogRef),
+                            )
+                          : _buildThumbnailPlaceholder(hasCatalogRef),
+                    ),
+                    if (hasOptions) ...[
+                      const SizedBox(width: 2),
+                      BounceTap.icon(
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          child: InkWell(
+                            onTap: () => _openOptionsSheet(context),
+                            borderRadius: BorderRadius.circular(8),
+                            child: const SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: Icon(
+                                Icons.more_horiz,
+                                size: 19,
+                                color: Color(0xFF6E6E73),
                               ),
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  ),
-                  if (onComments != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: BounceTap(
-                        child: TextButton.icon(
-                          onPressed: onComments,
-                          icon: const Icon(Icons.mode_comment_outlined, size: 17),
-                          label: Text(
-                            'Bình luận hoạt động (${activity.commentCount})',
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                    ],
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _destinationPlaceholder() => Container(
-    width: 40,
-    height: 40,
-    decoration: BoxDecoration(
-      color: AppColors.primaryLight,
-      borderRadius: BorderRadius.circular(6),
-    ),
-    alignment: Alignment.center,
-    child: const Icon(Icons.place, size: 18, color: AppColors.primary),
-  );
-
-  Widget _customLocationPlaceholder() => Container(
-    width: 40,
-    height: 40,
-    decoration: BoxDecoration(
-      color: AppColors.primaryLight,
-      borderRadius: BorderRadius.circular(6),
-    ),
-    alignment: Alignment.center,
-    child: const Icon(Icons.pin_drop, size: 18, color: AppColors.primary),
-  );
+  Widget _buildThumbnailPlaceholder(bool hasCatalogRef) {
+    return Container(
+      color: dayLightColor,
+      alignment: Alignment.center,
+      child: Icon(
+        hasCatalogRef ? Icons.place_rounded : Icons.pin_drop_rounded,
+        size: 24,
+        color: dayColor,
+      ),
+    );
+  }
 }
