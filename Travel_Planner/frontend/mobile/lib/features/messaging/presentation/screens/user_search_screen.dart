@@ -1,16 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
-import '../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/app_empty_state.dart';
-import '../../../../shared/widgets/app_toast.dart';
 import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
+
+import '../../../../shared/widgets/app_empty_state.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
-import '../../data/messaging_repository.dart';
 import '../../data/messaging_realtime_client.dart';
+import '../../data/messaging_repository.dart';
 import '../../data/models/user_search_result.dart';
 import 'chat_screen.dart';
 
@@ -29,19 +28,39 @@ class UserSearchScreen extends StatefulWidget {
 }
 
 class _UserSearchScreenState extends State<UserSearchScreen> {
+  static const List<Color> _pastelBgColors = [
+    Color(0xFFFFF0F3),
+    Color(0xFFEFF6FF),
+    Color(0xFFECFDF5),
+    Color(0xFFFFFBEB),
+    Color(0xFFF5F3FF),
+  ];
+
+  static const List<Color> _pastelTextColors = [
+    Color(0xFFFA3E62),
+    Color(0xFF2563EB),
+    Color(0xFF059669),
+    Color(0xFFD97706),
+    Color(0xFF7C3AED),
+  ];
+
   late final MessagingRepository _repository =
       widget.repository ?? MessagingRepository();
   final _query = TextEditingController();
   final _scroll = ScrollController();
   Timer? _debounce;
+
+  List<UserSearchResult> _suggestions = [];
   List<UserSearchResult> _results = [];
   int _page = 0;
   int _generation = 0;
   bool _hasMore = false;
   bool _loading = false;
+  bool _loadingSuggestions = false;
   bool _loadingMore = false;
   bool _searched = false;
   String? _error;
+  String? _suggestionsError;
 
   String? get _token => widget.authNotifier.token;
 
@@ -50,6 +69,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     super.initState();
     _query.addListener(_onQueryChanged);
     _scroll.addListener(_onScroll);
+    _loadSuggestions();
   }
 
   @override
@@ -58,6 +78,32 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     _query.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSuggestions() async {
+    final token = _token;
+    if (token == null) return;
+    setState(() {
+      _loadingSuggestions = true;
+      _suggestionsError = null;
+    });
+    try {
+      final response = await _repository.suggestedUsers(token, size: 10);
+      if (!mounted) return;
+      setState(() {
+        _suggestions = response.content.take(10).toList();
+        _suggestionsError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _suggestionsError = 'Không thể tải danh sách gợi ý. Hãy thử lại.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingSuggestions = false);
+      }
+    }
   }
 
   void _onQueryChanged() {
@@ -75,6 +121,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       });
       return;
     }
+    setState(() {});
     final generation = ++_generation;
     _debounce = Timer(const Duration(milliseconds: 350), () {
       _load(query, generation: generation, reset: true);
@@ -82,6 +129,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   }
 
   void _onScroll() {
+    if (_query.text.trim().length < 2) return;
     if (!_scroll.hasClients || _loading || _loadingMore || !_hasMore) return;
     if (_scroll.position.extentAfter < 280) {
       _load(_query.text.trim(), generation: _generation, reset: false);
@@ -143,6 +191,8 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     if (query.length >= 2) {
       final generation = ++_generation;
       await _load(query, generation: generation, reset: true);
+    } else {
+      await _loadSuggestions();
     }
   }
 
@@ -218,193 +268,479 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     }
   }
 
-  Widget _avatar(UserSearchResult user) {
+  Widget _buildAvatar(UserSearchResult user) {
     final url = user.avatar?.trim() ?? '';
-    return CircleAvatar(
-      backgroundColor: AppColors.surfaceStrong,
-      backgroundImage: url.isEmpty ? null : NetworkImage(url),
-      onBackgroundImageError: url.isEmpty ? null : (_, _) {},
-      child: url.isEmpty
-          ? const Icon(Icons.person_outline, color: AppColors.muted)
-          : null,
+    final displayName = user.fullName?.trim().isNotEmpty == true
+        ? user.fullName!.trim()
+        : user.handle.trim();
+    final initial = displayName.isNotEmpty
+        ? displayName.substring(0, 1).toUpperCase()
+        : '?';
+    final colorIndex = user.userId.abs() % _pastelBgColors.length;
+
+    return Container(
+      width: 66,
+      height: 66,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _pastelBgColors[colorIndex],
+        border: Border.all(color: const Color(0xFFEFEFF4), width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: url.isNotEmpty
+          ? Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Center(
+                child: Text(
+                  initial,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: _pastelTextColors[colorIndex],
+                  ),
+                ),
+              ),
+            )
+          : Center(
+              child: Text(
+                initial,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: _pastelTextColors[colorIndex],
+                ),
+              ),
+            ),
     );
   }
 
-  Widget? _action(UserSearchResult user) {
-    if (user.isSelf) return const Chip(label: Text('Bạn'));
-    if (user.friendRequestDirection == 'received' &&
-        user.friendshipId != null) {
-      return Wrap(
-        spacing: 4,
-        children: [
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Chấp nhận lời mời',
-              onPressed: () => _act(user, 'accept'),
-              icon: const Icon(Icons.check_circle_outline),
-            ),
-          ),
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Từ chối lời mời',
-              onPressed: () => _act(user, 'decline'),
-              icon: const Icon(Icons.cancel_outlined),
-            ),
-          ),
-        ],
-      );
-    }
-    if (user.friendRequestDirection == 'sent' && user.friendshipId != null) {
-      return BounceTap(
-        child: TextButton(
-          onPressed: () => _act(user, 'cancel'),
-          child: const Text('Đã gửi · Hủy'),
-        ),
-      );
-    }
-    if (user.friendshipStatus == 'ACCEPTED') {
-      return Wrap(
-        spacing: 4,
-        children: [
-          if (user.canMessage || user.canContinueConversation)
-            BounceTap.icon(
-              child: IconButton(
-                tooltip: 'Nhắn tin',
-                onPressed: () => _message(user),
-                icon: const Icon(Icons.chat_outlined),
+  Widget _buildActionButton({
+    required String label,
+    required VoidCallback onTap,
+    required Color backgroundColor,
+    required Color textColor,
+    IconData? icon,
+  }) {
+    return Expanded(
+      child: BounceTap(
+        child: Material(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              height: 36,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 16, color: textColor),
+                    const SizedBox(width: 5),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Hủy kết bạn',
-              onPressed: () => _act(user, 'unfriend'),
-              icon: const Icon(Icons.person_remove_alt_1_outlined),
-            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildButtonsRow(UserSearchResult user) {
+    if (user.isSelf) {
+      return Row(
+        children: [
+          _buildActionButton(
+            label: 'Xem trang',
+            onTap: () => _openProfile(user),
+            backgroundColor: const Color(0xFFF3F4F6),
+            textColor: const Color(0xFF1E1E1E),
           ),
         ],
       );
     }
-    if (user.canSendFriendRequest) {
-      return BounceTap(
-        child: FilledButton.tonalIcon(
-          onPressed: () => _act(user, 'add'),
-          icon: const Icon(Icons.person_add_alt_1),
-          label: const Text('Kết bạn'),
-        ),
+
+    if (user.friendRequestDirection == 'received' &&
+        user.friendshipId != null) {
+      return Row(
+        children: [
+          _buildActionButton(
+            label: 'Chấp nhận',
+            icon: Icons.check_rounded,
+            onTap: () => _act(user, 'accept'),
+            backgroundColor: const Color(0xFFFA3E62),
+            textColor: Colors.white,
+          ),
+          const SizedBox(width: 8),
+          _buildActionButton(
+            label: 'Từ chối',
+            onTap: () => _act(user, 'decline'),
+            backgroundColor: const Color(0xFFF3F4F6),
+            textColor: const Color(0xFF1E1E1E),
+          ),
+        ],
       );
     }
-    return user.canMessage || user.canContinueConversation
-        ? BounceTap.icon(
-            child: IconButton(
-              tooltip: 'Nhắn tin',
-              onPressed: () => _message(user),
-              icon: const Icon(Icons.chat_outlined),
+
+    if (user.friendRequestDirection == 'sent' && user.friendshipId != null) {
+      return Row(
+        children: [
+          _buildActionButton(
+            label: 'Đã gửi lời mời',
+            onTap: () => _act(user, 'cancel'),
+            backgroundColor: const Color(0xFFF3F4F6),
+            textColor: const Color(0xFF4B5563),
+          ),
+          const SizedBox(width: 8),
+          _buildActionButton(
+            label: 'Xem trang',
+            onTap: () => _openProfile(user),
+            backgroundColor: const Color(0xFFF3F4F6),
+            textColor: const Color(0xFF1E1E1E),
+          ),
+        ],
+      );
+    }
+
+    if (user.friendshipStatus == 'ACCEPTED') {
+      return Row(
+        children: [
+          if (user.canMessage || user.canContinueConversation)
+            _buildActionButton(
+              label: 'Nhắn tin',
+              icon: Icons.chat_bubble_outline_rounded,
+              onTap: () => _message(user),
+              backgroundColor: const Color(0xFFFFF0F3),
+              textColor: const Color(0xFFFA3E62),
+            )
+          else
+            _buildActionButton(
+              label: 'Bạn bè',
+              icon: Icons.check_rounded,
+              onTap: () => _openProfile(user),
+              backgroundColor: const Color(0xFFF3F4F6),
+              textColor: const Color(0xFF4B5563),
             ),
-          )
-        : const Chip(label: Text('Không thể thao tác'));
+          const SizedBox(width: 8),
+          _buildActionButton(
+            label: 'Xem trang',
+            onTap: () => _openProfile(user),
+            backgroundColor: const Color(0xFFF3F4F6),
+            textColor: const Color(0xFF1E1E1E),
+          ),
+        ],
+      );
+    }
+
+    if (user.canSendFriendRequest) {
+      return Row(
+        children: [
+          _buildActionButton(
+            label: 'Thêm bạn',
+            icon: Icons.person_add_alt_1_rounded,
+            onTap: () => _act(user, 'add'),
+            backgroundColor: const Color(0xFFFA3E62),
+            textColor: Colors.white,
+          ),
+          const SizedBox(width: 8),
+          _buildActionButton(
+            label: 'Xem trang',
+            onTap: () => _openProfile(user),
+            backgroundColor: const Color(0xFFF3F4F6),
+            textColor: const Color(0xFF1E1E1E),
+          ),
+        ],
+      );
+    }
+
+    if (user.canMessage || user.canContinueConversation) {
+      return Row(
+        children: [
+          _buildActionButton(
+            label: 'Nhắn tin',
+            icon: Icons.chat_bubble_outline_rounded,
+            onTap: () => _message(user),
+            backgroundColor: const Color(0xFFFFF0F3),
+            textColor: const Color(0xFFFA3E62),
+          ),
+          const SizedBox(width: 8),
+          _buildActionButton(
+            label: 'Xem trang',
+            onTap: () => _openProfile(user),
+            backgroundColor: const Color(0xFFF3F4F6),
+            textColor: const Color(0xFF1E1E1E),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        _buildActionButton(
+          label: 'Xem trang',
+          onTap: () => _openProfile(user),
+          backgroundColor: const Color(0xFFF3F4F6),
+          textColor: const Color(0xFF1E1E1E),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserItem(UserSearchResult user) {
+    final displayName = user.fullName?.trim().isNotEmpty == true
+        ? user.fullName!.trim()
+        : '@${user.handle}';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BounceTap(
+            child: GestureDetector(
+              onTap: () => _openProfile(user),
+              child: _buildAvatar(user),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                BounceTap(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openProfile(user),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1E1E1E),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '@${user.handle}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF6E6E73),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _buildButtonsRow(user),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListBody({
+    required String headerTitle,
+    required List<UserSearchResult> items,
+    required bool showLoadingMore,
+  }) {
+    return RefreshIndicator(
+      color: const Color(0xFFFA3E62),
+      onRefresh: _refresh,
+      child: ListView.builder(
+        controller: _scroll,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.only(bottom: 24),
+        itemCount: 1 + items.length + (showLoadingMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+              child: Text(
+                headerTitle,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E1E1E),
+                ),
+              ),
+            );
+          }
+          final itemIndex = index - 1;
+          if (itemIndex == items.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(
+                child: CircularProgressIndicator(color: Color(0xFFFA3E62)),
+              ),
+            );
+          }
+          return _buildUserItem(items[itemIndex]);
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final queryTooShort = _query.text.trim().length < 2;
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        leadingWidth: 58,
-        leading: const Padding(
-          padding: EdgeInsets.only(left: 12),
-          child: Center(child: AppHeaderBackButton()),
-        ),
-        title: const Text('Tìm người dùng'),
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: TextField(
-              controller: _query,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Tìm theo tên hoặc @handle',
-                suffixIcon: BounceTap.icon(
-                  child: IconButton(
-                    tooltip: 'Xóa tìm kiếm',
-                    onPressed: _query.clear,
-                    icon: const Icon(Icons.close),
-                  ),
-                ),
-                filled: true,
-                fillColor: AppColors.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+    final isSearchMode = _query.text.trim().length >= 2;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          leadingWidth: 58,
+          leading: const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: Center(child: AppHeaderBackButton()),
+          ),
+          title: const Text(
+            'Tìm người dùng',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E1E1E),
             ),
           ),
-          if (_loading && _results.isEmpty)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
-          else if (_error != null && _results.isEmpty)
-            Expanded(
-              child: Center(
-                child: BounceTap(
-                  child: TextButton(onPressed: _refresh, child: Text(_error!)),
-                ),
-              ),
-            )
-          else if (queryTooShort && !_searched)
-            const Expanded(
-              child: AppEmptyState(
-                icon: Icons.person_search_outlined,
-                title: 'Tìm bạn đồng hành',
-                message: 'Nhập ít nhất 2 ký tự của tên hoặc @handle.',
-              ),
-            )
-          else if (_searched && _results.isEmpty)
-            const Expanded(
-              child: AppEmptyState(
-                icon: Icons.search_off,
-                title: 'Không tìm thấy người dùng',
-                message: 'Thử tìm bằng tên hoặc @handle khác.',
-              ),
-            )
-          else
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _refresh,
-                child: ListView.builder(
-                  controller: _scroll,
-                  itemCount: _results.length + (_loadingMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == _results.length) {
-                      return const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    final user = _results[index];
-                    return ListTile(
-                      leading: _avatar(user),
-                      title: Text(
-                        user.fullName?.trim().isNotEmpty == true
-                            ? user.fullName!
-                            : '@${user.handle}',
-                      ),
-                      subtitle: Text('@${user.handle}'),
-                      onTap: () => _openProfile(user),
-                      trailing: _action(user),
-                    );
-                  },
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF1E1E1E),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+              child: TextField(
+                controller: _query,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: Color(0xFF6E6E73),
+                    size: 21,
+                  ),
+                  hintText: 'Tìm theo tên hoặc @handle',
+                  hintStyle: const TextStyle(
+                    fontSize: 14.5,
+                    color: Color(0xFF6E6E73),
+                  ),
+                  suffixIcon: _query.text.isNotEmpty
+                      ? BounceTap.icon(
+                          child: IconButton(
+                            tooltip: 'Xóa tìm kiếm',
+                            onPressed: _query.clear,
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF6E6E73),
+                              size: 20,
+                            ),
+                          ),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: const Color(0xFFF4F5F7),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ),
-        ],
+            Expanded(
+              child: isSearchMode
+                  ? _buildSearchContent()
+                  : _buildSuggestionsContent(),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildSearchContent() {
+    if (_loading && _results.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFA3E62)),
+      );
+    }
+    if (_error != null && _results.isEmpty) {
+      return Center(
+        child: BounceTap(
+          child: TextButton(onPressed: _refresh, child: Text(_error!)),
+        ),
+      );
+    }
+    if (_searched && _results.isEmpty) {
+      return const AppEmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'Không tìm thấy người dùng phù hợp',
+        message: 'Thử tìm bằng tên hoặc @handle khác.',
+      );
+    }
+    return _buildListBody(
+      headerTitle: 'Kết quả tìm kiếm',
+      items: _results,
+      showLoadingMore: _loadingMore,
+    );
+  }
+
+  Widget _buildSuggestionsContent() {
+    if (_loadingSuggestions && _suggestions.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFA3E62)),
+      );
+    }
+    if (_suggestionsError != null && _suggestions.isEmpty) {
+      return Center(
+        child: BounceTap(
+          child: TextButton(
+            onPressed: _loadSuggestions,
+            child: Text(_suggestionsError!),
+          ),
+        ),
+      );
+    }
+    if (_suggestions.isEmpty) {
+      return const AppEmptyState(
+        icon: Icons.person_search_outlined,
+        title: 'Tìm bạn đồng hành',
+        message: 'Nhập ít nhất 2 ký tự của tên hoặc @handle.',
+      );
+    }
+    return _buildListBody(
+      headerTitle: 'Gợi ý bạn đồng hành',
+      items: _suggestions,
+      showLoadingMore: false,
     );
   }
 }

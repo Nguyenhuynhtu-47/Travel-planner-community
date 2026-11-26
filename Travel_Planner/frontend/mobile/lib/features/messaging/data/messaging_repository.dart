@@ -38,6 +38,18 @@ class MessagingRepository {
     UserSearchResult.fromJson,
   );
 
+  Future<PageResult<UserSearchResult>> suggestedUsers(
+    String token, {
+    int size = 10,
+  }) async => _page(
+    await _api.get(
+      '/api/users/suggestions',
+      token: token,
+      queryParameters: {'size': size},
+    ),
+    UserSearchResult.fromJson,
+  );
+
   Future<PageResult<ConversationSummary>> messageRequests(
     String token, {
     int page = 0,

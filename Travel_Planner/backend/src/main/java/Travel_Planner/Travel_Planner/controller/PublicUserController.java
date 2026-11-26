@@ -33,6 +33,13 @@ public class PublicUserController {
         return ResponseEntity.ok(users.searchUsers(q, page, size, viewer == null ? null : viewer.getUsername()));
     }
 
+    @GetMapping("/suggestions")
+    public ResponseEntity<PageResponse<UserSearchResultResponse>> suggestions(
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails viewer) {
+        return ResponseEntity.ok(users.getSuggestions(size, viewer == null ? null : viewer.getUsername()));
+    }
+
     @GetMapping("/{userId:[0-9]+}/itineraries")
     public ResponseEntity<PageResponse<ItinerarySummaryResponse>> itineraries(@PathVariable Integer userId,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="10") int size,

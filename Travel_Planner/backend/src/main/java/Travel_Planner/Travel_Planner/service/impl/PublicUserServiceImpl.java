@@ -95,19 +95,36 @@ public class PublicUserServiceImpl implements PublicUserService {
         Page<User> result = viewer == null
                 ? users.searchActiveUsers(escaped + "%", normalized, pageable)
                 : users.searchActiveUsersVisibleTo(escaped + "%", normalized, viewer.getUserId(), pageable);
-        List<Integer> peerIds = result.getContent().stream().map(User::getUserId)
-                .filter(id -> !id.equals(viewer.getUserId())).toList();
-        Map<Integer, RelationshipContextResponse> contexts = friendships == null || peerIds.isEmpty()
+        return toUserSearchPage(result, viewer);
+    }
+
+    @Override @Transactional(readOnly = true)
+    public PageResponse<UserSearchResultResponse> getSuggestions(int size, String viewerUsername) {
+        User viewer = activeViewer(viewerUsername);
+        int clampedSize = Math.max(1, Math.min(size, 20));
+        Pageable pageable = PageRequest.of(0, clampedSize);
+        Page<User> result = viewer == null
+                ? users.searchActiveUsers("%", "", pageable)
+                : users.searchActiveUsersVisibleTo("%", "", viewer.getUserId(), pageable);
+        return toUserSearchPage(result, viewer);
+    }
+
+    private PageResponse<UserSearchResultResponse> toUserSearchPage(Page<User> result, User viewer) {
+        List<Integer> peerIds = viewer == null
+                ? List.of()
+                : result.getContent().stream().map(User::getUserId)
+                        .filter(id -> !id.equals(viewer.getUserId())).toList();
+        Map<Integer, RelationshipContextResponse> contexts = viewer == null || friendships == null || peerIds.isEmpty()
                 ? Map.of() : friendships.relationshipContexts(viewer.getUserId(), peerIds);
         Set<Integer> acceptedPeers = new HashSet<>();
-        if (conversations != null && !peerIds.isEmpty()) {
+        if (viewer != null && conversations != null && !peerIds.isEmpty()) {
             acceptedPeers.addAll(conversations.findAcceptedPeerIds(viewer.getUserId(), peerIds,
                     ConversationStatus.ACCEPTED));
         }
-        Map<Integer, Boolean> canContinue = friendships == null || acceptedPeers.isEmpty()
+        Map<Integer, Boolean> canContinue = viewer == null || friendships == null || acceptedPeers.isEmpty()
                 ? Map.of() : friendships.canContinueConversationForPeers(viewer.getUserId(), List.copyOf(acceptedPeers));
         List<UserSearchResultResponse> content = result.getContent().stream().map(user -> {
-            boolean self = viewer.getUserId().equals(user.getUserId());
+            boolean self = viewer != null && viewer.getUserId().equals(user.getUserId());
             RelationshipContextResponse context = contexts.get(user.getUserId());
             return UserSearchResultResponse.builder().userId(user.getUserId()).handle(user.getHandle())
                     .fullName(user.getFullName()).avatar(user.getAvatar()).isSelf(self)
