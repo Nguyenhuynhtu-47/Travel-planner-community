@@ -12,6 +12,7 @@ import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.CommentService;
 import Travel_Planner.Travel_Planner.service.FriendshipService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -28,20 +29,28 @@ public class CommentServiceImpl implements CommentService {
     private final ActivityRepository activities;
     private final UserRepository users;
     private final FriendshipService friendshipService;
+    private final SocialNotificationService socialNotifications;
 
     @Autowired
     public CommentServiceImpl(CommentRepository comments, ItineraryRepository itineraries,
-                              ActivityRepository activities, UserRepository users, FriendshipService friendshipService) {
+                              ActivityRepository activities, UserRepository users, FriendshipService friendshipService,
+                              SocialNotificationService socialNotifications) {
         this.comments = comments;
         this.itineraries = itineraries;
         this.activities = activities;
         this.users = users;
         this.friendshipService = friendshipService;
+        this.socialNotifications = socialNotifications;
+    }
+
+    public CommentServiceImpl(CommentRepository comments, ItineraryRepository itineraries,
+                              ActivityRepository activities, UserRepository users, FriendshipService friendshipService) {
+        this(comments, itineraries, activities, users, friendshipService, null);
     }
 
     public CommentServiceImpl(CommentRepository comments, ItineraryRepository itineraries,
                               ActivityRepository activities, UserRepository users) {
-        this(comments, itineraries, activities, users, null);
+        this(comments, itineraries, activities, users, null, null);
     }
 
     @Override @Transactional(readOnly = true)
@@ -67,6 +76,7 @@ public class CommentServiceImpl implements CommentService {
         comment.setRootComment(comment);
         comment = comments.save(comment);
         itineraries.incrementCommentCount(itineraryId);
+        if (socialNotifications != null) socialNotifications.itineraryComment(comment);
         return toResponse(comment);
     }
 
@@ -93,6 +103,7 @@ public class CommentServiceImpl implements CommentService {
         comment = comments.saveAndFlush(comment);
         comment.setRootComment(comment);
         comment = comments.save(comment);
+        if (socialNotifications != null) socialNotifications.itineraryComment(comment);
         return toResponse(comment);
     }
 
@@ -124,6 +135,7 @@ public class CommentServiceImpl implements CommentService {
         reply = comments.save(reply);
         if (reply.getActivity() == null && reply.getItinerary() != null)
             itineraries.incrementCommentCount(reply.getItinerary().getItineraryId());
+        if (socialNotifications != null) socialNotifications.itineraryComment(reply);
         return toResponse(reply);
     }
 

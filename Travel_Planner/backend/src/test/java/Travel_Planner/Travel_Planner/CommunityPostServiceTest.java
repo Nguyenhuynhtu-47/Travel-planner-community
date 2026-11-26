@@ -10,6 +10,7 @@ import Travel_Planner.Travel_Planner.model.*;
 import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.impl.MediaCleanupService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import Travel_Planner.Travel_Planner.service.impl.PostServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +50,8 @@ class CommunityPostServiceTest {
     private ItineraryRepository itineraryRepository;
     @Mock
     private FriendshipRepository friendshipRepository;
+    @Mock
+    private SocialNotificationService socialNotifications;
 
     private PostServiceImpl postService;
 
@@ -68,7 +71,9 @@ class CommunityPostServiceTest {
                 postReportRepository,
                 userRepository,
                 itineraryRepository,
-                friendshipRepository
+                friendshipRepository,
+                null,
+                socialNotifications
         );
 
         activeUser = User.builder()
@@ -106,6 +111,27 @@ class CommunityPostServiceTest {
                 .status(UserStatus.ACTIVE)
                 .role(Role.ADMIN)
                 .build();
+    }
+
+    @Test
+    @DisplayName("Moderation locks and saves the existing post before notifying about a removal transition")
+    void moderatePostPublishesTransitionAfterSuccessfulStateChange() {
+        Post post = new Post();
+        post.setPostId(501L);
+        post.setAuthor(activeUser);
+        post.setStatus(PostStatus.ACTIVE);
+        post.setVisibility(PostVisibility.PUBLIC);
+        when(userRepository.findByUsername("admin_user")).thenReturn(Optional.of(adminUser));
+        when(postRepository.findByIdForUpdate(501L)).thenReturn(Optional.of(post));
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(postMediaRepository.findByPost_PostIdOrderByDisplayOrderAsc(501L)).thenReturn(List.of());
+
+        postService.moderatePost(501L, ModeratePostRequest.builder()
+                .status(PostStatus.HIDDEN).moderationReason("policy").build(), "admin_user");
+
+        verify(socialNotifications).postModerationTransition(eq(post), any(User.class),
+                eq(PostStatus.ACTIVE), eq(PostStatus.HIDDEN), anyString());
+        assertEquals(PostStatus.HIDDEN, post.getStatus());
     }
 
     @Test
@@ -584,6 +610,7 @@ class CommunityPostServiceTest {
                 .build();
 
         when(userRepository.findByUsername("active_user")).thenReturn(Optional.of(activeUser));
+        when(postRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(post));
         when(postRepository.findByIdWithDetails(500L)).thenReturn(Optional.of(post));
         when(postLikeRepository.existsByPost_PostIdAndUser_UserId(500L, 1)).thenReturn(false);
 
@@ -591,11 +618,13 @@ class CommunityPostServiceTest {
 
         verify(postLikeRepository).save(any(PostLike.class));
         verify(postRepository).incrementLikeCount(500L);
+        verify(socialNotifications).postLiked(post, activeUser);
 
         // Second call when already liked:
         when(postLikeRepository.existsByPost_PostIdAndUser_UserId(500L, 1)).thenReturn(true);
         postService.likePost(500L, "active_user");
         verify(postRepository, times(1)).incrementLikeCount(500L); // Still 1 time!
+        verify(socialNotifications, times(1)).postLiked(post, activeUser);
     }
 
     @Test
@@ -610,6 +639,7 @@ class CommunityPostServiceTest {
                 .build();
 
         when(userRepository.findByUsername("active_user")).thenReturn(Optional.of(activeUser));
+        when(postRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(post));
         when(postRepository.findByIdWithDetails(500L)).thenReturn(Optional.of(post));
         when(postLikeRepository.existsByPost_PostIdAndUser_UserId(500L, 1)).thenReturn(true);
 
@@ -617,6 +647,7 @@ class CommunityPostServiceTest {
 
         verify(postLikeRepository).deleteByPost_PostIdAndUser_UserId(500L, 1);
         verify(postRepository).decrementLikeCount(500L);
+        verify(socialNotifications).postUnliked(post, activeUser);
     }
 
     @Test
@@ -647,6 +678,8 @@ class CommunityPostServiceTest {
         assertEquals(701L, response.getCommentId());
         assertEquals("Thật là một hành trình thú vị!", response.getContent());
         verify(postRepository).incrementCommentCount(600L);
+        verify(socialNotifications).postComment(argThat(comment -> comment.getParentComment() == null
+                && comment.getPost().getPostId().equals(600L)));
     }
 
     @Test
@@ -812,7 +845,7 @@ class CommunityPostServiceTest {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        when(postReportRepository.findById(11L)).thenReturn(Optional.of(savedReport));
+        when(postReportRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(savedReport));
         when(postReportRepository.save(any(PostReport.class))).thenAnswer(inv -> inv.getArgument(0));
 
         PostReportResponse resolved = postService.resolveReport(11L, ReportStatus.RESOLVED, "admin_user");
@@ -974,6 +1007,8 @@ class CommunityPostServiceTest {
         assertNotNull(resp.getReplyToUser());
         assertEquals(activeUser.getUserId(), resp.getReplyToUser().getUserId());
         verify(postRepository).incrementCommentCount(300L);
+        verify(socialNotifications).postComment(argThat(comment -> comment.getParentComment() == rootComment
+                && comment.getParentComment().getUser().getUserId().equals(activeUser.getUserId())));
     }
 
     @Test
