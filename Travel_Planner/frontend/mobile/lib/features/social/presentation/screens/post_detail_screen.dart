@@ -266,13 +266,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   void _openReport() {
     if (_token == null) return;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => ReportPostDialog(
-        postId: widget.postId,
-        token: _token!,
-        repository: _repository,
-      ),
+    ReportPostDialog.show(
+      context,
+      postId: widget.postId,
+      token: _token!,
+      repository: _repository,
     );
   }
 

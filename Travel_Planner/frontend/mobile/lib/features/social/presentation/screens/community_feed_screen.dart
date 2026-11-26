@@ -315,13 +315,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       _showLoginRequiredPrompt('báo cáo bài viết');
       return;
     }
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => ReportPostDialog(
-        postId: post.postId,
-        token: _token!,
-        repository: _repo,
-      ),
+    ReportPostDialog.show(
+      context,
+      postId: post.postId,
+      token: _token!,
+      repository: _repo,
     );
   }
 

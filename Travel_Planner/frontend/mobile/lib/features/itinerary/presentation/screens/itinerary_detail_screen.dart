@@ -1500,6 +1500,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     Expanded(
                       child: Text(
                         'Lịch trình theo ngày (${itinerary.days.length} ngày)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -1507,36 +1509,52 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                         ),
                       ),
                     ),
-                    if (isOwner)
+                    if (isOwner) ...[
+                      const SizedBox(width: 12),
                       BounceTap(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: Size.zero,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            side: const BorderSide(color: AppColors.primary),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                        child: Material(
+                          color: const Color(0xFFFFF0F3),
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            onTap: () => _handleAddDay(itinerary),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              height: 31,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFFFAD2DA),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.add_rounded,
+                                    size: 16,
+                                    color: Color(0xFFFA3E62),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Thêm ngày',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFFFA3E62),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          icon: const Icon(
-                            Icons.add_rounded,
-                            size: 18,
-                            color: AppColors.primary,
-                          ),
-                          label: const Text(
-                            'Thêm ngày',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          onPressed: () => _handleAddDay(itinerary),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
