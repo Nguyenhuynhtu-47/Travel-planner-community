@@ -16,6 +16,7 @@ class ItineraryCard extends StatelessWidget {
   final VoidCallback? onActionTap;
   final VoidCallback? onCreatorTap;
   final String? heroTag;
+  final bool isCompactHorizontal;
 
   const ItineraryCard({
     super.key,
@@ -30,6 +31,7 @@ class ItineraryCard extends StatelessWidget {
     this.onActionTap,
     this.onCreatorTap,
     this.heroTag,
+    this.isCompactHorizontal = false,
   });
 
   String _formatBudget(double budget) {
@@ -46,6 +48,10 @@ class ItineraryCard extends StatelessWidget {
     final hasRating = itinerary.ratingCount > 0 && itinerary.averageRating > 0;
     final isTopRated =
         itinerary.averageRating >= 4.5 && itinerary.ratingCount >= 2;
+
+    if (isCompactHorizontal) {
+      return _buildCompactHorizontal(context, hasRating);
+    }
 
     return BounceTap(
       enabled: onTap != null,
@@ -354,6 +360,176 @@ class ItineraryCard extends StatelessWidget {
         ),
       ),
     ),
+    );
+  }
+
+  Widget _buildCompactHorizontal(BuildContext context, bool hasRating) {
+    final creator = itinerary.creator;
+    final hasCreatorAvatar =
+        creator?.avatar != null && creator!.avatar!.trim().isNotEmpty;
+
+    return BounceTap(
+      enabled: onTap != null,
+      child: Material(
+        color: const Color(0xFFFFFFFF),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Hero(
+                  tag: heroTag ?? 'itinerary_card_${itinerary.itineraryId}',
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFEFEFF4),
+                        width: 1,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child:
+                        itinerary.coverImage != null &&
+                            itinerary.coverImage!.trim().isNotEmpty
+                        ? Image.network(
+                            itinerary.coverImage!.trim(),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _buildImagePlaceholder(),
+                          )
+                        : _buildImagePlaceholder(),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        itinerary.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E1E1E),
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${itinerary.location} • ${itinerary.totalDays} ngày',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF6E6E73),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (creator != null)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircleAvatar(
+                                  radius: 9,
+                                  backgroundColor: AppColors.surfaceStrong,
+                                  backgroundImage: hasCreatorAvatar
+                                      ? NetworkImage(creator.avatar!.trim())
+                                      : null,
+                                  child: !hasCreatorAvatar
+                                      ? const Icon(
+                                          Icons.person,
+                                          size: 11,
+                                          color: AppColors.muted,
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 5),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 110,
+                                  ),
+                                  child: Text(
+                                    creator.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF6E6E73),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          if (hasRating)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 14,
+                                  color: Color(0xFFF59E0B),
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  itinerary.averageRating.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1E1E1E),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          Text(
+                            _formatBudget(itinerary.budget),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFFA3E62),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (actionIcon != null && onActionTap != null) ...[
+                  const SizedBox(width: 8),
+                  BounceTap.icon(
+                    child: Material(
+                      color: const Color(0xFFFFF0F3),
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        onTap: onActionTap,
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: Icon(
+                            actionIcon,
+                            size: 19,
+                            color: actionIconColor ?? const Color(0xFFFA3E62),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

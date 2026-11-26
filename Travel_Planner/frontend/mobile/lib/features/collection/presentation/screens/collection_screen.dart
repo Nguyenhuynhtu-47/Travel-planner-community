@@ -321,11 +321,18 @@ class _CollectionScreenState extends State<CollectionScreen>
         await _notifier.refreshSaved(token: _effectiveToken);
         recordRefreshedNow();
       },
-      child: ListView.builder(
+      child: ListView.separated(
         key: const PageStorageKey<String>('saved_collection_list'),
         controller: _savedScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          thickness: 1,
+          indent: 110,
+          endIndent: 16,
+          color: Color(0xFFF0F0F5),
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= state.items.length) {
@@ -348,8 +355,9 @@ class _CollectionScreenState extends State<CollectionScreen>
           final isOwner = _isItineraryOwner(item);
           return ItineraryCard(
             itinerary: item,
+            isCompactHorizontal: true,
             actionIcon: isOwner ? null : Icons.bookmark,
-            actionIconColor: AppColors.savedActive,
+            actionIconColor: const Color(0xFFFA3E62),
             onActionTap: isOwner ? null : () => _handleRemoveSaved(item),
             showFavorite: !isOwner,
             onTap: () => _openDetail(item, isSaved: true),
@@ -392,11 +400,18 @@ class _CollectionScreenState extends State<CollectionScreen>
         await _notifier.refreshFavorite(token: _effectiveToken);
         recordRefreshedNow();
       },
-      child: ListView.builder(
+      child: ListView.separated(
         key: const PageStorageKey<String>('favorite_collection_list'),
         controller: _favoriteScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          thickness: 1,
+          indent: 110,
+          endIndent: 16,
+          color: Color(0xFFF0F0F5),
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= state.items.length) {
@@ -419,9 +434,10 @@ class _CollectionScreenState extends State<CollectionScreen>
           final isOwner = _isItineraryOwner(item);
           return ItineraryCard(
             itinerary: item,
+            isCompactHorizontal: true,
             heroTag: 'collection_fav_${item.itineraryId}',
             actionIcon: isOwner ? null : Icons.favorite,
-            actionIconColor: Colors.redAccent,
+            actionIconColor: const Color(0xFFFA3E62),
             onActionTap: isOwner ? null : () => _handleRemoveFavorite(item),
             showFavorite: !isOwner,
             onTap: () => _openDetail(item, isFavorited: true),

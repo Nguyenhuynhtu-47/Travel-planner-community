@@ -14,6 +14,7 @@ import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
+import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../my_itineraries_notifier.dart';
 import '../widgets/delete_itinerary_dialog.dart';
@@ -192,16 +193,32 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
         ),
       ),
       floatingActionButton: BounceTap(
-        child: FloatingActionButton.extended(
-          heroTag: 'my_itineraries_fab',
-          key: const Key('fab_create_itinerary'),
-          onPressed: _navigateToCreateScreen,
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text(
-            'Tạo lịch trình',
-            style: TextStyle(fontWeight: FontWeight.w600),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFA3E62).withValues(alpha: 0.30),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: FloatingActionButton.extended(
+            heroTag: 'my_itineraries_fab',
+            key: const Key('fab_create_itinerary'),
+            onPressed: _navigateToCreateScreen,
+            backgroundColor: const Color(0xFFFA3E62),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text(
+              'Tạo lịch trình',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ),
@@ -264,10 +281,17 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
                     recordRefreshedNow();
                   },
                   color: AppColors.primary,
-                  child: ListView.builder(
+                  child: ListView.separated(
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                    padding: const EdgeInsets.only(top: 4, bottom: 88),
+                    separatorBuilder: (_, _) => const Divider(
+                      height: 1,
+                      thickness: 1,
+                      indent: 110,
+                      endIndent: 16,
+                      color: Color(0xFFF0F0F5),
+                    ),
                     itemCount:
                         _notifier.itineraries.length +
                         (_notifier.isLoadingMore ? 1 : 0),
@@ -308,6 +332,19 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
                           if (result == true && mounted) {
                             _notifier.refresh(token: widget.authNotifier.token);
                           }
+                        },
+                        onShare: () {
+                          ShareBottomSheet.show(
+                            context,
+                            targetType: 'ITINERARY',
+                            targetId: item.itineraryId,
+                            title: item.title,
+                            coverImage: item.coverImage,
+                            subtitle: item.location.isNotEmpty
+                                ? item.location
+                                : '${item.totalDays} ngày',
+                            authNotifier: widget.authNotifier,
+                          );
                         },
                         onEdit: () => _handleEdit(item),
                         onDelete: () => _handleDelete(item),
@@ -400,22 +437,36 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
   }) {
     return BounceTap(
       useSelectionHaptic: true,
-      child: FilterChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onSelected(),
-        selectedColor: AppColors.primaryLight,
-        checkmarkColor: AppColors.primary,
-        labelStyle: TextStyle(
-          color: selected ? AppColors.primary : AppColors.textPrimary,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-          fontSize: 13,
+      child: Material(
+        color: selected ? const Color(0xFFFFF0F3) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onSelected,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected
+                    ? const Color(0xFFFA3E62)
+                    : const Color(0xFFE5E7EB),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected
+                    ? const Color(0xFFFA3E62)
+                    : const Color(0xFF1E1E1E),
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 13,
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surface,
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.hairline,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
