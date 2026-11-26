@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
-import '../../../../shared/widgets/app_header_button.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 
 class SavedItinerariesScreen extends StatelessWidget {
   const SavedItinerariesScreen({super.key});

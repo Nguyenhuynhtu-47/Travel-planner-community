@@ -7,8 +7,10 @@ import '../../data/messaging_date_time.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
+
 import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
+
 import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/messaging_repository.dart';
@@ -327,7 +329,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: IconButton(
                       tooltip: 'Chấp nhận',
                       onPressed: () async {
-                        await _repo.acceptFriendRequest(r.friendshipId, _token!);
+                        await _repo.acceptFriendRequest(
+                          r.friendshipId,
+                          _token!,
+                        );
                         _load();
                       },
                       icon: const Icon(Icons.check, color: AppColors.primary),
@@ -337,7 +342,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: IconButton(
                       tooltip: 'Từ chối',
                       onPressed: () async {
-                        await _repo.declineFriendRequest(r.friendshipId, _token!);
+                        await _repo.declineFriendRequest(
+                          r.friendshipId,
+                          _token!,
+                        );
                         _load();
                       },
                       icon: const Icon(Icons.close),
@@ -477,15 +485,15 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
               ),
             ),
-          if (auth?.isAuthenticated == true)
-            CurrentUserAvatarButton(
-              avatarUrl: auth?.currentUser?['avatar']?.toString(),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ProfileScreen(authNotifier: auth!),
+            if (auth?.isAuthenticated == true)
+              CurrentUserAvatarButton(
+                avatarUrl: auth?.currentUser?['avatar']?.toString(),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProfileScreen(authNotifier: auth!),
+                  ),
                 ),
               ),
-            ),
           ],
           const SizedBox(width: 8),
         ],

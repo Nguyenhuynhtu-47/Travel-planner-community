@@ -416,7 +416,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                     );
                   },
                 ),
-              ],
               const SizedBox(width: 8),
             ],
             bottom: PreferredSize(

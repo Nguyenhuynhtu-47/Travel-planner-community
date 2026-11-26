@@ -5,7 +5,6 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
-import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/bounce_tap.dart';
@@ -232,7 +231,6 @@ class _CollectionScreenState extends State<CollectionScreen>
                 );
               },
             ),
-          ],
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
@@ -254,10 +252,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                 fontSize: 14,
               ),
               tabs: const [
-                BounceTap(
-                  useSelectionHaptic: true,
-                  child: Tab(text: 'Đã lưu'),
-                ),
+                BounceTap(useSelectionHaptic: true, child: Tab(text: 'Đã lưu')),
                 BounceTap(
                   useSelectionHaptic: true,
                   child: Tab(text: 'Yêu thích'),
@@ -465,4 +460,3 @@ class _KeepAliveCollectionTabState extends State<_KeepAliveCollectionTab>
     return widget.child;
   }
 }
-

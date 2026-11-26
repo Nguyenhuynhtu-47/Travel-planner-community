@@ -14,9 +14,11 @@ import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_toast.dart';
+
 import 'package:mobile/shared/widgets/app_dialog.dart';
 import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
+
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
@@ -575,7 +577,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           IconButton(
             tooltip: 'Cài đặt hồ sơ',
-            icon: Icons.settings_outlined,
+            icon: const Icon(Icons.settings_outlined),
             onPressed: _openSettings,
           ),
           const SizedBox(width: 8),
@@ -1257,14 +1259,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                   ),
                   onPressed: () async {
                     final newPost = await Navigator.of(context).push<PostModel>(
                       MaterialPageRoute(
-                        builder: (_) => CreatePostScreen(
-                          authNotifier: widget.authNotifier,
-                        ),
+                        builder: (_) =>
+                            CreatePostScreen(authNotifier: widget.authNotifier),
                       ),
                     );
                     if (newPost != null) {
@@ -1332,12 +1336,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             },
           );
           if (index == 0) {
-            return Column(
-              children: [
-                const FeedSectionDivider(),
-                item,
-              ],
-            );
+            return Column(children: [const FeedSectionDivider(), item]);
           }
           return item;
         },
@@ -1548,7 +1547,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           );
           if (mounted) {
             setState(() {
-              _itineraries.removeWhere((e) => e.itineraryId == item.itineraryId);
+              _itineraries.removeWhere(
+                (e) => e.itineraryId == item.itineraryId,
+              );
             });
             AppToast.showSuccess(context, 'Đã xóa lịch trình');
           }

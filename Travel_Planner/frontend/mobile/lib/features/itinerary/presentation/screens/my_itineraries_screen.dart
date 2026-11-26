@@ -7,7 +7,6 @@ import '../../../../core/sync/auto_refresh_lifecycle_mixin.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_empty_state.dart';
 import '../../../../shared/widgets/app_error_state.dart';
-import '../../../../shared/widgets/app_header_button.dart';
 import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/current_user_avatar_button.dart';
@@ -15,7 +14,6 @@ import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../messaging/presentation/widgets/share_bottom_sheet.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../my_itineraries_notifier.dart';
 import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/my_itinerary_card.dart';
@@ -146,7 +144,10 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
       AppToast.showError(context, e.message);
     } catch (_) {
       if (!mounted) return;
-      AppToast.showError(context, 'Không thể xóa lịch trình. Vui lòng thử lại.');
+      AppToast.showError(
+        context,
+        'Không thể xóa lịch trình. Vui lòng thử lại.',
+      );
     }
   }
 

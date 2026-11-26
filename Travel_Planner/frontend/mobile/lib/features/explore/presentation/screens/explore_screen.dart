@@ -352,6 +352,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ),
                   ),
                 ),
+              ],
               NotificationBellButton(
                 authNotifier: widget.authNotifier,
                 onPressed: () {

@@ -12824,3 +12824,12 @@ Created the 12 requested Vietnamese planning documents under `docs/plan/notifica
 - Full Mobile analyze completed with two existing deprecation infos in `report_post_dialog.dart`. Full Flutter Web analyze completed with one existing unused-local warning in `admin_header.dart`; neither file was part of the Notification change set.
 - Full Backend tests were attempted against `travel_planner_test` but did not pass cleanly: persisted Notification data prevented legacy user cleanup through foreign keys, and `AdminUserControllerTest` expected one filtered row but found four. The run was stopped after the failure was confirmed. Previously documented focused Notification suites remain the verified signal for this feature.
 - No remote push was performed.
+
+## Mobile conflict repair and Android launch verification — 2026-11-26
+
+- Repaired malformed conflict resolutions across the affected Mobile screens. Removed premature list closures in Collection and Community Feed, restored the missing authenticated action-group closure in Explore, corrected the Profile settings `IconButton` to receive an `Icon` widget, and normalized the Community app-bar action nesting.
+- Removed stale Notification/header imports left behind by conflict resolution in Collection, My Itineraries and Saved Itineraries. All eight reported conflict files now parse and format successfully.
+- `flutter analyze`: passed with no issues.
+- `flutter test test/features/notifications`: 11 passed. The combined run with `bottom_navigation_test.dart` retained four existing stale icon expectations because the test looks for `Icons.group_outlined` while the current navigation uses `Icons.dynamic_feed_outlined`; Notification entry tests passed.
+- `flutter build apk --debug`: succeeded and produced `build/app/outputs/flutter-apk/app-debug.apk`.
+- `flutter run -d guirtwmvobovzpl7 --debug --no-resident`: installed and launched successfully on physical device `23117RA68G`. The `package_info_plus` Built-in Kotlin message remains a future-compatibility warning and did not block the build.
