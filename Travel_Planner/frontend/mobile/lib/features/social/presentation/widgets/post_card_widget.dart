@@ -183,9 +183,15 @@ class PostCardWidget extends StatelessWidget {
                   ),
                   ),
                 ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_horiz, color: AppColors.muted),
-                  tooltip: 'Tùy chọn',
+                BounceTap.icon(
+                  child: PopupMenuButton<String>(
+                    padding: const EdgeInsets.all(10),
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    icon: const Icon(Icons.more_horiz, color: AppColors.muted),
+                    tooltip: 'Tùy chọn',
                   onSelected: (value) {
                     if (value == 'edit') onEdit?.call();
                     if (value == 'delete') onDelete?.call();
@@ -226,6 +232,7 @@ class PostCardWidget extends StatelessWidget {
                       ),
                     ],
                   ],
+                ),
                 ),
               ],
             ),

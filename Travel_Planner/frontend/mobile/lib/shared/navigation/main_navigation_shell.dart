@@ -155,111 +155,132 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       bottomNavigationBar: AnimatedBuilder(
         animation: _communityNotifier,
         builder: (context, _) => Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            border: Border(
-              top: BorderSide(color: AppColors.hairlineSoft, width: 0.5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFFFF),
+            border: const Border(
+              top: BorderSide(color: Color(0xFFF0F0F5), width: 1),
             ),
-          ),
-          child: BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            currentIndex: _currentIndex,
-            onTap: _onDestinationTapped,
-            showSelectedLabels: false,
-            showUnselectedLabels: false,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: AppColors.muted,
-            backgroundColor: AppColors.surface,
-            elevation: 0,
-            iconSize: 24,
-            items: [
-              const BottomNavigationBarItem(
-                icon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.explore_outlined),
-                ),
-                activeIcon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.explore),
-                ),
-                label: 'Khám phá',
-                tooltip: 'Khám phá',
-              ),
-              BottomNavigationBarItem(
-                icon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Badge(
-                    isLabelVisible: _communityNotifier.hasCommunityActivity,
-                    smallSize: _communityNotifier.unreadMessagesTotal == 0
-                        ? 8
-                        : null,
-                    label: _communityNotifier.unreadMessagesTotal > 0
-                        ? Text(
-                            _communityNotifier.unreadMessagesTotal > 99
-                                ? '99+'
-                                : '${_communityNotifier.unreadMessagesTotal}',
-                          )
-                        : null,
-                    child: const Icon(Icons.group_outlined),
-                  ),
-                ),
-                activeIcon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Badge(
-                    isLabelVisible: _communityNotifier.hasCommunityActivity,
-                    smallSize: _communityNotifier.unreadMessagesTotal == 0
-                        ? 8
-                        : null,
-                    label: _communityNotifier.unreadMessagesTotal > 0
-                        ? Text(
-                            _communityNotifier.unreadMessagesTotal > 99
-                                ? '99+'
-                                : '${_communityNotifier.unreadMessagesTotal}',
-                          )
-                        : null,
-                    child: const Icon(Icons.group),
-                  ),
-                ),
-                label: 'Cộng đồng',
-                tooltip: 'Cộng đồng',
-              ),
-              const BottomNavigationBarItem(
-                icon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.add_circle_outline, size: 28),
-                ),
-                activeIcon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.add_circle, size: 28),
-                ),
-                label: 'Tạo lịch trình',
-                tooltip: 'Tạo lịch trình',
-              ),
-              const BottomNavigationBarItem(
-                icon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.collections_bookmark_outlined),
-                ),
-                activeIcon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.collections_bookmark),
-                ),
-                label: 'Bộ sưu tập',
-                tooltip: 'Bộ sưu tập',
-              ),
-              const BottomNavigationBarItem(
-                icon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.luggage_outlined),
-                ),
-                activeIcon: BounceTap.icon(
-                  useSelectionHaptic: true,
-                  child: Icon(Icons.luggage),
-                ),
-                label: 'Lịch trình của tôi',
-                tooltip: 'Lịch trình của tôi',
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, -3),
               ),
             ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _currentIndex,
+              onTap: _onDestinationTapped,
+              showSelectedLabels: false,
+              showUnselectedLabels: false,
+              selectedItemColor: const Color(0xFFFA3E62),
+              unselectedItemColor: const Color(0xFF6E6E73),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              iconSize: 24,
+              items: [
+                BottomNavigationBarItem(
+                  icon: const BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: Icon(Icons.explore_outlined),
+                  ),
+                  activeIcon: BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: _ActiveNavPill(
+                      child: const Icon(Icons.explore, color: Color(0xFFFA3E62)),
+                    ),
+                  ),
+                  label: 'Khám phá',
+                  tooltip: 'Khám phá',
+                ),
+                BottomNavigationBarItem(
+                  icon: BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: Badge(
+                      isLabelVisible: _communityNotifier.hasCommunityActivity,
+                      smallSize: _communityNotifier.unreadMessagesTotal == 0
+                          ? 8
+                          : null,
+                      label: _communityNotifier.unreadMessagesTotal > 0
+                          ? Text(
+                              _communityNotifier.unreadMessagesTotal > 99
+                                  ? '99+'
+                                  : '${_communityNotifier.unreadMessagesTotal}',
+                            )
+                          : null,
+                      child: const Icon(Icons.group_outlined),
+                    ),
+                  ),
+                  activeIcon: BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: _ActiveNavPill(
+                      child: Badge(
+                        isLabelVisible: _communityNotifier.hasCommunityActivity,
+                        smallSize: _communityNotifier.unreadMessagesTotal == 0
+                            ? 8
+                            : null,
+                        label: _communityNotifier.unreadMessagesTotal > 0
+                            ? Text(
+                                _communityNotifier.unreadMessagesTotal > 99
+                                    ? '99+'
+                                    : '${_communityNotifier.unreadMessagesTotal}',
+                              )
+                            : null,
+                        child: const Icon(Icons.group, color: Color(0xFFFA3E62)),
+                      ),
+                    ),
+                  ),
+                  label: 'Cộng đồng',
+                  tooltip: 'Cộng đồng',
+                ),
+                const BottomNavigationBarItem(
+                  icon: BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: _CenterCreateNavButton(isActive: false),
+                  ),
+                  activeIcon: BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: _CenterCreateNavButton(isActive: true),
+                  ),
+                  label: 'Tạo lịch trình',
+                  tooltip: 'Tạo lịch trình',
+                ),
+                BottomNavigationBarItem(
+                  icon: const BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: Icon(Icons.collections_bookmark_outlined),
+                  ),
+                  activeIcon: BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: _ActiveNavPill(
+                      child: const Icon(
+                        Icons.collections_bookmark,
+                        color: Color(0xFFFA3E62),
+                      ),
+                    ),
+                  ),
+                  label: 'Bộ sưu tập',
+                  tooltip: 'Bộ sưu tập',
+                ),
+                BottomNavigationBarItem(
+                  icon: const BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: Icon(Icons.luggage_outlined),
+                  ),
+                  activeIcon: BounceTap.icon(
+                    useSelectionHaptic: true,
+                    child: _ActiveNavPill(
+                      child: const Icon(Icons.luggage, color: Color(0xFFFA3E62)),
+                    ),
+                  ),
+                  label: 'Lịch trình của tôi',
+                  tooltip: 'Lịch trình của tôi',
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -391,6 +412,63 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ActiveNavPill extends StatelessWidget {
+  final Widget child;
+
+  const _ActiveNavPill({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0F3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _CenterCreateNavButton extends StatelessWidget {
+  final bool isActive;
+
+  const _CenterCreateNavButton({required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: 46,
+      height: 36,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFA3E62), Color(0xFFFF7A8F)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFA3E62).withValues(alpha: isActive ? 0.36 : 0.24),
+            blurRadius: isActive ? 12 : 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        isActive ? Icons.add_circle : Icons.add_circle_outline,
+        size: 22,
+        color: Colors.white,
       ),
     );
   }

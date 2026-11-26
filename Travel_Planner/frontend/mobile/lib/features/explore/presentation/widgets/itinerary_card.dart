@@ -496,6 +496,8 @@ class _CustomCardActionButtonState extends State<_CustomCardActionButton> {
                 : const Duration(milliseconds: 120),
             curve: Curves.easeOutCubic,
             child: Container(
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              alignment: Alignment.center,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.black.withAlpha(50),
