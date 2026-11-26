@@ -19,7 +19,6 @@ import '../../../explore/data/models/itinerary_summary.dart';
 import '../../../explore/presentation/widgets/itinerary_card.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../messaging/data/messaging_repository.dart';
 import '../../../messaging/presentation/screens/messaging_settings_screen.dart';
 import '../../data/profile_repository.dart';
@@ -54,10 +53,7 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
   ) {
     return SizedBox(
       height: height,
-      child: Container(
-        color: AppColors.background,
-        child: child,
-      ),
+      child: Container(color: AppColors.background, child: child),
     );
   }
 
@@ -120,20 +116,17 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   Set<SyncDomain> get syncDomains => {
-        SyncDomain.profile,
-        SyncDomain.itineraries,
-        SyncDomain.posts,
-      };
+    SyncDomain.profile,
+    SyncDomain.itineraries,
+    SyncDomain.posts,
+  };
 
   @override
   Duration get syncTtl => const Duration(minutes: 3);
 
   @override
   Future<void> onRefreshData({bool isBackground = false}) async {
-    await Future.wait([
-      _loadProfile(),
-      _loadMyPosts(refresh: true),
-    ]);
+    await Future.wait([_loadProfile(), _loadMyPosts(refresh: true)]);
   }
 
   @override
@@ -145,8 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         final payload = event.payload;
         if (payload is Map && event.id is int) {
           final isLiked = payload['isLiked'] == true;
-          final count =
-              (payload['likeCount'] as num?)?.toInt() ?? 0;
+          final count = (payload['likeCount'] as num?)?.toInt() ?? 0;
           final index = _myPosts.indexWhere((p) => p.postId == event.id);
           if (index != -1) {
             setState(() {
@@ -517,20 +509,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           foregroundColor: AppColors.textPrimary,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
-          actions: [
-            IconButton(
-              tooltip: 'Thông báo',
-              icon: const Icon(Icons.notifications_outlined, size: 24),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 8),
-          ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1),
             child: Container(height: 0.5, color: AppColors.hairlineSoft),
@@ -567,17 +545,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             tooltip: 'Quyền riêng tư tin nhắn',
             icon: const Icon(Icons.forum_outlined, size: 22),
             onPressed: _openMessagingPrivacy,
-          ),
-          IconButton(
-            tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined, size: 24),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
           ),
           IconButton(
             tooltip: 'Cài đặt hồ sơ',
@@ -758,9 +725,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
                 SliverPersistentHeader(
                   pinned: true,
-                  delegate: ProfileTabBarDelegate(
-                    child: _buildTabBar(),
-                  ),
+                  delegate: ProfileTabBarDelegate(child: _buildTabBar()),
                 ),
               ];
             },
@@ -847,7 +812,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 : 'Chưa thiết lập',
             style: TextStyle(
               fontSize: 13,
-              color: (p['handle'] != null &&
+              color:
+                  (p['handle'] != null &&
                       p['handle'].toString().trim().isNotEmpty)
                   ? AppColors.textSecondary
                   : AppColors.mutedSoft,
@@ -876,10 +842,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             runSpacing: 4,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceSoft,
                   borderRadius: BorderRadius.circular(16),
@@ -1097,7 +1060,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       } else {
         await _postRepository.unlikePost(post.postId, token: token);
       }
-      AppSyncBus.emitPostLiked(post.postId, newIsLiked, newCount < 0 ? 0 : newCount);
+      AppSyncBus.emitPostLiked(
+        post.postId,
+        newIsLiked,
+        newCount < 0 ? 0 : newCount,
+      );
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1205,9 +1172,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể xóa bài viết')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Không thể xóa bài viết')));
       }
     }
   }
@@ -1269,14 +1236,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                 ),
                 onPressed: () async {
                   final newPost = await Navigator.of(context).push<PostModel>(
                     MaterialPageRoute(
-                      builder: (_) => CreatePostScreen(
-                        authNotifier: widget.authNotifier,
-                      ),
+                      builder: (_) =>
+                          CreatePostScreen(authNotifier: widget.authNotifier),
                     ),
                   );
                   if (newPost != null) {
@@ -1294,7 +1263,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return NotificationListener<ScrollNotification>(
       onNotification: (scrollInfo) {
-        if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200 &&
+        if (scrollInfo.metrics.pixels >=
+                scrollInfo.metrics.maxScrollExtent - 200 &&
             !_loadingPosts &&
             _hasMorePosts) {
           _loadMyPosts();

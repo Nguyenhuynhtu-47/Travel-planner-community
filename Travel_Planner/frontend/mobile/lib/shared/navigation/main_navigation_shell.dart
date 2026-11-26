@@ -86,13 +86,19 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   }
 
   void _onDestinationTapped(int index) {
-    if (index == _currentIndex) return;
+    if (index == _currentIndex) {
+      if (index == 0) {
+        AppSyncBus.requestRefresh(SyncDomain.notifications);
+      }
+      return;
+    }
     setState(() {
       _currentIndex = index;
     });
     switch (index) {
       case 0:
         AppSyncBus.requestRefresh(SyncDomain.explore);
+        AppSyncBus.requestRefresh(SyncDomain.notifications);
         break;
       case 1:
         AppSyncBus.requestRefresh(SyncDomain.posts);

@@ -11,7 +11,6 @@ import '../../../../shared/widgets/current_user_avatar_button.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../data/itinerary_crud_repository.dart';
 import '../../../explore/data/models/itinerary_summary.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../my_itineraries_notifier.dart';
 import '../widgets/delete_itinerary_dialog.dart';
 import '../widgets/my_itinerary_card.dart';
@@ -169,17 +168,6 @@ class _MyItinerariesScreenState extends State<MyItinerariesScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            tooltip: 'Thông báo',
-            icon: const Icon(Icons.notifications_outlined, size: 24),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              );
-            },
-          ),
           CurrentUserAvatarButton(
             avatarUrl: widget.authNotifier.currentUser?['avatar']?.toString(),
             onPressed: () async {

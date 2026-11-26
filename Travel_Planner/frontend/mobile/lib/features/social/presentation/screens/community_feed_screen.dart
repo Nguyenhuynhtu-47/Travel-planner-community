@@ -13,7 +13,6 @@ import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../messaging/presentation/screens/messaging_inbox_screen.dart';
 import '../../../messaging/presentation/screens/friends_screen.dart';
 import '../../../messaging/data/messaging_realtime_client.dart';
-import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../profile/presentation/screens/public_profile_screen.dart';
 import '../community_feed_notifier.dart';
@@ -299,8 +298,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
       _showLoginRequiredPrompt('chia sẻ bài viết');
       return;
     }
-    final coverImage =
-        post.mediaUrls.isNotEmpty ? post.mediaUrls.first : null;
+    final coverImage = post.mediaUrls.isNotEmpty ? post.mediaUrls.first : null;
     ShareBottomSheet.show(
       context,
       targetType: 'POST',
@@ -406,18 +404,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                 onPressed: _openChatInbox,
               ),
 
-              // Notifications Shortcut
-              IconButton(
-                tooltip: 'Thông báo',
-                icon: const Icon(Icons.notifications_outlined, size: 24),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const NotificationsScreen(),
-                    ),
-                  );
-                },
-              ),
               if (_isAuthenticated && widget.authNotifier != null)
                 CurrentUserAvatarButton(
                   avatarUrl: widget.authNotifier?.currentUser?['avatar']
