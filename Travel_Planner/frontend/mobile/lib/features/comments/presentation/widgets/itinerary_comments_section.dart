@@ -48,6 +48,7 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
   final FocusNode _composerFocus = FocusNode();
   final GlobalKey _composerKey = GlobalKey();
   ItineraryComment? _replyTo;
+  bool _isCommentsExpanded = false;
   String? get _token => widget.token ?? widget.authNotifier?.token;
   bool get _isAuthenticated => _token?.isNotEmpty ?? false;
   String get _replyDisplayName => _replyTo?.displayName ?? 'người dùng';
@@ -83,7 +84,10 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
     );
     if (success && mounted) {
       _controller.clear();
-      setState(() => _replyTo = null);
+      setState(() {
+        _replyTo = null;
+        _isCommentsExpanded = true;
+      });
     }
   }
 
@@ -142,7 +146,15 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
         _buildSectionTitle(),
         const SizedBox(height: 14),
         if (_isAuthenticated) _buildComposer() else _buildLoginPrompt(),
-        ..._buildCommentItems(),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: _buildCommentItems(),
+          ),
+        ),
       ],
     ),
   );
@@ -212,9 +224,21 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
       ];
     }
 
+    final isItineraryCollapsible = widget.activityId == null;
+    final totalLoaded = _notifier.comments.length;
+    final isCollapsed =
+        isItineraryCollapsible && !_isCommentsExpanded && totalLoaded > 2;
+    final displayedComments = isCollapsed
+        ? _notifier.comments.take(2).toList()
+        : _notifier.comments;
+    final totalForCount = _notifier.totalElements > totalLoaded
+        ? _notifier.totalElements
+        : totalLoaded;
+    final remainingCount = totalForCount - 2;
+
     return [
       const SizedBox(height: AppSpacing.sm),
-      for (final comment in _notifier.comments)
+      for (final comment in displayedComments)
         _CommentThread(
           key: ValueKey('comment_thread_${comment.commentId}'),
           comment: comment,
@@ -226,7 +250,48 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
           onReply: _startReply,
           onCreatorTap: _openCreator,
         ),
-      if (_notifier.hasMore)
+      if (isCollapsed && remainingCount > 0)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Center(
+            child: BounceTap(
+              child: Material(
+                color: const Color(0xFFF4F5F7),
+                borderRadius: BorderRadius.circular(20),
+                child: InkWell(
+                  onTap: () => setState(() => _isCommentsExpanded = true),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Xem thêm $remainingCount bình luận',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E1E1E),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 18,
+                          color: Color(0xFF1E1E1E),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      if (!isCollapsed && _notifier.hasMore)
         Center(
           child: BounceTap(
             enabled: !_notifier.isLoadingMore,
@@ -241,6 +306,44 @@ class _ItineraryCommentsSectionState extends State<ItineraryCommentsSection> {
                   : const Icon(Icons.expand_more),
               label: Text(
                 _notifier.errorMessage != null ? 'Thử lại' : 'Xem thêm bình luận',
+              ),
+            ),
+          ),
+        ),
+      if (isItineraryCollapsible && _isCommentsExpanded && totalLoaded > 2)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Center(
+            child: BounceTap(
+              child: Material(
+                color: const Color(0xFFF4F5F7),
+                borderRadius: BorderRadius.circular(20),
+                child: InkWell(
+                  onTap: () => setState(() => _isCommentsExpanded = false),
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Thu gọn bình luận',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6E6E73),
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          size: 18,
+                          color: Color(0xFF6E6E73),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

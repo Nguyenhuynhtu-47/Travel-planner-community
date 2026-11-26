@@ -1858,7 +1858,7 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                   ),
                 ),
               ),
-              if (!isOwner && !isGuest)
+              if (!isOwner && !isGuest && !hasUserRating)
                 BounceTap(
                   child: Material(
                     color: const Color(0xFFFFF0F3),
@@ -1866,8 +1866,8 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     child: InkWell(
                       onTap: () => _openRatingDialog(itinerary, isOwner),
                       borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 6,
                         ),
@@ -1875,16 +1875,14 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              hasUserRating
-                                  ? Icons.edit_outlined
-                                  : Icons.star_outline_rounded,
+                              Icons.star_outline_rounded,
                               size: 14,
-                              color: const Color(0xFFFA3E62),
+                              color: Color(0xFFFA3E62),
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4),
                             Text(
-                              hasUserRating ? 'Sửa đánh giá' : 'Đánh giá ngay',
-                              style: const TextStyle(
+                              'Đánh giá ngay',
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: Color(0xFFFA3E62),
@@ -2021,64 +2019,80 @@ class _ItineraryDetailScreenState extends State<ItineraryDetailScreen>
                     ],
                   )
                 else if (hasUserRating)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Đánh giá của bạn: ',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Đánh giá của bạn: ',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textPrimary,
+                                ),
                               ),
-                            ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: List.generate(5, (index) {
-                                return Icon(
-                                  index < effectiveUserRating
-                                      ? Icons.star_rounded
-                                      : Icons.star_outline_rounded,
-                                  color: Colors.amber,
-                                  size: 18,
-                                );
-                              }),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '($effectiveUserRating sao)',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: List.generate(5, (index) {
+                                  return Icon(
+                                    index < effectiveUserRating
+                                        ? Icons.star_rounded
+                                        : Icons.star_outline_rounded,
+                                    color: Colors.amber,
+                                    size: 18,
+                                  );
+                                }),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              Text(
+                                '($effectiveUserRating sao)',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       BounceTap(
-                        child: InkWell(
-                          onTap: () => _openRatingDialog(itinerary, isOwner),
-                          borderRadius: BorderRadius.circular(4),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 4,
-                            ),
-                            child: Text(
-                              'Chỉnh sửa',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
+                        child: Material(
+                          color: const Color(0xFFFFF0F3),
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            onTap: () => _openRatingDialog(itinerary, isOwner),
+                            borderRadius: BorderRadius.circular(16),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.edit_outlined,
+                                    size: 13,
+                                    color: Color(0xFFFA3E62),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Chỉnh sửa',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFFFA3E62),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
