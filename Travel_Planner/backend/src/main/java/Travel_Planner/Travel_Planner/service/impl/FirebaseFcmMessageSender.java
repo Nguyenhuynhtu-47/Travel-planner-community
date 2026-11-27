@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Map;
 
 @Component
 @ConditionalOnProperty(name = "app.firebase.messaging.enabled", havingValue = "true")
@@ -23,16 +24,21 @@ public class FirebaseFcmMessageSender implements FcmMessageSender {
 
     @Override
     public void send(String token, String title, String body, String conversationId, String collapseKey) {
-        Message message = Message.builder()
-                .setFid(token)
+        sendNotification(token, title, body, Map.of(
+                "type", "MESSAGE_PUSH",
+                "conversationId", conversationId), collapseKey);
+    }
+
+    @Override
+    public void sendNotification(String token, String title, String body, Map<String, String> data,
+            String collapseKey) {
+        Message.Builder builder = Message.builder()
+                .setToken(token)
                 .setNotification(com.google.firebase.messaging.Notification.builder().setTitle(title).setBody(body).build())
-                .putData("type", "MESSAGE_PUSH")
-                .putData("conversationId", conversationId)
-                .setAndroidConfig(AndroidConfig.builder()
-                        .setCollapseKey(collapseKey)
-                        .setTtl(Duration.ofHours(24).toMillis())
-                        .build())
-                .build();
+                .putAllData(data);
+        AndroidConfig.Builder android = AndroidConfig.builder().setTtl(Duration.ofHours(24).toMillis());
+        if (collapseKey != null && !collapseKey.isBlank()) android.setCollapseKey(collapseKey);
+        Message message = builder.setAndroidConfig(android.build()).build();
         try {
             firebaseMessaging.send(message);
         } catch (FirebaseMessagingException exception) {

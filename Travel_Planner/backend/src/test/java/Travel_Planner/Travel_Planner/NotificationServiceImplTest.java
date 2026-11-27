@@ -5,6 +5,8 @@ import Travel_Planner.Travel_Planner.exception.ResourceNotFoundException;
 import Travel_Planner.Travel_Planner.model.Notification;
 import Travel_Planner.Travel_Planner.model.User;
 import Travel_Planner.Travel_Planner.model.enums.NotificationType;
+import Travel_Planner.Travel_Planner.model.enums.NotificationTargetType;
+import Travel_Planner.Travel_Planner.service.NotificationPushListener.NotificationEvent;
 import Travel_Planner.Travel_Planner.repository.NotificationRepository;
 import Travel_Planner.Travel_Planner.repository.NotificationLikeActorRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
@@ -14,8 +16,10 @@ import Travel_Planner.Travel_Planner.service.impl.NotificationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,13 +36,14 @@ class NotificationServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private SystemAnnouncementRepository announcementRepository;
     @Mock private AnnouncementReadRepository announcementReadRepository;
+    @Mock private ApplicationEventPublisher events;
 
     private NotificationServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new NotificationServiceImpl(notificationRepository, likeActorRepository, userRepository,
-                announcementRepository, announcementReadRepository);
+                announcementRepository, announcementReadRepository, events);
     }
 
     @Test
@@ -63,6 +68,30 @@ class NotificationServiceImplTest {
         assertTrue(service.create(10, 10, NotificationType.NEW_FOLLOWER,
                 "Tự theo dõi", null, null, null, "follow:10:10").isEmpty());
         verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    void createPublishesPushEventOnlyForANewNotification() {
+        User recipient = user(10, "recipient");
+        User actor = user(22, "actor");
+        when(userRepository.findByUserIdForUpdate(10)).thenReturn(Optional.of(recipient));
+        when(userRepository.findById(22)).thenReturn(Optional.of(actor));
+        when(notificationRepository.findByRecipient_UserIdAndSourceEventKey(10, "follow:22"))
+                .thenReturn(Optional.empty());
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> {
+            Notification saved = invocation.getArgument(0);
+            saved.setNotificationId(71L);
+            return saved;
+        });
+
+        service.create(10, 22, NotificationType.NEW_FOLLOWER, "Có người theo dõi", "Actor theo dõi bạn",
+                NotificationTargetType.USER, "22", "follow:22");
+
+        ArgumentCaptor<Object> event = ArgumentCaptor.forClass(Object.class);
+        verify(events).publishEvent(event.capture());
+        NotificationEvent push = assertInstanceOf(NotificationEvent.class, event.getValue());
+        assertEquals(71L, push.notificationId());
+        assertEquals(10, push.recipientUserId());
     }
 
     @Test

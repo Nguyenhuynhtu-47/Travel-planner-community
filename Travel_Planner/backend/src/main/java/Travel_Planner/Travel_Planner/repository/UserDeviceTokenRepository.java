@@ -1,6 +1,7 @@
 package Travel_Planner.Travel_Planner.repository;
 
 import Travel_Planner.Travel_Planner.model.UserDeviceToken;
+import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +15,9 @@ public interface UserDeviceTokenRepository extends JpaRepository<UserDeviceToken
     Optional<UserDeviceToken> findByFcmTokenHash(String fcmTokenHash);
 
     List<UserDeviceToken> findAllByUser_UserIdAndDisabledAtIsNull(Integer userId);
+
+    List<UserDeviceToken> findTop200ByDisabledAtIsNullAndUser_StatusAndDeviceTokenIdGreaterThanOrderByDeviceTokenIdAsc(
+            UserStatus status, Long deviceTokenId);
 
     @Modifying
     @Transactional

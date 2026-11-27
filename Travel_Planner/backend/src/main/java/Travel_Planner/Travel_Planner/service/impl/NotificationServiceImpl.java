@@ -19,6 +19,8 @@ import Travel_Planner.Travel_Planner.repository.SystemAnnouncementRepository;
 import Travel_Planner.Travel_Planner.repository.AnnouncementReadRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.service.NotificationService;
+import Travel_Planner.Travel_Planner.service.NotificationPushListener.NotificationEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -44,15 +46,18 @@ public class NotificationServiceImpl implements NotificationService {
     private final UserRepository userRepository;
     private final SystemAnnouncementRepository announcementRepository;
     private final AnnouncementReadRepository announcementReadRepository;
+    private final ApplicationEventPublisher events;
 
     public NotificationServiceImpl(NotificationRepository notificationRepository,
             NotificationLikeActorRepository likeActors, UserRepository userRepository,
-            SystemAnnouncementRepository announcementRepository, AnnouncementReadRepository announcementReadRepository) {
+            SystemAnnouncementRepository announcementRepository, AnnouncementReadRepository announcementReadRepository,
+            ApplicationEventPublisher events) {
         this.notificationRepository = notificationRepository;
         this.likeActors = likeActors;
         this.userRepository = userRepository;
         this.announcementRepository = announcementRepository;
         this.announcementReadRepository = announcementReadRepository;
+        this.events = events;
     }
 
     @Override
@@ -110,7 +115,9 @@ public class NotificationServiceImpl implements NotificationService {
                 .targetId(normalizeOptional(targetId))
                 .sourceEventKey(normalizedEventKey)
                 .build();
-        return Optional.of(notificationRepository.save(notification));
+        Notification saved = notificationRepository.save(notification);
+        publishPush(saved);
+        return Optional.of(saved);
     }
 
     @Override
@@ -155,6 +162,7 @@ public class NotificationServiceImpl implements NotificationService {
             likeActors.save(membership);
         }
         updateLikeGroupSummary(notification, actor, false);
+        if (!alreadyMember) publishPush(notification);
         return Optional.of(notification);
     }
 
@@ -197,6 +205,17 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setBody(count == 1 ? null : "Tổng cộng " + count + " lượt thích mới.");
         if (flush) notificationRepository.saveAndFlush(notification);
         else notificationRepository.save(notification);
+    }
+
+    private void publishPush(Notification notification) {
+        events.publishEvent(new NotificationEvent(
+                notification.getRecipient().getUserId(),
+                notification.getNotificationId(),
+                notification.getType().name(),
+                notification.getTitle(),
+                notification.getBody(),
+                notification.getTargetType() == null ? null : notification.getTargetType().name(),
+                notification.getTargetId()));
     }
 
     @Override
