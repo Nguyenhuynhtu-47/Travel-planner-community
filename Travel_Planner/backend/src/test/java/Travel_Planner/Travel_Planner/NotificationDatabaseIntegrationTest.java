@@ -222,6 +222,23 @@ class NotificationDatabaseIntegrationTest {
     }
 
     @Test
+    void adminAnnouncementSearchMatchesBodyWithoutStatusFilter() {
+        SystemAnnouncement announcement = announcementRepository.saveAndFlush(SystemAnnouncement.builder()
+                .title("Thông báo tìm kiếm")
+                .body("Bảo trì hệ thống vào cuối tuần")
+                .type("SYSTEM")
+                .status(Travel_Planner.Travel_Planner.model.enums.AnnouncementStatus.DRAFT)
+                .build());
+        fixtureAnnouncementIds.add(announcement.getAnnouncementId());
+
+        var result = announcementRepository.findAdminPage(null, null, "cuối tuần",
+                org.springframework.data.domain.PageRequest.of(0, 20));
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals(announcement.getAnnouncementId(), result.getContent().getFirst().getAnnouncementId());
+    }
+
+    @Test
     void mysqlSchemaSupportsCreateIdempotentFeedAndReadOperations() {
         User recipient = createUser();
         User actor = createUser();

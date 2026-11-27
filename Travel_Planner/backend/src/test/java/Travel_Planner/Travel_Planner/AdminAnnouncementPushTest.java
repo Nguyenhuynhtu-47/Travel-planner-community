@@ -16,6 +16,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -49,5 +50,50 @@ class AdminAnnouncementPushTest {
         AnnouncementEvent push = assertInstanceOf(AnnouncementEvent.class, event.getValue());
         assertEquals(9L, push.announcementId());
         assertEquals("Thông báo hệ thống", push.title());
+    }
+
+    @Test
+    void scheduledAnnouncementIsPublishedOnceWhenItsTimeArrives() {
+        SystemAnnouncement announcement = SystemAnnouncement.builder()
+                .announcementId(10L)
+                .title("Thông báo theo lịch")
+                .body("Nội dung")
+                .status(AnnouncementStatus.DRAFT)
+                .publishedAt(LocalDateTime.now().minusMinutes(1))
+                .expiresAt(LocalDateTime.now().plusDays(1))
+                .build();
+        when(announcements.findExpiredForUpdate(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+        when(announcements.findScheduledForUpdate(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(announcement));
+        AdminAnnouncementServiceImpl service = new AdminAnnouncementServiceImpl(
+                announcements, users, audit, events);
+
+        service.synchronizeLifecycle();
+
+        assertEquals(AnnouncementStatus.PUBLISHED, announcement.getStatus());
+        verify(events).publishEvent(org.mockito.ArgumentMatchers.any(AnnouncementEvent.class));
+    }
+
+    @Test
+    void expiredAnnouncementIsCancelledBeforeScheduledPublication() {
+        SystemAnnouncement announcement = SystemAnnouncement.builder()
+                .announcementId(11L)
+                .title("Thông báo hết hạn")
+                .body("Nội dung")
+                .status(AnnouncementStatus.DRAFT)
+                .publishedAt(LocalDateTime.now().minusMinutes(2))
+                .expiresAt(LocalDateTime.now().minusMinutes(1))
+                .build();
+        when(announcements.findExpiredForUpdate(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(announcement));
+        when(announcements.findScheduledForUpdate(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+        AdminAnnouncementServiceImpl service = new AdminAnnouncementServiceImpl(
+                announcements, users, audit, events);
+
+        service.synchronizeLifecycle();
+
+        assertEquals(AnnouncementStatus.CANCELLED, announcement.getStatus());
     }
 }

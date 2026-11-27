@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @PreAuthorize("hasRole('ADMIN')")
@@ -21,8 +22,10 @@ public class AdminAnnouncementController {
     public AdminAnnouncementController(AdminAnnouncementService service) { this.service = service; }
 
     @GetMapping public Page<AdminAnnouncementResponse> list(@RequestParam(required = false) AnnouncementStatus status,
-            @RequestParam(required = false) String query, @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) { return service.list(status, query, page, size); }
+            @RequestParam(required = false) String type, @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) { return service.list(status, type, query, page, size); }
+    @GetMapping("/summary") public Map<String, Long> summary() { return service.summary(); }
     @GetMapping("/{id}") public AdminAnnouncementResponse get(@PathVariable Long id) { return service.get(id); }
     @PostMapping public ResponseEntity<AdminAnnouncementResponse> create(@Valid @RequestBody SaveAnnouncementRequest request,
             @AuthenticationPrincipal UserDetails admin) { return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request, admin.getUsername())); }

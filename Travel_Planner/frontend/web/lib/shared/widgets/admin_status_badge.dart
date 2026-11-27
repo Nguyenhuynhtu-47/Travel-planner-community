@@ -8,11 +8,7 @@ class AdminStatusBadge extends StatelessWidget {
   final String status;
   final String? customLabel;
 
-  const AdminStatusBadge({
-    super.key,
-    required this.status,
-    this.customLabel,
-  });
+  const AdminStatusBadge({super.key, required this.status, this.customLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +24,7 @@ class AdminStatusBadge extends StatelessWidget {
       ),
       child: Text(
         customLabel ?? label,
-        style: AppTypography.badgeMicro.copyWith(
-          color: textColor,
-        ),
+        style: AppTypography.badgeMicro.copyWith(color: textColor),
       ),
     );
   }
@@ -44,14 +38,40 @@ class AdminStatusBadge extends StatelessWidget {
           AppColors.successLight,
           AppColors.successBorder,
           AppColors.success,
-          s == 'ACTIVE' ? 'Hoạt động' : s == 'RESOLVED' ? 'Đã xử lý' : 'Trực tuyến',
+          s == 'ACTIVE'
+              ? 'Hoạt động'
+              : s == 'RESOLVED'
+              ? 'Đã xử lý'
+              : 'Trực tuyến',
         );
       case 'PENDING':
+      case 'DRAFT':
         return (
           AppColors.warningLight,
           AppColors.warningBorder,
           AppColors.warning,
-          'Chờ xử lý',
+          s == 'DRAFT' ? 'Chờ công khai' : 'Chờ xử lý',
+        );
+      case 'PUBLISHED':
+        return (
+          AppColors.successLight,
+          AppColors.successBorder,
+          AppColors.success,
+          'Đã công khai',
+        );
+      case 'CANCELLED':
+        return (
+          AppColors.surfaceHover,
+          AppColors.borderStrong,
+          AppColors.textSecondary,
+          'Đã hủy',
+        );
+      case 'EXPIRED':
+        return (
+          AppColors.errorLight,
+          AppColors.errorBorder,
+          AppColors.error,
+          'Đã hết hạn',
         );
       case 'HIDDEN':
       case 'WARNING':
@@ -73,12 +93,12 @@ class AdminStatusBadge extends StatelessWidget {
           s == 'DELETED'
               ? 'Đã xóa'
               : s == 'BANNED'
-                  ? 'Đã khóa'
-                  : s == 'PURGED'
-                      ? 'Đã xóa vĩnh viễn'
-                      : s == 'DEAD_LETTER'
-                          ? 'Lỗi đình trệ'
-                          : s,
+              ? 'Đã khóa'
+              : s == 'PURGED'
+              ? 'Đã xóa vĩnh viễn'
+              : s == 'DEAD_LETTER'
+              ? 'Lỗi đình trệ'
+              : s,
         );
       case 'DISMISSED':
       case 'INACTIVE':

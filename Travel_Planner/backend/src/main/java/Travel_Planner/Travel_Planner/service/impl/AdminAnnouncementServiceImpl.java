@@ -16,13 +16,17 @@ import Travel_Planner.Travel_Planner.service.AuditLogService;
 import Travel_Planner.Travel_Planner.service.NotificationPushListener.AnnouncementEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
 public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
+    private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private final SystemAnnouncementRepository repository;
     private final UserRepository users;
     private final AuditLogService audit;
@@ -32,12 +36,27 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
         this.repository = repository; this.users = users; this.audit = audit; this.events = events;
     }
 
-    @Override @Transactional(readOnly = true)
-    public Page<AdminAnnouncementResponse> list(AnnouncementStatus status, String query, int page, int size) {
+    @Override @Transactional
+    public Page<AdminAnnouncementResponse> list(AnnouncementStatus status, String type, String query, int page, int size) {
         if (page < 0 || size < 1 || size > 50) throw new BadRequestException("Phân trang không hợp lệ");
+        synchronizeLifecycleInternal(now());
         PageRequest pageable = PageRequest.of(page, size);
-        return repository.findAdminPage(status, normalize(query), pageable)
+        return repository.findAdminPage(status, normalizeType(type), normalize(query), pageable)
                 .map(AdminAnnouncementResponse::from);
+    }
+
+    @Override @Transactional
+    public Map<String, Long> summary() {
+        synchronizeLifecycleInternal(now());
+        Map<String, Long> result = new LinkedHashMap<>();
+        long draft = repository.countByStatus(AnnouncementStatus.DRAFT);
+        long published = repository.countByStatus(AnnouncementStatus.PUBLISHED);
+        long cancelled = repository.countByStatus(AnnouncementStatus.CANCELLED);
+        result.put("total", draft + published + cancelled);
+        result.put("draft", draft);
+        result.put("published", published);
+        result.put("cancelled", cancelled);
+        return result;
     }
 
     @Override @Transactional(readOnly = true)
@@ -45,20 +64,22 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
 
     @Override @Transactional
     public AdminAnnouncementResponse create(SaveAnnouncementRequest request, String username) {
-        validate(request, false);
+        validate(request);
         var admin = users.findByUsername(username).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy quản trị viên"));
         var saved = repository.save(SystemAnnouncement.builder().createdBy(admin).title(request.getTitle().trim())
-                .body(request.getBody().trim()).type("SYSTEM").expiresAt(request.getExpiresAt()).status(AnnouncementStatus.DRAFT).build());
+                .body(request.getBody().trim()).type("SYSTEM").publishedAt(request.getPublishedAt())
+                .expiresAt(request.getExpiresAt()).status(AnnouncementStatus.DRAFT).build());
         log(AuditActionType.ANNOUNCEMENT_CREATE, saved, username);
         return AdminAnnouncementResponse.from(saved);
     }
 
     @Override @Transactional
     public AdminAnnouncementResponse update(Long id, SaveAnnouncementRequest request, String username) {
-        validate(request, false);
+        validate(request);
         var a = repository.findByIdForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy announcement"));
         if (a.getStatus() != AnnouncementStatus.DRAFT) throw new BadRequestException("Chỉ có thể sửa announcement ở trạng thái nháp");
-        a.setTitle(request.getTitle().trim()); a.setBody(request.getBody().trim()); a.setType("SYSTEM"); a.setExpiresAt(request.getExpiresAt());
+        a.setTitle(request.getTitle().trim()); a.setBody(request.getBody().trim()); a.setType("SYSTEM");
+        a.setPublishedAt(request.getPublishedAt()); a.setExpiresAt(request.getExpiresAt());
         log(AuditActionType.ANNOUNCEMENT_UPDATE, a, username);
         return AdminAnnouncementResponse.from(a);
     }
@@ -67,7 +88,7 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
     public AdminAnnouncementResponse publish(Long id, String username) {
         var a = repository.findByIdForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy announcement"));
         if (a.getStatus() != AnnouncementStatus.DRAFT) throw new BadRequestException("Announcement không còn ở trạng thái nháp");
-        validateExpiry(a.getExpiresAt()); a.setStatus(AnnouncementStatus.PUBLISHED); a.setPublishedAt(LocalDateTime.now());
+        validatePublishWindow(a.getExpiresAt()); a.setStatus(AnnouncementStatus.PUBLISHED); a.setPublishedAt(now());
         log(AuditActionType.ANNOUNCEMENT_PUBLISH, a, username);
         events.publishEvent(new AnnouncementEvent(a.getAnnouncementId(), a.getTitle(), a.getBody()));
         return AdminAnnouncementResponse.from(a);
@@ -76,9 +97,34 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
     @Override @Transactional
     public AdminAnnouncementResponse cancel(Long id, String username) {
         var a = repository.findByIdForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy announcement"));
-        if (a.getStatus() != AnnouncementStatus.PUBLISHED) throw new BadRequestException("Chỉ có thể hủy announcement đã phát hành");
+        if (a.getStatus() == AnnouncementStatus.CANCELLED) throw new BadRequestException("Announcement đã bị hủy hoặc hết hạn");
         a.setStatus(AnnouncementStatus.CANCELLED); log(AuditActionType.ANNOUNCEMENT_CANCEL, a, username);
         return AdminAnnouncementResponse.from(a);
+    }
+
+    @Override
+    @Scheduled(fixedDelayString = "${app.announcements.lifecycle.interval-ms:60000}",
+            initialDelayString = "${app.announcements.lifecycle.initial-delay-ms:5000}")
+    @Transactional
+    public void synchronizeLifecycle() {
+        synchronizeLifecycleInternal(now());
+    }
+
+    private void synchronizeLifecycleInternal(LocalDateTime currentTime) {
+        for (SystemAnnouncement announcement : repository.findExpiredForUpdate(currentTime)) {
+            if (announcement.getStatus() != AnnouncementStatus.CANCELLED) {
+                announcement.setStatus(AnnouncementStatus.CANCELLED);
+            }
+        }
+        for (SystemAnnouncement announcement : repository.findScheduledForUpdate(currentTime)) {
+            if (announcement.getStatus() == AnnouncementStatus.DRAFT
+                    && (announcement.getExpiresAt() == null || announcement.getExpiresAt().isAfter(currentTime))) {
+                announcement.setStatus(AnnouncementStatus.PUBLISHED);
+                announcement.setPublishedAt(currentTime);
+                events.publishEvent(new AnnouncementEvent(announcement.getAnnouncementId(),
+                        announcement.getTitle(), announcement.getBody()));
+            }
+        }
     }
 
     private SystemAnnouncement find(Long id) { return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy announcement")); }
@@ -89,12 +135,23 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
                 .expectedActorUsername(username).build());
     }
     private static String normalize(String q) { return q == null || q.isBlank() ? null : q.trim(); }
-    private static void validate(SaveAnnouncementRequest r, boolean publishing) {
+    private static String normalizeType(String type) {
+        if (type == null || type.isBlank()) return null;
+        if (!"SYSTEM".equalsIgnoreCase(type.trim())) throw new BadRequestException("Loại thông báo không hợp lệ");
+        return "SYSTEM";
+    }
+    private static void validate(SaveAnnouncementRequest r) {
         if (r.getTitle() == null || r.getTitle().isBlank() || r.getTitle().trim().length() > 160 || r.getBody() == null || r.getBody().isBlank() || r.getBody().trim().length() > 10000)
             throw new BadRequestException("Tiêu đề và nội dung thông báo hệ thống là bắt buộc");
-        validateExpiry(r.getExpiresAt());
+        LocalDateTime currentTime = now();
+        if (r.getPublishedAt() != null && !r.getPublishedAt().isAfter(currentTime))
+            throw new BadRequestException("Thời điểm công khai phải ở tương lai");
+        LocalDateTime start = r.getPublishedAt() == null ? currentTime : r.getPublishedAt();
+        if (r.getExpiresAt() != null && !r.getExpiresAt().isAfter(start))
+            throw new BadRequestException("Thời điểm hết hạn phải sau thời điểm công khai");
     }
-    private static void validateExpiry(LocalDateTime expiresAt) {
-        if (expiresAt != null && !expiresAt.isAfter(LocalDateTime.now())) throw new BadRequestException("Thời điểm hết hạn phải ở tương lai");
+    private static void validatePublishWindow(LocalDateTime expiresAt) {
+        if (expiresAt != null && !expiresAt.isAfter(now())) throw new BadRequestException("Không thể công khai thông báo đã hết hạn");
     }
+    private static LocalDateTime now() { return LocalDateTime.now(VIETNAM_ZONE); }
 }

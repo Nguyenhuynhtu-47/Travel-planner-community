@@ -16,8 +16,24 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from SystemAnnouncement a where a.announcementId = :id")
     java.util.Optional<SystemAnnouncement> findByIdForUpdate(@Param("id") Long id);
-    @Query("select a from SystemAnnouncement a where a.status = :status and (:query is null or lower(a.title) like lower(concat('%', :query, '%'))) order by a.createdAt desc, a.announcementId desc")
-    Page<SystemAnnouncement> findAdminPage(@Param("status") AnnouncementStatus status, @Param("query") String query, Pageable pageable);
+    @Query("select a from SystemAnnouncement a where (:status is null or a.status = :status) "
+            + "and (:type is null or lower(a.type) = lower(:type)) "
+            + "and (:query is null or lower(a.title) like lower(concat('%', :query, '%')) "
+            + "or lower(a.body) like lower(concat('%', :query, '%')) "
+            + "or lower(a.type) like lower(concat('%', :query, '%'))) "
+            + "order by a.createdAt desc, a.announcementId desc")
+    Page<SystemAnnouncement> findAdminPage(@Param("status") AnnouncementStatus status,
+            @Param("type") String type, @Param("query") String query, Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from SystemAnnouncement a where a.status <> Travel_Planner.Travel_Planner.model.enums.AnnouncementStatus.CANCELLED and a.expiresAt is not null and a.expiresAt <= :now order by a.announcementId")
+    List<SystemAnnouncement> findExpiredForUpdate(@Param("now") LocalDateTime now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from SystemAnnouncement a where a.status = Travel_Planner.Travel_Planner.model.enums.AnnouncementStatus.DRAFT and a.publishedAt is not null and a.publishedAt <= :now and (a.expiresAt is null or a.expiresAt > :now) order by a.announcementId")
+    List<SystemAnnouncement> findScheduledForUpdate(@Param("now") LocalDateTime now);
+
+    long countByStatus(AnnouncementStatus status);
 
     @Query("select a from SystemAnnouncement a where a.status = Travel_Planner.Travel_Planner.model.enums.AnnouncementStatus.PUBLISHED and (a.expiresAt is null or a.expiresAt > :now) and (a.publishedAt < :at or (a.publishedAt = :at and (a.announcementId < :id or :cursorSource = 'N'))) order by a.publishedAt desc, a.announcementId desc")
     List<SystemAnnouncement> findActiveBefore(@Param("now") LocalDateTime now, @Param("at") LocalDateTime at, @Param("id") Long id, @Param("cursorSource") String cursorSource, Pageable pageable);

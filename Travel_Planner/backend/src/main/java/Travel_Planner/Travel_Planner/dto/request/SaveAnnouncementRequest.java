@@ -11,5 +11,6 @@ import java.time.LocalDateTime;
 public class SaveAnnouncementRequest {
     @NotBlank @Size(max = 160) private String title;
     @NotBlank @Size(max = 10000) private String body;
+    private LocalDateTime publishedAt;
     private LocalDateTime expiresAt;
 }
