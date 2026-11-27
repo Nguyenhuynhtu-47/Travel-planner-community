@@ -249,6 +249,9 @@ public class RouteServiceImpl implements RouteService {
         if (mode == null || mode.isBlank() || mode.equalsIgnoreCase("driving")) {
             return "driving";
         }
+        if (mode.equalsIgnoreCase("motorcycle")) {
+            return "motorcycle";
+        }
         if (mode.equalsIgnoreCase("walking")) {
             return "walking";
         }

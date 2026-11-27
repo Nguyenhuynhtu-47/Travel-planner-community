@@ -311,6 +311,88 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
     return '$formatted ₫';
   }
 
+  List<Marker> _buildRoadSegmentDistanceMarkers({
+    required List<MappedActivityStop> stops,
+    required RouteResponse route,
+    required Color color,
+  }) {
+    final markers = <Marker>[];
+    final geometry = route.polylinePoints;
+    if (!route.isRoadRoute || stops.length < 2 || geometry.length < 2) {
+      return markers;
+    }
+
+    var searchFrom = 0;
+    final geometryIndexes = <int>[];
+    for (final stop in stops) {
+      var nearestIndex = searchFrom;
+      var nearestDistance = double.infinity;
+      for (var index = searchFrom; index < geometry.length; index++) {
+        final distance = ItineraryMapHelper.calculateDirectDistanceMeters(
+          stop.point,
+          geometry[index],
+        );
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestIndex = index;
+        }
+      }
+      geometryIndexes.add(nearestIndex);
+      searchFrom = nearestIndex;
+    }
+
+    for (var index = 0; index < geometryIndexes.length - 1; index++) {
+      final startIndex = geometryIndexes[index];
+      final endIndex = geometryIndexes[index + 1];
+      if (endIndex <= startIndex) continue;
+
+      var meters = 0.0;
+      for (var pointIndex = startIndex; pointIndex < endIndex; pointIndex++) {
+        meters += ItineraryMapHelper.calculateDirectDistanceMeters(
+          geometry[pointIndex],
+          geometry[pointIndex + 1],
+        );
+      }
+      final midpoint = geometry[startIndex + ((endIndex - startIndex) ~/ 2)];
+      markers.add(
+          Marker(
+            point: midpoint,
+            width: 76,
+            height: 28,
+            child: IgnorePointer(
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.94),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: color.withValues(alpha: 0.55)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x1A000000),
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    RouteResponse.formatDistance(meters),
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+    }
+    return markers;
+  }
+
   @override
   Widget build(BuildContext context) {
     final stops = ItineraryMapHelper.extractMappedStops(
@@ -330,15 +412,10 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
 
     final isMultiDay = _selectedDayNumber == null;
 
-    final markers = ItineraryMapHelper.buildActivityMarkers(
-      stops: stops,
-      isMultiDay: isMultiDay,
-      selectedActivity: _selectedStop?.activity,
-      onStopTapped: _onStopTapped,
-    );
+    final roadDistanceMarkers = <Marker>[];
 
-    // Build route polyline layers: strictly render a polyline ONLY for actual road routes.
-    // Haversine fallback is purely an indicative distance estimate, not a route, so no polyline is drawn.
+    // Only verified road geometry is drawn. A routing failure must never be
+    // represented as a straight line because that can cross inaccessible land.
     final List<Polyline<Object>> polylines = [];
     if (_selectedDayNumber != null) {
       final route = _routesByDay[_selectedDayNumber];
@@ -352,9 +429,19 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
             strokeWidth: 4.5,
           ),
         );
+        roadDistanceMarkers.addAll(
+          _buildRoadSegmentDistanceMarkers(
+            stops: stops,
+            route: route,
+            color: const Color(0xFF2563EB),
+          ),
+        );
       }
     } else {
       for (final day in widget.itinerary.days) {
+        final dayStops = stops
+            .where((stop) => stop.day.dayNumber == day.dayNumber)
+            .toList();
         final route = _routesByDay[day.dayNumber];
         if (route != null &&
             route.isRoadRoute &&
@@ -366,9 +453,26 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
               strokeWidth: 4.5,
             ),
           );
+          roadDistanceMarkers.addAll(
+            _buildRoadSegmentDistanceMarkers(
+              stops: dayStops,
+              route: route,
+              color: ItineraryMapHelper.getDayColor(day.dayNumber),
+            ),
+          );
         }
       }
     }
+
+    final markers = <Marker>[
+      ...ItineraryMapHelper.buildActivityMarkers(
+        stops: stops,
+        isMultiDay: isMultiDay,
+        selectedActivity: _selectedStop?.activity,
+        onStopTapped: _onStopTapped,
+      ),
+      ...roadDistanceMarkers,
+    ];
 
     final points = stops.map((s) => s.point).toList();
 
@@ -689,7 +793,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                       // Activity Title
                       Text(
                         _selectedStop!.activity.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
@@ -900,15 +1004,15 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                 ),
                 const SizedBox(width: 2),
                 _buildModeIconButton(
-                  icon: Icons.directions_walk,
-                  mode: 'walking',
-                  tooltip: 'Đi bộ',
+                  icon: Icons.two_wheeler,
+                  mode: 'motorcycle',
+                  tooltip: 'Xe máy',
                 ),
                 const SizedBox(width: 2),
                 _buildModeIconButton(
-                  icon: Icons.directions_bike,
-                  mode: 'cycling',
-                  tooltip: 'Xe đạp',
+                  icon: Icons.directions_walk,
+                  mode: 'walking',
+                  tooltip: 'Đi bộ',
                 ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -1000,15 +1104,15 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                 ),
                 const SizedBox(width: 2),
                 _buildModeIconButton(
-                  icon: Icons.directions_walk,
-                  mode: 'walking',
-                  tooltip: 'Đi bộ',
+                  icon: Icons.two_wheeler,
+                  mode: 'motorcycle',
+                  tooltip: 'Xe máy',
                 ),
                 const SizedBox(width: 2),
                 _buildModeIconButton(
-                  icon: Icons.directions_bike,
-                  mode: 'cycling',
-                  tooltip: 'Xe đạp',
+                  icon: Icons.directions_walk,
+                  mode: 'walking',
+                  tooltip: 'Đi bộ',
                 ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -1016,9 +1120,9 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Khoảng cách đường chim bay (ước tính): ${route.formattedDirectDistance}',
-                        style: const TextStyle(
+                      const Text(
+                        'Không thể tính tuyến đường trên bản đồ',
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: Color(0xFF92400E),
@@ -1027,7 +1131,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const Text(
-                        'Tuyến đường bộ tạm thời không khả dụng',
+                        'Hãy thử lại hoặc mở Google Maps để chỉ đường',
                         style: TextStyle(
                           fontSize: 10,
                           color: Color(0xFFB45309),
@@ -1230,15 +1334,15 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
               ),
               const SizedBox(width: 2),
               _buildModeIconButton(
-                icon: Icons.directions_walk,
-                mode: 'walking',
-                tooltip: 'Đi bộ',
+                icon: Icons.two_wheeler,
+                mode: 'motorcycle',
+                tooltip: 'Xe máy',
               ),
               const SizedBox(width: 2),
               _buildModeIconButton(
-                icon: Icons.directions_bike,
-                mode: 'cycling',
-                tooltip: 'Xe đạp',
+                icon: Icons.directions_walk,
+                mode: 'walking',
+                tooltip: 'Đi bộ',
               ),
               const SizedBox(width: 8),
               Flexible(
@@ -1248,7 +1352,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   children: [
                     Text(
                       'Khoảng cách đường bộ: ${RouteResponse.formatDistance(totalDistanceMeters)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -1314,11 +1418,6 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
     }
 
     if (roadRoutes.isEmpty && fallbackRoutes.isNotEmpty) {
-      final totalDirectMeters = fallbackRoutes.fold<double>(
-        0.0,
-        (sum, r) => sum + (r.directDistanceMeters ?? 0.0),
-      );
-
       return Material(
         elevation: 3,
         shadowColor: Colors.black12,
@@ -1336,15 +1435,15 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
               ),
               const SizedBox(width: 2),
               _buildModeIconButton(
-                icon: Icons.directions_walk,
-                mode: 'walking',
-                tooltip: 'Đi bộ',
+                icon: Icons.two_wheeler,
+                mode: 'motorcycle',
+                tooltip: 'Xe máy',
               ),
               const SizedBox(width: 2),
               _buildModeIconButton(
-                icon: Icons.directions_bike,
-                mode: 'cycling',
-                tooltip: 'Xe đạp',
+                icon: Icons.directions_walk,
+                mode: 'walking',
+                tooltip: 'Đi bộ',
               ),
               const SizedBox(width: 8),
               Flexible(
@@ -1352,9 +1451,9 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Khoảng cách đường chim bay (ước tính): ${RouteResponse.formatDistance(totalDirectMeters)}',
-                      style: const TextStyle(
+                    const Text(
+                      'Không thể tính tuyến đường trên bản đồ',
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF92400E),
@@ -1363,7 +1462,7 @@ class _ItineraryMapScreenState extends State<ItineraryMapScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const Text(
-                      'Tuyến đường bộ tạm thời không khả dụng',
+                      'Hãy thử lại hoặc mở Google Maps để chỉ đường',
                       style: TextStyle(
                         fontSize: 10,
                         color: Color(0xFFB45309),

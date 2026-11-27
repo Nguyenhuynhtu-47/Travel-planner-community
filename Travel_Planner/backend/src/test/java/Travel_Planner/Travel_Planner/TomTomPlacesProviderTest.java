@@ -13,6 +13,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -27,6 +28,8 @@ class TomTomPlacesProviderTest {
         server.expect(requestTo(containsString("/maps/orbis/places/suggest")))
                 .andExpect(header("TomTom-Api-Version", "3"))
                 .andExpect(header("Session-Id", "123e4567-e89b-42d3-a456-426614174000"))
+                .andExpect(content().string(containsString("\"geopoliticalView\":\"Unified\"")))
+                .andExpect(content().string(containsString("\"countryCodesIso2\":[\"VN\"]")))
                 .andRespond(withSuccess("""
                         {"results":[{"id":"poi-1","type":"poi","title":"Hồ Gươm",
                           "more":{"operation":"details","pathParameters":[
@@ -49,7 +52,7 @@ class TomTomPlacesProviderTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         TomTomPlacesProvider provider = new TomTomPlacesProvider(builder.build(), configured());
-        server.expect(requestTo(containsString("/places/details/pois/poi-1")))
+        server.expect(requestTo(containsString("/places/details/pois/poi-1?geopoliticalView=Unified")))
                 .andRespond(withSuccess("""
                         {"result":{"id":"poi-1","type":"poi","title":"Hồ Gươm",
                           "position":{"coordinates":[105.8522,21.0285]},
@@ -63,6 +66,28 @@ class TomTomPlacesProviderTest {
         assertEquals("pois:poi-1", result.getPlaceId());
         assertEquals("TOMTOM", result.getProvider());
         assertFalse(result.getRequiresDetails());
+    }
+
+    @Test
+    void discoverUsesSupportedViewAndKeepsVietNamFilter() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TomTomPlacesProvider provider = new TomTomPlacesProvider(builder.build(), configured());
+
+        server.expect(requestTo(containsString("/maps/orbis/places/discover")))
+                .andExpect(content().string(containsString("\"geopoliticalView\":\"Unified\"")))
+                .andExpect(content().string(containsString("\"countryCodesIso2\":[\"VN\"]")))
+                .andRespond(withSuccess("""
+                        {"results":[{"id":"poi-1","type":"poi","title":"Hồ Gươm",
+                          "position":{"coordinates":[105.8522,21.0285]}}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        List<LocationSearchResultResponse> results = provider.discover("Hồ Gươm", null, null, null, null);
+
+        server.verify();
+        assertEquals(1, results.size());
+        assertEquals(21.0285, results.get(0).getLatitude());
+        assertEquals(105.8522, results.get(0).getLongitude());
     }
 
     private MapProperties configured() {

@@ -644,7 +644,6 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
     if (activities.length < 2) return null;
     double totalMeters = 0;
     var segmentCount = 0;
-    const distance = Distance();
     for (var i = 0; i < activities.length - 1; i++) {
       final from = activities[i];
       final to = activities[i + 1];
@@ -658,8 +657,7 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
           )) {
         continue;
       }
-      totalMeters += distance.as(
-        LengthUnit.Meter,
+      totalMeters += ItineraryMapHelper.calculateDirectDistanceMeters(
         LatLng(from.effectiveLatitude!, from.effectiveLongitude!),
         LatLng(to.effectiveLatitude!, to.effectiveLongitude!),
       );
@@ -703,8 +701,7 @@ class _ItineraryDayCardState extends State<ItineraryDayCard> {
       return const SizedBox(height: 10);
     }
 
-    final meters = const Distance().as(
-      LengthUnit.Meter,
+    final meters = ItineraryMapHelper.calculateDirectDistanceMeters(
       LatLng(from.effectiveLatitude!, from.effectiveLongitude!),
       LatLng(to.effectiveLatitude!, to.effectiveLongitude!),
     );

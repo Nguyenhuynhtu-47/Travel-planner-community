@@ -74,7 +74,8 @@ public class OpenRouteServiceRoutingProvider implements RoutingProvider {
     }
 
     public static String mapModeToProfile(String mode) {
-        if (mode == null || mode.isBlank() || mode.equalsIgnoreCase("driving")) {
+        if (mode == null || mode.isBlank() || mode.equalsIgnoreCase("driving")
+                || mode.equalsIgnoreCase("motorcycle")) {
             return "driving-car";
         }
         if (mode.equalsIgnoreCase("walking")) {
@@ -106,7 +107,7 @@ public class OpenRouteServiceRoutingProvider implements RoutingProvider {
         String apiKey = mapProperties.getRouting().getApiKey().trim();
         String baseUrl = mapProperties.getRouting().getBaseUrl();
         if (baseUrl == null || baseUrl.isBlank()) {
-            baseUrl = "https://api.openrouteservice.org";
+            baseUrl = "https://api.heigit.org/openrouteservice";
         }
 
         URI uri = UriComponentsBuilder.fromUriString(baseUrl)

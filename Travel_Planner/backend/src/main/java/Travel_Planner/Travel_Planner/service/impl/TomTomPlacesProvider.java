@@ -26,6 +26,7 @@ import java.util.Set;
 
 @Component
 public class TomTomPlacesProvider {
+    private static final String GEOPOLITICAL_VIEW = "Unified";
     private final RestClient restClient;
     private final MapProperties.TomTom properties;
     private static final Set<String> TYPES = Set.of("pois", "addresses", "streets", "intersections", "areas");
@@ -54,6 +55,7 @@ public class TomTomPlacesProvider {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("query", query);
         body.put("maxResults", Math.min(10, limit));
+        body.put("geopoliticalView", GEOPOLITICAL_VIEW);
         body.put("filters", Map.of("countryCodesIso2", List.of("VN")));
         if (latitude != null && longitude != null) body.put("origin", point(longitude, latitude));
         JsonNode response = post("/places/suggest", body, sessionId,
@@ -79,6 +81,7 @@ public class TomTomPlacesProvider {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("query", query);
         body.put("maxResults", 10);
+        body.put("geopoliticalView", GEOPOLITICAL_VIEW);
         Map<String, Object> filters = new java.util.LinkedHashMap<>();
         filters.put("countryCodesIso2", List.of("VN"));
         if (poiType != null && !poiType.isBlank()) filters.put("poiTypes", List.of(poiType));
@@ -106,7 +109,8 @@ public class TomTomPlacesProvider {
     private JsonNode request(String path, String sessionId, String attributes) {
         if (!isEnabled()) throw new AppException("Tìm kiếm TomTom chưa được bật trên máy chủ", HttpStatus.SERVICE_UNAVAILABLE);
         try {
-            return restClient.get().uri(baseUrl() + path).headers(h -> headers(h, sessionId, attributes))
+            return restClient.get().uri(baseUrl() + path + "?geopoliticalView=" + GEOPOLITICAL_VIEW)
+                    .headers(h -> headers(h, sessionId, attributes))
                     .retrieve().body(JsonNode.class);
         } catch (RestClientResponseException ex) {
             throw upstreamError(ex);

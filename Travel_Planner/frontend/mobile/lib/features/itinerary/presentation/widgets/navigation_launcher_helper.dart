@@ -31,6 +31,17 @@ class NavigationLauncherHelper {
 
   static const int maxIntermediateWaypoints = 9;
 
+  /// Builds a Google Maps text query from a place name and its address.
+  static String? buildPlaceQuery({String? name, String? address}) {
+    final cleanName = _sanitizeLabel(name);
+    final cleanAddress = _sanitizeLabel(address);
+    if (cleanName == null) return cleanAddress;
+    if (cleanAddress == null || cleanName.contains(cleanAddress)) {
+      return cleanName;
+    }
+    return '$cleanName, $cleanAddress';
+  }
+
   /// Builds a free Google Maps directions URL from the device to one activity.
   /// The target is an exact coordinate when available, otherwise a place address/name.
   static Uri? buildCurrentLocationDirectionsUri({
@@ -40,16 +51,16 @@ class NavigationLauncherHelper {
     String? destinationName,
     String mode = 'driving',
   }) {
-    final destination = destinationPoint != null
-        ? '${destinationPoint.latitude},${destinationPoint.longitude}'
-        : (destinationAddress?.trim().isNotEmpty == true
-              ? destinationAddress!.trim()
-              : destinationName?.trim());
+    final destination =
+        buildPlaceQuery(name: destinationName, address: destinationAddress) ??
+        (destinationPoint != null
+            ? '${destinationPoint.latitude},${destinationPoint.longitude}'
+            : null);
     if (destination == null || destination.isEmpty) return null;
 
     final travelMode = switch (mode.toLowerCase()) {
       'walking' || 'walk' || 'foot-walking' => 'walking',
-      'bicycling' || 'cycling' || 'bike' || 'cycling-regular' => 'bicycling',
+      'motorcycle' || 'motorbike' || 'two-wheeler' => 'two-wheeler',
       'transit' => 'transit',
       _ => 'driving',
     };
@@ -61,17 +72,12 @@ class NavigationLauncherHelper {
     });
   }
 
-  /// Formats a coordinate with an optional label for Google Maps URL parameters.
-  /// If [label] is present and non-empty, produces `lat,lon(sanitizedLabel)`.
-  /// Otherwise, returns plain `lat,lon`.
+  /// Uses a place label for routing and falls back to coordinates when absent.
   static String formatPointParam(LatLng point, String? label) {
     final lat = point.latitude;
     final lon = point.longitude;
     final cleanLabel = _sanitizeLabel(label);
-    if (cleanLabel != null && cleanLabel.isNotEmpty) {
-      return '$lat,$lon($cleanLabel)';
-    }
-    return '$lat,$lon';
+    return cleanLabel ?? '$lat,$lon';
   }
 
   /// Sanitizes label string: trims whitespace and normalizes nested parentheses to brackets
@@ -80,7 +86,7 @@ class NavigationLauncherHelper {
     if (label == null) return null;
     final trimmed = label.trim();
     if (trimmed.isEmpty) return null;
-    return trimmed.replaceAll('(', '[').replaceAll(')', ']');
+    return trimmed;
   }
 
   /// Builds a standard, keyless Google Maps directions or search URL for the given ordered stops.
@@ -103,7 +109,7 @@ class NavigationLauncherHelper {
 
     final travelMode = switch (mode.toLowerCase()) {
       'walking' || 'walk' || 'foot-walking' => 'walking',
-      'bicycling' || 'cycling' || 'bike' || 'cycling-regular' => 'bicycling',
+      'motorcycle' || 'motorbike' || 'two-wheeler' => 'two-wheeler',
       'transit' => 'transit',
       _ => 'driving',
     };

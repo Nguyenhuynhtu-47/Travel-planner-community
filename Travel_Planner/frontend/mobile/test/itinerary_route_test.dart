@@ -319,7 +319,7 @@ void main() {
       expect(uri.queryParameters['waypoints'], '11.941,108.4383|11.942,108.4384');
     });
 
-    test('buildGoogleMapsUri maps cycling mode to bicycling', () {
+    test('buildGoogleMapsUri falls back to driving for unsupported cycling mode', () {
       final uri = NavigationLauncherHelper.buildGoogleMapsUri(
         waypoints: const [
           LatLng(11.9431, 108.4382),
@@ -328,7 +328,20 @@ void main() {
         mode: 'cycling',
       );
 
-      expect(uri!.queryParameters['travelmode'], 'bicycling');
+      expect(uri!.queryParameters['travelmode'], 'driving');
+    });
+
+    test('buildGoogleMapsUri maps motorcycle mode to Google two-wheeler', () {
+      final uri = NavigationLauncherHelper.buildGoogleMapsUri(
+        waypoints: const [
+          LatLng(11.9431, 108.4382),
+          LatLng(11.9404, 108.4385),
+        ],
+        mode: 'motorcycle',
+      );
+
+      expect(uri, isNotNull);
+      expect(uri!.queryParameters['travelmode'], 'two-wheeler');
     });
 
     test('buildGoogleMapsUri caps intermediate waypoints at 9 stops', () {
@@ -359,10 +372,10 @@ void main() {
       expect(uri.queryParameters['api'], '1');
       expect(
         uri.queryParameters['query'],
-        '11.93988,108.44498(Hồ Xuân Hương & Quảng Trường Lâm Viên)',
+        'Hồ Xuân Hương & Quảng Trường Lâm Viên',
       );
       // Verify raw URI is properly percent-encoded once without double-encoding
-      expect(uri.toString(), contains('11.93988%2C108.44498%28H%E1%BB%93+Xu%C3%A2n+H%C6%B0%C6%A1ng+%26+Qu%E1%BA%A3ng+Tr%C6%B0%E1%BB%9Dng+L%C3%A2m+Vi%C3%AAn%29'));
+      expect(uri.toString(), contains('H%E1%BB%93+Xu%C3%A2n+H%C6%B0%C6%A1ng'));
     });
 
     test('buildGoogleMapsUri with NavigationStop builds two stops with origin and destination labels', () {
@@ -382,8 +395,8 @@ void main() {
 
       expect(uri, isNotNull);
       expect(uri!.path, '/maps/dir/');
-      expect(uri.queryParameters['origin'], '11.9056,108.5442(Đồi Chè Cầu Đất)');
-      expect(uri.queryParameters['destination'], '11.93988,108.44498(Hồ Xuân Hương & Quảng Trường Lâm Viên)');
+      expect(uri.queryParameters['origin'], 'Đồi Chè Cầu Đất');
+      expect(uri.queryParameters['destination'], 'Hồ Xuân Hương & Quảng Trường Lâm Viên');
       expect(uri.queryParameters['travelmode'], 'driving');
       expect(uri.queryParameters.containsKey('waypoints'), isFalse);
     });
@@ -412,11 +425,11 @@ void main() {
       );
 
       expect(uri, isNotNull);
-      expect(uri!.queryParameters['origin'], '11.9056,108.5442(Điểm 1: Đồi Chè)');
-      expect(uri.queryParameters['destination'], '11.93988,108.44498(Điểm 4: Hồ Xuân Hương)');
+      expect(uri!.queryParameters['origin'], 'Điểm 1: Đồi Chè');
+      expect(uri.queryParameters['destination'], 'Điểm 4: Hồ Xuân Hương');
       expect(
         uri.queryParameters['waypoints'],
-        '11.94,108.44(Điểm 2: Cà phê ven hồ)|11.942,108.442(Điểm 3: Chợ đêm Đà Lạt)',
+        'Điểm 2: Cà phê ven hồ|Điểm 3: Chợ đêm Đà Lạt',
       );
       expect(uri.queryParameters['travelmode'], 'walking');
     });
@@ -439,11 +452,11 @@ void main() {
       // Nested parentheses normalized to brackets
       expect(
         uri!.queryParameters['origin'],
-        '10.7725,106.698(Quán Cà Phê [Chi nhánh 1] & Trà / Bánh)',
+        'Quán Cà Phê (Chi nhánh 1) & Trà / Bánh',
       );
       expect(
         uri.queryParameters['destination'],
-        '10.775,106.7(Bảo tàng [Khu A - Tầng 2])',
+        'Bảo tàng (Khu A - Tầng 2)',
       );
     });
 
@@ -697,7 +710,7 @@ void main() {
       expect(polylineLayer.polylines.first.color, const Color(0xFF2563EB));
     });
 
-    testWidgets('Renders ESTIMATED_INDICATIVE fallback banner without fake duration and without polyline', (tester) async {
+    testWidgets('Renders fallback warning without misleading straight-line route', (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -736,19 +749,20 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      // Indicative straight-line distance must be displayed with warning
-      expect(find.textContaining('Khoảng cách đường chim bay (ước tính): 1.2 km'), findsOneWidget);
-      expect(find.text('Tuyến đường bộ tạm thời không khả dụng'), findsOneWidget);
+      expect(find.text('Không thể tính tuyến đường trên bản đồ'), findsOneWidget);
+      expect(find.text('Hãy thử lại hoặc mở Google Maps để chỉ đường'), findsOneWidget);
       // Duration MUST NOT be displayed
       expect(find.textContaining('Thời gian di chuyển:'), findsNothing);
       expect(find.text('Chỉ đường'), findsOneWidget);
 
-      // Verify NO route polylines are rendered for Haversine fallback
+      // A failed road request must not be drawn as a misleading straight line.
       final polylineLayerFinder = find.byType(PolylineLayer);
       if (polylineLayerFinder.evaluate().isNotEmpty) {
         final polylineLayer = tester.widget<PolylineLayer>(polylineLayerFinder);
-        expect(polylineLayer.polylines, isEmpty, reason: 'Haversine fallback must not draw any route polyline');
+        expect(polylineLayer.polylines, isEmpty);
       }
+      expect(find.textContaining('đường chim bay'), findsNothing);
+      expect(find.byTooltip('Xe máy'), findsOneWidget);
     });
 
     testWidgets('Renders single stop badge and Mở Google Maps button without misleading zero distance', (tester) async {
@@ -829,8 +843,8 @@ void main() {
       expect(launchedUri, isNotNull);
       expect(launchedUri!.host, 'www.google.com');
       expect(launchedUri!.path, '/maps/dir/');
-      expect(launchedUri!.queryParameters['origin'], '11.9431,108.4382(Hôtel Colline)');
-      expect(launchedUri!.queryParameters['destination'], '11.9404,108.4385(Quán Cà Phê Tùng)');
+      expect(launchedUri!.queryParameters['origin'], 'Hôtel Colline, 10 Phan Bội Châu, Đà Lạt');
+      expect(launchedUri!.queryParameters['destination'], 'Quán Cà Phê Tùng, 06 Khu Hòa Bình, Đà Lạt');
     });
 
     testWidgets('Switching travel mode requests new route with updated mode', (tester) async {
@@ -888,6 +902,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(requestedModes, contains('walking'));
+
+      await tester.tap(find.byTooltip('Xe máy'));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(requestedModes, contains('motorcycle'));
     });
 
     testWidgets('Switching day chips clears previous route and fetches new day route', (tester) async {
@@ -1093,8 +1113,8 @@ void main() {
       expect(polylineLayer.polylines[1].points[0], const LatLng(11.9500, 108.4400));
 
       // Verify all 4 markers are present with day badges D1 and D2
-      expect(find.text('D1'), findsNWidgets(2));
-      expect(find.text('D2'), findsNWidgets(2));
+      expect(find.text('N1'), findsNWidgets(2));
+      expect(find.text('N2'), findsNWidgets(2));
     });
 
     testWidgets('Switching from All-Days mode to Day 2 displays only Day 2 markers and polyline with cache hit', (tester) async {
@@ -1238,8 +1258,8 @@ void main() {
       expect(polylineLayer.polylines.first.color, ItineraryMapHelper.getDayColor(2));
 
       // Markers for both days still render
-      expect(find.text('D1'), findsNWidgets(2));
-      expect(find.text('D2'), findsNWidgets(2));
+      expect(find.text('N1'), findsNWidgets(2));
+      expect(find.text('N2'), findsNWidgets(2));
 
       // Successfully shows road distance for the loaded Day 2
       expect(find.textContaining('Khoảng cách đường bộ: 4.0 km'), findsOneWidget);
@@ -1343,16 +1363,15 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      // No polylines drawn for fallback routes
+      // Failed road routes are not replaced with straight-line geometry.
       final polylineLayerFinder = find.byType(PolylineLayer);
       if (polylineLayerFinder.evaluate().isNotEmpty) {
         final polylineLayer = tester.widget<PolylineLayer>(polylineLayerFinder);
         expect(polylineLayer.polylines, isEmpty);
       }
 
-      // Sum of direct distances (1500 + 2500 = 4000m = 4.0 km)
-      expect(find.textContaining('Khoảng cách đường chim bay (ước tính): 4.0 km'), findsOneWidget);
-      expect(find.text('Tuyến đường bộ tạm thời không khả dụng'), findsOneWidget);
+      expect(find.text('Không thể tính tuyến đường trên bản đồ'), findsOneWidget);
+      expect(find.text('Hãy thử lại hoặc mở Google Maps để chỉ đường'), findsOneWidget);
     });
   });
 }

@@ -43,7 +43,7 @@ public class MapProperties {
         private String provider = "OPEN_ROUTE_SERVICE";
         private String apiKey = "";
         private int timeoutMs = 4000;
-        private String baseUrl = "https://api.openrouteservice.org";
+        private String baseUrl = "https://api.heigit.org/openrouteservice";
         private int maxWaypoints = 50;
     }
 }

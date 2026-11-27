@@ -59,7 +59,7 @@ class OpenRouteServiceRoutingProviderTest {
     void setUp() {
         mapProperties = new MapProperties();
         mapProperties.getRouting().setApiKey("test-ors-api-key");
-        mapProperties.getRouting().setBaseUrl("https://api.openrouteservice.org");
+        mapProperties.getRouting().setBaseUrl("https://api.heigit.org/openrouteservice");
         mapProperties.getRouting().setTimeoutMs(4000);
         mapProperties.getRouting().setMaxWaypoints(50);
 
@@ -89,7 +89,7 @@ class OpenRouteServiceRoutingProviderTest {
                 new WaypointCoordinate(21.02935, 105.83605)
         );
 
-        mockServer.expect(requestTo("https://api.openrouteservice.org/v2/directions/driving-car/geojson"))
+        mockServer.expect(requestTo("https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("Authorization", "test-ors-api-key"))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -120,7 +120,7 @@ class OpenRouteServiceRoutingProviderTest {
                 new WaypointCoordinate(21.02935, 105.83605)
         );
 
-        mockServer.expect(requestTo("https://api.openrouteservice.org/v2/directions/foot-walking/geojson"))
+        mockServer.expect(requestTo("https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(SAMPLE_ORS_GEOJSON, MediaType.parseMediaType("application/geo+json")));
 
@@ -129,6 +129,12 @@ class OpenRouteServiceRoutingProviderTest {
         mockServer.verify();
         assertNotNull(result);
         assertEquals("ACTUAL_ROAD", result.routeType());
+    }
+
+    @Test
+    @DisplayName("motorcycle mode reuses the driving-car road network profile")
+    void testMotorcycleModeUsesDrivingRoadProfile() {
+        assertEquals("driving-car", OpenRouteServiceRoutingProvider.mapModeToProfile("motorcycle"));
     }
 
     @Test
@@ -194,7 +200,7 @@ class OpenRouteServiceRoutingProviderTest {
                 new WaypointCoordinate(21.02, 105.02)
         );
 
-        mockServer.expect(requestTo("https://api.openrouteservice.org/v2/directions/driving-car/geojson"))
+        mockServer.expect(requestTo("https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"))
                 .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 
         RoutingProviderException ex = assertThrows(RoutingProviderException.class,
@@ -211,7 +217,7 @@ class OpenRouteServiceRoutingProviderTest {
                 new WaypointCoordinate(21.02, 105.02)
         );
 
-        mockServer.expect(requestTo("https://api.openrouteservice.org/v2/directions/driving-car/geojson"))
+        mockServer.expect(requestTo("https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
         RoutingProviderException ex = assertThrows(RoutingProviderException.class,
@@ -227,7 +233,7 @@ class OpenRouteServiceRoutingProviderTest {
                 new WaypointCoordinate(21.02, 105.02)
         );
 
-        mockServer.expect(requestTo("https://api.openrouteservice.org/v2/directions/driving-car/geojson"))
+        mockServer.expect(requestTo("https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 
         RoutingProviderException ex = assertThrows(RoutingProviderException.class,
@@ -243,7 +249,7 @@ class OpenRouteServiceRoutingProviderTest {
                 new WaypointCoordinate(21.02, 105.02)
         );
 
-        mockServer.expect(requestTo("https://api.openrouteservice.org/v2/directions/driving-car/geojson"))
+        mockServer.expect(requestTo("https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"))
                 .andRespond(withException(new SocketTimeoutException("Connection timed out")));
 
         RoutingProviderException ex = assertThrows(RoutingProviderException.class,
@@ -260,7 +266,7 @@ class OpenRouteServiceRoutingProviderTest {
                 new WaypointCoordinate(21.02, 105.02)
         );
 
-        mockServer.expect(requestTo("https://api.openrouteservice.org/v2/directions/driving-car/geojson"))
+        mockServer.expect(requestTo("https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"))
                 .andRespond(withSuccess("{\"type\":\"FeatureCollection\",\"features\":[]}", MediaType.APPLICATION_JSON));
 
         RoutingProviderException ex = assertThrows(RoutingProviderException.class,

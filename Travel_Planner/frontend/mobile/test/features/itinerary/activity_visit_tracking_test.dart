@@ -78,7 +78,7 @@ void main() {
 
       expect(uri!.path, '/maps/dir/');
       expect(uri.queryParameters['origin'], '10.1,106.2');
-      expect(uri.queryParameters['destination'], '10.7,106.6');
+      expect(uri.queryParameters['destination'], 'Ignored display label');
       expect(uri.queryParameters['travelmode'], 'driving');
     });
 
@@ -375,7 +375,10 @@ void main() {
 
         expect(launchedUri?.path, '/maps/dir/');
         expect(launchedUri?.queryParameters['origin'], '10.8,106.7');
-        expect(launchedUri?.queryParameters['destination'], '10.7769,106.7009');
+        expect(
+          launchedUri?.queryParameters['destination'],
+          'Bưu điện thành phố',
+        );
       },
     );
 

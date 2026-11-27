@@ -25,8 +25,13 @@ class MappedActivityStop {
   });
 
   /// Converts mapped activity stop into a navigation stop with prioritized display name.
-  NavigationStop toNavigationStop() =>
-      NavigationStop(point: point, label: activity.navigationDisplayName);
+  NavigationStop toNavigationStop() => NavigationStop(
+        point: point,
+        label: NavigationLauncherHelper.buildPlaceQuery(
+          name: activity.navigationDisplayName,
+          address: activity.effectiveAddress,
+        ),
+      );
 
   @override
   String toString() =>
@@ -77,6 +82,11 @@ class ItineraryMapHelper {
       return false;
     }
     return lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0;
+  }
+
+  /// Calculates direct distance when road geometry is unavailable.
+  static double calculateDirectDistanceMeters(LatLng from, LatLng to) {
+    return const Distance().as(LengthUnit.Meter, from, to);
   }
 
   /// Extracts all mapped stops from the itinerary for the selected day number.
