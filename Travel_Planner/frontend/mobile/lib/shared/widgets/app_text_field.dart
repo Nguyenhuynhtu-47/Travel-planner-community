@@ -10,6 +10,7 @@ class AppTextField extends StatefulWidget {
   final TextEditingController controller;
   final TextInputType keyboardType;
   final bool isPassword;
+  final bool enabled;
   final String? errorText;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
@@ -32,6 +33,7 @@ class AppTextField extends StatefulWidget {
     required this.controller,
     this.keyboardType = TextInputType.text,
     this.isPassword = false,
+    this.enabled = true,
     this.errorText,
     this.onChanged,
     this.onFieldSubmitted,
@@ -68,7 +70,8 @@ class _AppTextFieldState extends State<AppTextField> {
       children: [
         Text(
           widget.label,
-          style: widget.labelStyle ??
+          style:
+              widget.labelStyle ??
               const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -77,6 +80,7 @@ class _AppTextFieldState extends State<AppTextField> {
         ),
         const SizedBox(height: 8),
         TextFormField(
+          enabled: widget.enabled,
           controller: widget.controller,
           keyboardType: widget.keyboardType,
           textInputAction: widget.textInputAction,
@@ -87,7 +91,8 @@ class _AppTextFieldState extends State<AppTextField> {
           onChanged: widget.onChanged,
           onFieldSubmitted: widget.onFieldSubmitted,
           validator: widget.validator,
-          style: widget.inputStyle ??
+          style:
+              widget.inputStyle ??
               const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w400,
@@ -116,9 +121,13 @@ class _AppTextFieldState extends State<AppTextField> {
                     borderSide: const BorderSide(color: AppColors.border),
                   )
                 : null,
-            focusedBorder: (widget.borderRadius != null || widget.focusedBorderColor != null)
+            focusedBorder:
+                (widget.borderRadius != null ||
+                    widget.focusedBorderColor != null)
                 ? OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(widget.borderRadius ?? 8),
+                    borderRadius: BorderRadius.circular(
+                      widget.borderRadius ?? 8,
+                    ),
                     borderSide: BorderSide(
                       color: widget.focusedBorderColor ?? AppColors.textPrimary,
                       width: 2.0,
@@ -134,7 +143,10 @@ class _AppTextFieldState extends State<AppTextField> {
             focusedErrorBorder: widget.borderRadius != null
                 ? OutlineInputBorder(
                     borderRadius: BorderRadius.circular(widget.borderRadius!),
-                    borderSide: const BorderSide(color: AppColors.error, width: 2.0),
+                    borderSide: const BorderSide(
+                      color: AppColors.error,
+                      width: 2.0,
+                    ),
                   )
                 : null,
             suffixIcon: widget.isPassword

@@ -30,8 +30,8 @@ import '../../../itinerary/data/models/update_itinerary_request.dart';
 import '../../../itinerary/presentation/screens/edit_itinerary_screen.dart';
 import '../../../itinerary/presentation/screens/itinerary_detail_screen.dart';
 import '../../../itinerary/presentation/screens/my_itineraries_screen.dart';
-import '../../../messaging/data/messaging_repository.dart';
-import '../../../messaging/presentation/screens/messaging_settings_screen.dart';
+import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../notifications/presentation/widgets/notification_bell_button.dart';
 import '../../data/profile_repository.dart';
 import '../../data/public_profile_repository.dart';
 import '../../../social/data/community_post_repository.dart';
@@ -459,15 +459,22 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  Future<void> _openMessagingPrivacy() async {
-    final token = widget.authNotifier.token;
-    if (token == null || token.isEmpty) return;
-    await Navigator.of(context).push<void>(
+  void _cancelEditing() {
+    if (!_editing || _saving) return;
+    final profile = _profile;
+    if (profile == null) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    _fillFields(profile);
+    setState(() {
+      _editing = false;
+      _validationErrors = null;
+    });
+  }
+
+  void _openNotifications() {
+    Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MessagingSettingsScreen(
-          token: token,
-          repository: MessagingRepository(),
-        ),
+        builder: (_) => NotificationsScreen(authNotifier: widget.authNotifier),
       ),
     );
   }
@@ -559,9 +566,15 @@ class _ProfileScreenState extends State<ProfileScreen>
         automaticallyImplyLeading: false,
         leadingWidth: Navigator.of(context).canPop() ? 58 : null,
         leading: Navigator.of(context).canPop()
-            ? const Padding(
-                padding: EdgeInsets.only(left: 12),
-                child: Center(child: AppHeaderBackButton()),
+            ? Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Center(
+                  child: AppHeaderBackButton(
+                    onPressed: _editing
+                        ? _cancelEditing
+                        : () => Navigator.of(context).pop(),
+                  ),
+                ),
               )
             : null,
         title: const AppPageTitle(title: 'Hồ sơ cá nhân'),
@@ -570,10 +583,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         actions: [
-          AppHeaderIconButton(
-            tooltip: 'Quyền riêng tư tin nhắn',
-            icon: Icons.forum_outlined,
-            onPressed: _openMessagingPrivacy,
+          NotificationBellButton(
+            authNotifier: widget.authNotifier,
+            onPressed: _openNotifications,
           ),
           IconButton(
             tooltip: 'Cài đặt hồ sơ',
@@ -587,32 +599,39 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: Container(height: 0.5, color: AppColors.hairlineSoft),
         ),
       ),
-      body: _loading
-          ? const Center(
-              key: ValueKey('profile_loading'),
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
-          : _error != null || _profile == null
-          ? KeyedSubtree(
-              key: const ValueKey('profile_error'),
-              child: _errorView(),
-            )
-          : AnimatedSwitcher(
-              duration: MediaQuery.maybeOf(context)?.disableAnimations ?? false
-                  ? Duration.zero
-                  : const Duration(milliseconds: 200),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeOutCubic,
-              child: _editing
-                  ? KeyedSubtree(
-                      key: const ValueKey('profile_editor'),
-                      child: _editor(),
-                    )
-                  : KeyedSubtree(
-                      key: const ValueKey('profile_view'),
-                      child: _profileView(),
-                    ),
-            ),
+      body: PopScope<void>(
+        canPop: !_editing,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _editing) _cancelEditing();
+        },
+        child: _loading
+            ? const Center(
+                key: ValueKey('profile_loading'),
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
+            : _error != null || _profile == null
+            ? KeyedSubtree(
+                key: const ValueKey('profile_error'),
+                child: _errorView(),
+              )
+            : AnimatedSwitcher(
+                duration:
+                    MediaQuery.maybeOf(context)?.disableAnimations ?? false
+                    ? Duration.zero
+                    : const Duration(milliseconds: 200),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeOutCubic,
+                child: _editing
+                    ? KeyedSubtree(
+                        key: const ValueKey('profile_editor'),
+                        child: _editor(),
+                      )
+                    : KeyedSubtree(
+                        key: const ValueKey('profile_view'),
+                        child: _profileView(),
+                      ),
+              ),
+      ),
     );
   }
 

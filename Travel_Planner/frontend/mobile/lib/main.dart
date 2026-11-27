@@ -12,7 +12,7 @@ import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/itinerary/presentation/screens/my_itineraries_screen.dart';
 import 'features/messaging/data/messaging_push_registration.dart';
 import 'features/messaging/data/messaging_realtime_client.dart';
-import 'features/messaging/presentation/screens/community_screen.dart';
+import 'features/messaging/presentation/screens/messaging_inbox_screen.dart';
 import 'features/notifications/presentation/screens/notifications_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
 import 'features/splash/presentation/screens/splash_screen.dart';
@@ -122,9 +122,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               if (navigator == null) return;
               navigator.push(
                 MaterialPageRoute<void>(
-                  builder: (_) => CommunityScreen(
+                  builder: (_) => MessagingInboxScreen(
                     authNotifier: _authNotifier,
-                    initialTab: 0,
                   ),
                 ),
               );

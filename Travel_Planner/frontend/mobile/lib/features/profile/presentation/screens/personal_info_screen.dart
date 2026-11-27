@@ -10,15 +10,19 @@ import '../../../../shared/widgets/app_page_title.dart';
 import '../../../../shared/widgets/app_primary_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/app_toast.dart';
+
 import 'package:mobile/shared/widgets/app_dialog.dart';
 import 'package:mobile/shared/widgets/app_header_button.dart';
 import 'package:mobile/shared/widgets/bounce_tap.dart';
+
 import '../../../../shared/services/image_picker_service.dart';
 import '../../../../shared/widgets/image_upload_preview.dart';
 import '../../../auth/presentation/auth_notifier.dart';
 import '../../../auth/presentation/screens/change_email_screen.dart';
 import '../../../auth/presentation/screens/change_password_screen.dart';
 import '../../../auth/presentation/screens/device_sessions_screen.dart';
+import '../../../messaging/data/messaging_repository.dart';
+import '../../../messaging/presentation/screens/messaging_settings_screen.dart';
 import '../../data/profile_repository.dart';
 
 class PersonalInfoScreen extends StatefulWidget {
@@ -52,6 +56,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   Uint8List? _selectedAvatarBytes;
   bool _loading = true;
   bool _saving = false;
+  bool _editing = false;
   String? _error;
 
   @override
@@ -184,9 +189,9 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         _profile = profile;
         _fillFields(profile);
         _saving = false;
+        _editing = false;
       });
       AppToast.showSuccess(context, 'Đã cập nhật hồ sơ');
-      Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -217,6 +222,19 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }
+  }
+
+  Future<void> _openMessagingSettings() async {
+    final token = widget.authNotifier.token;
+    if (token == null || token.isEmpty) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => MessagingSettingsScreen(
+          token: token,
+          repository: MessagingRepository(),
+        ),
+      ),
+    );
   }
 
   String _value(dynamic value) {
@@ -265,10 +283,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 0.5,
-            color: AppColors.hairlineSoft,
-          ),
+          child: Container(height: 0.5, color: AppColors.hairlineSoft),
         ),
       ),
       body: _loading
@@ -276,22 +291,22 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               child: CircularProgressIndicator(color: AppColors.primary),
             )
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!),
-                      const SizedBox(height: 12),
-                      BounceTap(
-                        child: OutlinedButton(
-                          onPressed: _loadProfile,
-                          child: const Text('Thử lại'),
-                        ),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_error!),
+                  const SizedBox(height: 12),
+                  BounceTap(
+                    child: OutlinedButton(
+                      onPressed: _loadProfile,
+                      child: const Text('Thử lại'),
+                    ),
                   ),
-                )
-              : _buildForm(),
+                ],
+              ),
+            )
+          : _buildForm(),
     );
   }
 
@@ -312,7 +327,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 selectedBytes: _selectedAvatarBytes,
                 imageUrl: currentAvatar,
                 buttonLabel: 'Đổi ảnh đại diện',
-                onPick: _pickAvatar,
+                onPick: _editing ? _pickAvatar : null,
               ),
             ),
             const SizedBox(height: 24),
@@ -324,6 +339,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               label: 'Họ và tên *',
               hint: 'Nhập họ và tên của bạn',
               controller: _fullNameController,
+              enabled: _editing,
               textInputAction: TextInputAction.next,
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
@@ -341,6 +357,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               label: 'Định danh công khai (@handle)',
               hint: 'ví dụ: minhdanh (chữ thường, số, dấu chấm)',
               controller: _handleController,
+              enabled: _editing,
               textInputAction: TextInputAction.next,
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return null;
@@ -361,6 +378,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               label: 'Số điện thoại',
               hint: 'Nhập số điện thoại',
               controller: _phoneController,
+              enabled: _editing,
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
             ),
@@ -370,6 +388,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               label: 'Địa chỉ',
               hint: 'Tỉnh/Thành phố hoặc địa chỉ của bạn',
               controller: _addressController,
+              enabled: _editing,
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 16),
@@ -378,6 +397,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               label: 'Giới thiệu',
               hint: 'Mô tả ngắn gọn về bản thân hoặc sở thích du lịch...',
               controller: _bioController,
+              enabled: _editing,
               maxLines: 3,
               minLines: 2,
               keyboardType: TextInputType.multiline,
@@ -402,95 +422,88 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   const Divider(height: 1, color: AppColors.hairlineSoft),
                   _readonlyRow('Trạng thái', _value(p['status'])),
                   const Divider(height: 1, color: AppColors.hairlineSoft),
-                  _readonlyRow('Ngày tham gia', _formatDate(p['createdAt']) ?? 'Chưa rõ'),
+                  _readonlyRow(
+                    'Ngày tham gia',
+                    _formatDate(p['createdAt']) ?? 'Chưa rõ',
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
+            AppPrimaryButton(
+              text: _editing ? 'Lưu thay đổi' : 'Chỉnh sửa',
+              isLoading: _saving,
+              onPressed: _saving
+                  ? null
+                  : _editing
+                  ? _saveProfile
+                  : () => setState(() => _editing = true),
+            ),
+            const SizedBox(height: 24),
+
             _sectionHeader('Bảo mật tài khoản'),
             const SizedBox(height: 12),
-            BounceTap(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ChangePasswordScreen(
-                        authNotifier: widget.authNotifier,
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.lock_reset, size: 20),
-                label: const Text('Đổi mật khẩu'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
               ),
-            ),
-            const SizedBox(height: 10),
-            BounceTap(
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  final updated = await Navigator.of(context).push<bool>(
-                    MaterialPageRoute<bool>(
-                      builder: (_) => ChangeEmailScreen(
-                        authNotifier: widget.authNotifier,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: _securityIcon(Icons.lock_reset),
+                    title: const Text('Đổi mật khẩu'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ChangePasswordScreen(
+                          authNotifier: widget.authNotifier,
+                        ),
                       ),
                     ),
-                  );
-                  if (updated == true && mounted) {
-                    _loadProfile();
-                  }
-                },
-                icon: const Icon(Icons.email_outlined, size: 20),
-                label: const Text('Đổi địa chỉ email'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            BounceTap(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => DeviceSessionsScreen(
-                        authNotifier: widget.authNotifier,
+                  const Divider(height: 1, indent: 64),
+                  ListTile(
+                    leading: _securityIcon(Icons.forum_outlined),
+                    title: const Text('Quyền riêng tư tin nhắn'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _openMessagingSettings,
+                  ),
+                  const Divider(height: 1, indent: 64),
+                  ListTile(
+                    leading: _securityIcon(Icons.email_outlined),
+                    title: const Text('Đổi địa chỉ email'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      final updated = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute<bool>(
+                          builder: (_) => ChangeEmailScreen(
+                            authNotifier: widget.authNotifier,
+                          ),
+                        ),
+                      );
+                      if (updated == true && mounted) _loadProfile();
+                    },
+                  ),
+                  const Divider(height: 1, indent: 64),
+                  ListTile(
+                    leading: _securityIcon(Icons.devices_outlined),
+                    title: const Text('Thiết bị & phiên đăng nhập'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DeviceSessionsScreen(
+                          authNotifier: widget.authNotifier,
+                        ),
                       ),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.devices, size: 20),
-                label: const Text('Thiết bị & Phiên đăng nhập'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
                   ),
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 32),
-
-            AppPrimaryButton(
-              text: 'Lưu thay đổi',
-              isLoading: _saving,
-              onPressed: _saveProfile,
-            ),
           ],
         ),
       ),
@@ -505,6 +518,19 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         fontWeight: FontWeight.w700,
         color: AppColors.textPrimary,
       ),
+    );
+  }
+
+  Widget _securityIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceStrong,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 19, color: AppColors.textPrimary),
     );
   }
 
