@@ -5,9 +5,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../../core/network/api_client.dart';
 
 class MessagingPushRegistration {
-  MessagingPushRegistration({ApiClient? apiClient, FirebaseMessaging? messaging})
-    : _api = apiClient ?? ApiClient(),
-      _messaging = messaging ?? FirebaseMessaging.instance;
+  MessagingPushRegistration({
+    ApiClient? apiClient,
+    FirebaseMessaging? messaging,
+  }) : _api = apiClient ?? ApiClient(),
+       _messaging = messaging ?? FirebaseMessaging.instance;
 
   static final MessagingPushRegistration shared = MessagingPushRegistration();
 
@@ -18,7 +20,7 @@ class MessagingPushRegistration {
   StreamSubscription<RemoteMessage>? _openedSubscription;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   String? _sessionToken;
-  String? _registeredInstallationId;
+  String? _registeredToken;
   bool _sessionInitialized = false;
 
   Future<void> syncSession(
@@ -34,7 +36,7 @@ class MessagingPushRegistration {
       _openedSubscription = null;
       _foregroundSubscription = null;
       _sessionToken = null;
-      _registeredInstallationId = null;
+      _registeredToken = null;
       _sessionInitialized = false;
       return;
     }
@@ -56,12 +58,22 @@ class MessagingPushRegistration {
       return;
     }
 
-    _tokenSubscription = _messaging.onRegistered.listen((installationId) {
-      unawaited(_register(installationId, sessionToken));
+    // Direct FID registration currently returns SERVICE_NOT_AVAILABLE on the
+    // supported Android devices, so retain the compatible FCM token transport.
+    // ignore: deprecated_member_use
+    _tokenSubscription = _messaging.onTokenRefresh.listen((fcmToken) {
+      unawaited(_register(fcmToken, sessionToken));
     });
-    await _messaging.register();
+    // ignore: deprecated_member_use
+    final fcmToken = await _messaging.getToken();
+    if (fcmToken == null || fcmToken.isEmpty) {
+      throw StateError('Firebase Messaging không trả về registration token.');
+    }
+    await _register(fcmToken, sessionToken);
 
-    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((
+      message,
+    ) {
       onNotificationTap?.call(message);
     });
     _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
@@ -73,15 +85,16 @@ class MessagingPushRegistration {
   }
 
   Future<void> unregisterBeforeLogout(String sessionToken) async {
-    final installationId = _registeredInstallationId;
-    if (installationId == null || installationId.isEmpty) return;
+    final fcmToken = _registeredToken;
+    if (fcmToken == null || fcmToken.isEmpty) return;
     try {
       await _api.delete(
         _endpoint,
         token: sessionToken,
-        body: {'token': installationId, 'platform': 'ANDROID'},
+        body: {'token': fcmToken, 'platform': 'ANDROID'},
       );
-      await _messaging.unregister();
+      // ignore: deprecated_member_use
+      await _messaging.deleteToken();
     } finally {
       await _tokenSubscription?.cancel();
       await _openedSubscription?.cancel();
@@ -90,7 +103,7 @@ class MessagingPushRegistration {
       _openedSubscription = null;
       _foregroundSubscription = null;
       _sessionToken = null;
-      _registeredInstallationId = null;
+      _registeredToken = null;
       _sessionInitialized = false;
     }
   }
@@ -102,6 +115,6 @@ class MessagingPushRegistration {
       token: sessionToken,
       body: {'token': fcmToken, 'platform': 'ANDROID'},
     );
-    _registeredInstallationId = fcmToken;
+    _registeredToken = fcmToken;
   }
 }

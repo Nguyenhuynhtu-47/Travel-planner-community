@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/network/api_client.dart';
+import 'core/sync/app_sync_bus.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_notifier.dart';
@@ -12,6 +13,7 @@ import 'features/itinerary/presentation/screens/my_itineraries_screen.dart';
 import 'features/messaging/data/messaging_push_registration.dart';
 import 'features/messaging/data/messaging_realtime_client.dart';
 import 'features/messaging/presentation/screens/community_screen.dart';
+import 'features/notifications/presentation/screens/notifications_screen.dart';
 import 'features/profile/presentation/screens/profile_screen.dart';
 import 'features/splash/presentation/screens/splash_screen.dart';
 
@@ -27,7 +29,9 @@ Future<void> main() async {
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     } catch (_) {
-      debugPrint('[FCM] Firebase initialization unavailable; push is disabled.');
+      debugPrint(
+        '[FCM] Firebase initialization unavailable; push is disabled.',
+      );
     }
   }
   runApp(const MyApp());
@@ -76,26 +80,73 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   void _syncPushSession() {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android || Firebase.apps.isEmpty) return;
+    if (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android ||
+        Firebase.apps.isEmpty) {
+      return;
+    }
     final token = _authNotifier.isAuthenticated ? _authNotifier.token : null;
-    MessagingPushRegistration.shared.syncSession(
-      token,
-      onForegroundMessage: (message) {
-        final conversationId = int.tryParse(
-          message.data['conversationId']?.toString() ?? '',
-        );
-        MessagingRealtimeClient.shared.signalPushRefresh(conversationId);
-      },
-      onNotificationTap: (_) {
-        final navigator = _navigatorKey.currentState;
-        if (navigator == null) return;
-        navigator.push(MaterialPageRoute<void>(
-          builder: (_) => CommunityScreen(authNotifier: _authNotifier, initialTab: 0),
-        ));
-      },
-    ).catchError((_) {
-      debugPrint('[FCM] Device registration is unavailable.');
-    });
+    MessagingPushRegistration.shared
+        .syncSession(
+          token,
+          onForegroundMessage: (message) {
+            final pushType = message.data['type']?.toString();
+            if (pushType != 'MESSAGE_PUSH') {
+              AppSyncBus.requestRefresh(SyncDomain.notifications);
+              final notification = message.notification;
+              final text = notification?.body ?? notification?.title;
+              final messenger = ScaffoldMessenger.maybeOf(
+                _navigatorKey.currentState?.context ?? context,
+              );
+              if (text != null && text.isNotEmpty) {
+                messenger?.showSnackBar(
+                  SnackBar(
+                    content: Text(text),
+                    action: SnackBarAction(
+                      label: 'Xem',
+                      onPressed: () => _openNotificationCenter(),
+                    ),
+                  ),
+                );
+              }
+              return;
+            }
+            final conversationId = int.tryParse(
+              message.data['conversationId']?.toString() ?? '',
+            );
+            MessagingRealtimeClient.shared.signalPushRefresh(conversationId);
+          },
+          onNotificationTap: (message) {
+            if (message.data['type']?.toString() == 'MESSAGE_PUSH') {
+              final navigator = _navigatorKey.currentState;
+              if (navigator == null) return;
+              navigator.push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CommunityScreen(
+                    authNotifier: _authNotifier,
+                    initialTab: 0,
+                  ),
+                ),
+              );
+            } else {
+              _openNotificationCenter();
+            }
+          },
+        )
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('[FCM] Device registration is unavailable: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        });
+  }
+
+  void _openNotificationCenter() {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null || !_authNotifier.isAuthenticated) return;
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => NotificationsScreen(authNotifier: _authNotifier),
+      ),
+    );
   }
 
   @override
@@ -129,9 +180,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           child: child,
         );
       },
-      home: SplashScreen(
-        authNotifier: _authNotifier,
-      ),
+      home: SplashScreen(authNotifier: _authNotifier),
     );
   }
 }
