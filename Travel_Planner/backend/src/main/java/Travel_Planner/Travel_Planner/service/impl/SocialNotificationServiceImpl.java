@@ -6,12 +6,14 @@ import Travel_Planner.Travel_Planner.model.Friendship;
 import Travel_Planner.Travel_Planner.model.Post;
 import Travel_Planner.Travel_Planner.model.PostComment;
 import Travel_Planner.Travel_Planner.model.PostReport;
+import Travel_Planner.Travel_Planner.model.Itinerary;
 import Travel_Planner.Travel_Planner.model.User;
 import Travel_Planner.Travel_Planner.model.enums.NotificationActionType;
 import Travel_Planner.Travel_Planner.model.enums.NotificationTargetType;
 import Travel_Planner.Travel_Planner.model.enums.NotificationType;
 import Travel_Planner.Travel_Planner.model.enums.PostStatus;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
+import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
 import Travel_Planner.Travel_Planner.service.NotificationService;
 import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import org.springframework.stereotype.Service;
@@ -83,10 +85,15 @@ public class SocialNotificationServiceImpl implements SocialNotificationService 
                 ? comment.getItinerary().getUser()
                 : comment.getParentComment().getUser();
         boolean reply = comment.getParentComment() != null;
-        NotificationType type = reply ? NotificationType.COMMENT_REPLY : NotificationType.ITINERARY_COMMENT;
+        boolean activityComment = comment.getActivity() != null;
+        NotificationType type = reply ? NotificationType.COMMENT_REPLY
+                : activityComment ? NotificationType.ACTIVITY_COMMENT : NotificationType.ITINERARY_COMMENT;
         create(recipient, actor, type,
-                reply ? "Có người trả lời bình luận của bạn" : "Lịch trình của bạn có bình luận mới",
-                displayName(actor) + (reply ? " đã trả lời bình luận của bạn." : " đã bình luận lịch trình của bạn."),
+                reply ? "Có người trả lời bình luận của bạn"
+                        : activityComment ? "Hoạt động có bình luận mới" : "Lịch trình của bạn có bình luận mới",
+                displayName(actor) + (reply ? " đã trả lời bình luận của bạn."
+                        : activityComment ? " đã bình luận hoạt động trong lịch trình của bạn."
+                                : " đã bình luận lịch trình của bạn."),
                 NotificationTargetType.ITINERARY, comment.getItinerary().getItineraryId(),
                 (reply ? "itinerary-comment-reply:" : "itinerary-comment:") + comment.getCommentId());
     }
@@ -121,6 +128,24 @@ public class SocialNotificationServiceImpl implements SocialNotificationService 
                 NotificationActionType.POST_PURGED, "Bài viết đã bị gỡ khỏi hệ thống",
                 "Bài viết của bạn đã bị xóa vĩnh viễn sau khi kiểm duyệt.", NotificationTargetType.POST,
                 post.getPostId().toString(), "admin-post-purged:" + post.getPostId() + ":" + UUID.randomUUID());
+    }
+
+    @Override
+    public void itineraryModerationTransition(Itinerary itinerary, User admin, ItineraryStatus previousStatus,
+            ItineraryStatus nextStatus, String publicReason) {
+        if (itinerary == null || itinerary.getUser() == null || itinerary.getItineraryId() == null
+                || itinerary.getUser().getUserId() == null || admin == null || admin.getUserId() == null
+                || previousStatus == nextStatus
+                || (nextStatus != ItineraryStatus.HIDDEN && nextStatus != ItineraryStatus.ACTIVE)) return;
+        NotificationActionType action = nextStatus == ItineraryStatus.HIDDEN
+                ? NotificationActionType.ITINERARY_HIDDEN : NotificationActionType.ITINERARY_RESTORED;
+        String body = nextStatus == ItineraryStatus.HIDDEN
+                ? "Lịch trình của bạn đã bị ẩn sau khi kiểm duyệt."
+                : "Lịch trình của bạn đã được khôi phục.";
+        notifications.createAdminAction(itinerary.getUser().getUserId(), admin.getUserId(), action,
+                "Cập nhật về lịch trình", appendPublicReason(body, publicReason),
+                NotificationTargetType.ITINERARY, itinerary.getItineraryId().toString(),
+                "admin-itinerary:" + itinerary.getItineraryId() + ":" + action + ":" + UUID.randomUUID());
     }
 
     @Override

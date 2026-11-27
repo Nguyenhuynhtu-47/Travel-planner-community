@@ -7,6 +7,7 @@ import Travel_Planner.Travel_Planner.model.enums.NotificationActionType;
 import Travel_Planner.Travel_Planner.model.enums.PostStatus;
 import Travel_Planner.Travel_Planner.model.enums.ReportStatus;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
+import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
 import Travel_Planner.Travel_Planner.service.NotificationService;
 import Travel_Planner.Travel_Planner.service.impl.SocialNotificationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,8 +97,25 @@ class SocialNotificationServiceImplTest {
         ItineraryDay day = new ItineraryDay(); day.setItinerary(itinerary); activity.setItineraryDay(day);
         Comment comment = Comment.builder().commentId(33).user(actor).itinerary(itinerary).activity(activity).build();
         service.itineraryComment(comment);
-        verify(notifications).create(eq(13), eq(12), eq(NotificationType.ITINERARY_COMMENT), anyString(),
+        verify(notifications).create(eq(13), eq(12), eq(NotificationType.ACTIVITY_COMMENT), anyString(),
                 anyString(), eq(NotificationTargetType.ITINERARY), eq("25"), eq("itinerary-comment:33"));
+    }
+
+    @Test void itineraryModerationNotifiesOwnerWhenAdminHidesOrRestoresIt() {
+        User owner = user(14, "Itinerary owner");
+        User admin = user(15, "Admin");
+        Itinerary itinerary = new Itinerary(); itinerary.setItineraryId(26); itinerary.setUser(owner);
+
+        service.itineraryModerationTransition(
+                itinerary, admin, ItineraryStatus.ACTIVE, ItineraryStatus.HIDDEN, "Vi phạm nội dung");
+
+        verify(notifications).createAdminAction(eq(14), eq(15), eq(NotificationActionType.ITINERARY_HIDDEN),
+                anyString(), contains("Vi phạm nội dung"), eq(NotificationTargetType.ITINERARY), eq("26"), anyString());
+        reset(notifications);
+        service.itineraryModerationTransition(
+                itinerary, admin, ItineraryStatus.HIDDEN, ItineraryStatus.ACTIVE, null);
+        verify(notifications).createAdminAction(eq(14), eq(15), eq(NotificationActionType.ITINERARY_RESTORED),
+                anyString(), contains("khôi phục"), eq(NotificationTargetType.ITINERARY), eq("26"), anyString());
     }
 
     @Test void followEventUsesPersistedFollowIdAndSuppressesInactiveRecipient() {

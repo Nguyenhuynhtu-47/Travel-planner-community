@@ -10,6 +10,8 @@ public enum NotificationActionType {
     POST_REMOVED,
     POST_RESTORED,
     POST_PURGED,
+    ITINERARY_HIDDEN,
+    ITINERARY_RESTORED,
     REPORT_RESOLVED,
     REPORT_DISMISSED
 }

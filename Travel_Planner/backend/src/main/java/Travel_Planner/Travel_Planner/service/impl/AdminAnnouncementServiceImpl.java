@@ -13,6 +13,8 @@ import Travel_Planner.Travel_Planner.repository.SystemAnnouncementRepository;
 import Travel_Planner.Travel_Planner.repository.UserRepository;
 import Travel_Planner.Travel_Planner.service.AdminAnnouncementService;
 import Travel_Planner.Travel_Planner.service.AuditLogService;
+import Travel_Planner.Travel_Planner.service.NotificationPushListener.AnnouncementEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,8 +26,10 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
     private final SystemAnnouncementRepository repository;
     private final UserRepository users;
     private final AuditLogService audit;
-    public AdminAnnouncementServiceImpl(SystemAnnouncementRepository repository, UserRepository users, AuditLogService audit) {
-        this.repository = repository; this.users = users; this.audit = audit;
+    private final ApplicationEventPublisher events;
+    public AdminAnnouncementServiceImpl(SystemAnnouncementRepository repository, UserRepository users,
+            AuditLogService audit, ApplicationEventPublisher events) {
+        this.repository = repository; this.users = users; this.audit = audit; this.events = events;
     }
 
     @Override @Transactional(readOnly = true)
@@ -65,6 +69,7 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
         if (a.getStatus() != AnnouncementStatus.DRAFT) throw new BadRequestException("Announcement không còn ở trạng thái nháp");
         validateExpiry(a.getExpiresAt()); a.setStatus(AnnouncementStatus.PUBLISHED); a.setPublishedAt(LocalDateTime.now());
         log(AuditActionType.ANNOUNCEMENT_PUBLISH, a, username);
+        events.publishEvent(new AnnouncementEvent(a.getAnnouncementId(), a.getTitle(), a.getBody()));
         return AdminAnnouncementResponse.from(a);
     }
 

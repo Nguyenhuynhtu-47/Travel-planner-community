@@ -11,6 +11,7 @@ import Travel_Planner.Travel_Planner.model.enums.*;
 import Travel_Planner.Travel_Planner.repository.*;
 import Travel_Planner.Travel_Planner.service.AdminItineraryService;
 import Travel_Planner.Travel_Planner.service.AuditLogService;
+import Travel_Planner.Travel_Planner.service.SocialNotificationService;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -36,6 +37,7 @@ public class AdminItineraryServiceImpl implements AdminItineraryService {
     private final PostReportRepository postReportRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final SocialNotificationService socialNotifications;
 
     public AdminItineraryServiceImpl(
             ItineraryRepository itineraryRepository,
@@ -43,13 +45,15 @@ public class AdminItineraryServiceImpl implements AdminItineraryService {
             ActivityRepository activityRepository,
             PostReportRepository postReportRepository,
             UserRepository userRepository,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            SocialNotificationService socialNotifications) {
         this.itineraryRepository = itineraryRepository;
         this.itineraryDayRepository = itineraryDayRepository;
         this.activityRepository = activityRepository;
         this.postReportRepository = postReportRepository;
         this.userRepository = userRepository;
         this.auditLogService = auditLogService;
+        this.socialNotifications = socialNotifications;
     }
 
     @Override
@@ -193,6 +197,9 @@ public class AdminItineraryServiceImpl implements AdminItineraryService {
                 .resultStatus(AuditResultStatus.SUCCESS)
                 .expectedActorUsername(actor.getUsername())
                 .build());
+
+        socialNotifications.itineraryModerationTransition(
+                itinerary, actor, previousStatus, itinerary.getStatus(), trimmedReason);
 
         return ItineraryAdminResponse.from(itinerary);
     }

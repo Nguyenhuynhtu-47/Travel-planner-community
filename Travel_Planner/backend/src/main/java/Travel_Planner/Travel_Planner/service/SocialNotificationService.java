@@ -7,6 +7,8 @@ import Travel_Planner.Travel_Planner.model.Post;
 import Travel_Planner.Travel_Planner.model.PostComment;
 import Travel_Planner.Travel_Planner.model.User;
 import Travel_Planner.Travel_Planner.model.PostReport;
+import Travel_Planner.Travel_Planner.model.Itinerary;
+import Travel_Planner.Travel_Planner.model.enums.ItineraryStatus;
 import Travel_Planner.Travel_Planner.model.enums.PostStatus;
 import Travel_Planner.Travel_Planner.model.enums.UserStatus;
 
@@ -29,6 +31,9 @@ public interface SocialNotificationService {
             PostStatus nextStatus, String publicReason);
 
     void postPurged(Post post, User admin);
+
+    void itineraryModerationTransition(Itinerary itinerary, User admin, ItineraryStatus previousStatus,
+            ItineraryStatus nextStatus, String publicReason);
 
     void accountModerationTransition(User recipient, User admin, UserStatus previousStatus,
             UserStatus nextStatus, String publicReason);
